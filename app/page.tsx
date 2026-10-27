@@ -68,7 +68,7 @@ export default function HomePage() {
               </span>
             ))}
           </h1>
-          <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted sm:text-xl">
+          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-balance text-muted sm:text-xl">
             {progress.dek}
           </p>
         </div>
@@ -89,7 +89,7 @@ export default function HomePage() {
             </div>
             <h2
               id="next-title"
-              className="mt-4 max-w-[18ch] font-serif text-4xl leading-[1.02] tracking-[-0.03em] sm:text-6xl"
+              className="mt-4 max-w-[16ch] font-serif text-4xl leading-[1.02] tracking-[-0.03em] text-balance sm:text-6xl"
             >
               {progress.next.title}
             </h2>
@@ -117,7 +117,7 @@ export default function HomePage() {
           <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">
             {progress.bottleneck.kicker}
           </p>
-          <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
+          <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-end lg:gap-16">
             <h2
               id="bottleneck-title"
               className="font-serif text-5xl leading-none tracking-[-0.03em] sm:text-6xl"
@@ -170,7 +170,7 @@ export default function HomePage() {
               return (
                 <li
                   key={track.index}
-                  className={`grid gap-3 border-b border-line py-6 sm:grid-cols-[4.5rem_minmax(0,1.15fr)_max-content_minmax(0,1fr)] sm:items-baseline sm:gap-6 ${
+                  className={`grid grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1 border-b border-line py-6 lg:grid-cols-[4.5rem_minmax(0,1.15fr)_max-content_minmax(0,1fr)] lg:gap-x-8 ${
                     live ? "shadow-[inset_3px_0_0_0_var(--color-lime)]" : ""
                   }`}
                 >
@@ -179,9 +179,13 @@ export default function HomePage() {
                   >
                     {track.index}
                   </span>
-                  <h3 className="font-serif text-2xl tracking-[-0.02em] sm:text-3xl">{track.title}</h3>
-                  <StatusMark status={track.status} label={track.statusLabel} />
-                  <p className="max-w-sm text-muted">{track.summary}</p>
+                  <h3 className="min-w-0 font-serif text-2xl tracking-[-0.02em] lg:text-3xl">
+                    {track.title}
+                  </h3>
+                  <div className="col-start-2 lg:col-start-3">
+                    <StatusMark status={track.status} label={track.statusLabel} />
+                  </div>
+                  <p className="col-start-2 max-w-sm min-w-0 text-muted lg:col-start-4">{track.summary}</p>
                 </li>
               );
             })}
@@ -206,21 +210,25 @@ export default function HomePage() {
                   {progress.missing.title}
                 </h2>
               </div>
-              <p className="max-w-xs text-muted sm:text-right">{progress.missing.intro}</p>
+              <p className="font-mono text-[11px] tracking-[0.16em] text-gap uppercase">
+                {progress.missing.items.length} open
+              </p>
             </div>
             <ol className="mt-10">
               {progress.missing.items.map((item, index) => (
                 <li
                   key={item.title}
-                  className="grid gap-3 border-b border-line py-7 sm:grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,0.9fr)] sm:items-baseline sm:gap-8"
+                  className="grid grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-x-4 gap-y-2 border-b border-line py-7 lg:grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,0.9fr)] lg:gap-x-8"
                 >
                   <span className="font-mono text-sm tracking-[0.14em] text-gap">
                     {String(index + 1).padStart(2, "0")}
                   </span>
-                  <h3 className="font-serif text-2xl leading-tight tracking-[-0.02em] sm:text-3xl">
+                  <h3 className="min-w-0 font-serif text-2xl leading-tight tracking-[-0.02em] lg:text-3xl">
                     {item.title}
                   </h3>
-                  <p className="leading-relaxed text-muted">{item.detail}</p>
+                  <p className="col-start-2 min-w-0 leading-relaxed text-muted lg:col-start-3">
+                    {item.detail}
+                  </p>
                 </li>
               ))}
             </ol>
