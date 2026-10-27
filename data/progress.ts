@@ -21,11 +21,12 @@ export const progress = {
   project: "Computer-use optimisation",
   asOf: "27 October 2026",
   sourceFile: "data/progress.ts",
-  headline: "Stuck on agent calls.",
+  headline: "Stuck on\nagent calls.",
   dek: "Two levers: when an agent must be called, and which agent is called.",
   next: {
     id: "next",
     kicker: "What to do next",
+    aside: "Before tracks 2 and 3",
     title: "Get a baseline before changing the call policy.",
     body: "There is no log of current agent calls, and no computer-use agent code in this repo. Changing when an agent is called, or which agent is called, would be a guess.",
     steps: [
@@ -100,7 +101,7 @@ export const progress = {
     id: "missing",
     kicker: "What's missing",
     title: "What's missing",
-    intro: "These gaps sit on their own so they are not easy to skip.",
+    intro: "Open items, in one list.",
     items: [
       {
         title: "No baseline of current agent calls",
