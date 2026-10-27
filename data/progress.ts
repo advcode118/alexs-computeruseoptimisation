@@ -1,5 +1,6 @@
 /**
  * All progress copy lives here. Edit this file to update the site.
+ * A newline in `headline` is a line break on the page.
  */
 
 export type TrackStatus = "in_progress" | "not_started";
