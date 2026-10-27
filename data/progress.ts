@@ -101,7 +101,6 @@ export const progress = {
     id: "missing",
     kicker: "What's missing",
     title: "What's missing",
-    intro: "Open items, in one list.",
     items: [
       {
         title: "No baseline of current agent calls",
