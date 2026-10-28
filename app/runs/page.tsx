@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Measured runs — Computer-use optimisation",
   description:
-    "Two timed router runs. The 36s, 48s, and 17s figures on the clock are sketches.",
+    "Timed router runs. The 36s, 48s, and 17s figures on the clock are sketches.",
 };
 
 const sketches = [
@@ -34,7 +34,7 @@ export default function RunsPage() {
       <main className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
         <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">Measured</p>
         <h1 className="mt-4 max-w-[16ch] font-serif text-6xl leading-[0.9] tracking-[-0.03em] sm:text-7xl">
-          Two runs on this router.
+          Five runs on this router.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
           Wall-clock time includes launching Chrome. The bars on the clock page were not remeasured.
@@ -58,6 +58,36 @@ export default function RunsPage() {
               <p className="mt-2 max-w-xl text-muted">
                 Open the page and confirm the heading. Tiers: planner, fast, planner. The fast check
                 missed. One retry confirmed the title.
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">3.81s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Biography section</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Open the Biography section on the Ada Lovelace article and confirm the title. Tiers:
+                planner, direct, planner. The direct check missed. One retry confirmed the title.
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">2.30s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Wikiquote search</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Search for quincunx and confirm the title. Tiers: planner, then direct. The search box
+                was filled and Search was clicked. No retry.
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">2.55s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Charles Babbage</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Follow the Charles Babbage link on the Ada Lovelace article and confirm the title.
+                Tiers: planner, then direct. No retry.
               </p>
             </div>
           </li>
