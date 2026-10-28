@@ -200,9 +200,10 @@ def test_stop_skips_actions_after_the_planner_returns():
         runner.close()
 
 
-def test_failed_assertion_stops_before_the_next_step():
+def test_failed_assertion_retries_once_then_stops():
     batches = [
         ActionBatch("Open the list.", [Goto(FIXTURE)], AssertTitle("Missing title"), False),
+        ActionBatch("Retry still wrong.", [Goto(FIXTURE)], AssertTitle("Still missing"), False),
         ActionBatch("Should not run.", [Fill("e1", "milk")], None, True),
     ]
     planner = ScriptPlanner(batches)
@@ -212,8 +213,152 @@ def test_failed_assertion_stops_before_the_next_step():
         runner.start(DEMO_TASK, "fake")
         snapshot = wait_mode(runner, "failed")
         assert "Assertion failed" in snapshot["detail"]
-        assert planner.index == 1
+        assert planner.index == 2
+        failed = [event for event in runner.log.snapshot() if event["kind"] == "assert" and not event["ok"]]
+        assert len(failed) == 2
         assert not any("fill" in event.get("action", "") for event in runner.log.snapshot())
+        tiers = [event.get("tier") for event in runner.log.snapshot() if event["kind"] == "plan"]
+        assert tiers == ["planner", "planner"]
+    finally:
+        runner.close()
+
+
+def test_failed_assertion_can_succeed_on_the_retry():
+    batches = [
+        ActionBatch("Wrong title.", [Goto(FIXTURE)], AssertTitle("Missing title"), False),
+        ActionBatch("Open the list.", [Goto(FIXTURE)], AssertTitle("Packing list"), True),
+        ActionBatch("Should not run.", [Fill("e1", "milk")], None, True),
+    ]
+    planner = ScriptPlanner(batches)
+    runner = Runner(fixture_url=FIXTURE, headless=True, planner_factory=lambda name, url: planner)
+    runner.open()
+    try:
+        runner.start(DEMO_TASK, "fake")
+        snapshot = wait_mode(runner, "done")
+        assert "Open the list." in snapshot["detail"]
+        assert planner.index == 2
+        assert not any("fill" in event.get("action", "") for event in runner.log.snapshot())
+    finally:
+        runner.close()
+
+
+def test_router_clicks_a_unique_named_ref_and_retries_with_the_planner():
+    class Claude:
+        def __init__(self):
+            self.calls = 0
+
+        def reset(self):
+            return None
+
+        def plan(self, task, observation, history):
+            del task, observation, history
+            self.calls += 1
+            if self.calls == 1:
+                return ActionBatch("Open the packing list.", [Goto(FIXTURE)], AssertTitle("Packing list"), False)
+            if self.calls == 2:
+                return ActionBatch("The title is the packing list.", [Goto(FIXTURE)], AssertTitle("Packing list"), True)
+            raise AssertionError("Claude ran more than the first cycle and one retry")
+
+    class Fast:
+        def __init__(self):
+            self.calls = 0
+            self.lists = []
+
+        def reset(self):
+            return None
+
+        def plan(self, task, controls, history):
+            del task, history
+            self.calls += 1
+            self.lists.append([control.name for control in controls])
+            item = next(control.ref for control in controls if control.name == "Item")
+            add = next(control.ref for control in controls if control.name == "Add")
+            if self.calls == 1:
+                return ActionBatch("Type milk.", [Fill(item, "milk")], None, False)
+            return ActionBatch("Add milk.", [Click(add)], AssertText("milk"), True)
+
+    class Routed:
+        use_router = True
+
+        def __init__(self):
+            self.claude = Claude()
+            self.fast = Fast()
+
+        def reset(self):
+            self.claude.reset()
+            self.fast.reset()
+
+    routed = Routed()
+    runner = Runner(fixture_url=FIXTURE, headless=True, planner_factory=lambda name, url: routed)
+    runner.open()
+    try:
+        runner.start(DEMO_TASK, "model")
+        snapshot = wait_mode(runner, "done")
+        assert "Add milk." in snapshot["detail"]
+        tiers = [event["tier"] for event in runner.log.snapshot() if event["kind"] == "plan"]
+        assert tiers[0] == "planner"
+        assert "direct" in tiers
+        assert "fast" in tiers
+        assert routed.claude.calls == 1
+        assert routed.fast.calls == 2
+        assert "Item" in routed.fast.lists[0] and "Add" in routed.fast.lists[0]
+        text = "\n".join(event["line"] for event in runner.log.snapshot())
+        assert "direct" in text
+        assert "click" in text
+        assert "assert   ok" in text
+    finally:
+        runner.close()
+
+
+def test_router_retry_calls_the_planner_once_then_stops():
+    class Claude:
+        def __init__(self):
+            self.calls = 0
+
+        def reset(self):
+            return None
+
+        def plan(self, task, observation, history):
+            del task, observation, history
+            self.calls += 1
+            if self.calls > 2:
+                raise AssertionError("Claude ran after the single retry")
+            title = "Missing title" if self.calls == 1 else "Still missing"
+            return ActionBatch("Wrong page.", [Goto(FIXTURE)], AssertTitle(title), False)
+
+    class Fast:
+        def __init__(self):
+            self.calls = 0
+
+        def reset(self):
+            return None
+
+        def plan(self, task, controls, history):
+            del task, controls, history
+            self.calls += 1
+            raise AssertionError("The retry must call the planner, not the fast tier")
+
+    class Routed:
+        use_router = True
+
+        def __init__(self):
+            self.claude = Claude()
+            self.fast = Fast()
+
+        def reset(self):
+            return None
+
+    routed = Routed()
+    runner = Runner(fixture_url=FIXTURE, headless=True, planner_factory=lambda name, url: routed)
+    runner.open()
+    try:
+        runner.start(DEMO_TASK, "model")
+        snapshot = wait_mode(runner, "failed")
+        assert "Assertion failed" in snapshot["detail"]
+        assert routed.claude.calls == 2
+        assert routed.fast.calls == 0
+        tiers = [event["tier"] for event in runner.log.snapshot() if event["kind"] == "plan"]
+        assert tiers == ["planner", "planner"]
     finally:
         runner.close()
 

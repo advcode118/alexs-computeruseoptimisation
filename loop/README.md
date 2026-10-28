@@ -1,6 +1,6 @@
 # Browser loop
 
-One local process. Playwright attaches to Chrome, observes the page, and runs a batch of actions from one planner call. There is no tier router, skill memory, or model-cost policy.
+One local process. Playwright attaches to Chrome, observes the page, and runs a batch of actions. Each cycle logs a tier: `direct`, `fast`, or `planner`.
 
 ## Demo
 
@@ -19,7 +19,7 @@ What you can control:
 | --- | --- |
 | Start | Run the task. The loop keeps going until it finishes, fails, or you pause or stop it. |
 | Pause | Finish the current action, then wait before the next planner call. Start continues. |
-| Step | Run one planner call (observe, a batch of actions, then the assertion) and wait. |
+| Step | Run one cycle (observe, one tier, a batch of actions, then the assertion) and wait. |
 | Stop | End this run. The log stays. Start begins a new one. |
 
 The page and the terminal show each observe (url, title, control refs) and each act.
@@ -48,18 +48,23 @@ python -m loop demo --cdp http://127.0.0.1:9222
 
 Stop and quitting this process disconnect Playwright. They do not quit that Chrome.
 
-## Model planner
+## Router
 
-The fake planner is the default. The model planner is one OpenAI-compatible chat completion per cycle. It returns the same action batch (`goto`, `click`, `fill`, `press`, `scroll`) plus an assertion. The default model is `gpt-4o-mini`.
+The fake planner is the default and needs no key. **Model** on the control page, or `python -m loop run --planner model`, uses the router.
+
+- **direct** — the previous batch named a ref, and exactly one control has that role and name. The loop clicks it and skips the model. The first cycle of a task always calls a model. `find_ref` is the first match; this tier counts matches, so two controls with the same role and name are not a direct click.
+- **fast** — one OpenAI-compatible call on that short list. No screenshot. Reads `NEBIUS_API_KEY`, `NEBIUS_BASE_URL`, and `NEBIUS_FAST_MODEL`. If the model name is empty, the loop tries `deepseek-ai/DeepSeek-V4.1-Flash-1017` and `Qwen/Qwen3-30B-A3B-Instruct-2507` and keeps the first valid action batch.
+- **planner** — Claude Haiku `claude-haiku-4-5-20251001` on the first cycle and on one retry after a failed assertion. It is not called on every click.
+
+If `/cursor/stores/self/docs/step5.env.example` is present, those values are used. Otherwise the variables come from the environment. Do not commit a filled key file.
 
 ```bash
-export LOOP_API_KEY=...          # or OPENAI_API_KEY
-export LOOP_BASE_URL=https://api.openai.com/v1   # optional
-export LOOP_MODEL=gpt-4o-mini                     # optional
+export ANTHROPIC_API_KEY=...
+export NEBIUS_API_KEY=...
+export NEBIUS_BASE_URL=https://api.studio.nebius.com/v1   # optional
+export NEBIUS_FAST_MODEL=                                  # optional; empty races the small models
 python -m loop demo
 ```
-
-Choose **Model** on the control page, or run `python -m loop run --planner model`.
 
 ## Actions
 
@@ -71,7 +76,7 @@ Choose **Model** on the control page, or run `python -m loop run --planner model
 | `press` | `key`, optional `ref` |
 | `scroll` | `direction` `up` or `down`, optional `amount`, optional `ref` |
 
-An assertion between planner calls is `url`, `title`, or `text`. A failed assertion stops the run and is written in the log.
+An assertion between cycles is `url`, `title`, or `text`. A failed assertion is written in the log and the loop runs one more cycle. A second failure stops the run.
 
 ## Tests
 

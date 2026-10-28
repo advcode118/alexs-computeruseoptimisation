@@ -5,8 +5,9 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timezone
 
-from loop.actions import Action, ActionBatch, ActionError, Assertion, Observation, PlannerError
+from loop.actions import Action, ActionBatch, ActionError, Assertion, Click, Observation, PlannerError
 from loop.browser import BrowserSession, act, check, observe
+from loop.planner import route_decision
 
 
 class Log:
@@ -54,11 +55,11 @@ class Log:
             controls=[control.to_dict() for control in observation.controls],
         )
 
-    def plan(self, batch: ActionBatch) -> None:
+    def plan(self, batch: ActionBatch, *, tier: str = "planner") -> None:
         actions = ", ".join(action.summary() for action in batch.actions) or "(none)"
         assertion = batch.assertion.summary() if batch.assertion else "none"
-        line = f"plan     {batch.reason or '(no reason)'}  actions: {actions}  assert: {assertion}"
-        self._add("plan", line, done=batch.done, reason=batch.reason)
+        line = f"plan     {tier:<7} {batch.reason or '(no reason)'}  actions: {actions}  assert: {assertion}"
+        self._add("plan", line, done=batch.done, reason=batch.reason, tier=tier)
 
     def act(self, action: Action, *, ok: bool, error: str | None = None) -> None:
         status = "ok" if ok else f"failed: {error}"
@@ -209,11 +210,17 @@ class Controller:
             self._cv.notify_all()
 
 
-def _history_item(batch: ActionBatch, assertion_ok: bool | None, assertion_detail: str | None) -> dict:
+def _history_item(
+    batch: ActionBatch,
+    assertion_ok: bool | None,
+    assertion_detail: str | None,
+    tier: str,
+) -> dict:
     item = {
         "reason": batch.reason,
         "actions": [action.summary() for action in batch.actions],
         "done": batch.done,
+        "tier": tier,
     }
     if assertion_detail is not None:
         item["assertion"] = {"ok": assertion_ok, "detail": assertion_detail}
@@ -228,6 +235,44 @@ class Engine:
         self.max_cycles = max_cycles
         self.planner = None
         self.history: list[dict] = []
+        self._previous_batch: ActionBatch | None = None
+        self._previous_observation: Observation | None = None
+        self._retries_used = 0
+        self._awaiting_retry = False
+
+    def reset_run(self) -> None:
+        self.history = []
+        self._previous_batch = None
+        self._previous_observation = None
+        self._retries_used = 0
+        self._awaiting_retry = False
+
+    def _remember(self, observation: Observation, batch: ActionBatch) -> None:
+        self._previous_observation = observation
+        self._previous_batch = batch
+
+    def _next_batch(self, observation: Observation, *, retry: bool) -> tuple[str, ActionBatch]:
+        task = self.controller.current_task()
+        if not getattr(self.planner, "use_router", False):
+            return "planner", self.planner.plan(task, observation, self.history)
+        tier, short = route_decision(
+            first=not self.history,
+            retry=retry,
+            previous_batch=self._previous_batch,
+            previous_observation=self._previous_observation,
+            observation=observation,
+        )
+        if tier == "direct":
+            control = short[0]
+            return tier, ActionBatch(
+                reason=f"Click the only {control.role} named {control.name}.",
+                actions=[Click(control.ref)],
+                assertion=None,
+                done=False,
+            )
+        if tier == "fast":
+            return tier, self.planner.fast.plan(task, short, self.history)
+        return "planner", self.planner.claude.plan(task, observation, self.history)
 
     def run(self) -> None:
         if self.session.page is None or self.planner is None:
@@ -247,13 +292,15 @@ class Engine:
                 if self.controller.should_stop():
                     self.controller.finish("stopped", "Stopped.")
                     return
+                retry = self._awaiting_retry
+                self._awaiting_retry = False
                 try:
-                    batch = self.planner.plan(self.controller.current_task(), observation, self.history)
+                    tier, batch = self._next_batch(observation, retry=retry)
                 except PlannerError as exc:
                     self.log.error(str(exc))
                     self.controller.finish("failed", str(exc))
                     return
-                self.log.plan(batch)
+                self.log.plan(batch, tier=tier)
                 if self.controller.should_stop():
                     self.controller.finish("stopped", "Stopped before the actions ran.")
                     return
@@ -273,10 +320,18 @@ class Engine:
                 if batch.assertion is not None:
                     assertion_ok, assertion_detail = self._assert(batch.assertion)
                     if not assertion_ok:
-                        self.history.append(_history_item(batch, assertion_ok, assertion_detail))
-                        self.controller.finish("failed", assertion_detail or "Assertion failed.")
-                        return
-                self.history.append(_history_item(batch, assertion_ok, assertion_detail))
+                        self.history.append(_history_item(batch, assertion_ok, assertion_detail, tier))
+                        self._remember(observation, batch)
+                        cycles += 1
+                        if self._retries_used >= 1:
+                            self.controller.finish("failed", assertion_detail or "Assertion failed.")
+                            return
+                        self._retries_used += 1
+                        self._awaiting_retry = True
+                        self.controller.end_cycle()
+                        continue
+                self.history.append(_history_item(batch, assertion_ok, assertion_detail, tier))
+                self._remember(observation, batch)
                 cycles += 1
                 if batch.done:
                     self.controller.finish("done", batch.reason or "Done.")
@@ -287,7 +342,7 @@ class Engine:
             self.log.error(message)
             self.controller.finish("failed", message)
             return
-        self.controller.finish("failed", f"Stopped after {self.max_cycles} planner calls.")
+        self.controller.finish("failed", f"Stopped after {self.max_cycles} cycles.")
 
     def _assert(self, assertion: Assertion) -> tuple[bool, str]:
         ok, detail = check(self.session.page, assertion)
@@ -349,7 +404,7 @@ class Runner:
                         self.controller.finish("stopped", "Stopped.")
                         continue
                     self.log.clear()
-                    self.engine.history = []
+                    self.engine.reset_run()
                     try:
                         self.engine.planner = self._new_planner()
                     except PlannerError as exc:
