@@ -24,7 +24,7 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Computer-use optimisation",
   description:
-    "Where the work is stuck, what to do next, and what is still missing.",
+    "Where computer-use time goes, three places to stand, and the open ways to run the owned loop. The clock is a sketch.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
