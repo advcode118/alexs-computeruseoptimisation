@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The model looks again</title>
+    <meta
+      name="description"
+      content="A working sheet for two founders: where computer-use time goes, three ways to stand in the loop, and a build you can mark up."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="sheet">
+      <header class="mast">
+        <p>Computer use optimisation</p>
+        <p>27 Oct 2026</p>
+      </header>
+
+      <h1>The model looks again<br />before it is willing to click.</h1>
+      <p class="dek">
+        Cursor on Windows, Operator, Claude in Chrome, and the other frontier
+        models share one loop. Picture, model, click, picture. This clock is a
+        scale model of a single invoice export. The numbers are a sketch.
+      </p>
+
+      <nav class="jumps" aria-label="On this sheet">
+        <a href="#clock">Clock</a>
+        <a href="#routes">Three routes</a>
+        <a href="#ways">Ways to run it</a>
+        <a href="#gaps">Gaps</a>
+      </nav>
+
+      <div class="toolbar">
+        <p id="surface-label">First build acts on</p>
+        <div class="segment" role="group" aria-labelledby="surface-label">
+          <button type="button" data-surface="browser" aria-pressed="true">Browser</button>
+          <button type="button" data-surface="windows" aria-pressed="false">Windows desktop</button>
+        </div>
+      </div>
+
+      <figure class="trace" id="clock">
+        <p class="task-name">Export last month’s invoices, from a logged-in billing page.</p>
+        <ul class="legend">
+          <li><span class="swatch model" aria-hidden="true"></span>Model call</li>
+          <li><span class="swatch act" aria-hidden="true"></span>Acting on the control</li>
+          <li><span class="swatch settle" aria-hidden="true"></span>Page settling</li>
+        </ul>
+        <div class="chart-scroll">
+          <div class="chart" id="chart"></div>
+        </div>
+        <p id="trace-text" class="sr-only"></p>
+        <figcaption>
+          Time runs to the right, on one scale. The thin ticks between the red
+          bars are the clicks. Interception is missing from the clock on purpose:
+          it would sit a fraction under the first two lanes, and the bars would
+          barely move. These lengths are a sketch, not a measurement on this
+          machine. The owned lane is one sketch of a single plan and then the
+          clicks. It is not a timing of the ways below.
+        </figcaption>
+      </figure>
+
+      <section id="routes">
+        <h2>Three places to stand</h2>
+        <p class="lede">
+          Same task, three owners of the clock. The hatch is a screenshot loop
+          that is still running.
+        </p>
+
+        <article class="route recommended">
+          <div>
+            <h3>Own the loop</h3>
+            <p class="recommend">Recommended</p>
+          </div>
+          <div>
+            <div class="stages">
+              <div class="stage">
+                <strong>Task</strong>
+                <p>The person asks for the export.</p>
+              </div>
+              <div class="stage model">
+                <strong>Planner</strong>
+                <p>One frontier model writes a batch of verbs from the tree.</p>
+              </div>
+              <div class="stage">
+                <strong>Act</strong>
+                <p data-for="browser">The executor uses the numbered control. The pointer stays put.</p>
+                <p data-for="windows">The executor invokes the control, or moves the pointer when it cannot.</p>
+              </div>
+              <div class="stage">
+                <strong>Assert</strong>
+                <p>The file name, the URL, or the heading says it worked.</p>
+              </div>
+              <div class="stage">
+                <strong>Person</strong>
+                <p>If the batch fails, or the action can pay or send, a person takes the step.</p>
+              </div>
+            </div>
+            <p class="ceiling">
+              We take responsibility for whether the export happened. This is the
+              only place to stand that removes the repeated model calls.
+            </p>
+          </div>
+        </article>
+
+        <article class="route">
+          <div>
+            <h3>Tools only</h3>
+          </div>
+          <div>
+            <div class="stages">
+              <div class="stage model">
+                <strong>Their agent</strong>
+                <p>Cursor, a browser agent, or another frontier model still decides.</p>
+              </div>
+              <div class="stage">
+                <strong>Our verbs</strong>
+                <p>Observe, click 12, fill, assert. The same language as the owned loop.</p>
+              </div>
+              <div class="stage unbroken">
+                <strong>If they refuse</strong>
+                <p>They keep taking screenshots, and their loop continues at the old length.</p>
+              </div>
+            </div>
+            <p class="ceiling">
+              This speeds agents that call the verbs. It is also the first slice of
+              owning the loop: ship the verbs, then put our planner on top of them.
+            </p>
+          </div>
+        </article>
+
+        <article class="route">
+          <div>
+            <h3>Intercept</h3>
+          </div>
+          <div>
+            <div class="stages">
+              <div class="stage model">
+                <strong>Their agent</strong>
+                <p>Unchanged. It still wants a picture before each click.</p>
+              </div>
+              <div class="stage">
+                <strong>Our socket</strong>
+                <p>We shorten the capture and can replay a path we have already seen.</p>
+              </div>
+              <div class="stage model unbroken">
+                <strong>Their model, again</strong>
+                <p>The long bars stay. We do not choose the model.</p>
+              </div>
+            </div>
+            <p class="ceiling">
+              A few hundred milliseconds a step. This does not grow into the owned
+              loop, because the clock still belongs to their model.
+            </p>
+          </div>
+        </article>
+      </section>
+
+      <section id="ways">
+        <h2>Ways to run the owned loop</h2>
+        <p class="lede">
+          Computer use is slow because each step re-sees the screen with a large
+          model and holds the pointer. Owning the loop, shape 1, is the place to
+          stand. These are different ways to take a step inside it. None of them
+          is settled.
+        </p>
+        <p class="lede">
+          The surface is still open: the browser if the pointer should stay put,
+          the Windows desktop if the pain is Cursor on this PC. The switch on the
+          clock changes that picture. The lengths on the clock are a sketch, a
+          scale model of one export, not a measurement on this machine, and they
+          do not price these ways.
+        </p>
+        <div class="ways">
+          <article>
+            <h3>Rules, then a direct click</h3>
+            <p>When the role and the name are unique, click that control. No model.</p>
+            <p>
+              Cost. The match itself, tens of milliseconds, and no model bill.
+            </p>
+            <p>
+              Fails when the name is shared or missing. This way does not guess a
+              neighbour.
+            </p>
+          </article>
+          <article>
+            <h3>A lightweight decider, then a fast text model</h3>
+            <p>
+              A small decider only picks the tier. A fast text model then chooses
+              from the control list. The decider does not click.
+            </p>
+            <p>Cost. A small decision, then one short text call. No image.</p>
+            <p>
+              Fails when the words cannot tell the controls apart. Icons and
+              canvas are the usual miss.
+            </p>
+          </article>
+          <article>
+            <h3>A fast vision model on a crop</h3>
+            <p>
+              Only for an icon or a control with no name. The model sees a crop,
+              not the whole screen.
+            </p>
+            <p>Cost. One small vision call on that crop.</p>
+            <p>
+              Fails when the crop misses the control, or the icon is ambiguous.
+              Unnamed controls show up sooner on the Windows desktop than in the
+              browser.
+            </p>
+          </article>
+          <article>
+            <h3>One frontier model, then the batch</h3>
+            <p>
+              One frontier model writes a batch of verbs from the tree. The
+              executor runs that batch until an assertion fails, and then it stops.
+            </p>
+            <p>
+              Cost. One large model call for the batch. The clicks and the waits
+              after that are the page, not another model.
+            </p>
+            <p>
+              Fails when the batch was wrong, the page moved, or the assertion
+              does not hold. It does not click through a failed check.
+            </p>
+          </article>
+          <article>
+            <h3>Skill replay</h3>
+            <p>
+              After a traced success, store the script and a fingerprint of the
+              page. Replay it while the fingerprint matches. When the page
+              changes, the skill expires.
+            </p>
+            <p>
+              Cost. A hit is no model call. A miss falls through to another way.
+              A script past its expiry is a wrong click at full speed, so it does
+              not run.
+            </p>
+            <p>
+              Fails when the fingerprint misses a real change, or matches too
+              loosely. Expiry is the guard.
+            </p>
+          </article>
+          <article>
+            <h3>A plugin in Cursor or Claude</h3>
+            <p>
+              Cursor or Claude can call this runtime. The plugin is a client. It
+              is not the loop. Their agent may ask for a verb. The executor still
+              owns the click.
+            </p>
+            <p>
+              Cost. Their model spends a call deciding to ask. The action is a
+              verb on a numbered control, not another screenshot.
+            </p>
+            <p>
+              Fails when they skip the verbs and look at the screen again. The
+              long bars stay, and this is no longer the owned loop.
+            </p>
+          </article>
+        </div>
+        <p class="ceiling">
+          The machine further down is what these ways would share. It is not
+          built. The default marks are a proposal you can change, not a decision
+          that one way has won.
+        </p>
+      </section>
+
+      <section>
+        <h2>What I would change</h2>
+        <div class="stack">
+          <p>
+            The ways above are open. This section is one proposal for an order,
+            not a decision that the others are out.
+          </p>
+          <p>
+            Ship the browser verbs first, on the person’s real Chrome. An agent
+            they already use can call them the same week. Our planner uses those
+            same verbs once the task set exists.
+          </p>
+          <p>
+            Keep one frontier model in the loop. Add a smaller grounder when a
+            trace shows the planner spending time on obvious clicks, and a vision
+            crop when the control has no name.
+          </p>
+          <p>
+            Start in the browser if the pointer should stay put. Flip the switch
+            above if the pain you actually feel is Cursor on the desktop. The
+            verbs stay. On Windows the pointer still moves for some controls, and
+            unnamed icons still need a look.
+          </p>
+          <p>
+            Store skills after you have traces worth replaying, with a fingerprint
+            of the page, and expire them when that fingerprint changes.
+          </p>
+          <p>
+            Leave interception as its own product. It never chooses the model, so
+            the red bars stay red.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <h2>What has to stay true</h2>
+        <div class="stack">
+          <p>
+            Pay, send, and delete wait for a person. A replay cannot submit the
+            same form twice.
+          </p>
+          <p>
+            Mail, balances, and message bodies are stripped from the tree before a
+            model sees it, unless the task asked for that field.
+          </p>
+          <p>
+            A skill stores a fingerprint of the page and expires when the page
+            changes. A stale script is a wrong click at full speed.
+          </p>
+          <p>
+            Extra tabs, popups, downloads, file pickers, and login walls are
+            states the executor knows. They are where browser agents get lost.
+          </p>
+          <p>
+            A person can pause, do the step, and have that correction saved.
+          </p>
+          <p>
+            Chrome warns when we attach. The desktop shows the pointer when we
+            cannot avoid it. Both stay visible.
+          </p>
+          <p>
+            Every change re-runs the task set. A shorter clock counts when success
+            holds.
+          </p>
+        </div>
+      </section>
+
+      <section id="gaps">
+        <div class="panel-head">
+          <h2>Mark the machine</h2>
+          <div class="segment" id="filters" role="group" aria-label="Show">
+            <button type="button" data-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-filter="keep" aria-pressed="false">Kept</button>
+            <button type="button" data-filter="later" aria-pressed="false">Later</button>
+            <button type="button" data-filter="cut" aria-pressed="false">Cut</button>
+          </div>
+        </div>
+        <p class="lede">
+          The groups are the proposal. The controls are yours, and they save in
+          this browser. Cut a part the system needs and the gap shows in the
+          note at the bottom.
+        </p>
+        <div id="machine"></div>
+      </section>
+
+      <section>
+        <h2>The build you marked</h2>
+        <p class="lede">In the order you would write it, limited to what you marked keep.</p>
+        <p id="summary" aria-live="polite"></p>
+        <ul class="warnings" id="warnings"></ul>
+        <ol class="build" id="build"></ol>
+        <label class="notes-label" for="notes">Notes for the other founder</label>
+        <textarea id="notes" placeholder="What we are changing."></textarea>
+        <div class="actions">
+          <button type="button" id="copy">Copy decision</button>
+          <button type="button" id="reset">Reset marks</button>
+        </div>
+      </section>
+    </main>
+    <noscript>This sheet needs JavaScript to draw the clock and keep your marks.</noscript>
+    <script src="session.js"></script>
+  </body>
+</html>
