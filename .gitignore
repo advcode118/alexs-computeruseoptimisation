@@ -5,3 +5,7 @@ out
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.venv/
