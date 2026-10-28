@@ -282,7 +282,11 @@ def _on_fixture(observation: Observation, fixture_url: str) -> bool:
 
 
 def parse_model_content(content: str) -> ActionBatch:
+    if not isinstance(content, str):
+        raise PlannerError("Model response did not include a message.")
     text = content.strip()
+    if not text:
+        raise PlannerError("Model response did not include a message.")
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
@@ -294,6 +298,26 @@ def parse_model_content(content: str) -> ActionBatch:
         return parse_batch(data)
     except ActionError as exc:
         raise PlannerError(str(exc)) from exc
+
+
+def _last_assertion_ok(history: list[dict]) -> bool:
+    if not history:
+        return False
+    assertion = history[-1].get("assertion")
+    return isinstance(assertion, dict) and assertion.get("ok") is True
+
+
+def interpret_model_content(content: object, history: list[dict]) -> ActionBatch:
+    """A missing reply after a passed assertion means the task is done.
+
+    Some models set message content to null and leave the text in reasoning.
+    Calling strip on that null crashed the cycle after the assertion passed.
+    """
+    if not isinstance(content, str) or not content.strip():
+        if _last_assertion_ok(history):
+            return ActionBatch("Done.", [], None, True)
+        raise PlannerError("Model response did not include a message.")
+    return parse_model_content(content)
 
 
 class ModelPlanner:
@@ -335,7 +359,7 @@ class ModelPlanner:
             },
             payload,
         )
-        return parse_model_content(content)
+        return interpret_model_content(content, history)
 
     @classmethod
     def from_env(cls) -> "ModelPlanner":
@@ -386,12 +410,18 @@ def _post_json(url: str, headers: dict, payload: dict) -> dict:
         raise PlannerError(f"Model request failed: {_redact(str(exc.reason), secret)}") from exc
 
 
-def _post_chat(url: str, headers: dict, payload: dict) -> str:
+def _post_chat(url: str, headers: dict, payload: dict) -> str | None:
     body = _post_json(url, headers, payload)
     try:
-        return body["choices"][0]["message"]["content"]
+        message = body["choices"][0]["message"]
     except (KeyError, IndexError, TypeError) as exc:
         raise PlannerError("Model response did not include a message.") from exc
+    if not isinstance(message, dict):
+        return None
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    return None
 
 
 def _post_anthropic(url: str, headers: dict, payload: dict) -> str:
@@ -514,7 +544,7 @@ class FastClient:
             },
             payload,
         )
-        return parse_model_content(content)
+        return interpret_model_content(content, history)
 
     def _model(self) -> str:
         if self.model:
@@ -601,7 +631,7 @@ class ClaudePlanner:
             },
             payload,
         )
-        return parse_model_content(content)
+        return interpret_model_content(content, history)
 
 
 class Router:

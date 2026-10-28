@@ -11,6 +11,7 @@ from loop.planner import (
     ModelPlanner,
     Router,
     find_ref,
+    interpret_model_content,
     load_step5_env,
     matching_controls,
     parse_item,
@@ -170,6 +171,25 @@ def test_find_ref_is_the_first_match_and_the_router_counts():
         observation=again,
     )
     assert tier == "fast"
+
+
+def test_null_model_content_finishes_after_a_passed_assertion():
+    history = [
+        {
+            "reason": "Add milk.",
+            "actions": ["fill e1 'milk'", "click e2"],
+            "done": False,
+            "assertion": {"ok": True, "detail": "page contains 'milk'"},
+        }
+    ]
+    batch = interpret_model_content(None, history)
+    assert batch.done is True
+    assert batch.actions == []
+    with pytest.raises(PlannerError) as caught:
+        interpret_model_content(None, [])
+    assert "strip" not in str(caught.value)
+    with pytest.raises(PlannerError):
+        parse_model_content(None)
 
 
 def test_fast_client_sends_the_short_list_once():

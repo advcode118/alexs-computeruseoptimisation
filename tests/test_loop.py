@@ -7,7 +7,7 @@ import pytest
 from loop.actions import ActionBatch, AssertText, AssertTitle, Click, Fill, Goto, Press, Scroll
 from loop.browser import BrowserSession, act, check, fixture_file_url, observe
 from loop.engine import Runner
-from loop.planner import DEMO_TASK, FakePlanner, ScriptPlanner
+from loop.planner import DEMO_TASK, FakePlanner, FastClient, ScriptPlanner
 from loop.server import App, ControlServer
 
 FIXTURE = fixture_file_url()
@@ -359,6 +359,67 @@ def test_router_retry_calls_the_planner_once_then_stops():
         assert routed.fast.calls == 0
         tiers = [event["tier"] for event in runner.log.snapshot() if event["kind"] == "plan"]
         assert tiers == ["planner", "planner"]
+    finally:
+        runner.close()
+
+
+def test_finished_task_stops_when_the_next_reply_is_null():
+    import json
+
+    class Claude:
+        def reset(self):
+            return None
+
+        def plan(self, task, observation, history):
+            del task, observation, history
+            return ActionBatch("Open the packing list.", [Goto(FIXTURE)], AssertTitle("Packing list"), False)
+
+    replies = {"n": 0}
+
+    def transport(url, headers, payload):
+        del url, headers, payload
+        replies["n"] += 1
+        if replies["n"] == 1:
+            return json.dumps(
+                {
+                    "reason": "Add milk.",
+                    "done": False,
+                    "actions": [
+                        {"type": "fill", "ref": "e1", "text": "milk"},
+                        {"type": "click", "ref": "e2"},
+                    ],
+                    "assertion": {"type": "text", "text": "milk"},
+                }
+            )
+        return None
+
+    class Routed:
+        use_router = True
+
+        def __init__(self):
+            self.claude = Claude()
+            self.fast = FastClient(
+                api_key="test-key",
+                base_url="https://example.test/v1",
+                model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
+                transport=transport,
+            )
+
+        def reset(self):
+            return None
+
+    routed = Routed()
+    runner = Runner(fixture_url=FIXTURE, headless=True, planner_factory=lambda name, url: routed)
+    runner.open()
+    try:
+        runner.start(DEMO_TASK, "model")
+        snapshot = wait_mode(runner, "done")
+        assert snapshot["detail"] == "Done."
+        assert replies["n"] == 2
+        text = "\n".join(event["line"] for event in runner.log.snapshot())
+        assert "assert   ok" in text
+        assert "strip" not in text
+        assert not any(event["kind"] == "error" for event in runner.log.snapshot())
     finally:
         runner.close()
 
