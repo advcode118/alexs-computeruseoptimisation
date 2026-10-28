@@ -1,6 +1,7 @@
 # Computer-use optimisation
 
 A dark-mode progress page for this work: the current bottleneck, what to do next, the four tracks, and what is still missing.
+Browser loop, separate from this page: `python -m loop demo` ([loop/README.md](loop/README.md)).
 
 All of the copy is hardcoded in [`data/progress.ts`](data/progress.ts). Edit that file to update the page.
 
