@@ -26,6 +26,7 @@ const NAV = [
   { href: "#routes", label: "Routes" },
   { href: "#ways", label: "Ways" },
   { href: "#gaps", label: "Gaps" },
+  { href: "/runs", label: "Runs" },
 ];
 
 const STORAGE_KEY = "cuo-sheet-v1";
