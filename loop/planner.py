@@ -1,9 +1,9 @@
 """One planner call returns a batch of browser actions.
 
 The fake planner needs no API key. The model planner is a router:
-a direct click when the previous batch named one matching control,
+a direct click from the page HTML when one role and name is unique,
 one fast OpenAI-compatible call for an ambiguous short list, and
-Claude on the first cycle and on one retry after a failed assertion.
+Claude when the HTML has no unique target, and on one retry after a failed assertion.
 """
 
 from __future__ import annotations
@@ -177,9 +177,10 @@ def route_decision(
 ) -> tuple[str, list[Control]]:
     """Pick direct, fast, or planner before any model call.
 
-    The first cycle, and the one retry after a failed assertion, are planner.
-    A previous batch that named a single ref is a direct click only when
-    exactly one current control has that role and name.
+    The page HTML shortcut runs before this. Here, the first cycle and the
+    one retry after a failed assertion are planner. A previous batch that
+    named a single ref is a direct click only when exactly one current
+    control has that role and name.
     """
     if first or retry:
         return "planner", []
@@ -206,6 +207,124 @@ def route_decision(
     if page:
         return "fast", _dedupe(page)[:8]
     return "fast", observation.controls[:8]
+
+
+_SEARCH_TASK = re.compile(r"\bsearch\b", re.IGNORECASE)
+_FOR_QUERY = re.compile(r"\bfor\s+(.+?)(?:\s+and\b|[?.!]|$)", re.IGNORECASE)
+
+
+def _search_query(task: str) -> str | None:
+    if _SEARCH_TASK.search(task) is None:
+        return None
+    match = _FOR_QUERY.search(task)
+    if match is None:
+        return None
+    query = re.sub(r"\s+", " ", match.group(1)).strip(" .")
+    return query or None
+
+
+def html_tree(observation: Observation) -> list[Control]:
+    """Control list, then any further role and name the page HTML listed."""
+    tree = list(observation.controls)
+    seen = {control.ref for control in tree}
+    for line in observation.html.splitlines():
+        role, separator, rest = line.partition("\t")
+        name, separator, ref = rest.partition("\t")
+        if not separator or not ref or ref in seen:
+            continue
+        seen.add(ref)
+        tree.append(Control(ref, role.strip(), name.strip(), ""))
+    return tree
+
+
+def _unique_named_click(task: str, tree: list[Control]) -> Control | None:
+    task_text = re.sub(r"\s+", " ", task).lower()
+    groups: dict[tuple[str, str], list[Control]] = {}
+    for control in tree:
+        if control.role not in {"link", "button"}:
+            continue
+        name = re.sub(r"\s+", " ", control.name).strip()
+        if len(name) < 8 or name.lower() not in task_text:
+            continue
+        groups.setdefault((control.role, name.lower()), []).append(control)
+    unique = [group[0] for group in groups.values() if len(group) == 1]
+    if len(unique) != 1:
+        return None
+    return unique[0]
+
+
+def _exact_named(tree: list[Control], *, name: str, roles: set[str]) -> list[Control]:
+    needle = name.strip().lower()
+    if not needle:
+        return []
+    groups: dict[tuple[str, str], list[Control]] = {}
+    for control in tree:
+        if control.role not in roles:
+            continue
+        if control.name.strip().lower() != needle:
+            continue
+        groups.setdefault((control.role, needle), []).append(control)
+    if len(groups) != 1:
+        return []
+    return next(iter(groups.values()))
+
+
+def html_shortcut(
+    task: str,
+    observation: Observation,
+    *,
+    previous_batch: ActionBatch | None = None,
+    previous_observation: Observation | None = None,
+) -> ActionBatch | None:
+    """Click or search from the page HTML before any model call.
+
+    A unique link or button whose name is already in the task is a click.
+    A search task with one search box and one Search button is filled and
+    submitted. Several controls with the same role and name stay with the model.
+    """
+    tree = html_tree(observation)
+    query = _search_query(task)
+    if query and query.lower() in observation.title.lower():
+        return ActionBatch(f"{query} is already the page title.", [], None, True)
+
+    named = _unique_named_click(task, tree)
+    if query:
+        exact = _exact_named(tree, name=query, roles={"link", "button"})
+        if len(exact) == 1:
+            named = exact[0]
+        elif len(exact) > 1:
+            named = None
+    if named is not None and previous_batch is not None and previous_observation is not None:
+        if _repeated_same_page(previous_batch, previous_observation, observation, named.role, named.name):
+            named = None
+    if named is not None:
+        assertion = AssertTitle(named.name) if re.search(r"\btitle\b", task, re.IGNORECASE) else None
+        done = assertion is not None
+        return ActionBatch(
+            f"The page HTML has one {named.role} named {named.name}.",
+            [Click(named.ref)],
+            assertion,
+            done,
+        )
+
+    if not query:
+        return None
+    boxes = [
+        control
+        for control in tree
+        if control.role == "textbox" and "search" in control.name.lower()
+    ]
+    buttons = _exact_named(tree, name="Search", roles={"button"})
+    if len(boxes) != 1 or len(buttons) != 1:
+        return None
+    box = boxes[0]
+    button = buttons[0]
+    return ActionBatch(
+        f"The page HTML has one textbox named {box.name}. Search for {query}.",
+        [Fill(box.ref, query), Click(button.ref)],
+        AssertTitle(query),
+        True,
+    )
 
 
 class FakePlanner:

@@ -52,9 +52,9 @@ Stop and quitting this process disconnect Playwright. They do not quit that Chro
 
 The fake planner is the default and needs no key. **Model** on the control page, or `python -m loop run --planner model`, uses the router.
 
-- **direct** — the previous batch named a ref, and exactly one control has that role and name. The loop clicks it and skips the model. The first cycle of a task always calls a model. `find_ref` is the first match; this tier counts matches, so two controls with the same role and name are not a direct click.
+- **direct** — no model. The page HTML and the control list are read first. One link or button whose name is already in the task is clicked. A search task with one search box and one Search button is filled and submitted. A previous batch that named one matching role and name is still a direct click. Two controls with the same role and name are not.
 - **fast** — one OpenAI-compatible call on that short list. No screenshot. Reads `NEBIUS_API_KEY`, `NEBIUS_BASE_URL`, and `NEBIUS_FAST_MODEL`. If the model name is empty, the loop tries `deepseek-ai/DeepSeek-V4.1-Flash-1017` and `Qwen/Qwen3-30B-A3B-Instruct-2507` and keeps the first valid action batch.
-- **planner** — Claude Haiku `claude-haiku-4-5-20251001` on the first cycle and on one retry after a failed assertion. It is not called on every click.
+- **planner** — Claude Haiku `claude-haiku-4-5-20251001` when the page HTML has no unique target, and on one retry after a failed assertion. It is not called on every click.
 
 If `/cursor/stores/self/docs/step5.env.example` is present, those values are used. Otherwise the variables come from the environment. Do not commit a filled key file.
 

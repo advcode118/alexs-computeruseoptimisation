@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from loop.actions import ActionBatch, ActionError, Click, Control, Observation, PlannerError, parse_batch
+from loop.actions import ActionBatch, ActionError, Click, Control, Fill, Observation, PlannerError, parse_batch
 from loop.planner import (
     CLAUDE_MODEL,
     ClaudePlanner,
@@ -11,6 +11,7 @@ from loop.planner import (
     ModelPlanner,
     Router,
     find_ref,
+    html_shortcut,
     interpret_model_content,
     load_step5_env,
     matching_controls,
@@ -171,6 +172,63 @@ def test_find_ref_is_the_first_match_and_the_router_counts():
         observation=again,
     )
     assert tier == "fast"
+
+
+def test_html_shortcut_uses_a_unique_name_and_leaves_ambiguous_controls():
+    task = "Search Wikipedia for Ada Lovelace and confirm the article title."
+    search = Observation(
+        "https://en.wikipedia.org/wiki/Main_Page",
+        "Wikipedia, the free encyclopedia",
+        [
+            Control("e4", "textbox", "Search Wikipedia", ""),
+            Control("e5", "button", "Search", ""),
+        ],
+        html="textbox\tSearch Wikipedia\te4\nbutton\tSearch\te5",
+    )
+    batch = html_shortcut(task, search)
+    assert batch is not None
+    assert [type(action).__name__ for action in batch.actions] == ["Fill", "Click"]
+    assert isinstance(batch.actions[0], Fill)
+    assert batch.actions[0].text == "Ada Lovelace"
+    assert batch.actions[1].ref == "e5"
+    assert batch.done is True
+    assert batch.assertion.text == "Ada Lovelace"
+
+    landed = Observation(
+        "https://en.wikipedia.org/wiki/Ada_Lovelace",
+        "Ada Lovelace - Wikipedia",
+        search.controls,
+        html=search.html,
+    )
+    done = html_shortcut(task, landed)
+    assert done is not None and done.done is True and done.actions == []
+
+    packing = Observation(
+        "https://example.test/packing.html",
+        "Packing list",
+        _controls(),
+        html="textbox\tItem\te1\nbutton\tAdd\te2\nbutton\tAdd extra\te3",
+    )
+    assert html_shortcut("Add milk to the packing list", packing) is None
+
+    ambiguous = Observation(
+        "https://en.wikipedia.org/",
+        "Wikipedia",
+        [Control("e5", "button", "Search", ""), Control("e6", "button", "Search", "")],
+        html="button\tSearch\te5\nbutton\tSearch\te6\ntextbox\tSearch Wikipedia\te4",
+    )
+    assert html_shortcut(task, ambiguous) is None
+
+    article = Observation(
+        "https://en.wikipedia.org/wiki/Special:Search",
+        "Search",
+        [Control("e1", "textbox", "Search Wikipedia", "")],
+        html="link\tAda Lovelace\te40",
+    )
+    click = html_shortcut("Open the Ada Lovelace article and confirm the title.", article)
+    assert click is not None
+    assert isinstance(click.actions[0], Click)
+    assert click.actions[0].ref == "e40"
 
 
 def test_null_model_content_finishes_after_a_passed_assertion():

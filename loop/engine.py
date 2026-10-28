@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from loop.actions import Action, ActionBatch, ActionError, Assertion, Click, Observation, PlannerError
 from loop.browser import BrowserSession, act, check, observe
-from loop.planner import route_decision
+from loop.planner import html_shortcut, route_decision
 
 
 class Log:
@@ -255,6 +255,15 @@ class Engine:
         task = self.controller.current_task()
         if not getattr(self.planner, "use_router", False):
             return "planner", self.planner.plan(task, observation, self.history)
+        if not retry:
+            shortcut = html_shortcut(
+                task,
+                observation,
+                previous_batch=self._previous_batch,
+                previous_observation=self._previous_observation,
+            )
+            if shortcut is not None:
+                return "direct", shortcut
         tier, short = route_decision(
             first=not self.history,
             retry=retry,

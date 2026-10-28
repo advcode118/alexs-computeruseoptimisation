@@ -42,6 +42,8 @@ def test_observe_lists_url_title_and_refs(page):
     roles = {(control.role, control.name): control.ref for control in observation.controls}
     assert roles[("textbox", "Item")] == "e1"
     assert roles[("button", "Add")] == "e2"
+    assert "textbox\tItem\te1" in observation.html
+    assert "button\tAdd\te2" in observation.html
     assert page.locator('[data-cu-ref="e1"]').count() == 1
 
 
@@ -508,3 +510,70 @@ def test_fake_planner_object_matches_the_runner_script():
     second = planner.plan(DEMO_TASK, on_page, [])
     assert [type(action).__name__ for action in second.actions] == ["Fill", "Click"]
     assert isinstance(second.assertion, AssertText)
+
+
+def test_html_shortcut_searches_without_calling_a_model(tmp_path):
+    page = tmp_path / "search.html"
+    page.write_text(
+        """<!DOCTYPE html>
+        <html><head><title>Search</title></head>
+        <body>
+          <label for="q">Search Wikipedia</label>
+          <input id="q" type="text" />
+          <button type="button" id="go">Search</button>
+          <script>
+            document.getElementById("go").addEventListener("click", () => {
+              document.title = document.getElementById("q").value + " - Wikipedia";
+            });
+          </script>
+        </body></html>
+        """,
+        encoding="utf-8",
+    )
+    url = page.resolve().as_uri()
+
+    class Claude:
+        def __init__(self):
+            self.calls = 0
+
+        def reset(self):
+            return None
+
+        def plan(self, task, observation, history):
+            del task, observation, history
+            self.calls += 1
+            if self.calls == 1:
+                return ActionBatch("Open the search page.", [Goto(url)], None, False)
+            raise AssertionError("Claude ran after the HTML shortcut")
+
+    class Fast:
+        def reset(self):
+            return None
+
+        def plan(self, task, controls, history):
+            del task, controls, history
+            raise AssertionError("The fast tier ran")
+
+    class Routed:
+        use_router = True
+
+        def __init__(self):
+            self.claude = Claude()
+            self.fast = Fast()
+
+        def reset(self):
+            self.claude.reset()
+            self.fast.reset()
+
+    routed = Routed()
+    runner = Runner(fixture_url=url, headless=True, planner_factory=lambda name, start: routed)
+    runner.open()
+    try:
+        runner.start("Search Wikipedia for Ada Lovelace and confirm the article title.", "model")
+        snapshot = wait_mode(runner, "done")
+        tiers = [event["tier"] for event in runner.log.snapshot() if event["kind"] == "plan"]
+        assert tiers == ["planner", "direct"]
+        assert routed.claude.calls == 1
+        assert "Ada Lovelace" in snapshot["detail"]
+    finally:
+        runner.close()
