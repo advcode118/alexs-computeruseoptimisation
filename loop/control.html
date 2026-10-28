@@ -71,7 +71,7 @@
     <header>
       <p class="mode" id="mode">idle</p>
       <h1>Browser loop</h1>
-      <p id="detail">Start runs the task. Step runs one planner call, then waits. Stop ends the run and leaves the browser open.</p>
+      <p id="detail">Start runs the task. Step runs one cycle, then waits. Stop ends the run and leaves the browser open.</p>
     </header>
     <main>
       <form id="controls">
@@ -83,7 +83,7 @@
           <label for="planner">Planner</label>
           <select id="planner" name="planner">
             <option value="fake" selected>Fake, no API key</option>
-            <option value="model">Model, one chat completion</option>
+            <option value="model">Model, direct / fast / Claude</option>
           </select>
         </div>
         <div class="row">

@@ -9,3 +9,5 @@ __pycache__/
 .pytest_cache/
 *.py[cod]
 .venv/
+.env
+step5.env

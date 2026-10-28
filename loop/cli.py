@@ -65,9 +65,9 @@ def cmd_demo(args) -> int:
         return 1
     print(f"Control   http://{host}:{server.port}")
     print(f"Task      {DEMO_TASK}")
-    print("Planner   fake (no API key). Switch to model on the page if a key is set.")
-    print("Controls  Start runs the task. Pause waits between planner calls.")
-    print("          Step runs one planner call, then waits. Stop ends the run.")
+    print("Planner   fake (no API key). Model routes direct, fast, and Claude.")
+    print("Controls  Start runs the task. Pause waits between cycles.")
+    print("          Step runs one cycle, then waits. Stop ends the run.")
     print("Ctrl-C ends the process. Stop does not close an attached Chrome.")
     try:
         while True:
