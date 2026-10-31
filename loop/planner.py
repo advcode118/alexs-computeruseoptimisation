@@ -230,6 +230,30 @@ def _result_link(observation: Observation, query: str):
     return matches[0]
 
 
+_INVENTED_RE = re.compile(
+    r"\b(made[- ]up|fake|dummy|fictional|imaginary|placeholder)\b",
+    re.IGNORECASE,
+)
+
+
+def _synthetic(name: str) -> str:
+    """A stand-in value for a field the task asked us to invent."""
+    label = norm_name(name)
+    if "mail" in label:
+        return "ada@example.com"
+    if "time" in label:
+        return "12:00"
+    if any(token in label for token in ("phone", "tel", "mobile")):
+        return "555-0100"
+    if "name" in label:
+        return "Ada Lovelace"
+    if "address" in label or "street" in label:
+        return "1 Example Street"
+    if "city" in label:
+        return "London"
+    return "sample"
+
+
 def _value_for(task: str, name: str) -> str | None:
     label = norm_name(name)
     for line in task.splitlines():
@@ -343,6 +367,7 @@ def direct_form(task: str, observation: Observation) -> ActionBatch | None:
     if _search_query(task):
         return None
     do_not_submit = re.search(r"do not submit", task, re.IGNORECASE) is not None
+    invent = _INVENTED_RE.search(task) is not None
     text_fields = [control for control in observation.controls if control.role in _TEXT_ROLES]
     if not text_fields:
         return None
@@ -350,13 +375,22 @@ def direct_form(task: str, observation: Observation) -> ActionBatch | None:
     checks = []
     for control in text_fields:
         value = _value_for(task, control.name)
+        if value is None and invent:
+            value = _synthetic(control.name)
         if value is None:
             return None
         actions.append(FillNamed(control.role, control.name, value))
         checks.append((control.role, control.name, value))
+    picked_radio = False
     for control in observation.controls:
         if control.role in ("checkbox", "radio") and _mentioned(task, control.name):
             actions.append(ClickNamed(control.role, control.name))
+            if control.role == "radio":
+                picked_radio = True
+    if invent and not picked_radio:
+        first_radio = next((control for control in observation.controls if control.role == "radio"), None)
+        if first_radio is not None:
+            actions.append(ClickNamed(first_radio.role, first_radio.name))
     texts = tuple(text for _, _, text in checks)
     if do_not_submit:
         return ActionBatch(

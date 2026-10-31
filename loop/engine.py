@@ -352,6 +352,21 @@ class Engine:
                     self.history.append(_history_item(batch, None, None, observation))
                     self.controller.finish("done", batch.reason or "Submitted.")
                     return
+                page = self.session.page
+                followed = any(
+                    isinstance(action, ClickNamed) and action.role == "link" for action in batch.actions
+                )
+                if (
+                    self.model_used
+                    and followed
+                    and not batch.later
+                    and not self.pending
+                    and page is not None
+                    and page.url != self._cycle_url
+                ):
+                    self.history.append(_history_item(batch, None, None, observation))
+                    self.controller.finish("done", batch.reason or "Opened.")
+                    return
                 rejected = self._submit_rejected(batch.actions)
                 if rejected:
                     fresh = self._observe()
@@ -399,7 +414,9 @@ class Engine:
 
     def _ready_observation(self) -> Observation:
         observation = self._observe()
-        if len(observation.controls) == 0:
+        url = observation.url or ""
+        blank = url in ("", "about:blank") or url.startswith("about:")
+        if len(observation.controls) == 0 and not blank:
             self.session.page.wait_for_timeout(800)
             observation = self._observe()
         query = _search_query(self.controller.current_task())
