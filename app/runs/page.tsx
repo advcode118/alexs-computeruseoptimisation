@@ -43,6 +43,70 @@ export default function RunsPage() {
 
         <ol className="mt-12 divide-y divide-line border-y border-line">
           <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">7.77s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Ordinary-language order</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 1 model cycle. The task did not list field names.{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://httpbin.org/forms/post">
+                  https://httpbin.org/forms/post
+                </a>{" "}
+                echoed Ada Lovelace, 555-0100, ada@example.com, 14:30, medium, bacon, extra cheese,
+                onion, mushroom, and the side door at{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://httpbin.org/post">
+                  https://httpbin.org/post
+                </a>
+                .
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">11.72s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Rejected delivery time</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 2 model cycles. One recovery. 09:00 was rejected, then the same form was sent
+                with 11:00. The echo included Grace Hopper, 555-0199, grace@example.com, and the front
+                desk.
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">10.55s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Dropdown</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 2 model cycles. One recovery.{" "}
+                <a
+                  className="underline decoration-line underline-offset-4 hover:text-paper"
+                  href="https://www.selenium.dev/selenium/web/web-form.html"
+                >
+                  https://www.selenium.dev/selenium/web/web-form.html
+                </a>{" "}
+                submitted Ada Lovelace and the option Two. The confirmation URL contains my-select=2.
+                The model named the dropdown and left the option blank. The executor used Two, the one
+                option the task named.
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">18.95s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Childhood section</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 4 model cycles. Looked up the Countess of Lovelace, opened Ada Lovelace, and
+                opened Childhood.{" "}
+                <a
+                  className="underline decoration-line underline-offset-4 hover:text-paper"
+                  href="https://en.wikipedia.org/wiki/Ada_Lovelace#Childhood"
+                >
+                  https://en.wikipedia.org/wiki/Ada_Lovelace#Childhood
+                </a>
+                .
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
             <p className="font-serif text-5xl tracking-[-0.03em] text-lime">7.02s</p>
             <div>
               <h2 className="font-serif text-3xl tracking-[-0.02em]">httpbin form</h2>
@@ -60,7 +124,7 @@ export default function RunsPage() {
             </div>
           </li>
           <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
-            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">5.97s</p>
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">8.73s</p>
             <div>
               <h2 className="font-serif text-3xl tracking-[-0.02em]">Wikipedia search</h2>
               <p className="mt-2 max-w-xl text-muted">
@@ -77,7 +141,7 @@ export default function RunsPage() {
             </div>
           </li>
           <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
-            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">6.47s</p>
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">8.42s</p>
             <div>
               <h2 className="font-serif text-3xl tracking-[-0.02em]">Python docs heapq</h2>
               <p className="mt-2 max-w-xl text-muted">
@@ -98,7 +162,7 @@ export default function RunsPage() {
             </div>
           </li>
           <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
-            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">4.93s</p>
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">4.25s</p>
             <div>
               <h2 className="font-serif text-3xl tracking-[-0.02em]">Wikiquote search</h2>
               <p className="mt-2 max-w-xl text-muted">
