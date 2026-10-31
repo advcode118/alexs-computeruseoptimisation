@@ -1,6 +1,6 @@
 # Who pays for speed
 
-The person running the loop pays. A model call is billed to their Nebius key. Waiting is their time. The direct role-and-name path spends neither a call nor a wait on a task it can finish from the accessibility tree.
+QA, data entry, and scraping teams pay. A model call is billed to the Nebius key of the person running the loop, and waiting is their time. QA pays it on form checks and sign-in pages. Data entry pays it on orders, addresses, and lists. Scraping pays it on search and on opening a saved page. The direct role-and-name path spends neither a call nor a wait on a task it can finish from the accessibility tree.
 
 The bench dollars are an estimate from the rate table and the API token counts. They are not an invoice.
 
