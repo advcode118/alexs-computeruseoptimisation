@@ -33,14 +33,151 @@ export default function RunsPage() {
       </header>
       <main className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
         <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">Measured</p>
-        <h1 className="mt-4 max-w-[16ch] font-serif text-6xl leading-[0.9] tracking-[-0.03em] sm:text-7xl">
-          Seven runs on this router.
+        <h1 className="mt-4 max-w-[18ch] font-serif text-6xl leading-[0.9] tracking-[-0.03em] sm:text-7xl">
+          Live pages in real Chrome.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
-          Wall-clock time includes launching Chrome. The bars on the clock page were not remeasured.
+          A pass is a live https page. Wall-clock time includes launching Chrome and any retry. The
+          packing list and the local text-box demo stay below, as earlier runs.
         </p>
 
         <ol className="mt-12 divide-y divide-line border-y border-line">
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">7.02s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">httpbin form</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 0 model cycles, under the cap of 2.{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://httpbin.org/forms/post">
+                  https://httpbin.org/forms/post
+                </a>{" "}
+                echoed Ada Lovelace, 555-0100, ada@example.com, 14:30, and the delivery note at{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://httpbin.org/post">
+                  https://httpbin.org/post
+                </a>
+                . One batch filled the twelve fields and submitted. No further model call.
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">5.97s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Wikipedia search</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 0 model cycles. The earlier Wikipedia rows were 1 and 2.{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://en.wikipedia.org/wiki/Main_Page">
+                  https://en.wikipedia.org/wiki/Main_Page
+                </a>{" "}
+                searched for Ada Lovelace. The title was Ada Lovelace - Wikipedia at{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://en.wikipedia.org/wiki/Ada_Lovelace">
+                  https://en.wikipedia.org/wiki/Ada_Lovelace
+                </a>
+                .
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">6.47s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Python docs heapq</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 0 model cycles. The earlier row was 1.{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://docs.python.org/3/">
+                  https://docs.python.org/3/
+                </a>{" "}
+                searched for heapq, opened the module, then Priority Queue Implementation Notes. The
+                final title was heapq — Heap queue algorithm, at{" "}
+                <a
+                  className="underline decoration-line underline-offset-4 hover:text-paper"
+                  href="https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes"
+                >
+                  the section URL
+                </a>
+                .
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">4.93s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Wikiquote search</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 0 model cycles. The earlier row was 1.{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://en.wikiquote.org/wiki/Main_Page">
+                  https://en.wikiquote.org/wiki/Main_Page
+                </a>{" "}
+                searched for quincunx. The title was Search results for &quot;quincunx&quot; -
+                Wikiquote.
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">5.10s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Wrong click</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 0 model cycles after the miss, under the cap of 2.{" "}
+                <a
+                  className="underline decoration-line underline-offset-4 hover:text-paper"
+                  href="https://docs.python.org/3/search.html?q=heap"
+                >
+                  https://docs.python.org/3/search.html?q=heap
+                </a>{" "}
+                clicked Allocating objects on the heap, the title check failed, and the retry opened
+                heapq — Heap queue algorithm at{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://docs.python.org/3/library/heapq.html">
+                  https://docs.python.org/3/library/heapq.html
+                </a>
+                .
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">25.09s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Guardian consent</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 0 model cycles. The form stayed at 0.{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://www.theguardian.com/uk">
+                  https://www.theguardian.com/uk
+                </a>{" "}
+                kept Accept all inside a frame. The loop dismissed that dialog, then opened Opinion.
+                The title was Opinion | The Guardian at{" "}
+                <a
+                  className="underline decoration-line underline-offset-4 hover:text-paper"
+                  href="https://www.theguardian.com/uk/commentisfree"
+                >
+                  https://www.theguardian.com/uk/commentisfree
+                </a>
+                . The subscribe choice was not clicked.
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">2.56s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">GitHub login fields</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Pass. 0 model cycles. Not submitted.{" "}
+                <a className="underline decoration-line underline-offset-4 hover:text-paper" href="https://github.com/login">
+                  https://github.com/login
+                </a>{" "}
+                held not-a-real-user and not-a-real-password. The address stayed on the sign-in page.
+              </p>
+            </div>
+          </li>
+        </ol>
+        <p className="mt-8 max-w-2xl text-muted">
+          BROWSER_USE_API_KEY is unset, so Browser Use did not run. The matched row is the httpbin
+          form: pass, 7.02s, 0 model cycles, on https://httpbin.org/forms/post. Fewer model calls
+          and a pass is the result recorded here.
+        </p>
+
+        <h2 className="mt-20 font-serif text-4xl tracking-[-0.03em]">Earlier router runs.</h2>
+        <p className="mt-4 max-w-2xl text-muted">
+          These seven were already on the page. Wall-clock time includes launching Chrome.
+        </p>
+        <ol className="mt-8 divide-y divide-line border-y border-line">
           <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
             <p className="font-serif text-5xl tracking-[-0.03em] text-lime">4.47s</p>
             <div>
