@@ -34,7 +34,7 @@ export default function RunsPage() {
       <main className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
         <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">Measured</p>
         <h1 className="mt-4 max-w-[16ch] font-serif text-6xl leading-[0.9] tracking-[-0.03em] sm:text-7xl">
-          Five runs on this router.
+          Seven runs on this router.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
           Wall-clock time includes launching Chrome. The bars on the clock page were not remeasured.
@@ -91,7 +91,30 @@ export default function RunsPage() {
               </p>
             </div>
           </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">3.26s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Demo form</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Fill a name, an email, and a short message on the local text-box demo, then submit.
+                Tiers: planner. One of one cycles used a model. No retry.
+              </p>
+            </div>
+          </li>
+          <li className="grid gap-3 py-8 sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-8">
+            <p className="font-serif text-5xl tracking-[-0.03em] text-lime">2.45s</p>
+            <div>
+              <h2 className="font-serif text-3xl tracking-[-0.02em]">Python docs</h2>
+              <p className="mt-2 max-w-xl text-muted">
+                Search for heapq, open the module, then open Priority Queue Implementation Notes.
+                Tiers: planner, direct, direct. One of three cycles used a model. No retry.
+              </p>
+            </div>
+          </li>
         </ol>
+        <p className="mt-8 max-w-2xl text-muted">
+          Browser Use still asks a model for every control. These runs were not raced against it.
+        </p>
 
         <section className="mt-16" aria-labelledby="sketches-title">
           <p className="font-mono text-[11px] tracking-[0.22em] text-muted uppercase">Not a measurement</p>
