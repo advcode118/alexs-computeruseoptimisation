@@ -34,6 +34,8 @@ class Observation:
     url: str
     title: str
     controls: list[Control]
+    # Compact role, name, and ref lines read from the page HTML. Not sent to a model.
+    html: str = ""
 
     def to_dict(self) -> dict:
         return {

@@ -26,6 +26,7 @@ from loop.actions import (
 
 FIXTURE_PATH = Path(__file__).with_name("fixture") / "packing.html"
 MAX_CONTROLS = 40
+MAX_HTML = 200
 
 # One browser round-trip. Interactive controls get short refs (e1, e2, …)
 # stored on data-cu-ref so a later click or fill can find the same node.
@@ -49,9 +50,10 @@ _OBSERVE_JS = """
   document.querySelectorAll("[data-cu-ref]").forEach((node) => {
     node.removeAttribute("data-cu-ref");
   });
+  const listed = [];
   const controls = [];
   for (const node of document.querySelectorAll(selector)) {
-    if (controls.length >= %(max)d) break;
+    if (listed.length >= %(html_max)d) break;
     if (node.getAttribute("aria-hidden") === "true") continue;
     const style = window.getComputedStyle(node);
     if (style.visibility === "hidden" || style.display === "none") continue;
@@ -89,18 +91,21 @@ _OBSERVE_JS = """
     if (!name) {
       name = (node.innerText || node.getAttribute("placeholder") || node.getAttribute("title") || node.getAttribute("name") || "").trim();
     }
-    name = name.replace(/\\s+/g, " ").slice(0, 80);
+    name = name.replace(/\\s+/g, " ").replace(/\\t/g, " ").slice(0, 80);
     let value = "";
     if (tag === "input" || tag === "textarea" || tag === "select") {
       value = String(node.value || "").slice(0, 80);
     }
-    const ref = "e" + (controls.length + 1);
+    const ref = "e" + (listed.length + 1);
     node.setAttribute("data-cu-ref", ref);
-    controls.push({ ref, role, name, value });
+    const row = { ref, role, name, value };
+    listed.push(row);
+    if (controls.length < %(max)d) controls.push(row);
   }
-  return controls;
+  const html = listed.map((row) => row.role + "\\t" + row.name + "\\t" + row.ref).join("\\n");
+  return { controls, html };
 }
-""" % {"max": MAX_CONTROLS}
+""" % {"max": MAX_CONTROLS, "html_max": MAX_HTML}
 
 
 def fixture_file_url() -> str:
@@ -177,6 +182,11 @@ class BrowserSession:
 
 def observe(page: Page) -> Observation:
     raw = page.evaluate(_OBSERVE_JS)
+    html = ""
+    items = raw
+    if isinstance(raw, dict):
+        items = raw.get("controls") or []
+        html = str(raw.get("html") or "")
     controls = [
         Control(
             ref=str(item["ref"]),
@@ -184,9 +194,9 @@ def observe(page: Page) -> Observation:
             name=str(item["name"]),
             value=str(item["value"]),
         )
-        for item in raw
+        for item in items
     ]
-    return Observation(url=page.url, title=page.title(), controls=controls)
+    return Observation(url=page.url, title=page.title(), controls=controls, html=html)
 
 
 def _locator(page: Page, ref: str):

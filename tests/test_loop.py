@@ -7,7 +7,7 @@ import pytest
 from loop.actions import ActionBatch, AssertText, AssertTitle, Click, Fill, Goto, Press, Scroll
 from loop.browser import BrowserSession, act, check, fixture_file_url, observe
 from loop.engine import Runner
-from loop.planner import DEMO_TASK, FakePlanner, ScriptPlanner
+from loop.planner import DEMO_TASK, FakePlanner, FastClient, ScriptPlanner
 from loop.server import App, ControlServer
 
 FIXTURE = fixture_file_url()
@@ -42,6 +42,8 @@ def test_observe_lists_url_title_and_refs(page):
     roles = {(control.role, control.name): control.ref for control in observation.controls}
     assert roles[("textbox", "Item")] == "e1"
     assert roles[("button", "Add")] == "e2"
+    assert "textbox\tItem\te1" in observation.html
+    assert "button\tAdd\te2" in observation.html
     assert page.locator('[data-cu-ref="e1"]').count() == 1
 
 
@@ -363,6 +365,67 @@ def test_router_retry_calls_the_planner_once_then_stops():
         runner.close()
 
 
+def test_finished_task_stops_when_the_next_reply_is_null():
+    import json
+
+    class Claude:
+        def reset(self):
+            return None
+
+        def plan(self, task, observation, history):
+            del task, observation, history
+            return ActionBatch("Open the packing list.", [Goto(FIXTURE)], AssertTitle("Packing list"), False)
+
+    replies = {"n": 0}
+
+    def transport(url, headers, payload):
+        del url, headers, payload
+        replies["n"] += 1
+        if replies["n"] == 1:
+            return json.dumps(
+                {
+                    "reason": "Add milk.",
+                    "done": False,
+                    "actions": [
+                        {"type": "fill", "ref": "e1", "text": "milk"},
+                        {"type": "click", "ref": "e2"},
+                    ],
+                    "assertion": {"type": "text", "text": "milk"},
+                }
+            )
+        return None
+
+    class Routed:
+        use_router = True
+
+        def __init__(self):
+            self.claude = Claude()
+            self.fast = FastClient(
+                api_key="test-key",
+                base_url="https://example.test/v1",
+                model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
+                transport=transport,
+            )
+
+        def reset(self):
+            return None
+
+    routed = Routed()
+    runner = Runner(fixture_url=FIXTURE, headless=True, planner_factory=lambda name, url: routed)
+    runner.open()
+    try:
+        runner.start(DEMO_TASK, "model")
+        snapshot = wait_mode(runner, "done")
+        assert snapshot["detail"] == "Done."
+        assert replies["n"] == 2
+        text = "\n".join(event["line"] for event in runner.log.snapshot())
+        assert "assert   ok" in text
+        assert "strip" not in text
+        assert not any(event["kind"] == "error" for event in runner.log.snapshot())
+    finally:
+        runner.close()
+
+
 def test_control_page_can_start_and_stop():
     app = App()
     server = ControlServer(app, "127.0.0.1", 0)
@@ -447,3 +510,70 @@ def test_fake_planner_object_matches_the_runner_script():
     second = planner.plan(DEMO_TASK, on_page, [])
     assert [type(action).__name__ for action in second.actions] == ["Fill", "Click"]
     assert isinstance(second.assertion, AssertText)
+
+
+def test_html_shortcut_searches_without_calling_a_model(tmp_path):
+    page = tmp_path / "search.html"
+    page.write_text(
+        """<!DOCTYPE html>
+        <html><head><title>Search</title></head>
+        <body>
+          <label for="q">Search Wikipedia</label>
+          <input id="q" type="text" />
+          <button type="button" id="go">Search</button>
+          <script>
+            document.getElementById("go").addEventListener("click", () => {
+              document.title = document.getElementById("q").value + " - Wikipedia";
+            });
+          </script>
+        </body></html>
+        """,
+        encoding="utf-8",
+    )
+    url = page.resolve().as_uri()
+
+    class Claude:
+        def __init__(self):
+            self.calls = 0
+
+        def reset(self):
+            return None
+
+        def plan(self, task, observation, history):
+            del task, observation, history
+            self.calls += 1
+            if self.calls == 1:
+                return ActionBatch("Open the search page.", [Goto(url)], None, False)
+            raise AssertionError("Claude ran after the HTML shortcut")
+
+    class Fast:
+        def reset(self):
+            return None
+
+        def plan(self, task, controls, history):
+            del task, controls, history
+            raise AssertionError("The fast tier ran")
+
+    class Routed:
+        use_router = True
+
+        def __init__(self):
+            self.claude = Claude()
+            self.fast = Fast()
+
+        def reset(self):
+            self.claude.reset()
+            self.fast.reset()
+
+    routed = Routed()
+    runner = Runner(fixture_url=url, headless=True, planner_factory=lambda name, start: routed)
+    runner.open()
+    try:
+        runner.start("Search Wikipedia for Ada Lovelace and confirm the article title.", "model")
+        snapshot = wait_mode(runner, "done")
+        tiers = [event["tier"] for event in runner.log.snapshot() if event["kind"] == "plan"]
+        assert tiers == ["planner", "direct"]
+        assert routed.claude.calls == 1
+        assert "Ada Lovelace" in snapshot["detail"]
+    finally:
+        runner.close()
