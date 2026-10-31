@@ -312,8 +312,15 @@ class Engine:
                     batch = self._next_batch(observation)
                 except PlannerError as exc:
                     self.log.error(str(exc))
-                    self.controller.finish("failed", str(exc))
-                    return
+                    if not self._recover(
+                        str(exc),
+                        ActionBatch(str(exc), [], None, False),
+                        observation,
+                        False,
+                    ):
+                        return
+                    cycles += 1
+                    continue
                 if batch.later:
                     self.pending.extend(batch.later)
                     if batch.assertion is not None and self._deferred is None:
@@ -332,7 +339,7 @@ class Engine:
                     continue
                 rejected = self._submit_rejected(batch.actions)
                 if rejected:
-                    fresh = observe(self.session.page)
+                    fresh = self._observe()
                     invalid = [
                         f"{control.name}: {control.invalid}"
                         for control in fresh.controls
@@ -371,11 +378,15 @@ class Engine:
             return
         self.controller.finish("failed", f"Stopped after {self.max_cycles} planner calls.")
 
+    def _observe(self) -> Observation:
+        task = self.controller.current_task() if self.controller is not None else ""
+        return observe(self.session.page, prefer=task)
+
     def _ready_observation(self) -> Observation:
-        observation = observe(self.session.page)
+        observation = self._observe()
         if len(observation.controls) == 0:
             self.session.page.wait_for_timeout(800)
-            observation = observe(self.session.page)
+            observation = self._observe()
         query = _search_query(self.controller.current_task())
         if query and query.lower() in observation.url.lower():
             for _ in range(10):
@@ -386,7 +397,7 @@ class Engine:
                 if visible:
                     break
                 self.session.page.wait_for_timeout(200)
-                observation = observe(self.session.page)
+                observation = self._observe()
         self.log.observe(observation)
         return observation
 
@@ -467,7 +478,7 @@ class Engine:
         """The model named the select and left the option blank. Use the one option the task names."""
         from loop.planner import norm_name
 
-        observation = observe(self.session.page, form_max=80, other_max=40)
+        observation = observe(self.session.page, form_max=80, other_max=40, prefer=self.controller.current_task())
         needle = norm_name(name)
         control = next(
             (

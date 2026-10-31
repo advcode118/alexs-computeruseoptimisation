@@ -42,6 +42,21 @@ def test_parse_batch_rejects_a_bad_ref():
         parse_batch({"actions": [{"type": "click", "ref": "button"}]})
 
 
+def test_parse_batch_accepts_live_aliases():
+    batch = parse_batch(
+        {
+            "actions": [
+                {"type": "navigate", "url": "httpbin.org/forms/post"},
+                {"type": "press_enter"},
+                {"type": "press", "key": ""},
+            ]
+        }
+    )
+    assert batch.actions[0].url == "https://httpbin.org/forms/post"
+    assert batch.actions[1].key == "Enter"
+    assert batch.actions[2].key == "Enter"
+
+
 def test_model_content_strips_a_fence():
     content = '```json\n{"reason":"done","done":true,"actions":[],"assertion":null}\n```'
     batch = parse_model_content(content)

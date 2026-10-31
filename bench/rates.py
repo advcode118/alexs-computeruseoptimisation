@@ -14,6 +14,8 @@ RATES: dict[str, dict[str, float]] = {
     "gpt-4o-mini": {"input": 0.15, "output": 0.60, "cached_input": 0.075},
     "deepseek-ai/DeepSeek-V4-Pro-0813": {"input": 1.32, "output": 3.96, "cached_input": 0.04},
     "claude-sonnet-5-5": {"input": 2.0, "output": 10.0, "cached_input": 0.10},
+    # High list-price estimate so a Claude Opus retry counts against the spend cap.
+    "claude-opus-5-5": {"input": 5.0, "output": 25.0, "cached_input": 0.50},
 }
 
 

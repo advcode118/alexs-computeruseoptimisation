@@ -216,25 +216,47 @@ def check_ref(ref: str) -> str:
     return ref
 
 
+_HOST_RE = re.compile(r"^[A-Za-z0-9.-]+\.[A-Za-z]{2,}([/?#].*)?$")
+
+
 def check_url(url: str) -> str:
     if not isinstance(url, str) or not url.strip():
         raise ActionError("goto needs a url")
-    parsed = urlparse(url.strip())
+    text = url.strip()
+    parsed = urlparse(text)
+    if not parsed.scheme:
+        if text.startswith("//") and _HOST_RE.match(text[2:].split("/")[0]):
+            text = "https:" + text
+        elif _HOST_RE.match(text):
+            text = "https://" + text
+        parsed = urlparse(text)
     if parsed.scheme not in ("http", "https", "file"):
         raise ActionError(f"url scheme must be http, https, or file, got {parsed.scheme or 'none'!r}")
     if parsed.scheme in ("http", "https") and not parsed.netloc:
         raise ActionError(f"url is missing a host: {url}")
-    return url.strip()
+    return text
 
 
 def parse_action(data: object) -> Action:
     if not isinstance(data, dict):
         raise ActionError("each action must be an object")
     kind = data.get("type")
+    if isinstance(kind, str):
+        kind = kind.strip().lower().replace("-", "_")
     if kind == "key":
         kind = "press"
     if kind == "select":
         kind = "choose"
+    if kind in ("navigate", "open_url", "openurl", "go"):
+        kind = "goto"
+        data = dict(data)
+        if not data.get("url"):
+            data["url"] = data.get("href") or data.get("target") or ""
+    if kind in ("press_enter", "pressenter"):
+        kind = "press"
+        data = dict(data)
+        if not data.get("key"):
+            data["key"] = "Enter"
     if kind == "goto":
         return Goto(check_url(data.get("url", "")))
     if kind == "fill":
@@ -276,7 +298,9 @@ def parse_action(data: object) -> Action:
         return ChooseNamed(role.strip(), name.strip(), option.strip())
     if kind == "press":
         key = data.get("key", "")
-        if not isinstance(key, str) or not key or len(key) > 40 or not KEY_RE.fullmatch(key):
+        if not isinstance(key, str) or not key.strip():
+            key = "Enter"
+        if len(key) > 40 or not KEY_RE.fullmatch(key):
             raise ActionError(f"press key is not usable: {key!r}")
         ref = data.get("ref")
         if ref is not None:

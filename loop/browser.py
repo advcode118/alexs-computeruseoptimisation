@@ -31,14 +31,14 @@ from loop.actions import (
 
 FIXTURE_PATH = Path(__file__).with_name("fixture") / "packing.html"
 FORM_MAX = 40
-MAX_CONTROLS = 40
+MAX_CONTROLS = 80
 SECTION_MAX = 24
 
 # One browser round-trip. Form controls are collected first so a long nav
 # cannot push them off the list. Interactive controls get short refs (e1, e2, …)
 # stored on data-cu-ref so a later click or fill can find the same node.
 _OBSERVE_JS = """
-({formMax, otherMax, sectionMax}) => {
+({formMax, otherMax, sectionMax, prefer}) => {
   const formSelector = "input:not([type='hidden']), textarea, select, button";
   const otherSelector = [
     "a[href]",
@@ -149,6 +149,43 @@ _OBSERVE_JS = """
     if (controls.length > before) sectionAdded += 1;
   }
   const priority = controls.length;
+  const preferText = String(prefer || "").toLowerCase();
+  const stop = new Set(["open","click","find","page","link","long","first","search","button","more","learn","that","this","from","with","your","into","today","story","made","fill","demo","form","order","submit","read","stop","before","about","have","been","when","what","where","their","there","which","most","recent","section","comments","result","isnt"]);
+  const words = preferText.split(/[^a-z0-9]+/).filter((word) => word.length >= 4 && !stop.has(word));
+  const phrases = preferText.match(/[a-z0-9]+(?:-[a-z0-9]+)+/g) || [];
+  function matchesPrefer(node) {
+    if (!words.length && !phrases.length) return false;
+    const name = (node.innerText || node.getAttribute("aria-label") || "").toLowerCase();
+    const href = (node.getAttribute("href") || "").toLowerCase();
+    const blob = name + " " + href;
+    for (const phrase of phrases) {
+      if (blob.includes(phrase)) return true;
+    }
+    for (const word of words) {
+      if (blob.includes(word)) return true;
+    }
+    return false;
+  }
+  let citeAdded = 0;
+  for (const node of document.querySelectorAll("a[href*='cite_note'], sup.reference a[href], .reference a[href]")) {
+    if (citeAdded >= 6 || controls.length >= priority + otherMax) break;
+    const before = controls.length;
+    add(node);
+    if (controls.length > before) citeAdded += 1;
+  }
+  let preferred = 0;
+  for (const node of document.querySelectorAll("a[href], [role='link']")) {
+    if (preferred >= 16 || controls.length >= priority + otherMax) break;
+    if (!matchesPrefer(node)) continue;
+    const before = controls.length;
+    add(node);
+    if (controls.length > before) preferred += 1;
+  }
+  const mainSelector = "main a[href], article a[href], [role='main'] a[href], #mw-content-text a[href]";
+  for (const node of document.querySelectorAll(mainSelector)) {
+    if (controls.length >= priority + otherMax) break;
+    add(node);
+  }
   for (const node of document.querySelectorAll(otherSelector)) {
     if (controls.length >= priority + otherMax) break;
     add(node);
@@ -190,7 +227,7 @@ class BrowserSession:
             self._browser = self._launch()
             self._context = self._browser.new_context(viewport={"width": 1280, "height": 720})
             self.page = self._context.new_page()
-        self.page.set_default_timeout(5000)
+        self.page.set_default_timeout(15000)
         return self.page
 
     def _launch(self):
@@ -283,12 +320,23 @@ def _dialog_controls(page: Page, form_max: int, other_max: int) -> list | None:
     return None
 
 
-def observe(page: Page, *, form_max: int = FORM_MAX, other_max: int = MAX_CONTROLS) -> Observation:
+def observe(
+    page: Page,
+    *,
+    form_max: int = FORM_MAX,
+    other_max: int = MAX_CONTROLS,
+    prefer: str = "",
+) -> Observation:
     raw = _dialog_controls(page, form_max, other_max)
     if raw is None:
         raw = page.evaluate(
             _OBSERVE_JS,
-            {"formMax": form_max, "otherMax": other_max, "sectionMax": SECTION_MAX},
+            {
+                "formMax": form_max,
+                "otherMax": other_max,
+                "sectionMax": SECTION_MAX,
+                "prefer": prefer,
+            },
         )
     controls = []
     for item in raw:
@@ -385,10 +433,14 @@ def _choose(locator, option: str) -> None:
 def act(page: Page, action: Action) -> None:
     try:
         if isinstance(action, Goto):
-            page.goto(check_url(action.url), wait_until="domcontentloaded")
+            page.goto(check_url(action.url), wait_until="domcontentloaded", timeout=25000)
             return
         if isinstance(action, Click):
             locator = _locator(page, action.ref)
+            try:
+                locator.scroll_into_view_if_needed(timeout=3000)
+            except Exception:
+                pass
             submits = locator.evaluate(
                 """node => {
                   const type = (node.getAttribute("type") || "").toLowerCase();
@@ -397,7 +449,7 @@ def act(page: Page, action: Action) -> None:
                 }"""
             )
             before = page.url
-            locator.click()
+            locator.click(timeout=15000)
             if submits:
                 try:
                     page.wait_for_function(

@@ -11,6 +11,7 @@ import os
 import re
 import urllib.error
 import urllib.request
+from datetime import date
 
 from loop.actions import (
     ActionBatch,
@@ -479,6 +480,7 @@ class ModelPlanner:
         user = json.dumps(
             {
                 "task": task,
+                "today": date.today().isoformat(),
                 "observation": observation.to_dict(),
                 "history": history[-6:],
             },
@@ -494,7 +496,7 @@ class ModelPlanner:
                 },
                 {
                     "model": self.model,
-                    "max_tokens": 2500,
+                    "max_tokens": 4096,
                     "system": self.system,
                     "messages": [{"role": "user", "content": user}],
                 },
@@ -503,7 +505,7 @@ class ModelPlanner:
         payload = {
             "model": self.model,
             "temperature": 0,
-            "max_tokens": 2048,
+            "max_tokens": 8192,
             "messages": [
                 {"role": "system", "content": self.system},
                 {"role": "user", "content": user},
@@ -616,16 +618,32 @@ def _redact(text: str) -> str:
     return cleaned
 
 
+def _jsonish(text: str) -> bool:
+    start = text.find("{")
+    end = text.rfind("}")
+    return start >= 0 and end > start
+
+
 def _message_text(body: dict) -> str:
     if isinstance(body.get("content"), list):
         parts = [item.get("text", "") for item in body["content"] if isinstance(item, dict)]
         text = "".join(parts).strip()
         if text:
             return text
+    message = None
     try:
-        return body["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise PlannerError("Model response did not include a message.") from exc
+        message = body["choices"][0]["message"]
+    except (KeyError, IndexError, TypeError):
+        message = None
+    if isinstance(message, dict):
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            return content
+        for key in ("reasoning_content", "reasoning"):
+            extra = message.get(key)
+            if isinstance(extra, str) and extra.strip() and _jsonish(extra):
+                return extra
+    raise PlannerError("Model response did not include a message.")
 
 
 def _post_chat(url: str, headers: dict, payload: dict) -> dict:
