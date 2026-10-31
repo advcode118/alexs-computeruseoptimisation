@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Confirmation</title>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const lines = [];
+    for (const [key, value] of params) {
+      const safe = value.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]));
+      lines.push("<p>" + safe + "</p>");
+    }
+    document.write('<div id="echo">' + lines.join("") + "</div>");
+  </script>
+</head>
+<body>
+  <!-- local fixture -->
+  <h1>Confirmation</h1>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Shelves</title>
+</head>
+<body>
+  <!-- local fixture -->
+
+  <h1>Shelves</h1>
+  <label for="q">Search shelves</label>
+  <input id="q" name="q" type="text" autocomplete="off" />
+  <script>
+    document.getElementById("q").addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      const q = event.target.value;
+      location.href = "h-results.html?q=" + encodeURIComponent(q);
+    });
+  </script>
+
+</body>
+</html>

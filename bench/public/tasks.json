@@ -1,0 +1,189 @@
+[
+  {
+    "id": "pack-milk",
+    "instruction": "Add milk to the packing list",
+    "fixture": "packing.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#list", "text": "milk"}
+  },
+  {
+    "id": "pack-lantern",
+    "instruction": "Add lantern to the packing list",
+    "fixture": "packing.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#list", "text": "lantern"}
+  },
+  {
+    "id": "pack-coil",
+    "instruction": "Add coil to the packing list",
+    "fixture": "packing.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#list", "text": "coil"}
+  },
+  {
+    "id": "invoice-ada",
+    "instruction": "Fill and submit the form.\nCustomer name: Ada Lovelace\nCity: London",
+    "fixture": "invoice.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["Ada Lovelace", "London"]}
+  },
+  {
+    "id": "contact-grace",
+    "instruction": "Fill and submit the form.\nSender: Grace Hopper\nTopic: Compilers",
+    "fixture": "contact.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["Grace Hopper", "Compilers"]}
+  },
+  {
+    "id": "shipping-parcel",
+    "instruction": "Fill and submit the form.\nRecipient: Katherine Johnson\nStreet: Orbit",
+    "fixture": "shipping.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["Katherine Johnson", "Orbit"]}
+  },
+  {
+    "id": "login-hold",
+    "instruction": "Fill the form. Do not submit.\nUsername: octavia\nPassword: river-token",
+    "fixture": "login.html",
+    "page": "fixture",
+    "check": {
+      "kind": "fields",
+      "fields": [
+        {"name": "Username", "value": "octavia"},
+        {"name": "Password", "value": "river-token"}
+      ]
+    }
+  },
+  {
+    "id": "profile-hold",
+    "instruction": "Fill the form. Do not submit.\nFull name: Marie Curie\nEmail: marie@example.test\nPhone: 5550142",
+    "fixture": "profile.html",
+    "page": "fixture",
+    "check": {
+      "kind": "fields",
+      "fields": [
+        {"name": "Full name", "value": "Marie Curie"},
+        {"name": "Email", "value": "marie@example.test"},
+        {"name": "Phone", "value": "5550142"}
+      ]
+    }
+  },
+  {
+    "id": "catalog-wool",
+    "instruction": "Search the catalog for wool",
+    "fixture": "search.html",
+    "page": "fixture",
+    "check": {"kind": "url", "contains": "q=wool"}
+  },
+  {
+    "id": "catalog-linen",
+    "instruction": "Search the catalog for linen",
+    "fixture": "search.html",
+    "page": "fixture",
+    "check": {"kind": "url", "contains": "q=linen"}
+  },
+  {
+    "id": "catalog-cedar",
+    "instruction": "Search the catalog for cedar",
+    "fixture": "search.html",
+    "page": "fixture",
+    "check": {"kind": "url", "contains": "q=cedar"}
+  },
+  {
+    "id": "open-childhood",
+    "instruction": "Open the section Childhood",
+    "fixture": "snapshot-toc.html",
+    "page": "replay",
+    "check": {"kind": "url", "contains": "childhood.html"}
+  },
+  {
+    "id": "open-returns",
+    "instruction": "Open the section Returns policy",
+    "fixture": "snapshot-policy.html",
+    "page": "replay",
+    "check": {"kind": "url", "contains": "returns.html"}
+  },
+  {
+    "id": "docs-heapq",
+    "instruction": "Search the docs for heapq then open heapq",
+    "fixture": "docs.html",
+    "page": "replay",
+    "check": {"kind": "url", "contains": "heapq.html"}
+  },
+  {
+    "id": "library-ada",
+    "instruction": "Search the library for ada then open Ada Lovelace",
+    "fixture": "library.html",
+    "page": "replay",
+    "check": {"kind": "url", "contains": "ada.html"}
+  },
+  {
+    "id": "newsletter-optin",
+    "instruction": "Fill and submit the form. Weekly notes.\nEmail: ada@example.test",
+    "fixture": "newsletter.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["ada@example.test", "weekly-yes"]}
+  },
+  {
+    "id": "delivery-radio",
+    "instruction": "Fill and submit the form. Express post.\nReference: PX9",
+    "fixture": "delivery.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["PX9", "express-post"]}
+  },
+  {
+    "id": "address-office",
+    "instruction": "Fill and submit the form.\nOffice: North\nFloor: Four\nDesk: 12\nCode: N4",
+    "fixture": "address.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["North", "Four", "12", "N4"]}
+  },
+  {
+    "id": "feedback-short",
+    "instruction": "Fill and submit the form.\nComment: clear\nScore: high",
+    "fixture": "feedback.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["clear", "high"]}
+  },
+  {
+    "id": "quantity-order",
+    "instruction": "Fill and submit the form.\nItem name: Nails\nQuantity: 24",
+    "fixture": "quantity.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["Nails", "24"]}
+  },
+  {
+    "id": "appointment-hold",
+    "instruction": "Fill the form. Do not submit.\nVisitor: Alan Turing\nDay: Tuesday",
+    "fixture": "appointment.html",
+    "page": "fixture",
+    "check": {
+      "kind": "fields",
+      "fields": [
+        {"name": "Visitor", "value": "Alan Turing"},
+        {"name": "Day", "value": "Tuesday"}
+      ]
+    }
+  },
+  {
+    "id": "ticket-submit",
+    "instruction": "Fill and submit the form.\nSubject: Printer\nDetail: Paper",
+    "fixture": "ticket.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["Printer", "Paper"]}
+  },
+  {
+    "id": "filter-cedar",
+    "instruction": "Apply the cedar filter",
+    "fixture": "cedar.html",
+    "page": "fixture",
+    "check": {"kind": "url", "contains": "cedar-kept.html"}
+  },
+  {
+    "id": "filter-linen",
+    "instruction": "Apply the linen filter",
+    "fixture": "linen.html",
+    "page": "fixture",
+    "check": {"kind": "url", "contains": "linen-kept.html"}
+  }
+]

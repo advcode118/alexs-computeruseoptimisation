@@ -1,0 +1,50 @@
+[
+  {
+    "id": "h-4c1e",
+    "instruction": "Add saffron to the packing list",
+    "fixture": "h-pack.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#list", "text": "saffron"}
+  },
+  {
+    "id": "h-9b27",
+    "instruction": "Fill and submit the form.\nWarehouse: Quay\nCrate: 18",
+    "fixture": "h-form.html",
+    "page": "fixture",
+    "check": {"kind": "dom", "selector": "#echo", "texts": ["Quay", "18"]}
+  },
+  {
+    "id": "h-2a88",
+    "instruction": "Fill the form. Do not submit.\nBadge: kestrel\nGate: north-wharf",
+    "fixture": "h-quiet.html",
+    "page": "fixture",
+    "check": {
+      "kind": "fields",
+      "fields": [
+        {"name": "Badge", "value": "kestrel"},
+        {"name": "Gate", "value": "north-wharf"}
+      ]
+    }
+  },
+  {
+    "id": "h-7d04",
+    "instruction": "Search the shelves for quince",
+    "fixture": "h-search.html",
+    "page": "fixture",
+    "check": {"kind": "url", "contains": "q=quince"}
+  },
+  {
+    "id": "h-6e51",
+    "instruction": "Open the section Apprenticeship",
+    "fixture": "h-open.html",
+    "page": "replay",
+    "check": {"kind": "url", "contains": "h-section.html"}
+  },
+  {
+    "id": "h-3f90",
+    "instruction": "Search the archive for basalt then open Basalt notes",
+    "fixture": "h-find.html",
+    "page": "replay",
+    "check": {"kind": "url", "contains": "h-article.html"}
+  }
+]

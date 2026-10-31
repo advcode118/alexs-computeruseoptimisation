@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Packing list</title>
+</head>
+<body>
+  <!-- local fixture -->
+
+  <h1>Packing list</h1>
+  <form id="add-form">
+    <label for="item">Item</label>
+    <input id="item" name="item" type="text" autocomplete="off" />
+    <button type="submit">Add</button>
+  </form>
+  <ul id="list"></ul>
+  <script>
+    document.getElementById("add-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const input = document.getElementById("item");
+      const text = input.value.trim();
+      if (!text) return;
+      const item = document.createElement("li");
+      item.textContent = text;
+      document.getElementById("list").appendChild(item);
+      input.value = "";
+    });
+  </script>
+
+</body>
+</html>
