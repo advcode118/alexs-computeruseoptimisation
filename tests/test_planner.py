@@ -231,6 +231,30 @@ def test_html_shortcut_uses_a_unique_name_and_leaves_ambiguous_controls():
     assert click.actions[0].ref == "e40"
 
 
+def test_html_shortcut_saves_the_later_section_for_the_next_page():
+    task = (
+        "Fill the Search box with heapq and open the result named heapq \u2014 Heap queue algorithm, "
+        "then open Priority Queue Implementation Notes."
+    )
+    results = Observation(
+        "https://docs.python.org/3/search.html?q=heapq",
+        "Search",
+        [Control("e12", "link", "heapq \u2014 Heap queue algorithm", "")],
+    )
+    opened = html_shortcut(task, results)
+    assert opened is not None and opened.done is False
+    assert opened.actions[0].ref == "e12"
+    page = Observation(
+        "https://docs.python.org/3/library/heapq.html",
+        "heapq",
+        [],
+        html="link\tpriority queue\te41\nlink\tPriority Queue Implementation Notes\te48",
+    )
+    section = html_shortcut(task, page)
+    assert section is not None and section.done is True
+    assert section.actions[0].ref == "e48"
+
+
 def test_null_model_content_finishes_after_a_passed_assertion():
     history = [
         {
