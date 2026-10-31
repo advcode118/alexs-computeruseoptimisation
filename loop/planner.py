@@ -156,7 +156,9 @@ def _repeated_same_page(
     name: str,
 ) -> bool:
     """The last cycle already clicked this control on this page."""
-    if previous_observation.url != observation.url:
+    previous_url = previous_observation.url.split("#", 1)[0]
+    current_url = observation.url.split("#", 1)[0]
+    if previous_url != current_url:
         return False
     actions = previous_batch.actions
     if len(actions) != 1 or not isinstance(actions[0], Click):
@@ -248,9 +250,16 @@ def _unique_named_click(task: str, tree: list[Control]) -> Control | None:
             continue
         groups.setdefault((control.role, name.lower()), []).append(control)
     unique = [group[0] for group in groups.values() if len(group) == 1]
-    if len(unique) != 1:
+    unique.sort(key=lambda control: len(control.name), reverse=True)
+    kept: list[Control] = []
+    for control in unique:
+        name = control.name.strip().lower()
+        if any(name != earlier.name.strip().lower() and name in earlier.name.strip().lower() for earlier in kept):
+            continue
+        kept.append(control)
+    if len(kept) != 1:
         return None
-    return unique[0]
+    return kept[0]
 
 
 def _exact_named(tree: list[Control], *, name: str, roles: set[str]) -> list[Control]:
@@ -298,8 +307,17 @@ def html_shortcut(
         if _repeated_same_page(previous_batch, previous_observation, observation, named.role, named.name):
             named = None
     if named is not None:
-        assertion = AssertTitle(named.name) if re.search(r"\btitle\b", task, re.IGNORECASE) else None
-        done = assertion is not None
+        later = re.search(r"\bthen\s+open\s+(.+?)(?:\.|$)", task, re.IGNORECASE)
+        later_name = re.sub(r"\s+", " ", later.group(1)).strip(" .") if later else ""
+        opened_later = bool(later_name) and (
+            later_name.lower() in named.name.lower() or named.name.lower() in later_name.lower()
+        )
+        if later_name and not opened_later:
+            assertion = None
+            done = False
+        else:
+            assertion = AssertTitle(named.name) if re.search(r"\btitle\b", task, re.IGNORECASE) else None
+            done = assertion is not None or opened_later
         return ActionBatch(
             f"The page HTML has one {named.role} named {named.name}.",
             [Click(named.ref)],

@@ -207,6 +207,14 @@ def _locator(page: Page, ref: str):
     return locator.first
 
 
+def _settle(page: Page) -> None:
+    """Wait until a click or keypress has finished navigating."""
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=3000)
+    except Exception:
+        return
+
+
 def act(page: Page, action: Action) -> None:
     try:
         if isinstance(action, Goto):
@@ -214,6 +222,7 @@ def act(page: Page, action: Action) -> None:
             return
         if isinstance(action, Click):
             _locator(page, action.ref).click()
+            _settle(page)
             return
         if isinstance(action, Fill):
             _locator(page, action.ref).fill(action.text)
@@ -223,6 +232,7 @@ def act(page: Page, action: Action) -> None:
                 _locator(page, action.ref).press(action.key)
             else:
                 page.keyboard.press(action.key)
+            _settle(page)
             return
         if isinstance(action, Scroll):
             amount = action.amount if action.direction == "down" else -action.amount
