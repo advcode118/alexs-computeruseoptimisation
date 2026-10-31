@@ -48,6 +48,7 @@ _OBSERVE_JS = """
     "[role='checkbox']",
     "[role='radio']",
     "[role='combobox']",
+    "[role='option']",
     "[role='tab']",
     "[contenteditable='true']"
   ].join(",");
@@ -173,6 +174,13 @@ _OBSERVE_JS = """
     add(node);
     if (controls.length > before) citeAdded += 1;
   }
+  let optionAdded = 0;
+  for (const node of document.querySelectorAll("[role='option']")) {
+    if (optionAdded >= 16 || controls.length >= priority + otherMax) break;
+    const before = controls.length;
+    add(node);
+    if (controls.length > before) optionAdded += 1;
+  }
   let preferred = 0;
   for (const node of document.querySelectorAll("a[href], [role='link']")) {
     if (preferred >= 16 || controls.length >= priority + otherMax) break;
@@ -232,7 +240,11 @@ class BrowserSession:
 
     def _launch(self):
         attempts = (
-            {"channel": "chrome", "headless": self.headless, "args": ["--disable-dev-shm-usage"]},
+            {
+                "channel": "chrome",
+                "headless": self.headless,
+                "args": ["--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"],
+            },
             {"headless": self.headless, "args": ["--disable-dev-shm-usage"]},
         )
         errors = []
@@ -449,7 +461,10 @@ def act(page: Page, action: Action) -> None:
                 }"""
             )
             before = page.url
-            locator.click(timeout=15000)
+            try:
+                locator.click(timeout=8000)
+            except Exception:
+                locator.click(timeout=5000, force=True)
             if submits:
                 try:
                     page.wait_for_function(

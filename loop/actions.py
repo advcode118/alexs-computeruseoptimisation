@@ -234,6 +234,8 @@ def check_url(url: str) -> str:
         raise ActionError(f"url scheme must be http, https, or file, got {parsed.scheme or 'none'!r}")
     if parsed.scheme in ("http", "https") and not parsed.netloc:
         raise ActionError(f"url is missing a host: {url}")
+    if parsed.netloc == "m.rightmove.co.uk":
+        text = text.replace("://m.rightmove.co.uk", "://www.rightmove.co.uk", 1)
     return text
 
 
@@ -242,17 +244,17 @@ def parse_action(data: object) -> Action:
         raise ActionError("each action must be an object")
     kind = data.get("type")
     if isinstance(kind, str):
-        kind = kind.strip().lower().replace("-", "_")
+        kind = " ".join(kind.strip().lower().replace("-", " ").replace("_", " ").split())
     if kind == "key":
         kind = "press"
     if kind == "select":
         kind = "choose"
-    if kind in ("navigate", "open_url", "openurl", "go"):
+    if kind in ("navigate", "open url", "openurl", "go"):
         kind = "goto"
         data = dict(data)
         if not data.get("url"):
             data["url"] = data.get("href") or data.get("target") or ""
-    if kind in ("press_enter", "pressenter"):
+    if kind in ("press enter", "pressenter"):
         kind = "press"
         data = dict(data)
         if not data.get("key"):

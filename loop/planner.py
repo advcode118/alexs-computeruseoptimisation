@@ -59,6 +59,7 @@ _SYSTEM = (
     "A search field is a textbox even when a suggestion list is open. "
     "Fill it and press Enter in the same response. Do not click Search, and do not choose the search field. "
     "Press Enter in a search box. Do not click a Search button under a suggestion list. "
+    "If an option names a place or choice the task asks for, click that option. "
     "Checkbox and radio text can be empty. Do not submit when the task says not to. "
     "assertion type is url, title, text, all, or value. "
     "value checks are {\"type\":\"value\",\"checks\":[{\"role\":\"textbox\",\"name\":\"Password\",\"text\":\"secret\"}]}. "
@@ -428,17 +429,13 @@ def parse_model_content(content: str) -> ActionBatch:
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
+    start = text.find("{")
+    if start < 0:
+        raise PlannerError("Model did not return JSON.")
     try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start < 0 or end <= start:
-            raise PlannerError("Model did not return JSON.")
-        try:
-            data = json.loads(text[start : end + 1])
-        except json.JSONDecodeError as exc:
-            raise PlannerError(f"Model did not return JSON: {exc}") from exc
+        data, _end = json.JSONDecoder().raw_decode(text[start:])
+    except json.JSONDecodeError as exc:
+        raise PlannerError(f"Model did not return JSON: {exc}") from exc
     try:
         return parse_batch(data)
     except ActionError as exc:
@@ -654,7 +651,7 @@ def _post_chat(url: str, headers: dict, payload: dict) -> dict:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=180) as response:
             body = json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
         detail = _redact(exc.read().decode(errors="replace")[:300])
