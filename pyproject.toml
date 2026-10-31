@@ -20,6 +20,9 @@ bench = [
   "holdout/tasks.json",
   "holdout/fixtures/*.html",
   "README.md",
+  "LOG.md",
+  "PRODUCT.md",
+  "baseline.json",
 ]
 
 [tool.pytest.ini_options]

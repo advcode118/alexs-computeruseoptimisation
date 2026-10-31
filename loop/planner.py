@@ -447,20 +447,32 @@ def parse_model_content(content: str) -> ActionBatch:
 class ModelPlanner:
     """One chat completion per cycle. Any OpenAI-compatible endpoint."""
 
-    def __init__(self, *, api_key: str, base_url: str, model: str, transport=None, api_style: str = "openai"):
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str,
+        model: str,
+        transport=None,
+        api_style: str = "openai",
+        system: str | None = None,
+    ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.transport = transport or _post_chat
         self.api_style = api_style
+        self.system = system or _SYSTEM
         self.calls = 0
         self.input_tokens = 0
         self.output_tokens = 0
+        self.cached_input_tokens = 0
 
     def reset(self) -> None:
         self.calls = 0
         self.input_tokens = 0
         self.output_tokens = 0
+        self.cached_input_tokens = 0
 
     def plan(self, task: str, observation: Observation, history: list[dict]) -> ActionBatch:
         self.calls += 1
@@ -483,7 +495,7 @@ class ModelPlanner:
                 {
                     "model": self.model,
                     "max_tokens": 2500,
-                    "system": _SYSTEM,
+                    "system": self.system,
                     "messages": [{"role": "user", "content": user}],
                 },
             )
@@ -491,8 +503,9 @@ class ModelPlanner:
         payload = {
             "model": self.model,
             "temperature": 0,
+            "max_tokens": 2048,
             "messages": [
-                {"role": "system", "content": _SYSTEM},
+                {"role": "system", "content": self.system},
                 {"role": "user", "content": user},
             ],
         }
@@ -513,36 +526,94 @@ class ModelPlanner:
             usage = raw.get("usage") if isinstance(raw.get("usage"), dict) else {}
             self.input_tokens += int(usage.get("input") or 0)
             self.output_tokens += int(usage.get("output") or 0)
+            self.cached_input_tokens += int(usage.get("cached_input") or 0)
             content = raw.get("content")
-            if isinstance(content, str):
+            if isinstance(content, str) and content.strip():
                 return content
         raise PlannerError("Model response did not include a message.")
 
     @classmethod
-    def from_env(cls) -> "ModelPlanner":
-        api_key = os.environ.get("LOOP_API_KEY") or os.environ.get("OPENAI_API_KEY") or ""
-        if not api_key:
+    def from_env(cls, system: str | None = None, *, provider: str | None = None) -> "ModelPlanner":
+        """Nebius is the live loop's primary. Claude is the fallback provider."""
+        nebius = os.environ.get("NEBIUS_API_KEY") or ""
+        anthropic = os.environ.get("ANTHROPIC_API_KEY") or ""
+        loop_key = os.environ.get("LOOP_API_KEY") or os.environ.get("OPENAI_API_KEY") or ""
+        choice = provider or ""
+        if choice == "anthropic":
+            if not anthropic:
+                raise PlannerError("ANTHROPIC_API_KEY is not present.")
+            return cls(
+                api_key=anthropic,
+                base_url=os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1"),
+                model=os.environ.get("FALLBACK_MODEL") or "claude-sonnet-5-5",
+                api_style="anthropic",
+                system=system,
+            )
+        if nebius and choice != "openai":
+            return cls(
+                api_key=nebius,
+                base_url=os.environ.get("LOOP_BASE_URL", "https://api.tokenfactory.nebius.com/v1"),
+                model=os.environ.get("LOOP_MODEL") or os.environ.get("RUN_MODEL") or "deepseek-ai/DeepSeek-V4-Pro-0813",
+                system=system,
+            )
+        if anthropic and not loop_key:
+            return cls(
+                api_key=anthropic,
+                base_url=os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com/v1"),
+                model=os.environ.get("FALLBACK_MODEL") or "claude-sonnet-5-5",
+                api_style="anthropic",
+                system=system,
+            )
+        if not loop_key:
             raise PlannerError(
-                "The model planner needs LOOP_API_KEY or OPENAI_API_KEY. "
-                "Use the fake planner to run with no key."
+                "The model planner needs NEBIUS_API_KEY, ANTHROPIC_API_KEY, LOOP_API_KEY, or OPENAI_API_KEY."
             )
         return cls(
-            api_key=api_key,
+            api_key=loop_key,
             base_url=os.environ.get("LOOP_BASE_URL", "https://api.openai.com/v1"),
             model=os.environ.get("LOOP_MODEL", "gpt-4o-mini"),
+            system=system,
         )
 
 
 def _usage_counts(body: dict) -> dict[str, int]:
     usage = body.get("usage")
+    empty = {"input": 0, "output": 0, "cached_input": 0}
     if not isinstance(usage, dict):
-        return {"input": 0, "output": 0}
-    raw_in = usage.get("prompt_tokens", usage.get("input_tokens", 0))
+        return empty
     raw_out = usage.get("completion_tokens", usage.get("output_tokens", 0))
+    cached = 0
+    if "cache_read_input_tokens" in usage:
+        raw_in = usage.get("input_tokens", 0)
+        cached = usage.get("cache_read_input_tokens") or 0
+    else:
+        raw_in = usage.get("prompt_tokens", usage.get("input_tokens", 0))
+        details = usage.get("prompt_tokens_details")
+        if "prompt_cache_hit_tokens" in usage:
+            cached = usage.get("prompt_cache_hit_tokens") or 0
+        elif isinstance(details, dict):
+            cached = details.get("cached_tokens") or 0
+        try:
+            raw_in = int(raw_in or 0) - int(cached or 0)
+        except (TypeError, ValueError):
+            return empty
     try:
-        return {"input": int(raw_in or 0), "output": int(raw_out or 0)}
+        return {
+            "input": max(0, int(raw_in or 0)),
+            "output": max(0, int(raw_out or 0)),
+            "cached_input": max(0, int(cached or 0)),
+        }
     except (TypeError, ValueError):
-        return {"input": 0, "output": 0}
+        return empty
+
+
+def _redact(text: str) -> str:
+    cleaned = text
+    for name in ("NEBIUS_API_KEY", "ANTHROPIC_API_KEY", "LOOP_API_KEY", "OPENAI_API_KEY"):
+        value = os.environ.get(name) or ""
+        if len(value) >= 8:
+            cleaned = cleaned.replace(value, "[redacted]")
+    return cleaned
 
 
 def _message_text(body: dict) -> str:
@@ -568,10 +639,10 @@ def _post_chat(url: str, headers: dict, payload: dict) -> dict:
         with urllib.request.urlopen(request, timeout=60) as response:
             body = json.loads(response.read().decode())
     except urllib.error.HTTPError as exc:
-        detail = exc.read().decode(errors="replace")[:300]
+        detail = _redact(exc.read().decode(errors="replace")[:300])
         raise PlannerError(f"Model request failed ({exc.code}): {detail}") from exc
     except urllib.error.URLError as exc:
-        raise PlannerError(f"Model request failed: {exc.reason}") from exc
+        raise PlannerError(f"Model request failed: {_redact(str(exc.reason))}") from exc
     return {"content": _message_text(body), "usage": _usage_counts(body)}
 
 

@@ -23,6 +23,13 @@ _AGENT_FILES = (
     "bench/__init__.py",
     "bench/__main__.py",
     "bench/README.md",
+    "bench/baseline_agent.py",
+    "bench/keys.py",
+    "bench/flags.py",
+    "bench/experiments.py",
+    "bench/stats.py",
+    "bench/LOG.md",
+    "bench/PRODUCT.md",
 )
 
 

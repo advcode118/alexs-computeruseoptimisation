@@ -10,14 +10,20 @@ From the repository root:
 
 ```bash
 python -m bench list
-python -m bench run --planner fake
+python -m bench run
+python -m bench run --quick
+python -m bench baseline
 ```
 
 `list` prints the agent-facing task list. The planner, the router, and any prompt use that list.
 
-`run` sends each task through the existing loop and writes one log record per task: success, wall time, steps (browser actions), LLM calls, tokens, and estimated dollars. Dollars use the rate table in `bench/rates.py` and are labeled `estimate`. They are not an invoice.
+`run` is the counted bench. It loads the live loop env (Nebius, then Claude) and fails if neither key is present. It does not print the keys. Each task goes through the existing loop. The log records success, wall time, steps (browser actions), LLM calls, tokens, and estimated dollars. Dollars use the rate table in `bench/rates.py` and are labeled `estimate`. They are not an invoice.
 
-The default planner is `fake`, which needs no API key. `--planner model` uses `LOOP_API_KEY` or `OPENAI_API_KEY` and the model this loop already calls (`gpt-4o-mini`, unless `LOOP_MODEL` is set). A task counts as a real model run only when that planner records a call. The summary lists those task ids.
+A task that the direct role-and-name path finishes can show zero model calls. A counted run with zero model calls in total is a failure: the keys did not reach the planner. `--planner fake` still runs the checker with no key, and it is not a baseline or a result.
+
+`run --quick` scores the first 10 public tasks and does not load the hidden split.
+
+`baseline` pins the one-action model agent to `bench/baseline.json` and freezes `bench/baseline_agent.py` by hash.
 
 Logs go to `bench/runs/<timestamp>/`.
 

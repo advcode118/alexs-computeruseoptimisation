@@ -231,6 +231,17 @@ class Controller:
             self._cv.notify_all()
 
 
+def _named_step(action: Action) -> dict | None:
+    """Role-and-name actions can be replayed. A ref cannot."""
+    if isinstance(action, FillNamed):
+        return {"type": "fill", "role": action.role, "name": action.name, "text": action.text}
+    if isinstance(action, ClickNamed):
+        return {"type": "click", "role": action.role, "name": action.name}
+    if isinstance(action, ChooseNamed):
+        return {"type": "choose", "role": action.role, "name": action.name, "option": action.option}
+    return None
+
+
 def _history_item(
     batch: ActionBatch,
     assertion_ok: bool | None,
@@ -260,8 +271,12 @@ class Engine:
         self.history: list[dict] = []
         self.pending: list[Action] = []
         self.recoveries = 0
+        self.allow_direct = True
         self.suppress_direct = False
+        self.max_actions = None
         self.model_used = False
+        self.trace: list[dict] = []
+        self.trace_ok = True
         self._deferred: Assertion | None = None
         self._cycle_url = ""
 
@@ -270,6 +285,8 @@ class Engine:
         self.pending = []
         self.recoveries = 0
         self.model_used = False
+        self.trace = []
+        self.trace_ok = True
         self._deferred = None
         self._cycle_url = ""
 
@@ -376,18 +393,20 @@ class Engine:
     def _next_batch(self, observation: Observation) -> ActionBatch:
         ready = self._take_ready_pending()
         if ready is not None:
+            ready = self._cap(ready)
             self.log.plan(ready)
             return ready
         if self.pending:
             self.pending.clear()
             self._deferred = None
-        if not self.suppress_direct and not self.model_used:
+        if self.allow_direct and not self.suppress_direct and not self.model_used:
             direct = direct_batch(self.controller.current_task(), observation, self.history)
             if direct is not None:
+                direct = self._cap(direct)
                 self.log.plan(direct)
                 return direct
         before = getattr(self.planner, "calls", None)
-        batch = self.planner.plan(self.controller.current_task(), observation, self.history)
+        batch = self._cap(self.planner.plan(self.controller.current_task(), observation, self.history))
         after = getattr(self.planner, "calls", None)
         if isinstance(before, int) and isinstance(after, int) and after > before:
             self.model_used = True
@@ -395,11 +414,18 @@ class Engine:
         self.log.plan(batch)
         return batch
 
+    def _cap(self, batch: ActionBatch) -> ActionBatch:
+        limit = self.max_actions
+        if limit is None or len(batch.actions) <= limit:
+            return batch
+        return ActionBatch(batch.reason, batch.actions[:limit], None, False)
+
     def _take_ready_pending(self) -> ActionBatch | None:
         if not self.pending:
             return None
+        limit = self.max_actions if isinstance(self.max_actions, int) else len(self.pending)
         ready = []
-        while self.pending and self._concrete(self.pending[0]) is not None:
+        while self.pending and len(ready) < limit and self._concrete(self.pending[0]) is not None:
             ready.append(self.pending.pop(0))
         if not ready:
             return None
@@ -540,6 +566,11 @@ class Engine:
                 self.log.act(action, ok=False, error=str(exc))
                 return str(exc)
             self.log.act(action, ok=True)
+            step = _named_step(original)
+            if step is None:
+                self.trace_ok = False
+            else:
+                self.trace.append(step)
             if isinstance(action, (Goto, Click)):
                 navigated = True
         return None
@@ -555,7 +586,8 @@ class Engine:
         self.pending.clear()
         self._deferred = None
         self.recoveries += 1
-        self.suppress_direct = False
+        if self.allow_direct:
+            self.suppress_direct = False
         if self.recoveries > MAX_RECOVERY or self.controller.step_only:
             self.controller.finish("failed", detail)
             return False

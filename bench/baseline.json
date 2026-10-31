@@ -1,0 +1,498 @@
+{
+  "frozen": true,
+  "code": "bench/baseline_agent.py",
+  "code_sha256": "b27384e7240a2f8b94ecb3d7481bb0c7ad834d28ed51a0d09e61f26eb1462e3d",
+  "planner": "model",
+  "provider": "nebius",
+  "model": "deepseek-ai/DeepSeek-V4-Pro-0813",
+  "description": "One action per model call on a warm browser. Token counts come from the API. Dollars are an estimate from the rate table, not an invoice.",
+  "task_count": 30,
+  "holdout_count": 6,
+  "median_wall_time_s": 8.435,
+  "median_estimated_dollars": 0.00268524,
+  "main_success": 1.0,
+  "holdout_success": 1.0,
+  "llm_calls": 72,
+  "tasks": [
+    {
+      "id": "pack-milk",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 8.261,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 350,
+        "cached_input": 512,
+        "output": 267,
+        "total": 1129
+      },
+      "estimated_dollars": 0.0015398,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "pack-lantern",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 8.35,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 348,
+        "cached_input": 512,
+        "output": 207,
+        "total": 1067
+      },
+      "estimated_dollars": 0.00129956,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "pack-coil",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 8.52,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 348,
+        "cached_input": 512,
+        "output": 329,
+        "total": 1189
+      },
+      "estimated_dollars": 0.00178268,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "invoice-ada",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 10.548,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 736,
+        "cached_input": 768,
+        "output": 303,
+        "total": 1807
+      },
+      "estimated_dollars": 0.00220212,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "contact-grace",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 8.268,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 731,
+        "cached_input": 768,
+        "output": 425,
+        "total": 1924
+      },
+      "estimated_dollars": 0.00267864,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "shipping-parcel",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 23.346,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 734,
+        "cached_input": 768,
+        "output": 339,
+        "total": 1841
+      },
+      "estimated_dollars": 0.00234204,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "login-hold",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 11.845,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 367,
+        "cached_input": 512,
+        "output": 484,
+        "total": 1363
+      },
+      "estimated_dollars": 0.00242156,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "profile-hold",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 10.234,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 775,
+        "cached_input": 768,
+        "output": 549,
+        "total": 2092
+      },
+      "estimated_dollars": 0.00322776,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "catalog-wool",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 13.737,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 297,
+        "cached_input": 512,
+        "output": 694,
+        "total": 1503
+      },
+      "estimated_dollars": 0.00316076,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "catalog-linen",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 17.519,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 297,
+        "cached_input": 512,
+        "output": 880,
+        "total": 1689
+      },
+      "estimated_dollars": 0.00389732,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "catalog-cedar",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 28.952,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 297,
+        "cached_input": 512,
+        "output": 958,
+        "total": 1767
+      },
+      "estimated_dollars": 0.0042062,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "open-childhood",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 4.778,
+      "steps": 1,
+      "llm_calls": 1,
+      "tokens": {
+        "input": 113,
+        "cached_input": 256,
+        "output": 151,
+        "total": 520
+      },
+      "estimated_dollars": 0.00075736,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "open-returns",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 4.547,
+      "steps": 1,
+      "llm_calls": 1,
+      "tokens": {
+        "input": 114,
+        "cached_input": 256,
+        "output": 114,
+        "total": 484
+      },
+      "estimated_dollars": 0.00061216,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "docs-heapq",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 22.964,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 549,
+        "cached_input": 768,
+        "output": 779,
+        "total": 2096
+      },
+      "estimated_dollars": 0.00384024,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "library-ada",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 16.097,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 566,
+        "cached_input": 768,
+        "output": 750,
+        "total": 2084
+      },
+      "estimated_dollars": 0.00374784,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "newsletter-optin",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 11.445,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 730,
+        "cached_input": 768,
+        "output": 445,
+        "total": 1943
+      },
+      "estimated_dollars": 0.00275652,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "delivery-radio",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 12.245,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 807,
+        "cached_input": 768,
+        "output": 439,
+        "total": 2014
+      },
+      "estimated_dollars": 0.0028344,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "address-office",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 12.923,
+      "steps": 5,
+      "llm_calls": 5,
+      "tokens": {
+        "input": 1871,
+        "cached_input": 1280,
+        "output": 668,
+        "total": 3819
+      },
+      "estimated_dollars": 0.0051662,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "feedback-short",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 7.981,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 713,
+        "cached_input": 768,
+        "output": 440,
+        "total": 1921
+      },
+      "estimated_dollars": 0.00271428,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "quantity-order",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 7.57,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 732,
+        "cached_input": 768,
+        "output": 433,
+        "total": 1933
+      },
+      "estimated_dollars": 0.00271164,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "appointment-hold",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 5.033,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 365,
+        "cached_input": 512,
+        "output": 262,
+        "total": 1139
+      },
+      "estimated_dollars": 0.0015398,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "ticket-submit",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 6.837,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 715,
+        "cached_input": 768,
+        "output": 419,
+        "total": 1902
+      },
+      "estimated_dollars": 0.00263376,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "filter-cedar",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 1.693,
+      "steps": 1,
+      "llm_calls": 1,
+      "tokens": {
+        "input": 114,
+        "cached_input": 256,
+        "output": 89,
+        "total": 459
+      },
+      "estimated_dollars": 0.00051316,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "filter-linen",
+      "holdout": false,
+      "success": true,
+      "wall_time_s": 1.706,
+      "steps": 1,
+      "llm_calls": 1,
+      "tokens": {
+        "input": 114,
+        "cached_input": 256,
+        "output": 84,
+        "total": 454
+      },
+      "estimated_dollars": 0.00049336,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "h-4c1e",
+      "holdout": true,
+      "success": true,
+      "wall_time_s": 7.384,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 364,
+        "cached_input": 512,
+        "output": 260,
+        "total": 1136
+      },
+      "estimated_dollars": 0.00153056,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "h-9b27",
+      "holdout": true,
+      "success": true,
+      "wall_time_s": 5.663,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 756,
+        "cached_input": 768,
+        "output": 420,
+        "total": 1944
+      },
+      "estimated_dollars": 0.00269184,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "h-2a88",
+      "holdout": true,
+      "success": true,
+      "wall_time_s": 8.644,
+      "steps": 2,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 705,
+        "cached_input": 768,
+        "output": 752,
+        "total": 2225
+      },
+      "estimated_dollars": 0.00393924,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "h-7d04",
+      "holdout": true,
+      "success": true,
+      "wall_time_s": 18.404,
+      "steps": 2,
+      "llm_calls": 2,
+      "tokens": {
+        "input": 307,
+        "cached_input": 512,
+        "output": 1360,
+        "total": 2179
+      },
+      "estimated_dollars": 0.00581132,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "h-6e51",
+      "holdout": true,
+      "success": true,
+      "wall_time_s": 1.485,
+      "steps": 1,
+      "llm_calls": 1,
+      "tokens": {
+        "input": 117,
+        "cached_input": 256,
+        "output": 93,
+        "total": 466
+      },
+      "estimated_dollars": 0.00053296,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    },
+    {
+      "id": "h-3f90",
+      "holdout": true,
+      "success": true,
+      "wall_time_s": 6.555,
+      "steps": 3,
+      "llm_calls": 3,
+      "tokens": {
+        "input": 586,
+        "cached_input": 768,
+        "output": 565,
+        "total": 1919
+      },
+      "estimated_dollars": 0.00304164,
+      "model": "deepseek-ai/DeepSeek-V4-Pro-0813"
+    }
+  ]
+}

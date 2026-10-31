@@ -6,9 +6,14 @@ Figures from this table are estimates, not an invoice.
 
 from __future__ import annotations
 
-# USD per 1,000,000 tokens. OpenAI published list price for gpt-4o-mini.
+# USD per 1,000,000 tokens. List prices, used only as an estimate.
+# gpt-4o-mini: OpenAI list price.
+# deepseek-ai/DeepSeek-V4-Pro-0813: Nebius Token Factory catalog (input 1.32, cached 0.04, output 3.96).
+# claude-sonnet-5-5: Anthropic Claude Sonnet 5.5 list price (input 2, cache read 0.10, output 10).
 RATES: dict[str, dict[str, float]] = {
-    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60, "cached_input": 0.075},
+    "deepseek-ai/DeepSeek-V4-Pro-0813": {"input": 1.32, "output": 3.96, "cached_input": 0.04},
+    "claude-sonnet-5-5": {"input": 2.0, "output": 10.0, "cached_input": 0.10},
 }
 
 
@@ -18,6 +23,7 @@ def estimate_dollars(
     output_tokens: int,
     *,
     llm_calls: int,
+    cached_input_tokens: int = 0,
 ) -> dict:
     """Return estimated_dollars and dollars_are='estimate'.
 
@@ -38,6 +44,26 @@ def estimate_dollars(
         priced["estimated_dollars"] = None
         priced["rate_found"] = False
         return priced
-    dollars = (input_tokens * rate["input"] + output_tokens * rate["output"]) / 1_000_000
-    priced["estimated_dollars"] = round(dollars, 6)
+    cached_rate = rate.get("cached_input", rate["input"])
+    dollars = (
+        input_tokens * rate["input"]
+        + cached_input_tokens * cached_rate
+        + output_tokens * rate["output"]
+    ) / 1_000_000
+    priced["estimated_dollars"] = round(dollars, 8)
     return priced
+
+
+def cached_input_tokens(system_tokens: int, user_tokens: list[int], *, prompt_cache: bool) -> int:
+    """Bill the system prompt in full on the first call.
+
+    Later calls bill half of those system tokens when prompt caching is on.
+    This is an estimate of a cache discount, not an invoice.
+    """
+    total = 0
+    for index, user in enumerate(user_tokens):
+        if prompt_cache and index:
+            total += user + system_tokens // 2
+        else:
+            total += user + system_tokens
+    return total

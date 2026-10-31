@@ -175,6 +175,8 @@ def test_ordinary_language_is_left_for_the_model():
 def test_model_planner_requires_a_key(monkeypatch):
     monkeypatch.delenv("LOOP_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("NEBIUS_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(PlannerError):
         ModelPlanner.from_env()
 
@@ -186,12 +188,25 @@ def test_model_planner_records_token_usage():
     assert _usage_counts({"usage": {"prompt_tokens": 5, "completion_tokens": 2}}) == {
         "input": 5,
         "output": 2,
+        "cached_input": 0,
     }
     assert _usage_counts({"usage": {"input_tokens": 7, "output_tokens": 1}}) == {
         "input": 7,
         "output": 1,
+        "cached_input": 0,
     }
-    assert _usage_counts({}) == {"input": 0, "output": 0}
+    assert _usage_counts(
+        {"usage": {"prompt_tokens": 10, "completion_tokens": 2, "prompt_tokens_details": {"cached_tokens": 4}}}
+    ) == {"input": 6, "output": 2, "cached_input": 4}
+    assert _usage_counts(
+        {"usage": {"prompt_tokens": 20, "completion_tokens": 3, "prompt_cache_hit_tokens": 12}}
+    ) == {"input": 8, "output": 3, "cached_input": 12}
+    assert _usage_counts({"usage": {"input_tokens": 3, "output_tokens": 1, "cache_read_input_tokens": 8}}) == {
+        "input": 3,
+        "output": 1,
+        "cached_input": 8,
+    }
+    assert _usage_counts({}) == {"input": 0, "output": 0, "cached_input": 0}
 
     def transport(url, headers, payload):
         del url, headers, payload

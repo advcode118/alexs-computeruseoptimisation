@@ -86,7 +86,8 @@ Local pages only, with a code check after each task. This does not publish a run
 
 ```bash
 python -m bench list
-python -m bench run --planner fake
+python -m bench run
+python -m bench baseline
 ```
 
 `list` is the task list a prompt may include. `run` writes a log with success, wall time, steps, LLM calls, tokens, and estimated dollars. See [bench/README.md](../bench/README.md).
