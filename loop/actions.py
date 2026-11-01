@@ -245,7 +245,7 @@ def parse_action(data: object) -> Action:
     kind = data.get("type")
     if isinstance(kind, str):
         kind = " ".join(kind.strip().lower().replace("-", " ").replace("_", " ").split())
-    if kind == "key":
+    if kind in ("key", "keypress", "key press"):
         kind = "press"
     if kind == "select":
         kind = "choose"

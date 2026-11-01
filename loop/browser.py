@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from playwright.sync_api import Page, sync_playwright
@@ -85,6 +86,7 @@ _OBSERVE_JS = """
       } else role = tag;
     }
     let name = node.getAttribute("aria-label") || "";
+    if (name === "true" || name === "false") name = "";
     if (!name && node.getAttribute("aria-labelledby")) {
       name = node.getAttribute("aria-labelledby").split(/\\s+/).map((id) => {
         const label = document.getElementById(id);
@@ -455,6 +457,187 @@ def _choose(locator, option: str) -> None:
         raise ChooseError(f"choose {label!r} failed: that option is not in the list")
 
 
+_PLACE_FIELD = re.compile(r"postcode|\btown\b|station|destination|\blocation\b|\barea\b", re.I)
+
+
+def _fold_place(text: str) -> str:
+    folded = (text or "").lower().replace("’", "'").replace("`", "'")
+    return folded.replace("'", "").strip()
+
+
+def _is_place_field(locator) -> bool:
+    """A place box asks for a postcode, town, station, or destination. Its suggestions come from the site."""
+    try:
+        blob = locator.evaluate(
+            """(node) => {
+              let name = node.getAttribute("aria-label") || "";
+              if (name === "true" || name === "false") name = "";
+              const ids = node.getAttribute("aria-labelledby") || "";
+              const fromLabel = ids.split(/\\s+/).map((id) => {
+                const label = id && document.getElementById(id);
+                return label ? label.innerText : "";
+              }).join(" ");
+              const wrapped = node.labels && node.labels.length
+                ? Array.from(node.labels).map((label) => label.innerText || "").join(" ")
+                : "";
+              return [
+                name,
+                fromLabel,
+                wrapped,
+                node.getAttribute("placeholder") || "",
+                node.getAttribute("name") || "",
+              ].join(" ");
+            }"""
+        )
+    except Exception:
+        return False
+    return bool(_PLACE_FIELD.search(blob or ""))
+
+
+def _any_place_filled(page: Page) -> bool:
+    try:
+        blobs = page.evaluate(
+            """() => {
+              const out = [];
+              for (const node of document.querySelectorAll("input, textarea")) {
+                if (!String(node.value || "").trim()) continue;
+                let name = node.getAttribute("aria-label") || "";
+                if (name === "true" || name === "false") name = "";
+                const ids = node.getAttribute("aria-labelledby") || "";
+                const fromLabel = ids.split(/\\s+/).map((id) => {
+                  const label = id && document.getElementById(id);
+                  return label ? label.innerText : "";
+                }).join(" ");
+                out.push([name, fromLabel, node.getAttribute("placeholder") || "", node.getAttribute("name") || ""].join(" "));
+              }
+              return out;
+            }"""
+        )
+    except Exception:
+        return False
+    return any(_PLACE_FIELD.search(blob or "") for blob in blobs or [])
+
+
+def _dismiss_consent(page: Page) -> None:
+    """Accept a consent banner, then drop it if it still covers the page."""
+    try:
+        page.evaluate(
+            """() => {
+              const accept = document.querySelector("#onetrust-accept-btn-handler");
+              if (accept) accept.click();
+              document.querySelectorAll("#onetrust-consent-sdk").forEach((node) => node.remove());
+            }"""
+        )
+    except Exception:
+        return
+
+
+def _suggestion_point(page: Page, text: str) -> dict | None:
+    wanted = _fold_place(text)
+    if not wanted:
+        return None
+    try:
+        return page.evaluate(
+            """(wanted) => {
+              const fold = (value) => value.toLowerCase().replace(/['’`]/g, "").trim();
+              const items = [];
+              for (const node of document.querySelectorAll("li[role='button'], [role='option']")) {
+                const label = (node.innerText || "").replace(/\\s+/g, " ").trim();
+                if (!label || label.length > 160) continue;
+                const box = node.getBoundingClientRect();
+                if (box.width < 20 || box.height < 8 || box.top < 0 || box.top > window.innerHeight) continue;
+                items.push({
+                  label,
+                  x: box.x + box.width / 2,
+                  y: box.y + box.height / 2,
+                });
+                if (items.length >= 12) break;
+              }
+              let hit = items.findIndex((item) => fold(item.label).startsWith(wanted));
+              if (hit < 0) hit = items.findIndex((item) => fold(item.label).includes(wanted));
+              if (hit < 0) return null;
+              return { x: items[hit].x, y: items[hit].y, label: items[hit].label, index: hit };
+            }""",
+            wanted,
+        )
+    except Exception:
+        return None
+
+
+def _search_if_still(page: Page, before: str) -> None:
+    """A place suggestion does not leave the form. Search does."""
+    if page.url != before:
+        return
+    if not _click_visible_button(page, "Search"):
+        return
+    try:
+        page.wait_for_function(
+            "(before) => location.href !== before",
+            arg=before,
+            timeout=4000,
+        )
+    except Exception:
+        return
+
+
+def _accept_place(page: Page, locator, text: str) -> None:
+    """Type a place and accept the site's own suggestion. The typed text is the caller's."""
+    before = page.url
+    _dismiss_consent(page)
+    try:
+        locator.click(timeout=3000)
+    except Exception:
+        _dismiss_consent(page)
+        locator.click(timeout=3000, force=True)
+    locator.fill("")
+    locator.press_sequentially(text, delay=25)
+    for _ in range(12):
+        point = _suggestion_point(page, text)
+        if point is None:
+            page.wait_for_timeout(150)
+            continue
+        page.mouse.click(point["x"], point["y"])
+        page.wait_for_timeout(200)
+        grown = page.url != before or "," in (locator.input_value() or "")
+        if not grown:
+            locator.click(timeout=2000, force=True)
+            for _step in range(int(point.get("index") or 0) + 1):
+                page.keyboard.press("ArrowDown")
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(200)
+        break
+    _search_if_still(page, before)
+
+
+def _click_visible_button(page: Page, label: str) -> bool:
+    try:
+        point = page.evaluate(
+            """(label) => {
+              const wanted = label.toLowerCase();
+              for (const node of document.querySelectorAll("button, [role='button'], input[type='submit']")) {
+                const text = (node.innerText || node.value || node.getAttribute("aria-label") || "")
+                  .replace(/\\s+/g, " ").trim().toLowerCase();
+                if (text !== wanted) continue;
+                const box = node.getBoundingClientRect();
+                if (box.width < 20 || box.height < 8 || box.top < 0 || box.top > window.innerHeight) continue;
+                return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+              }
+              return null;
+            }""",
+            label,
+        )
+    except Exception:
+        return False
+    if point:
+        page.mouse.click(point["x"], point["y"])
+        return True
+    try:
+        page.get_by_role("button", name=label, exact=True).first.click(timeout=2000, force=True)
+    except Exception:
+        return False
+    return True
+
+
 def act(page: Page, action: Action) -> None:
     try:
         if isinstance(action, Goto):
@@ -462,6 +645,29 @@ def act(page: Page, action: Action) -> None:
             return
         if isinstance(action, Click):
             locator = _locator(page, action.ref)
+            before = page.url
+            try:
+                label = locator.evaluate(
+                    "(node) => (node.innerText || node.value || '').replace(/\\s+/g, ' ').trim()"
+                )
+            except Exception:
+                label = ""
+            try:
+                suggestion = locator.evaluate(
+                    "(node) => node.tagName === 'LI' && (node.getAttribute('role') || '') === 'button'"
+                )
+            except Exception:
+                suggestion = False
+            if str(label).lower() == "search properties" and _click_visible_button(page, "Search properties"):
+                try:
+                    page.wait_for_function(
+                        "(before) => location.href !== before",
+                        arg=before,
+                        timeout=8000,
+                    )
+                except Exception:
+                    pass
+                return
             try:
                 locator.click(timeout=3000)
             except Exception:
@@ -470,21 +676,51 @@ def act(page: Page, action: Action) -> None:
                 except Exception:
                     pass
                 locator.click(timeout=5000, force=True)
+            if suggestion:
+                _search_if_still(page, before)
             return
         if isinstance(action, Fill):
             locator = _locator(page, action.ref)
             if _is_select(locator):
                 _choose(locator, action.text)
+            elif _is_place_field(locator):
+                _accept_place(page, locator, action.text)
             else:
                 locator.fill(action.text)
             return
         if isinstance(action, Choose):
-            _choose(_locator(page, action.ref), action.option)
+            locator = _locator(page, action.ref)
+            before = page.url
+            _choose(locator, action.option)
+            try:
+                sorts = locator.evaluate(
+                    """(node) => {
+                      if (!node.options) return false;
+                      const label = node.labels && node.labels[0] ? node.labels[0].innerText : "";
+                      const blob = label + " " + (node.name || "") + " " + (node.getAttribute("aria-label") || "");
+                      return /sort/i.test(blob);
+                    }"""
+                )
+            except Exception:
+                sorts = False
+            if sorts:
+                try:
+                    page.wait_for_function(
+                        "(before) => location.href !== before",
+                        arg=before,
+                        timeout=2500,
+                    )
+                    page.wait_for_load_state("domcontentloaded", timeout=8000)
+                except Exception:
+                    pass
             return
         if isinstance(action, Press):
             before = page.url
+            place = False
             if action.ref:
-                _locator(page, action.ref).press(action.key)
+                field = _locator(page, action.ref)
+                place = action.key == "Enter" and _is_place_field(field)
+                field.press(action.key)
             else:
                 page.keyboard.press(action.key)
             if action.key == "Enter":
@@ -496,6 +732,8 @@ def act(page: Page, action: Action) -> None:
                     )
                 except Exception:
                     pass
+                if page.url == before and (place or (action.ref is None and _any_place_filled(page))):
+                    _search_if_still(page, before)
             return
         if isinstance(action, Scroll):
             amount = action.amount if action.direction == "down" else -action.amount

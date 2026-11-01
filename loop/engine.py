@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
 import threading
 from datetime import datetime, timezone
+from urllib.parse import unquote, urlparse
 
 from loop.actions import (
     Action,
@@ -19,8 +21,9 @@ from loop.actions import (
     Goto,
     Observation,
     PlannerError,
+    Press,
 )
-from loop.browser import BrowserSession, act, check, locate, observe
+from loop.browser import BrowserSession, _click_visible_button, act, check, locate, observe
 from loop.browser import _locator
 from loop.planner import _search_query, direct_batch, norm_name, task_token
 
@@ -59,6 +62,143 @@ def _directory_page(url: str) -> bool:
 
 def _unfinished_page(url: str) -> bool:
     return _search_results_page(url) or _directory_page(url)
+
+
+def _wants_lowest(task: str) -> bool:
+    folded = (task or "").lower()
+    return "cheap" in folded or "lowest" in folded
+
+
+def _asks_to_open(task: str) -> bool:
+    return bool(re.search(r"\bopen\b", task or "", re.I))
+
+
+def _bed_count(task: str) -> str | None:
+    match = re.search(r"\b(\d+)\s*-?\s*bed", task or "", re.I)
+    return match.group(1) if match else None
+
+
+def _option_for_count(options: list[str], count: str) -> str | None:
+    for option in options:
+        folded = option.lower()
+        if folded == count or folded.startswith(count + " "):
+            return option
+    return None
+
+
+def _section_url(url: str) -> str | None:
+    """The section page above a missing results address."""
+    parsed = urlparse(url)
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) < 2 or "." in parts[0]:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}/{parts[0]}.html"
+
+
+def _not_found(page) -> bool:
+    if page is None:
+        return False
+    url = (page.url or "").lower()
+    if "page-not-found" in url or url.rstrip("/").endswith("/404"):
+        return True
+    try:
+        title = (page.title() or "").lower()
+    except Exception:
+        title = ""
+    return "couldn't find" in title or "could not find" in title or "page not found" in title
+
+
+def _listing_link(page, ref: str) -> bool:
+    try:
+        return bool(
+            page.evaluate(
+                """(ref) => {
+                  const node = document.querySelector("[data-cu-ref='" + ref + "']");
+                  if (!node) return false;
+                  const href = node.href || node.getAttribute("href") || "";
+                  return /\\/properties\\/\\d+/.test(href);
+                }""",
+                ref,
+            )
+        )
+    except Exception:
+        return False
+
+
+def _unseen_location(page, url: str) -> str | None:
+    """A location id the page never showed. Composing one skips the site's own suggestion."""
+    if page is None:
+        return None
+    found = re.findall(r"locationIdentifier=([^&#]+)", url or "", flags=re.I)
+    if not found:
+        return None
+    try:
+        haystack = unquote(page.url or "")
+        extra = page.evaluate(
+            """() => {
+              const hrefs = [...document.querySelectorAll("a[href]")].slice(0, 400).map((node) => node.href || "");
+              return hrefs.join("\\n") + "\\n" + (document.body ? document.body.innerText.slice(0, 4000) : "");
+            }"""
+        )
+        haystack = unquote(haystack + "\n" + (extra or ""))
+    except Exception:
+        return None
+    for raw in found:
+        token = unquote(raw)
+        if token and token not in haystack:
+            return token
+    return None
+
+
+def _lowest_sort_value(page) -> str:
+    if page is None:
+        return ""
+    try:
+        value = page.evaluate(
+            """() => {
+              for (const node of document.querySelectorAll("select")) {
+                const label = node.labels && node.labels[0] ? node.labels[0].innerText : "";
+                const blob = label + " " + (node.name || "") + " " + (node.getAttribute("aria-label") || "");
+                if (!/sort/i.test(blob)) continue;
+                for (const option of node.options) {
+                  const name = (option.label || option.text || "").trim();
+                  if (/lowest/i.test(name)) return option.value || "";
+                }
+              }
+              return "";
+            }"""
+        )
+    except Exception:
+        return ""
+    return value or ""
+
+
+def _sort_is_not_lowest(page) -> bool:
+    """True only when the page itself shows a lowest-price sort and another option is selected."""
+    if page is None:
+        return False
+    try:
+        pending = page.evaluate(
+            """() => {
+              for (const node of document.querySelectorAll("select")) {
+                const label = node.labels && node.labels[0] ? node.labels[0].innerText : "";
+                const blob = label + " " + (node.name || "") + " " + (node.getAttribute("aria-label") || "");
+                if (!/sort/i.test(blob)) continue;
+                let lowest = "";
+                let selected = "";
+                for (const option of node.options) {
+                  const name = (option.label || option.text || "").trim();
+                  if (/lowest/i.test(name)) lowest = name;
+                  if (option.selected) selected = name;
+                }
+                return Boolean(lowest) && selected !== lowest;
+              }
+              return false;
+            }"""
+        )
+    except Exception:
+        return False
+    return bool(pending)
 
 
 def _place_phrase(task: str) -> str | None:
@@ -470,6 +610,7 @@ class Engine:
         self._opened_result = False
         self._hold_clicks = False
         self._place_typed = False
+        self._missing_urls: set[str] = set()
 
     def reset_run(self) -> None:
         self.history = []
@@ -485,6 +626,7 @@ class Engine:
         self._opened_result = False
         self._hold_clicks = False
         self._place_typed = False
+        self._missing_urls = set()
 
     def run(self) -> None:
         if self.session.page is None or self.planner is None:
@@ -528,6 +670,11 @@ class Engine:
                 if failure == "STOP":
                     self.controller.finish("stopped", "Stopped.")
                     return
+                if failure and (failure.startswith("unseen location") or failure.startswith("missing page")):
+                    self.history.append(_history_item(batch, False, failure, observation))
+                    cycles += 1
+                    self.controller.end_cycle()
+                    continue
                 if failure:
                     if not self._recover(failure, batch, observation):
                         return
@@ -622,6 +769,11 @@ class Engine:
                     or (clicked and not opened and not _unfinished_page(page_url))
                 )
                 if batch.done and not self.pending and proved and not stalled:
+                    if _wants_lowest(self.controller.current_task()) and _sort_is_not_lowest(self.session.page):
+                        detail = "Set the sort control to the lowest price option before done."
+                        self.history.append(_history_item(batch, False, detail, observation))
+                        self.controller.end_cycle()
+                        continue
                     self.controller.finish("done", batch.reason or "Done.")
                     return
                 self.controller.end_cycle()
@@ -904,6 +1056,30 @@ class Engine:
         self.log.status(f"act      use {best.name} instead of {control.name}")
         return Click(best.ref)
 
+    def _retarget_choose(self, action: Choose) -> Choose:
+        """A cheapest task uses the lowest-price option the sort control already lists."""
+        control = self._control(action.ref)
+        if control is None:
+            return action
+        if not (action.option or "").strip():
+            count = _bed_count(self.controller.current_task())
+            blob = (control.name + " " + " ".join(control.options)).lower()
+            picked = _option_for_count(control.options, count) if count else None
+            if picked and ("studio" in blob or "bed" in blob):
+                self.log.status(f"act      use {picked}")
+                return Choose(action.ref, picked)
+        if "sort" not in (control.name or "").lower():
+            return action
+        if not _wants_lowest(self.controller.current_task()):
+            return action
+        for option in control.options:
+            if "lowest" not in option.lower():
+                continue
+            if norm_name(option) != norm_name(action.option):
+                self.log.status(f"act      use {option} instead of {action.option}")
+            return Choose(action.ref, option)
+        return action
+
     def _place_batch(self, observation: Observation) -> ActionBatch | None:
         phrase = _place_phrase(self.controller.current_task())
         if phrase is None:
@@ -927,6 +1103,15 @@ class Engine:
         control = self._control(action.ref)
         if phrase is None or control is None or phrase.lower() in (action.text or "").lower():
             return action
+        written = (action.text or "").strip().lower()
+        field = norm_name(control.name)
+        if written and field:
+            for line in (self.controller.current_task() or "").splitlines():
+                if ":" not in line:
+                    continue
+                label, _, rest = line.partition(":")
+                if norm_name(label) == field and written in rest.lower():
+                    return action
         name = control.name.lower()
         if not any(word in name for word in ("location", "area", "where", "destination", "city")):
             return action
@@ -938,19 +1123,60 @@ class Engine:
         self._hold_clicks = False
         actions = self._fields_before_submit(actions)
         navigated = False
+        place_searched = False
         for index, original in enumerate(actions):
             if self.controller.should_stop():
                 return "STOP"
             if self._refuses_submit(original):
                 self.log.status(f"act      skipped {original.summary()}")
                 continue
+            if isinstance(original, Press) and original.key == "Enter" and place_searched:
+                self.log.status("act      skipped Enter after the place search")
+                continue
             action = self._concrete(original)
             if isinstance(action, Click):
                 if self._hold_clicks:
                     return None
                 action = self._retarget_click(action)
+                if action is not None and not _asks_to_open(self.controller.current_task()) and _listing_link(
+                    self.session.page, action.ref
+                ):
+                    self.log.status("act      skipped listing; the task did not ask to open it")
+                    continue
             if isinstance(action, Fill):
                 action = self._retarget_fill(action)
+            if isinstance(action, Choose):
+                action = self._retarget_choose(action)
+            if isinstance(action, Goto):
+                lowest = (
+                    _lowest_sort_value(self.session.page)
+                    if _wants_lowest(self.controller.current_task())
+                    else ""
+                )
+                if lowest and re.search(r"sortType=", action.url, flags=re.I):
+                    aligned = re.sub(
+                        r"([?&]sortType=)[^&]*",
+                        lambda match, value=lowest: match.group(1) + value,
+                        action.url,
+                        count=1,
+                        flags=re.I,
+                    )
+                    if aligned != action.url:
+                        action = Goto(aligned)
+                bare = action.url.split("?", 1)[0]
+                if bare in self._missing_urls or action.url in self._missing_urls:
+                    self.log.act(action, ok=False, error="that address was not found")
+                    return (
+                        "missing page: That address was not found. "
+                        "Open the site's search page and type the place into the search field."
+                    )
+                unseen = _unseen_location(self.session.page, action.url)
+                if unseen:
+                    self.log.act(action, ok=False, error="location id is not on this page")
+                    return (
+                        "unseen location: That location id is not on this page. "
+                        "Type the place into the location field and choose the suggestion that starts with it."
+                    )
             if action is None:
                 if navigated:
                     self.pending = list(actions[index:]) + self.pending
@@ -960,12 +1186,42 @@ class Engine:
             if self._refuses_submit(action):
                 self.log.status(f"act      skipped {action.summary()}")
                 continue
+            before_url = self.session.page.url
             try:
                 act(self.session.page, action)
             except ActionError as exc:
-                self.log.act(action, ok=False, error=str(exc))
-                return str(exc)
+                message = str(exc)
+                control = self._control(action.ref) if isinstance(action, Click) else None
+                if control is not None and "unknown ref" in message and control.name:
+                    if _click_visible_button(self.session.page, control.name):
+                        if control.name.lower() == "search":
+                            try:
+                                self.session.page.wait_for_function(
+                                    "(before) => location.href !== before",
+                                    arg=before_url,
+                                    timeout=4000,
+                                )
+                            except Exception:
+                                pass
+                        self.log.act(action, ok=True)
+                        if self.session.page.url != before_url:
+                            place_searched = True
+                        continue
+                self.log.act(action, ok=False, error=message)
+                return message
             self.log.act(action, ok=True)
+            if isinstance(action, Goto) and _not_found(self.session.page):
+                self._missing_urls.add(action.url.split("?", 1)[0])
+                section = _section_url(action.url)
+                if section and section.split("?", 1)[0] not in self._missing_urls:
+                    try:
+                        self.session.page.goto(section, wait_until="domcontentloaded", timeout=15000)
+                    except Exception:
+                        pass
+                    if _not_found(self.session.page):
+                        self._missing_urls.add(section.split("?", 1)[0])
+            if isinstance(action, Fill) and self.session.page.url != before_url:
+                place_searched = True
             if _search_results_page(self.session.page.url) and _open_first_result(self.session.page):
                 self._opened_result = True
                 return None
