@@ -279,6 +279,7 @@ class Engine:
         self.trace_ok = True
         self._deferred: Assertion | None = None
         self._cycle_url = ""
+        self._last_observation: Observation | None = None
 
     def reset_run(self) -> None:
         self.history = []
@@ -289,6 +290,7 @@ class Engine:
         self.trace_ok = True
         self._deferred = None
         self._cycle_url = ""
+        self._last_observation = None
 
     def run(self) -> None:
         if self.session.page is None or self.planner is None:
@@ -398,6 +400,7 @@ class Engine:
                     break
                 self.session.page.wait_for_timeout(200)
                 observation = self._observe()
+        self._last_observation = observation
         self.log.observe(observation)
         return observation
 
@@ -448,27 +451,37 @@ class Engine:
             done = True
         return ActionBatch("Direct role and name match.", ready, assertion, done)
 
+    def _ref_for(self, role: str, name: str) -> str | None:
+        from loop.planner import find_ref
+
+        observation = self._last_observation
+        if observation is not None:
+            ref = find_ref(observation, role=role, name=name)
+            if ref is not None:
+                return ref
+        return locate(self.session.page, role, name)
+
     def _concrete(self, action: Action) -> Action | None:
         if isinstance(action, FillNamed):
             if action.role in ("combobox", "select"):
                 option = action.text.strip() or self._option_named_in_task(action.name)
-                ref = locate(self.session.page, action.role, action.name)
+                ref = self._ref_for(action.role, action.name)
                 if ref is None:
                     return None
                 return Choose(ref, option)
-            ref = locate(self.session.page, action.role, action.name)
+            ref = self._ref_for(action.role, action.name)
             if ref is None:
                 return None
             if action.role in ("checkbox", "radio"):
                 return Click(ref)
             return Fill(ref, action.text)
         if isinstance(action, ChooseNamed):
-            ref = locate(self.session.page, action.role, action.name)
+            ref = self._ref_for(action.role, action.name)
             if ref is None:
                 return None
             return Choose(ref, action.option)
         if isinstance(action, ClickNamed):
-            ref = locate(self.session.page, action.role, action.name)
+            ref = self._ref_for(action.role, action.name)
             if ref is None:
                 return None
             return Click(ref)

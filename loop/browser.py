@@ -309,6 +309,8 @@ def _dialog_controls(page: Page, form_max: int, other_max: int) -> list | None:
                 return raw
         return None
 
+    if len(page.frames) <= 1:
+        return None
     found = scan()
     if found is not None:
         return found
@@ -450,30 +452,13 @@ def act(page: Page, action: Action) -> None:
         if isinstance(action, Click):
             locator = _locator(page, action.ref)
             try:
-                locator.scroll_into_view_if_needed(timeout=3000)
+                locator.click(timeout=3000)
             except Exception:
-                pass
-            submits = locator.evaluate(
-                """node => {
-                  const type = (node.getAttribute("type") || "").toLowerCase();
-                  const tag = node.tagName;
-                  return type === "submit" || (tag === "BUTTON" && type !== "button" && type !== "reset");
-                }"""
-            )
-            before = page.url
-            try:
-                locator.click(timeout=8000)
-            except Exception:
-                locator.click(timeout=5000, force=True)
-            if submits:
                 try:
-                    page.wait_for_function(
-                        "(before) => location.href !== before",
-                        arg=before,
-                        timeout=2500,
-                    )
+                    locator.scroll_into_view_if_needed(timeout=1000)
                 except Exception:
                     pass
+                locator.click(timeout=5000, force=True)
             return
         if isinstance(action, Fill):
             locator = _locator(page, action.ref)
@@ -494,9 +479,9 @@ def act(page: Page, action: Action) -> None:
             if action.key == "Enter":
                 try:
                     page.wait_for_function(
-                        """(before) => location.href !== before.url && document.title && document.title !== before.title""",
-                        arg={"url": before, "title": page.title()},
-                        timeout=4000,
+                        "(before) => location.href !== before",
+                        arg=before,
+                        timeout=800,
                     )
                 except Exception:
                     pass

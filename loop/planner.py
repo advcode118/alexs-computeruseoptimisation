@@ -38,7 +38,7 @@ _ITEM_RE = re.compile(r"add\s+(.+?)\s+to\s+the\s+packing\s+list", re.IGNORECASE)
 _SYSTEM = (
     "You are a browser planner. You receive one observation and return one JSON object, no markdown. "
     "Map every field in this response. Do not leave fields for a later call. Schema: "
-    '{"reason":"short","done":false,'
+    '{"reason":"short","done":true,'
     '"fills":[{"role":"textbox","name":"Customer name","text":"Ada"}],'
     '"submit":{"role":"button","name":"Submit order"},'
     '"actions":[{"type":"click","role":"link","name":"heapq"}],'
@@ -64,10 +64,14 @@ _SYSTEM = (
     "assertion type is url, title, text, all, or value. "
     "value checks are {\"type\":\"value\",\"checks\":[{\"role\":\"textbox\",\"name\":\"Password\",\"text\":\"secret\"}]}. "
     "all checks are {\"type\":\"all\",\"texts\":[\"one\",\"two\"]}. "
-    "Set done to true only when the task's final check can pass after this batch. "
+    "The sketch shows the shape, not a value to copy. Set done to true in this same object when these actions finish the task, and include an assertion for the result. Set done to false only when later steps are still required. "
     "A url assertion must be a short fragment copied from the observation url. Do not invent a path. "
     "When you resubmit after an invalid field, set done true and assert the confirmation URL in that same response. "
-    "If history shows a failed assertion or a stale ref, use the new observation and do not repeat the failed action."
+    "If history shows a failed assertion or a stale ref, use the new observation and do not repeat the failed action. "
+    "If the observation has no controls, the first action is a goto to the page the task names. "
+    "When the task names a specific page on a site, goto that page instead of the site homepage, and put the follow-up click in later. "
+    "On a list of results, click the first result the task allows. Do not repeat a search that is already in the URL. "
+    "A citation is a link whose name is a number. Click the first one, or goto the article URL with a cite_note fragment."
 )
 
 
@@ -499,15 +503,18 @@ class ModelPlanner:
                 },
             )
             return parse_model_content(self._take_content(raw))
+        effort = os.environ.get("LOOP_REASONING", "none")
         payload = {
             "model": self.model,
             "temperature": 0,
-            "max_tokens": 8192,
+            "max_tokens": 1024 if effort else 4096,
             "messages": [
                 {"role": "system", "content": self.system},
                 {"role": "user", "content": user},
             ],
         }
+        if effort:
+            payload["reasoning_effort"] = effort
         raw = self.transport(
             f"{self.base_url}/chat/completions",
             {
