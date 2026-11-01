@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "loop-check": {
+      "command": "python",
+      "args": ["-m", "loop.mcp_server"]
+    }
+  }
+}

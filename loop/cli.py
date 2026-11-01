@@ -36,6 +36,10 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--max-cycles", type=int, default=12)
     run.set_defaults(func=cmd_run)
 
+    replay = sub.add_parser("replay", help="Replay a saved check_page spec. No model calls.")
+    replay.add_argument("file", help="Path to a tests/replay JSON spec.")
+    replay.set_defaults(func=cmd_replay)
+
     args = parser.parse_args(argv)
     try:
         return args.func(args)
@@ -99,3 +103,13 @@ def cmd_run(args) -> int:
     mode = controller.snapshot()["mode"]
     print(controller.detail)
     return 0 if mode == "done" else 1
+
+
+def cmd_replay(args) -> int:
+    import json
+
+    from loop.checks import replay_file
+
+    result = replay_file(args.file)
+    print(json.dumps(result))
+    return 0 if result.get("ok") else 1

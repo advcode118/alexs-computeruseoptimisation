@@ -78,6 +78,40 @@ python -m loop demo
 
 An assertion between cycles is `url`, `title`, or `text`. A failed assertion is written in the log and the loop runs one more cycle. A second failure stops the run.
 
+## Page checks
+
+Each check has a start and an end.
+
+- **Start** is a blank page, or a url you pass in.
+- **End** is the assertion that passes or fails. For `check_page` that is `url`, `title`, and `text`, plus a clean load. For the browser loop it is `Engine.run` finishing done or failed.
+
+`check_page` is for a simple assertion, including `http://localhost:3000`. Navigation times out after 5 seconds. It never calls a model. A `console.error`, a failed request, or a 404 asset fails the check. Those are collected during the load with Playwright `page.on("console")` and `page.on("requestfailed")`.
+
+`run_loop` is the existing `Engine.run` loop, for a task that is not a simple assertion. It is the only tool that may call a model, and only when `planner` is `model`. `planner` `fake` makes zero model calls.
+
+Save a passing check with `check_page(..., save="packing-page.json")`. The file lands in `tests/replay/`. Replay it with no model call:
+
+```bash
+python -m loop replay tests/replay/packing-page.json
+```
+
+The same replay is the MCP tool `run_saved_test`. A replay finishes in under 3 seconds and makes zero model calls.
+
+Point Cursor at the server from the repository root. `.cursor/mcp.json` is:
+
+```json
+{
+  "mcpServers": {
+    "loop-check": {
+      "command": "python",
+      "args": ["-m", "loop.mcp_server"]
+    }
+  }
+}
+```
+
+Deterministic tools: `open_url`, `check_page`, `reload`, `console_errors`, `failed_requests`, `run_saved_test`. None of them call a model.
+
 ## Tests
 
 ```bash
