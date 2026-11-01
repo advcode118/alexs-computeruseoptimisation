@@ -64,14 +64,27 @@ _SYSTEM = (
     "assertion type is url, title, text, all, or value. "
     "value checks are {\"type\":\"value\",\"checks\":[{\"role\":\"textbox\",\"name\":\"Password\",\"text\":\"secret\"}]}. "
     "all checks are {\"type\":\"all\",\"texts\":[\"one\",\"two\"]}. "
-    "The sketch shows the shape, not a value to copy. Set done to true in this same object when these actions finish the task, and include an assertion for the result. Set done to false only when later steps are still required. "
+    "The sketch shows the shape, not values to copy. "
+    "When the actions in this response complete the task, set done true and include an assertion. "
+    "A one-step add, submit, or direct open is complete. "
+    "Set done false when a later step is still required. "
+    "A search page, a homepage, or a profile is not final when the task asks to open an item. Click that item. "
+    "A site-wide link that only shares a word with the task is the wrong control. Use the link that belongs to the item. "
+    "If the names in the task identify one address, goto that address in the first action. "
+    "On a list of results, click the first result the task allows. Do not repeat a search already in the URL. "
+    "When the task names a search, the first action is a goto to that site's results URL. "
+    "A one-word link in the navigation is the wrong control when another link uses that word with a count. "
+    "A comments page is not the article. Follow the story's own address. "
+    "If a consent dialog is covering the page, dismiss it and put the real next step in later. "
+    "Steps whose control appears only after a navigation go in later. "
+    "Every filter the task names, including a count or a sort, must show in the URL or the control before done is true. "
+    "The place the task names must appear in the URL before done is true. "
+    "For a trip, set both places, the date, and the trip type before reading a price. "
+    "To follow a citation, goto the article URL with #cite_note-1 appended, assert cite_note, and set done true. "
     "A url assertion must be a short fragment copied from the observation url. Do not invent a path. "
     "When you resubmit after an invalid field, set done true and assert the confirmation URL in that same response. "
     "If history shows a failed assertion or a stale ref, use the new observation and do not repeat the failed action. "
-    "If the observation has no controls, the first action is a goto to the page the task names. "
-    "When the task names a specific page on a site, goto that page instead of the site homepage, and put the follow-up click in later. "
-    "On a list of results, click the first result the task allows. Do not repeat a search that is already in the URL. "
-    "A citation is a link whose name is a number. Click the first one, or goto the article URL with a cite_note fragment."
+    "If the observation has no controls, the first action is a goto to the page the task names."
 )
 
 
@@ -152,6 +165,19 @@ def find_ref(observation: Observation, *, role: str, name: str) -> str | None:
         return None
     if len(pool) == 1 or len({norm_name(control.name) for control in pool}) == 1:
         return pool[0].ref
+    prefix_hits = []
+    for control in observation.controls:
+        if not _role_ok(role, control.role):
+            continue
+        name = norm_name(control.name)
+        shared = 0
+        limit = min(len(needle), len(name))
+        while shared < limit and needle[shared] == name[shared]:
+            shared += 1
+        if shared >= 40:
+            prefix_hits.append(control)
+    if len(prefix_hits) == 1:
+        return prefix_hits[0].ref
     return None
 
 
@@ -220,6 +246,28 @@ def _module_name(observation: Observation, query: str) -> str | None:
         return None
     candidates.sort(key=lambda control: len(control.name), reverse=True)
     return candidates[0].name
+
+
+def task_token(task: str) -> str | None:
+    """One hyphenated name written in the task, such as a repository slug."""
+    tokens = re.findall(r"[a-z0-9]+(?:-[a-z0-9]+){2,}", task.lower())
+    if len(tokens) == 1:
+        return tokens[0]
+    return None
+
+
+def _token_link(task: str, observation: Observation):
+    token = task_token(task)
+    if token is None:
+        return None
+    hits = [
+        control
+        for control in observation.controls
+        if control.role == "link" and token in control.name.lower()
+    ]
+    if len(hits) == 1:
+        return hits[0]
+    return None
 
 
 def _task_button(task: str, observation: Observation):
@@ -317,6 +365,14 @@ def direct_batch(task: str, observation: Observation, history: list[dict]) -> Ac
                 _open_assertion(phrase),
                 True,
             )
+    token_hit = _token_link(task, observation)
+    if token_hit is not None:
+        return ActionBatch(
+            f"Open {token_hit.name}.",
+            [ClickNamed(token_hit.role, token_hit.name)],
+            AssertUrl(task_token(task) or token_hit.name),
+            True,
+        )
     if query and "open the module" in task.lower() and query.lower() in observation.url.lower():
         module = _module_name(observation, query)
         if module and find_ref(observation, role="link", name=module):

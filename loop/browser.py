@@ -151,11 +151,17 @@ _OBSERVE_JS = """
   }
   const priority = controls.length;
   const preferText = String(prefer || "").toLowerCase();
-  const stop = new Set(["open","click","find","page","link","long","first","search","button","more","learn","that","this","from","with","your","into","today","story","made","fill","demo","form","order","submit","read","stop","before","about","have","been","when","what","where","their","there","which","most","recent","section","comments","result","isnt"]);
+  const stop = new Set(["open","click","find","page","link","long","first","search","button","more","learn","that","this","from","with","your","into","today","story","made","fill","demo","form","order","submit","read","stop","before","about","have","been","when","what","where","their","there","which","most","recent","section","result","isnt"]);
   const words = preferText.split(/[^a-z0-9]+/).filter((word) => word.length >= 4 && !stop.has(word));
   const phrases = preferText.match(/[a-z0-9]+(?:-[a-z0-9]+)+/g) || [];
+  function inChrome(node) {
+    if (node.closest("nav, header, footer, [role='navigation'], .pagetop")) return true;
+    const box = node.getBoundingClientRect();
+    return box.top >= 0 && box.top < 36 && box.height < 44;
+  }
   function matchesPrefer(node) {
     if (!words.length && !phrases.length) return false;
+    if (inChrome(node)) return false;
     const name = (node.innerText || node.getAttribute("aria-label") || "").toLowerCase();
     const href = (node.getAttribute("href") || "").toLowerCase();
     const blob = name + " " + href;
@@ -314,19 +320,24 @@ def _dialog_controls(page: Page, form_max: int, other_max: int) -> list | None:
     found = scan()
     if found is not None:
         return found
-    try:
-        boxes = page.locator("iframe").evaluate_all(
-            """nodes => nodes.map((node) => {
-                const rect = node.getBoundingClientRect();
-                return rect.width >= 240 && rect.height >= 120;
-            })"""
-        )
-        pending = any(boxes)
-    except Exception:
-        pending = False
+    # A frame that already loaded and is not a consent dialog must not block.
+    pending = False
+    for frame in page.frames:
+        if frame == page.main_frame:
+            continue
+        url = frame.url or ""
+        if url and url != "about:blank":
+            continue
+        try:
+            box = frame.frame_element().bounding_box()
+        except Exception:
+            continue
+        if box and box["width"] >= 240 and box["height"] >= 120:
+            pending = True
+            break
     if not pending:
         return None
-    for _ in range(8):
+    for _ in range(4):
         page.wait_for_timeout(250)
         found = scan()
         if found is not None:
