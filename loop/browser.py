@@ -638,7 +638,7 @@ def _click_visible_button(page: Page, label: str) -> bool:
     return True
 
 
-def act(page: Page, action: Action) -> None:
+def act(page: Page, action: Action, *, place: bool = False) -> None:
     try:
         if isinstance(action, Goto):
             page.goto(check_url(action.url), wait_until="domcontentloaded", timeout=25000)
@@ -647,18 +647,26 @@ def act(page: Page, action: Action) -> None:
             locator = _locator(page, action.ref)
             before = page.url
             try:
-                label = locator.evaluate(
-                    "(node) => (node.innerText || node.value || '').replace(/\\s+/g, ' ').trim()"
-                )
+                locator.click(timeout=3000)
             except Exception:
-                label = ""
+                try:
+                    locator.scroll_into_view_if_needed(timeout=1000)
+                except Exception:
+                    pass
+                locator.click(timeout=5000, force=True)
+            if page.url != before:
+                return
             try:
-                suggestion = locator.evaluate(
-                    "(node) => node.tagName === 'LI' && (node.getAttribute('role') || '') === 'button'"
+                info = locator.evaluate(
+                    """(node) => ({
+                      label: (node.innerText || node.value || '').replace(/\\s+/g, ' ').trim(),
+                      suggestion: node.tagName === 'LI' && (node.getAttribute('role') || '') === 'button'
+                    })"""
                 )
             except Exception:
-                suggestion = False
-            if str(label).lower() == "search properties" and _click_visible_button(page, "Search properties"):
+                return
+            label = str((info or {}).get("label") or "")
+            if label.lower() == "search properties" and _click_visible_button(page, "Search properties"):
                 try:
                     page.wait_for_function(
                         "(before) => location.href !== before",
@@ -668,22 +676,14 @@ def act(page: Page, action: Action) -> None:
                 except Exception:
                     pass
                 return
-            try:
-                locator.click(timeout=3000)
-            except Exception:
-                try:
-                    locator.scroll_into_view_if_needed(timeout=1000)
-                except Exception:
-                    pass
-                locator.click(timeout=5000, force=True)
-            if suggestion:
+            if (info or {}).get("suggestion"):
                 _search_if_still(page, before)
             return
         if isinstance(action, Fill):
             locator = _locator(page, action.ref)
             if _is_select(locator):
                 _choose(locator, action.text)
-            elif _is_place_field(locator):
+            elif place:
                 _accept_place(page, locator, action.text)
             else:
                 locator.fill(action.text)

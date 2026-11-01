@@ -23,7 +23,15 @@ from loop.actions import (
     PlannerError,
     Press,
 )
-from loop.browser import BrowserSession, _click_visible_button, act, check, locate, observe
+from loop.browser import (
+    BrowserSession,
+    _PLACE_FIELD,
+    _click_visible_button,
+    act,
+    check,
+    locate,
+    observe,
+)
 from loop.browser import _locator
 from loop.planner import _search_query, direct_batch, norm_name, task_token
 
@@ -1187,8 +1195,12 @@ class Engine:
                 self.log.status(f"act      skipped {action.summary()}")
                 continue
             before_url = self.session.page.url
+            place = False
+            if isinstance(action, Fill):
+                named = self._control(action.ref)
+                place = bool(named and _PLACE_FIELD.search(named.name or ""))
             try:
-                act(self.session.page, action)
+                act(self.session.page, action, place=place)
             except ActionError as exc:
                 message = str(exc)
                 control = self._control(action.ref) if isinstance(action, Click) else None
