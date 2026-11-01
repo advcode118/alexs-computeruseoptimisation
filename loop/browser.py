@@ -218,9 +218,10 @@ def fixture_file_url() -> str:
 class BrowserSession:
     """One Chrome, owned by the thread that calls open()."""
 
-    def __init__(self, *, headless: bool = True, cdp: str | None = None):
+    def __init__(self, *, headless: bool = True, cdp: str | None = None, bundled: bool = False):
         self.headless = headless
         self.cdp = cdp
+        self.bundled = bundled
         self.attached = False
         self.page: Page | None = None
         self._pw = None
@@ -247,13 +248,16 @@ class BrowserSession:
         return self.page
 
     def _launch(self):
+        bundled = {"headless": self.headless, "args": ["--disable-dev-shm-usage"]}
+        if self.bundled:
+            return self._pw.chromium.launch(**bundled)
         attempts = (
             {
                 "channel": "chrome",
                 "headless": self.headless,
                 "args": ["--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"],
             },
-            {"headless": self.headless, "args": ["--disable-dev-shm-usage"]},
+            bundled,
         )
         errors = []
         for kwargs in attempts:
@@ -636,6 +640,133 @@ def _click_visible_button(page: Page, label: str) -> bool:
     except Exception:
         return False
     return True
+
+
+_APPLY_JS = """(payload) => {
+  const norm = (value) => (value || "").toLowerCase().replace(/\\s+/g, " ").trim().replace(/:$/, "");
+  const place = /postcode|\\btown\\b|station|destination|\\blocation\\b|\\barea\\b/i;
+  const nameOf = (node) => {
+    let name = node.getAttribute("aria-label") || "";
+    if (name === "true" || name === "false") name = "";
+    if (!name && node.labels && node.labels.length) {
+      name = Array.from(node.labels).map((label) => label.innerText || "").join(" ");
+    }
+    if (!name) name = node.innerText || node.getAttribute("placeholder") || "";
+    return norm(name);
+  };
+  const fields = [...document.querySelectorAll("input:not([type='hidden']), textarea, select")];
+  const text = fields.filter((node) => {
+    const type = (node.getAttribute("type") || "").toLowerCase();
+    if (node.disabled) return false;
+    if (type === "checkbox" || type === "radio" || type === "button" || type === "submit" || type === "reset") {
+      return false;
+    }
+    return true;
+  });
+  const pairs = (payload.pairs || []).map((pair) => ({ label: norm(pair.label), value: pair.value }));
+  const plan = [];
+  for (const node of text) {
+    const name = nameOf(node);
+    if (!name || place.test(name)) return "incomplete";
+    const pair = pairs.find((item) => item.label === name);
+    if (!pair) return "incomplete";
+    plan.push([node, pair.value]);
+  }
+  if (!plan.length) return "incomplete";
+  for (const [node, value] of plan) {
+    node.value = value;
+    node.dispatchEvent(new Event("input", { bubbles: true }));
+    node.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  const task = norm(payload.task || "");
+  for (const node of fields) {
+    const type = (node.getAttribute("type") || "").toLowerCase();
+    if (type !== "checkbox" && type !== "radio") continue;
+    const name = nameOf(node);
+    if (name.length >= 3 && task.includes(name)) node.click();
+  }
+  if (!payload.submit) return "filled";
+  const form = plan[0][0].form || document.querySelector("form");
+  if (!form) return "incomplete";
+  const params = new URLSearchParams(new FormData(form));
+  const action = new URL(form.getAttribute("action") || location.href, location.href);
+  action.search = params.toString();
+  return action.href;
+}"""
+
+_CLICK_JS = """(payload) => {
+  const norm = (value) => (value || "").toLowerCase().replace(/\\s+/g, " ").trim();
+  const nodes = [...document.querySelectorAll("a[href], button")];
+  const named = nodes.map((node) => ({
+    node,
+    name: (node.innerText || node.value || "").replace(/\\s+/g, " ").trim(),
+  })).filter((item) => item.name);
+  let hit = null;
+  if (payload.phrase) {
+    const wanted = norm(payload.phrase);
+    hit = named.find((item) => norm(item.name) === wanted)
+      || named.find((item) => norm(item.name).includes(wanted));
+  } else {
+    const folded = norm(payload.task || "");
+    const hits = named.filter((item) => item.name.length >= 10 && folded.includes(norm(item.name)));
+    hits.sort((a, b) => b.name.length - a.name.length);
+    if (hits.length === 1 || (hits.length > 1 && hits[0].name.length > hits[1].name.length)) hit = hits[0];
+  }
+  if (!hit) return "miss";
+  hit.node.click();
+  return "sent";
+}"""
+
+
+def apply_direct(page: Page, task: str) -> bool:
+    """Fill a labelled form, or press the named control, in one round trip.
+
+    Values come from the task's own "Label: value" lines. A page that does not
+    have those fields is left untouched.
+    """
+    from loop.planner import _LABEL_VALUE_RE, _open_phrases, _search_query
+
+    if not task or _search_query(task):
+        return False
+    before = page.url
+    try:
+        if re.search(r"\b(fill|submit)\b", task, re.IGNORECASE):
+            pairs = []
+            for line in task.splitlines():
+                match = _LABEL_VALUE_RE.match(line.strip())
+                if match:
+                    pairs.append({"label": match.group(1), "value": match.group(2).strip()})
+            if not pairs:
+                return False
+            submit = re.search(r"\bsubmit\b", task, re.IGNORECASE) is not None and re.search(
+                r"do not submit", task, re.IGNORECASE
+            ) is None
+            payload = {"pairs": pairs, "task": task, "submit": submit}
+            result = page.evaluate(_APPLY_JS, payload)
+            if result == "filled":
+                return True
+            if not submit or not isinstance(result, str) or result in ("incomplete", "sent"):
+                return False
+            page.goto(result, wait_until="commit")
+            return True
+        phrase = ""
+        phrases = _open_phrases(task)
+        if phrases:
+            phrase = phrases[-1]
+
+        class _Miss(Exception):
+            pass
+
+        try:
+            with page.expect_navigation(wait_until="commit", timeout=1000):
+                result = page.evaluate(_CLICK_JS, {"phrase": phrase, "task": task})
+                if result != "sent":
+                    raise _Miss()
+        except _Miss:
+            return False
+        return True
+    except Exception:
+        return page.url != before
 
 
 def act(page: Page, action: Action, *, place: bool = False) -> None:

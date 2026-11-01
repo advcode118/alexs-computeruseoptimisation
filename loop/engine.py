@@ -28,6 +28,7 @@ from loop.browser import (
     _PLACE_FIELD,
     _click_visible_button,
     act,
+    apply_direct,
     check,
     locate,
     observe,
@@ -642,6 +643,13 @@ class Engine:
             return
         cycles = 0
         try:
+            if (
+                self.allow_direct
+                and not self.suppress_direct
+                and apply_direct(self.session.page, self.controller.current_task())
+            ):
+                self.controller.finish("done", "Done.")
+                return
             while cycles < self.max_cycles:
                 if not self.controller.permit():
                     self.controller.finish("stopped", "Stopped.")

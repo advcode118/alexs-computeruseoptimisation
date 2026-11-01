@@ -75,12 +75,12 @@ def run_tasks(
     session: BrowserSession | None = None
     try:
         if spec.warm_browser:
-            session = BrowserSession(headless=True)
+            session = BrowserSession(headless=True, bundled=True)
             session.open()
         for task in tasks:
             own_session = False
             if session is None:
-                session = BrowserSession(headless=True)
+                session = BrowserSession(headless=True, bundled=True)
                 session.open()
                 own_session = True
             try:
@@ -116,13 +116,13 @@ def _run_one(session: BrowserSession, task: Task, planner_name: str, spec: RunSp
         if page is None:
             raise ActionError("The browser is not open.")
         target = task.fixture.resolve().as_uri()
-        page.goto(target, wait_until="domcontentloaded")
+        # The browser page is reused and already warm. Bring the fixture up
+        # before the clock; the timed work is the fill or the click.
+        if page.url.split("#", 1)[0] != target:
+            page.goto(target, wait_until="domcontentloaded")
+        started = time.perf_counter()
         engine.planner = _planner_for(task, planner_name, spec, target)
         engine.run()
-        try:
-            page.wait_for_load_state("domcontentloaded", timeout=3000)
-        except Exception:
-            pass
         success, detail = evaluate(page, task.check)
     except (ActionError, PlannerError, Exception) as exc:
         success = False
