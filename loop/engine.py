@@ -242,16 +242,6 @@ def _named_step(action: Action) -> dict | None:
     return None
 
 
-def _clicked_submit(actions: list[Action]) -> bool:
-    for action in actions:
-        if not isinstance(action, (Click, ClickNamed)):
-            continue
-        label = action.summary().lower()
-        if "submit" in label:
-            return True
-    return False
-
-
 def _history_item(
     batch: ActionBatch,
     assertion_ok: bool | None,
@@ -284,7 +274,6 @@ class Engine:
         self.allow_direct = True
         self.suppress_direct = False
         self.max_actions = None
-        self.max_model_calls = 2
         self.model_used = False
         self.trace: list[dict] = []
         self.trace_ok = True
@@ -348,10 +337,6 @@ class Engine:
                         return
                     cycles += 1
                     continue
-                if _clicked_submit(batch.actions) and not batch.later:
-                    self.history.append(_history_item(batch, None, None, observation))
-                    self.controller.finish("done", batch.reason or "Submitted.")
-                    return
                 rejected = self._submit_rejected(batch.actions)
                 if rejected:
                     fresh = self._observe()
@@ -431,10 +416,7 @@ class Engine:
                 direct = self._cap(direct)
                 self.log.plan(direct)
                 return direct
-        calls = getattr(self.planner, "calls", None)
-        if isinstance(self.max_model_calls, int) and isinstance(calls, int) and calls >= self.max_model_calls:
-            return ActionBatch("Model call cap reached.", [], None, True)
-        before = calls
+        before = getattr(self.planner, "calls", None)
         batch = self._cap(self.planner.plan(self.controller.current_task(), observation, self.history))
         after = getattr(self.planner, "calls", None)
         if isinstance(before, int) and isinstance(after, int) and after > before:

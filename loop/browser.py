@@ -518,7 +518,7 @@ def act(page: Page, action: Action) -> None:
 
 def check(page: Page, assertion: Assertion) -> tuple[bool, str]:
     if isinstance(assertion, AssertUrl):
-        ok = assertion.text.lower() in page.url.lower()
+        ok = assertion.text in page.url
         return ok, f"url contains {assertion.text!r}"
     if isinstance(assertion, AssertTitle):
         title = page.title()

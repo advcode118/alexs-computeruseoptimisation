@@ -12,7 +12,6 @@ import re
 import urllib.error
 import urllib.request
 from datetime import date
-from urllib.parse import urlparse
 
 from loop.actions import (
     ActionBatch,
@@ -68,10 +67,7 @@ _SYSTEM = (
     "Set done to true only when the task's final check can pass after this batch. "
     "A url assertion must be a short fragment copied from the observation url. Do not invent a path. "
     "When you resubmit after an invalid field, set done true and assert the confirmation URL in that same response. "
-    "If history shows a failed assertion or a stale ref, use the new observation and do not repeat the failed action. "
-    "If the page has no controls, return a goto in this response. "
-    "An empty action list is valid only when done is true. "
-    "Set done to true in the same response as the action that finishes the task."
+    "If history shows a failed assertion or a stale ref, use the new observation and do not repeat the failed action."
 )
 
 
@@ -86,14 +82,6 @@ _DASHES = str.maketrans({"—": "-", "–": "-", "−": "-"})
 _TEXT_ROLES = {"textbox", "searchbox"}
 _SEARCH_RE = re.compile(
     r"search(?:\s+[\w-]+){0,4}\s+for\s+(.+?)(?=,|\.|\s+and\b|\s+then\b|\s+open\b|$)",
-    re.IGNORECASE,
-)
-_SEARCH_QUOTED_RE = re.compile(
-    r"""search(?:\s+[\w-]+){0,6}\s+["']([^"']+)["']""",
-    re.IGNORECASE,
-)
-_DEST_RE = re.compile(
-    r"(https?://[^\s\"'<>]+|(?:[a-z0-9-]+\.)+(?:co\.uk|com|org|net|edu|gov|io|uk)(?:/[^\s\"',)]*)?)",
     re.IGNORECASE,
 )
 _OPEN_RE = re.compile(
@@ -164,70 +152,11 @@ def find_ref(observation: Observation, *, role: str, name: str) -> str | None:
 
 
 def _search_query(task: str) -> str | None:
-    quoted = _SEARCH_QUOTED_RE.search(task)
-    if quoted:
-        query = quoted.group(1).strip()
-        if query:
-            return query
     match = _SEARCH_RE.search(task)
     if not match:
         return None
     query = match.group(1).strip(" .\"'")
     return query or None
-
-
-def _task_destination(task: str) -> str | None:
-    for match in _DEST_RE.finditer(task):
-        if match.start() > 0 and task[match.start() - 1] == "@":
-            continue
-        raw = match.group(0).rstrip(".,)")
-        if raw.lower().startswith("http"):
-            return raw
-        return "https://" + raw
-    return None
-
-
-def _host(url: str) -> str:
-    parsed = url if "://" in url else "https://" + url
-    host = (urlparse(parsed).hostname or "").lower()
-    if host.startswith("www."):
-        return host[4:]
-    return host
-
-
-def _same_site(current: str, dest: str) -> bool:
-    cur = _host(current)
-    target = _host(dest)
-    if not cur or not target:
-        return False
-    if cur != target and not cur.endswith("." + target) and not target.endswith("." + cur):
-        return False
-    path = (urlparse(dest if "://" in dest else "https://" + dest).path or "").rstrip("/")
-    if not path:
-        return True
-    return path.lower() in (urlparse(current).path or "").lower()
-
-
-def _query_in_url(query: str, url: str) -> bool:
-    folded = url.lower().replace("_", " ").replace("-", " ")
-    return query.lower() in folded
-
-
-def _result_link(observation: Observation, query: str):
-    needle = norm_name(query)
-    if len(needle) < 3:
-        return None
-    matches = []
-    for control in observation.controls:
-        if control.role not in ("link", "option"):
-            continue
-        name = norm_name(control.name)
-        if name == needle or name.startswith(needle + " ") or name.startswith(needle + " -"):
-            matches.append(control)
-    if not matches:
-        return None
-    matches.sort(key=lambda control: len(norm_name(control.name)))
-    return matches[0]
 
 
 def _value_for(task: str, name: str) -> str | None:
@@ -244,35 +173,6 @@ def _mentioned(task: str, name: str) -> bool:
     if len(label) < 3:
         return False
     return label in norm_name(task)
-
-
-def _phrase_hit(observation: Observation, phrase: str):
-    """A link whose name contains every content word in the phrase."""
-    words = [
-        word
-        for word in re.findall(r"[a-z0-9]+", phrase.lower())
-        if word not in _OPEN_STOP and word != "section"
-    ]
-    if not words:
-        return None
-    found = []
-    for control in observation.controls:
-        if control.role not in ("link", "button"):
-            continue
-        name_words = re.findall(r"[a-z0-9]+", control.name.lower())
-        if all(word in name_words for word in words):
-            found.append(control)
-    if not found:
-        return None
-    found.sort(key=lambda control: (len(norm_name(control.name)), norm_name(control.name)))
-    best = found[0]
-    if (
-        len(found) > 1
-        and len(norm_name(found[1].name)) == len(norm_name(best.name))
-        and norm_name(found[1].name) != norm_name(best.name)
-    ):
-        return None
-    return best
 
 
 def _open_phrases(task: str) -> list[str]:
@@ -386,46 +286,12 @@ def direct_form(task: str, observation: Observation) -> ActionBatch | None:
     )
 
 
-def _search_batch(task: str, observation: Observation, query: str) -> ActionBatch | None:
-    """Search, or open a result that is already on the page. None leaves the step to the model."""
-    more = bool(_open_phrases(task)) or "open the module" in task.lower()
-    result = _result_link(observation, query)
-    if result is not None:
-        role = "link" if result.role == "link" else result.role
-        return ActionBatch(
-            f"Open {query}.",
-            [ClickNamed(role, result.name)],
-            None if more else AssertTitle(query),
-            not more,
-        )
-    boxes = [
-        control
-        for control in observation.controls
-        if control.role in _TEXT_ROLES and "search" in control.name.lower()
-    ]
-    if not boxes:
-        return None
-    box = boxes[0]
-    if norm_name(box.value) == norm_name(query):
-        return None
-    # Enter submits the field. A Search button under the suggestion list times out.
-    return ActionBatch(
-        f"Search for {query}.",
-        [Fill(box.ref, query), Press("Enter", box.ref)],
-        None if more else AssertTitle(query),
-        not more,
-    )
-
-
 def direct_batch(task: str, observation: Observation, history: list[dict]) -> ActionBatch | None:
     """One batch from unique role-and-name matches. No model call."""
     del history
     form = direct_form(task, observation)
     if form is not None:
         return form
-    dest = _task_destination(task)
-    if dest and not _same_site(observation.url, dest):
-        return ActionBatch(f"Open {dest}.", [Goto(dest)], None, False)
     query = _search_query(task)
     if (
         query
@@ -437,23 +303,17 @@ def direct_batch(task: str, observation: Observation, history: list[dict]) -> Ac
     named = _task_button(task, observation) if query is None else None
     if named is not None and not _open_phrases(task):
         return ActionBatch(f"Use {named.name}.", [ClickNamed(named.role, named.name)], None, True)
-    if query and not _query_in_url(query, observation.url):
-        searching = _search_batch(task, observation, query)
-        if searching is not None:
-            return searching
     phrases = _open_phrases(task)
     for phrase in reversed(phrases):
-        hit = _phrase_hit(observation, phrase)
-        if hit is None:
-            continue
-        assertion = AssertUrl(_slug(hit.name)) if len(hit.name.split()) == 1 else _open_assertion(hit.name)
-        return ActionBatch(
-            f"Open {phrase}.",
-            [ClickNamed(hit.role, hit.name)],
-            assertion,
-            True,
-        )
-    if query and "open the module" in task.lower() and _query_in_url(query, observation.url):
+        if find_ref(observation, role="link", name=phrase) or find_ref(observation, role="button", name=phrase):
+            role = "link" if find_ref(observation, role="link", name=phrase) else "button"
+            return ActionBatch(
+                f"Open {phrase}.",
+                [ClickNamed(role, phrase)],
+                _open_assertion(phrase),
+                True,
+            )
+    if query and "open the module" in task.lower() and query.lower() in observation.url.lower():
         module = _module_name(observation, query)
         if module and find_ref(observation, role="link", name=module):
             return ActionBatch(
@@ -468,6 +328,25 @@ def direct_batch(task: str, observation: Observation, history: list[dict]) -> Ac
             [ClickNamed(named.role, named.name)],
             None,
             False,
+        )
+    if query and query.lower() not in observation.url.lower():
+        boxes = [
+            control
+            for control in observation.controls
+            if control.role in _TEXT_ROLES and "search" in control.name.lower()
+        ]
+        if not boxes:
+            return None
+        box = boxes[0]
+        # Enter submits the field. A Search button under the suggestion list times out.
+        actions = [Fill(box.ref, query), Press("Enter", box.ref)]
+        more = bool(phrases) or "open the module" in task.lower()
+        assertion = None if more else AssertTitle(query)
+        return ActionBatch(
+            f"Search for {query}.",
+            actions,
+            assertion,
+            not more,
         )
     return None
 
