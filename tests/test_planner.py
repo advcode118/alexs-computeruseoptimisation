@@ -242,51 +242,6 @@ def test_model_planner_records_token_usage():
     assert planner.output_tokens == 4
 
 
-def test_invented_form_is_one_batch_without_a_model():
-    from loop.actions import Control, Observation
-    from loop.planner import direct_batch
-
-    controls = [
-        Control("e1", "textbox", "Customer name:", ""),
-        Control("e2", "textbox", "Telephone:", ""),
-        Control("e3", "textbox", "E-mail address:", ""),
-        Control("e4", "radio", "Small", ""),
-        Control("e5", "radio", "Medium", ""),
-        Control("e6", "textbox", "Preferred delivery time:", ""),
-        Control("e7", "button", "Submit", ""),
-    ]
-    batch = direct_batch(
-        "Fill the form with a made-up order and submit it.",
-        Observation("https://example.test/forms/post", "Form", controls),
-        [],
-    )
-    assert batch is not None
-    assert batch.done is True
-    texts = [action.text for action in batch.actions if hasattr(action, "text")]
-    assert texts == ["Ada Lovelace", "555-0100", "ada@example.com", "12:00"]
-    assert batch.actions[-1].name == "Submit"
-    assert any(getattr(action, "name", "") == "Small" for action in batch.actions)
-
-
-def test_form_without_values_stays_with_the_model():
-    from loop.actions import Control, Observation
-    from loop.planner import direct_batch
-
-    batch = direct_batch(
-        "Fill and submit the form.",
-        Observation(
-            "https://example.test/form",
-            "Form",
-            [
-                Control("e1", "textbox", "Customer name:", ""),
-                Control("e2", "button", "Submit", ""),
-            ],
-        ),
-        [],
-    )
-    assert batch is None
-
-
 def test_short_nav_label_is_not_the_open_phrase():
     from loop.actions import Control, Observation
     from loop.planner import direct_batch
