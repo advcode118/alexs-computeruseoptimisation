@@ -1,0 +1,9 @@
+{
+  "task_id": "fixture_packing_add",
+  "step_number": 2,
+  "url": "file:///path/to/loop/fixture/packing.html",
+  "title": "Packing list",
+  "snapshot_text": "- heading \"Packing list\" [ref=S2E1]\n- form\n  - label \"Item\" [ref=S2E2]\n  - textbox \"Item\" value=\"milk\" [ref=S2E3]\n  - button \"Add\" [ref=S2E4]\n- list [ref=S2E5]\n- paragraph \"Bottom marker\" [ref=S2E6]",
+  "model_tool_name": "browser_click",
+  "model_tool_args": {"target": "S2E4"}
+}
