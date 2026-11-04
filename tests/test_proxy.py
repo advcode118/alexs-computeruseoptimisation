@@ -209,16 +209,30 @@ def test_proxy_lists_tools_without_a_network_key(tmp_path: Path):
         )
         initialized = _read_response(proc.stdout, 1, 5)
         assert initialized["result"]["serverInfo"]["name"] == "playwright-mcp-proxy"
-        assert "does not call a model" in initialized["result"]["instructions"]
+        instructions = initialized["result"]["instructions"]
+        assert "does not call a model" in instructions
+        assert "do_task_segment" in instructions
+        assert "fast_act" in instructions
+        assert "browser_snapshot" in instructions
 
         send({"jsonrpc": "2.0", "method": "notifications/initialized"})
         send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         listed = _read_response(proc.stdout, 2, 5)
         tools = listed["result"]["tools"]
-        assert [tool["name"] for tool in tools] == [tool["name"] for tool in CHILD_TOOLS]
+        names = [tool["name"] for tool in tools]
+        assert names[: len(CHILD_TOOLS)] == [tool["name"] for tool in CHILD_TOOLS]
+        assert names[len(CHILD_TOOLS) :] == ["fast_act", "do_task_segment"]
         for tool, expected in zip(tools, CHILD_TOOLS):
             assert tool["description"] == expected["description"]
             assert tool["inputSchema"] == expected["inputSchema"]
+        by_name = {tool["name"]: tool for tool in tools}
+        for name in ("fast_act", "do_task_segment"):
+            text = by_name[name]["description"]
+            assert "do_task_segment" in text
+            assert "fast_act" in text
+            assert "browser_snapshot" in text
+            assert "browser_click" in text
+            assert "browser_type" in text
 
         send(
             {
@@ -240,6 +254,25 @@ def test_proxy_lists_tools_without_a_network_key(tmp_path: Path):
         assert called["result"]["content"][0]["type"] == "text"
         assert called["result"].get("isError") is not True
 
+        send(
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {
+                    "name": "fast_act",
+                    "arguments": {"task": "Add milk to the packing list"},
+                },
+            }
+        )
+        acted = _read_response(proc.stdout, 4, 5)
+        fast = json.loads(acted["result"]["content"][0]["text"])
+        assert fast["needs_model"] is True
+        assert fast["tier"] == "planner"
+        assert fast["actions"] == []
+        assert fast["model_calls"] == 0
+        assert acted["result"].get("isError") is not True
+
         raw = trace.read_text(encoding="utf-8")
         assert "Content-Length" not in raw
         inbound = [json.loads(line) for line in raw.splitlines() if line.strip().startswith("{")]
@@ -249,7 +282,11 @@ def test_proxy_lists_tools_without_a_network_key(tmp_path: Path):
             "notifications/initialized",
             "tools/list",
             "tools/call",
+            "tools/call",
         ]
+        snapshot_call = inbound[-1]
+        assert snapshot_call["method"] == "tools/call"
+        assert snapshot_call["params"]["name"] == "browser_snapshot"
         assert inbound[0]["params"]["protocolVersion"] == "2024-11-05"
         assert "id" not in inbound[1]
     finally:

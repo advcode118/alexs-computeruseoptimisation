@@ -1,8 +1,10 @@
 """MCP stdio proxy in front of pinned @playwright/mcp@0.0.84.
 
 The child is `npx @playwright/mcp@0.0.84 --snapshot-mode none`. tools/list
-runs once at startup. Every tool the child returns is exposed as-is, and
-tools/call is forwarded without renaming arguments or rewriting the result.
+runs once at startup. Every tool the child returns is exposed as-is, then
+fast_act and do_task_segment. A Playwright tools/call is forwarded without
+renaming arguments or rewriting the result. fast_act runs one no-model
+batch. do_task_segment runs a sub-task in one call.
 
 Cursor and Claude Code use the same stdio config. From a checkout:
 
@@ -30,25 +32,30 @@ from mcp.shared.exceptions import MCPError
 from mcp_types import INTERNAL_ERROR
 
 from proxy.child import ChildProtocolError, NdjsonChild, child_argv
+from proxy.segment import dispatch, listed_tools
 
 SERVER_NAME = "playwright-mcp-proxy"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.2.0"
 INSTRUCTIONS = (
     "Forwards @playwright/mcp@0.0.84 unchanged. "
     "The child is started with --snapshot-mode none. "
-    "This server does not call a model."
+    "Prefer do_task_segment for a multi-step sub-task and fast_act for one obvious action, "
+    "instead of calling browser_snapshot, browser_click, and browser_type one step at a time. "
+    "fast_act does not call a model. "
+    "do_task_segment uses the cheap Nebius tier only when NEBIUS_API_KEY is set. "
+    "This server does not call a model for a forwarded Playwright tool."
 )
 
 
 def build_server(child: NdjsonChild) -> Server:
     async def on_list_tools(ctx, params):
         del ctx, params
-        return {"tools": child.tools}
+        return {"tools": listed_tools(child.tools)}
 
     async def on_call_tool(ctx, params):
         del ctx
         try:
-            return await child.call_tool(params.name, params.arguments)
+            return await dispatch(child, params.name, params.arguments)
         except ChildProtocolError as exc:
             raise MCPError(INTERNAL_ERROR, str(exc)) from exc
 
