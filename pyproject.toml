@@ -4,13 +4,20 @@ version = "0.1.0"
 description = "A thin local loop that attaches to Chrome, observes, and acts."
 readme = "loop/README.md"
 requires-python = ">=3.11"
-dependencies = ["playwright>=1.49"]
+dependencies = ["playwright>=1.49", "mcp==2.3.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 
+[project.scripts]
+playwright-mcp-proxy = "proxy.server:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [tool.setuptools.packages.find]
-include = ["loop*", "core*", "backends*"]
+include = ["loop*", "core*", "backends*", "proxy*"]
 
 [tool.setuptools.package-data]
 loop = ["control.html", "fixture/*.html"]
