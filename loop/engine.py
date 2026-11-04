@@ -5,9 +5,10 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timezone
 
-from loop.actions import Action, ActionBatch, ActionError, Assertion, Click, Observation, PlannerError
-from loop.browser import BrowserSession, act, check, observe
-from loop.planner import html_shortcut, route_decision
+from loop.actions import Action, ActionBatch, ActionError, Assertion, Observation, PlannerError
+from loop.browser import BrowserSession, act, check
+from loop.decide import TierDecision, decide
+from loop.observe.dom import DomSource
 
 
 class Log:
@@ -228,11 +229,20 @@ def _history_item(
 
 
 class Engine:
-    def __init__(self, session: BrowserSession, controller: Controller, log: Log, *, max_cycles: int = 12):
+    def __init__(
+        self,
+        session: BrowserSession,
+        controller: Controller,
+        log: Log,
+        *,
+        max_cycles: int = 12,
+        source=None,
+    ):
         self.session = session
         self.controller = controller
         self.log = log
         self.max_cycles = max_cycles
+        self.source = source if source is not None else DomSource(session)
         self.planner = None
         self.history: list[dict] = []
         self._previous_batch: ActionBatch | None = None
@@ -255,32 +265,18 @@ class Engine:
         task = self.controller.current_task()
         if not getattr(self.planner, "use_router", False):
             return "planner", self.planner.plan(task, observation, self.history)
-        if not retry:
-            shortcut = html_shortcut(
-                task,
-                observation,
-                previous_batch=self._previous_batch,
-                previous_observation=self._previous_observation,
-            )
-            if shortcut is not None:
-                return "direct", shortcut
-        tier, short = route_decision(
+        outcome = decide(
+            task,
+            observation,
+            self._previous_batch,
+            self._previous_observation,
+            retry,
             first=not self.history,
-            retry=retry,
-            previous_batch=self._previous_batch,
-            previous_observation=self._previous_observation,
-            observation=observation,
         )
-        if tier == "direct":
-            control = short[0]
-            return tier, ActionBatch(
-                reason=f"Click the only {control.role} named {control.name}.",
-                actions=[Click(control.ref)],
-                assertion=None,
-                done=False,
-            )
-        if tier == "fast":
-            return tier, self.planner.fast.plan(task, short, self.history)
+        if isinstance(outcome, ActionBatch):
+            return "direct", outcome
+        if isinstance(outcome, TierDecision) and outcome.tier == "fast":
+            return outcome.tier, self.planner.fast.plan(task, list(outcome.controls), self.history)
         return "planner", self.planner.claude.plan(task, observation, self.history)
 
     def run(self) -> None:
@@ -296,7 +292,7 @@ class Engine:
                 if self.controller.should_stop():
                     self.controller.finish("stopped", "Stopped.")
                     return
-                observation = observe(self.session.page)
+                observation = self.source.observe()
                 self.log.observe(observation)
                 if self.controller.should_stop():
                     self.controller.finish("stopped", "Stopped.")
@@ -373,6 +369,7 @@ class Runner:
         max_cycles: int = 12,
         planner_factory=None,
         log: Log | None = None,
+        source=None,
     ):
         self.fixture_url = fixture_url
         self.headless = headless
@@ -382,7 +379,7 @@ class Runner:
         self.log = log or Log()
         self.controller = Controller()
         self.session = BrowserSession(headless=headless, cdp=cdp)
-        self.engine = Engine(self.session, self.controller, self.log, max_cycles=max_cycles)
+        self.engine = Engine(self.session, self.controller, self.log, max_cycles=max_cycles, source=source)
         self.open_error = ""
         self._ready = threading.Event()
         self._thread = threading.Thread(target=self._worker, name="browser-loop", daemon=True)

@@ -10,16 +10,16 @@ This script:
 from __future__ import annotations
 
 import json
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from loop.actions import ActionBatch, Click, Control, Fill, Observation
-from loop.planner import html_shortcut, route_decision
+from loop.actions import ActionBatch, Click, Fill, Observation
+from loop.decide import html_shortcut, route_decision
+from loop.observe.aria import parse_aria_snapshot
+from loop.observe.base import observation_from_snapshot
 
 
 @dataclass
@@ -59,45 +59,8 @@ def parse_aria_snapshot_to_observation(
     - textbox "Query" [ref=e5]
     - link "Home" [ref=e1]
     """
-    controls: list[Control] = []
-    html_lines: list[str] = []
-
-    ref_pattern = re.compile(r'\[ref=([^\]]+)\]')
-    role_name_pattern = re.compile(r'^-\s*(\w+)\s+"([^"]*)"')
-    role_only_pattern = re.compile(r'^-\s*(\w+)\s+\[ref=')
-
-    for line in snapshot_text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-
-        ref_match = ref_pattern.search(line)
-        if not ref_match:
-            continue
-
-        ref = ref_match.group(1)
-
-        role_name_match = role_name_pattern.match(line)
-        if role_name_match:
-            role = role_name_match.group(1)
-            name = role_name_match.group(2)
-        else:
-            role_only_match = role_only_pattern.match(line)
-            if role_only_match:
-                role = role_only_match.group(1)
-                name = ""
-            else:
-                continue
-
-        controls.append(Control(ref=ref, role=role, name=name, value=""))
-        html_lines.append(f"{role}\t{name}\t{ref}")
-
-    return Observation(
-        url=url,
-        title=title,
-        controls=controls,
-        html="\n".join(html_lines),
-    )
+    snapshot = parse_aria_snapshot(snapshot_text, url=url, title=title)
+    return observation_from_snapshot(snapshot)
 
 
 def action_to_string(batch: ActionBatch | None) -> str | None:
