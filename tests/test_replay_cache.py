@@ -190,7 +190,9 @@ def test_sequence_is_recorded_only_after_do_task_segment_succeeds(tmp_path):
     assert [name for name, _args in child.calls] == [
         "browser_snapshot",
         "browser_type",
+        "browser_evaluate",
         "browser_click",
+        "browser_evaluate",
         "browser_snapshot",
     ]
     stored = load_sequence(_cache(tmp_path), *_search_key())
@@ -239,8 +241,10 @@ def test_replay_runs_with_no_model_and_refinds_when_refs_differ(tmp_path, monkey
     assert [name for name, _args in child.calls] == [
         "browser_snapshot",
         "browser_type",
+        "browser_evaluate",
         "browser_snapshot",
         "browser_click",
+        "browser_evaluate",
         "browser_snapshot",
     ]
     assert child.calls[1][1] == {
@@ -248,7 +252,7 @@ def test_replay_runs_with_no_model_and_refinds_when_refs_differ(tmp_path, monkey
         "element": 'textbox "Search Wikipedia"',
         "text": "Ada Lovelace",
     }
-    assert child.calls[3][1]["target"] == "e50"
+    assert child.calls[4][1]["target"] == "e50"
     stored = load_sequence(_cache(tmp_path), *_search_key())
     assert stored is not None
     assert "e40" not in json.dumps(stored)
@@ -283,7 +287,12 @@ def test_replay_falls_back_when_a_step_cannot_be_refound(tmp_path, monkeypatch):
     assert body["tier"] == "fast"
     assert body["model_calls"] == 1
     assert body["actions"] == ["fill e4 'Ada Lovelace'"]
-    assert [name for name, _args in child.calls] == ["browser_snapshot", "browser_type", "browser_snapshot"]
+    assert [name for name, _args in child.calls] == [
+        "browser_snapshot",
+        "browser_type",
+        "browser_evaluate",
+        "browser_snapshot",
+    ]
     assert len(sent) == 1
     assert sent[0][0] == "https://example.test/v1/chat/completions"
     assert "anthropic" not in sent[0][0]
@@ -323,8 +332,10 @@ def test_replay_falls_back_when_an_assertion_fails(tmp_path, monkeypatch):
     assert [name for name, _args in child.calls] == [
         "browser_snapshot",
         "browser_type",
+        "browser_evaluate",
         "browser_snapshot",
         "browser_click",
+        "browser_evaluate",
         "browser_snapshot",
     ]
 

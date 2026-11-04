@@ -9,6 +9,9 @@ A miss, or any step that cannot be refound or fails, uses the router loop:
 observe, decide(), act, then one retry after a failed assertion. A step
 that still needs a model uses the cheap Nebius client when a key is present.
 Claude is not called. The page summary is one paragraph from the latest snapshot.
+
+After each page action the proxy waits for the DOM to settle, snapshots, and
+returns a compact diff. The child stays on --snapshot-mode none.
 """
 
 from __future__ import annotations
@@ -34,8 +37,10 @@ from loop.actions import (
 )
 from loop.decide import TierDecision, decide
 from loop.planner import FastClient, PlannerError, load_step5_env
+from proxy.diff import memory_of, note_baseline, rewrite_arguments, show_snapshot, view_result_text
 from proxy.page import observation_from_tool_text, page_paragraph, tool_text
 from proxy.replay import cache_key, load_sequence, resolve_cache_path, store_sequence
+from proxy.settle import settle_page
 
 FAST_ACT = "fast_act"
 DO_TASK_SEGMENT = "do_task_segment"
@@ -46,6 +51,41 @@ _AUTO = object()
 _PREFER = (
     "Prefer do_task_segment for a multi-step sub-task and fast_act for one obvious action. "
     "Do not walk the page with browser_snapshot, browser_click, and browser_type one step at a time."
+)
+
+# Tools that change the page. After one of these, the proxy settles and
+# returns a diff. browser_snapshot is not in this set: the proxy takes that
+# snapshot itself. browser_evaluate is, except the settle call, which uses
+# the child directly and does not re-enter dispatch.
+PAGE_ACTIONS = frozenset(
+    {
+        "browser_check",
+        "browser_click",
+        "browser_drag",
+        "browser_drop",
+        "browser_emulate_media",
+        "browser_evaluate",
+        "browser_file_upload",
+        "browser_fill_form",
+        "browser_handle_dialog",
+        "browser_hover",
+        "browser_mouse_click_xy",
+        "browser_mouse_drag_xy",
+        "browser_mouse_move_xy",
+        "browser_mouse_wheel",
+        "browser_navigate",
+        "browser_navigate_back",
+        "browser_navigate_forward",
+        "browser_press_key",
+        "browser_reload",
+        "browser_resize",
+        "browser_run_code_unsafe",
+        "browser_select_option",
+        "browser_tabs",
+        "browser_type",
+        "browser_uncheck",
+        "browser_wait_for",
+    }
 )
 
 
@@ -283,8 +323,42 @@ def _assert_page(observation: Observation, raw: str, assertion: Assertion) -> tu
     raise ActionError(f"unknown assertion: {assertion!r}")
 
 
+async def _perform(child, name: str, arguments: dict) -> dict:
+    """Forward one page action, then wait until the DOM is quiet."""
+    result = await child.call_tool(name, arguments)
+    if isinstance(result, dict) and result.get("isError") is True:
+        return result
+    await settle_page(child)
+    return result
+
+
+def _with_view(child, payload: dict, raw: str) -> dict:
+    """Attach the diff and the two sizes. An empty snapshot leaves the payload alone."""
+    if not raw:
+        return payload
+    view = show_snapshot(memory_of(child), raw)
+    noted = dict(payload)
+    noted["diff"] = view.text
+    noted["full_snapshot_chars"] = view.full_chars
+    noted["diff_chars"] = view.diff_chars
+    return noted
+
+
+async def _agent_snapshot(child, preface: str = "") -> dict:
+    """Snapshot, then the pruned view or the diff. This is the tool result."""
+    result = await child.call_tool("browser_snapshot", {})
+    if isinstance(result, dict) and result.get("isError") is True:
+        return result
+    raw = tool_text(result if isinstance(result, dict) else {})
+    view = show_snapshot(memory_of(child), raw)
+    return {
+        "content": [{"type": "text", "text": view_result_text(view, preface)}],
+        "isError": False,
+    }
+
+
 async def _navigate(child, url: str) -> None:
-    result = await child.call_tool("browser_navigate", {"url": url})
+    result = await _perform(child, "browser_navigate", {"url": url})
     if isinstance(result, dict) and result.get("isError") is True:
         detail = tool_text(result)[:300] or "browser_navigate failed"
         raise ActionError(detail)
@@ -296,6 +370,7 @@ async def _read_page(child) -> tuple[Observation, str, str]:
         detail = tool_text(result)[:300] or "browser_snapshot failed"
         raise ActionError(detail)
     raw = tool_text(result if isinstance(result, dict) else {})
+    note_baseline(memory_of(child), raw)
     observation, yaml = observation_from_tool_text(raw)
     return observation, raw, yaml
 
@@ -343,7 +418,7 @@ async def _execute(
     for action in batch.actions:
         call = backend.tool_call(action)
         recorded.append(_recorded_step(backend, action, call))
-        result = await child.call_tool(call.name, dict(call.arguments))
+        result = await _perform(child, call.name, dict(call.arguments))
         if isinstance(result, dict) and result.get("isError") is True:
             detail = tool_text(result)[:300] or "the tool returned an error"
             raise ActionError(f"{action.summary()} failed: {detail}")
@@ -360,48 +435,61 @@ async def fast_act(child, arguments) -> dict:
     """Run one no-model batch, or return the tier decide() asked for."""
     task, url, _cycles = _parse_call(arguments, cycles=False)
     backend = PlaywrightMcpBackend()
+    latest = ""
+
+    def finish(payload: dict) -> dict:
+        return _with_view(child, payload, latest)
+
     try:
         if url:
             await _navigate(child, url)
         observation, raw, yaml = await _read_page(child)
+        latest = raw
     except ActionError as exc:
-        return _failed(str(exc))
+        return finish(_failed(str(exc)))
     outcome = decide(task, observation)
     page_url, paragraph = _view(observation)
     if isinstance(outcome, TierDecision):
-        return _payload(
-            ok=False,
-            status="needs_model",
-            tier=outcome.tier,
-            url=page_url,
-            summary=f"This step needs the {outcome.tier} tier. No action was taken.",
-            page=paragraph,
-            actions=[],
-            cycles=0,
-            model_calls=0,
-            needs_model=True,
+        return finish(
+            _payload(
+                ok=False,
+                status="needs_model",
+                tier=outcome.tier,
+                url=page_url,
+                summary=f"This step needs the {outcome.tier} tier. No action was taken.",
+                page=paragraph,
+                actions=[],
+                cycles=0,
+                model_calls=0,
+                needs_model=True,
+            )
         )
     if not isinstance(outcome, ActionBatch):
-        return _payload(
-            ok=False,
-            status="stopped",
-            tier="direct",
-            url=page_url,
-            summary="No direct action matched this page. No action was taken.",
-            page=paragraph,
-            actions=[],
-            cycles=0,
-            model_calls=0,
-            needs_model=False,
+        return finish(
+            _payload(
+                ok=False,
+                status="stopped",
+                tier="direct",
+                url=page_url,
+                summary="No direct action matched this page. No action was taken.",
+                page=paragraph,
+                actions=[],
+                cycles=0,
+                model_calls=0,
+                needs_model=False,
+            )
         )
     try:
         if outcome.actions:
             await _execute(child, backend, yaml, observation, outcome)
             after, after_raw, _yaml = await _read_page(child)
+            latest = after_raw
         else:
             after, after_raw = observation, raw
     except ActionError as exc:
-        return _failed(str(exc), url=page_url, page=paragraph, actions=[action.summary() for action in outcome.actions])
+        return finish(
+            _failed(str(exc), url=page_url, page=paragraph, actions=[action.summary() for action in outcome.actions])
+        )
     ran = [action.summary() for action in outcome.actions]
     extra = ""
     ok = True
@@ -413,17 +501,19 @@ async def fast_act(child, arguments) -> dict:
             status = "failed"
             extra = f"Assertion failed: {detail}"
     final_url, final_page = _view(after)
-    return _payload(
-        ok=ok,
-        status=status,
-        tier="direct",
-        url=final_url,
-        summary=_summary(outcome.reason, ran, extra),
-        page=final_page,
-        actions=ran,
-        cycles=1,
-        model_calls=0,
-        needs_model=False,
+    return finish(
+        _payload(
+            ok=ok,
+            status=status,
+            tier="direct",
+            url=final_url,
+            summary=_summary(outcome.reason, ran, extra),
+            page=final_page,
+            actions=ran,
+            cycles=1,
+            model_calls=0,
+            needs_model=False,
+        )
     )
 
 
@@ -610,7 +700,7 @@ async def _replay_sequence(
             call, summary = _replay_step(backend, current_yaml, current_obs, actions[executed])
         except (_ReplayAbandoned, ActionError) as exc:
             return abandon(str(exc))
-        result = await child.call_tool(call.name, dict(call.arguments))
+        result = await _perform(child, call.name, dict(call.arguments))
         if isinstance(result, dict) and result.get("isError") is True:
             detail = tool_text(result)[:300] or "the tool returned an error"
             try:
@@ -638,7 +728,14 @@ async def _replay_sequence(
         model_calls=0,
         needs_model=False,
     )
-    return _ReplayResult("done", payload=payload)
+    return _ReplayResult(
+        "done",
+        payload=payload,
+        observation=current_obs,
+        raw=current_raw,
+        yaml=current_yaml,
+        summaries=summaries,
+    )
 
 
 async def do_task_segment(child, arguments, *, client=_AUTO, env_path=_AUTO, cache_path=_AUTO) -> dict:
@@ -688,6 +785,10 @@ async def _run_segment(
     record_key = None
     recorded_actions: list[dict] = []
     recorded_assertions: list[dict] = []
+    latest_raw = ""
+
+    def finish(payload: dict, raw: str | None = None) -> dict:
+        return _with_view(child, payload, latest_raw if raw is None else raw)
 
     def _remember() -> None:
         if record_key is None:
@@ -706,19 +807,20 @@ async def _run_segment(
         if url:
             await _navigate(child, url)
     except ActionError as exc:
-        return _failed(str(exc))
+        return finish(_failed(str(exc)))
 
     while cycles < max_cycles:
         try:
             observation, _raw, yaml = await _read_page(child)
+            latest_raw = _raw
         except ActionError as exc:
             page_url, paragraph = _view(observation)
-            return _failed(str(exc), url=page_url, page=paragraph, actions=actions, cycles=cycles)
+            return finish(_failed(str(exc), url=page_url, page=paragraph, actions=actions, cycles=cycles))
         if not replay_checked:
             replay_checked = True
             replayed = await _replay_sequence(child, cache_file, task, observation, _raw, yaml)
             if replayed.kind == "done" and replayed.payload is not None:
-                return replayed.payload
+                return finish(replayed.payload, replayed.raw or latest_raw)
             if replayed.kind == "fallback":
                 actions.extend(replayed.summaries)
                 if replayed.observation is None:
@@ -726,6 +828,7 @@ async def _run_segment(
                 observation = replayed.observation
                 _raw = replayed.raw
                 yaml = replayed.yaml
+                latest_raw = _raw or latest_raw
         if record_key is None:
             record_key = cache_key(task, observation)
         retry = awaiting_retry
@@ -744,53 +847,61 @@ async def _run_segment(
             batch = outcome
         elif client is None:
             tier = outcome.tier if isinstance(outcome, TierDecision) else "direct"
-            return _needs_cheap(tier, url=page_url, page=paragraph, actions=actions, cycles=cycles, model_calls=model_calls)
-        elif not isinstance(outcome, TierDecision):
-            return _payload(
-                ok=False,
-                status="stopped",
-                tier="direct",
-                url=page_url,
-                summary="No direct action matched this page. No action was taken.",
-                page=paragraph,
-                actions=actions,
-                cycles=cycles,
-                model_calls=model_calls,
-                needs_model=False,
+            return finish(
+                _needs_cheap(tier, url=page_url, page=paragraph, actions=actions, cycles=cycles, model_calls=model_calls)
             )
-        else:
-            controls = _controls_for_cheap(outcome, observation)
-            if not controls:
-                return _payload(
+        elif not isinstance(outcome, TierDecision):
+            return finish(
+                _payload(
                     ok=False,
                     status="stopped",
-                    tier=outcome.tier,
+                    tier="direct",
                     url=page_url,
-                    summary=(
-                        f"Stopped. The next step needs the cheap model ({outcome.tier}) "
-                        "and this page has no controls to send."
-                    ),
+                    summary="No direct action matched this page. No action was taken.",
                     page=paragraph,
                     actions=actions,
                     cycles=cycles,
                     model_calls=model_calls,
-                    needs_model=True,
+                    needs_model=False,
+                )
+            )
+        else:
+            controls = _controls_for_cheap(outcome, observation)
+            if not controls:
+                return finish(
+                    _payload(
+                        ok=False,
+                        status="stopped",
+                        tier=outcome.tier,
+                        url=page_url,
+                        summary=(
+                            f"Stopped. The next step needs the cheap model ({outcome.tier}) "
+                            "and this page has no controls to send."
+                        ),
+                        page=paragraph,
+                        actions=actions,
+                        cycles=cycles,
+                        model_calls=model_calls,
+                        needs_model=True,
+                    )
                 )
             try:
                 batch = client.plan(task, controls, history)
             except PlannerError as exc:
                 model_calls += 1
-                return _payload(
-                    ok=False,
-                    status="failed",
-                    tier="fast",
-                    url=page_url,
-                    summary=f"Stopped. The cheap model did not return an action. {exc}",
-                    page=paragraph,
-                    actions=actions,
-                    cycles=cycles,
-                    model_calls=model_calls,
-                    needs_model=True,
+                return finish(
+                    _payload(
+                        ok=False,
+                        status="failed",
+                        tier="fast",
+                        url=page_url,
+                        summary=f"Stopped. The cheap model did not return an action. {exc}",
+                        page=paragraph,
+                        actions=actions,
+                        cycles=cycles,
+                        model_calls=model_calls,
+                        needs_model=True,
+                    )
                 )
             model_calls += 1
             tier = "fast"
@@ -801,18 +912,21 @@ async def _run_segment(
                 recorded_actions.extend(await _execute(child, backend, yaml, observation, batch))
                 actions.extend(action.summary() for action in batch.actions)
                 after, after_raw, _yaml = await _read_page(child)
+                latest_raw = after_raw
             else:
                 after, after_raw = observation, _raw
         except ActionError as exc:
             page_url, paragraph = _view(latest or observation)
-            return _failed(
-                str(exc),
-                url=page_url,
-                page=paragraph,
-                actions=actions,
-                cycles=cycles,
-                model_calls=model_calls,
-                tier=tier,
+            return finish(
+                _failed(
+                    str(exc),
+                    url=page_url,
+                    page=paragraph,
+                    actions=actions,
+                    cycles=cycles,
+                    model_calls=model_calls,
+                    tier=tier,
+                )
             )
         latest = after
         assertion_ok = None
@@ -839,17 +953,19 @@ async def _run_segment(
                         message = detail
                     else:
                         message = f"Assertion failed: {detail}"
-                    return _payload(
-                        ok=False,
-                        status="failed",
-                        tier=tier,
-                        url=final_url,
-                        summary=message,
-                        page=final_page,
-                        actions=actions,
-                        cycles=cycles,
-                        model_calls=model_calls,
-                        needs_model=False,
+                    return finish(
+                        _payload(
+                            ok=False,
+                            status="failed",
+                            tier=tier,
+                            url=final_url,
+                            summary=message,
+                            page=final_page,
+                            actions=actions,
+                            cycles=cycles,
+                            model_calls=model_calls,
+                            needs_model=False,
+                        )
                     )
                 retries_used += 1
                 awaiting_retry = True
@@ -861,35 +977,44 @@ async def _run_segment(
         if batch.done:
             final_url, final_page = _view(after)
             _remember()
-            return _payload(
-                ok=True,
-                status="done",
-                tier=tier,
-                url=final_url,
-                summary=_summary(batch.reason, actions),
-                page=final_page,
-                actions=actions,
-                cycles=cycles,
-                model_calls=model_calls,
-                needs_model=False,
+            return finish(
+                _payload(
+                    ok=True,
+                    status="done",
+                    tier=tier,
+                    url=final_url,
+                    summary=_summary(batch.reason, actions),
+                    page=final_page,
+                    actions=actions,
+                    cycles=cycles,
+                    model_calls=model_calls,
+                    needs_model=False,
+                )
             )
     final_url, final_page = _view(latest or observation)
-    return _payload(
-        ok=False,
-        status="failed",
-        tier=last_tier,
-        url=final_url,
-        summary=_summary(last_reason, actions, f"Stopped after {max_cycles} cycles"),
-        page=final_page,
-        actions=actions,
-        cycles=cycles,
-        model_calls=model_calls,
-        needs_model=False,
+    return finish(
+        _payload(
+            ok=False,
+            status="failed",
+            tier=last_tier,
+            url=final_url,
+            summary=_summary(last_reason, actions, f"Stopped after {max_cycles} cycles"),
+            page=final_page,
+            actions=actions,
+            cycles=cycles,
+            model_calls=model_calls,
+            needs_model=False,
+        )
     )
 
 
 async def dispatch(child, name: str, arguments, *, client=_AUTO, env_path=_AUTO, cache_path=_AUTO) -> dict:
-    """fast_act and do_task_segment stay here. Every other name is forwarded."""
+    """fast_act and do_task_segment stay here. A page action settles, then diffs.
+
+    Every other name is forwarded. The child's arguments are not renamed.
+    A ref the agent already holds is rewritten to the live ref when the
+    element is still on the page.
+    """
     try:
         if name == FAST_ACT:
             return tool_result(await fast_act(child, arguments))
@@ -906,5 +1031,13 @@ async def dispatch(child, name: str, arguments, *, client=_AUTO, env_path=_AUTO,
     except ValueError as exc:
         return tool_result(_failed(str(exc)))
     args = arguments if isinstance(arguments, dict) else None
-    return await child.call_tool(name, args)
+    if name == "browser_snapshot":
+        return await _agent_snapshot(child)
+    args = rewrite_arguments(memory_of(child), args)
+    result = await child.call_tool(name, args if isinstance(args, dict) else None)
+    if name in PAGE_ACTIONS and not (isinstance(result, dict) and result.get("isError") is True):
+        await settle_page(child)
+        preface = tool_text(result if isinstance(result, dict) else {})
+        return await _agent_snapshot(child, preface)
+    return result
 

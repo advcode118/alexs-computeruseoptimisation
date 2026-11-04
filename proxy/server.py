@@ -3,9 +3,10 @@
 The child is `npx @playwright/mcp@0.0.84 --snapshot-mode none`. tools/list
 runs once at startup. Every tool the child returns is exposed as-is, then
 fast_act and do_task_segment. A Playwright tools/call is forwarded without
-renaming arguments or rewriting the result. fast_act runs one no-model
-batch. do_task_segment replays a stored sequence when the page matches, and
-otherwise runs the sub-task in one call.
+renaming arguments. After a page action the proxy waits for the DOM to settle,
+calls browser_snapshot itself, and returns a compact diff instead of the full
+tree. fast_act runs one no-model batch. do_task_segment replays a stored
+sequence when the page matches, and otherwise runs the sub-task in one call.
 
 Cursor and Claude Code use the same stdio config. From a checkout:
 
@@ -42,6 +43,8 @@ INSTRUCTIONS = (
     "The child is started with --snapshot-mode none. "
     "Prefer do_task_segment for a multi-step sub-task and fast_act for one obvious action, "
     "instead of calling browser_snapshot, browser_click, and browser_type one step at a time. "
+    "After a browser action this proxy waits for the page to settle and returns a compact diff. "
+    "Refs for controls that are still there stay valid, so a separate browser_snapshot call is not required. "
     "fast_act does not call a model. "
     "do_task_segment replays a stored sequence for the same domain, task, and page shape "
     "before decide(), and does not call a model while that replay matches. "

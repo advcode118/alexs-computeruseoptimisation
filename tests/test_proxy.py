@@ -246,13 +246,11 @@ def test_proxy_lists_tools_without_a_network_key(tmp_path: Path):
             }
         )
         called = _read_response(proc.stdout, 3, 5)
-        echoed = json.loads(called["result"]["content"][0]["text"])
-        assert echoed == {
-            "arguments": {"url": "https://example.com"},
-            "name": "browser_navigate",
-        }
+        forwarded = called["result"]["content"][0]["text"]
         assert called["result"]["content"][0]["type"] == "text"
         assert called["result"].get("isError") is not True
+        assert "full_snapshot_chars:" in forwarded
+        assert "diff_chars:" in forwarded
 
         send(
             {
@@ -283,10 +281,15 @@ def test_proxy_lists_tools_without_a_network_key(tmp_path: Path):
             "tools/list",
             "tools/call",
             "tools/call",
+            "tools/call",
+            "tools/call",
         ]
-        snapshot_call = inbound[-1]
-        assert snapshot_call["method"] == "tools/call"
-        assert snapshot_call["params"]["name"] == "browser_snapshot"
+        tool_calls = [message for message in inbound if message.get("method") == "tools/call"]
+        assert tool_calls[0]["params"]["name"] == "browser_navigate"
+        assert tool_calls[0]["params"]["arguments"] == {"url": "https://example.com"}
+        assert tool_calls[1]["params"]["name"] == "browser_evaluate"
+        assert "MutationObserver" in tool_calls[1]["params"]["arguments"]["function"]
+        assert tool_calls[-1]["params"]["name"] == "browser_snapshot"
         assert inbound[0]["params"]["protocolVersion"] == "2024-11-05"
         assert "id" not in inbound[1]
     finally:

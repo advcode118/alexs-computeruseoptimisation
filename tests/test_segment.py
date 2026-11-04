@@ -122,7 +122,9 @@ def test_fast_act_runs_a_no_model_batch():
     assert [name for name, _args in child.calls] == [
         "browser_snapshot",
         "browser_type",
+        "browser_evaluate",
         "browser_click",
+        "browser_evaluate",
         "browser_snapshot",
     ]
     assert child.calls[1][1] == {
@@ -130,7 +132,7 @@ def test_fast_act_runs_a_no_model_batch():
         "element": 'textbox "Search Wikipedia"',
         "text": "Ada Lovelace",
     }
-    assert child.calls[2][1]["target"] == "e5"
+    assert child.calls[3][1]["target"] == "e5"
 
 
 def test_fast_act_returns_a_tier_and_does_not_invent_an_action():
@@ -173,7 +175,9 @@ def test_do_task_segment_finishes_a_search_in_one_call(tmp_path):
     assert [name for name, _args in child.calls] == [
         "browser_snapshot",
         "browser_type",
+        "browser_evaluate",
         "browser_click",
+        "browser_evaluate",
         "browser_snapshot",
     ]
 
@@ -238,12 +242,25 @@ def test_do_task_segment_uses_the_cheap_client_and_not_claude():
     assert "test-key" not in json.dumps(seen[0][2])
     sent = json.loads(seen[0][2]["messages"][1]["content"])
     assert [control["ref"] for control in sent["controls"]] == ["e1", "e2"]
-    assert [name for name, _args in child.calls] == ["browser_snapshot", "browser_click", "browser_snapshot"]
+    assert [name for name, _args in child.calls] == [
+        "browser_snapshot",
+        "browser_click",
+        "browser_evaluate",
+        "browser_snapshot",
+    ]
 
 
 def test_dispatch_forwards_a_playwright_tool_unchanged():
     child = FakeChild()
     result = asyncio.run(dispatch(child, "browser_navigate", {"url": "https://example.com"}))
-    assert child.calls == [("browser_navigate", {"url": "https://example.com"})]
+    assert child.calls[0] == ("browser_navigate", {"url": "https://example.com"})
+    assert [name for name, _args in child.calls] == [
+        "browser_navigate",
+        "browser_evaluate",
+        "browser_snapshot",
+    ]
     assert result["isError"] is False
-    assert "fast_act" not in result["content"][0]["text"]
+    text = result["content"][0]["text"]
+    assert "fast_act" not in text
+    assert "full_snapshot_chars:" in text
+    assert "diff_chars:" in text
