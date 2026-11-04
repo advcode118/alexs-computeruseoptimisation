@@ -3,18 +3,21 @@
 fast_act is one decide() call. An action batch runs through the child.
 A tier decision is returned as-is and nothing is clicked.
 
-do_task_segment is one tool call that follows the router loop in
-loop/engine.py: observe, decide(), act, then one retry after a failed
-assertion. Replay is not part of this call. A step that still needs a
-model uses the cheap Nebius client when a key is present. Claude is not
-called. The page summary is one paragraph from the latest snapshot.
+do_task_segment is one tool call. When this domain, task, and page shape
+were stored after a success, it replays that sequence with no model call.
+A miss, or any step that cannot be refound or fails, uses the router loop:
+observe, decide(), act, then one retry after a failed assertion. A step
+that still needs a model uses the cheap Nebius client when a key is present.
+Claude is not called. The page summary is one paragraph from the latest snapshot.
 """
 
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
-from backends.playwright_mcp import PlaywrightMcpBackend
+from backends.playwright_mcp import PlaywrightMcpBackend, ToolCall
+from core.backend import Element
 from loop.actions import (
     ActionBatch,
     ActionError,
@@ -22,12 +25,17 @@ from loop.actions import (
     AssertTitle,
     AssertUrl,
     Assertion,
+    Click,
+    Fill,
+    Goto,
     Observation,
+    Press,
     check_url,
 )
 from loop.decide import TierDecision, decide
 from loop.planner import FastClient, PlannerError, load_step5_env
 from proxy.page import observation_from_tool_text, page_paragraph, tool_text
+from proxy.replay import cache_key, load_sequence, resolve_cache_path, store_sequence
 
 FAST_ACT = "fast_act"
 DO_TASK_SEGMENT = "do_task_segment"
@@ -78,8 +86,10 @@ PROXY_TOOLS = [
         "name": DO_TASK_SEGMENT,
         "description": (
             "One call for a multi-step sub-task. "
-            "The call runs no-model actions from decide(), then the cheap Nebius tier "
-            "when NEBIUS_API_KEY is set. It does not call Claude. "
+            "A stored sequence for this domain, task, and page shape is replayed first, "
+            "with no model call. If replay cannot refind a target, the action fails, "
+            "or an assertion fails, the call falls back to no-model actions from decide(), "
+            "then the cheap Nebius tier when NEBIUS_API_KEY is set. It does not call Claude. "
             + _PREFER
         ),
         "inputSchema": _schema(
@@ -290,20 +300,54 @@ async def _read_page(child) -> tuple[Observation, str, str]:
     return observation, raw, yaml
 
 
+def _recorded_step(backend: PlaywrightMcpBackend, action: object, call: ToolCall) -> dict:
+    """tool, role, name, and value. The live ref stays out of the cache."""
+    element = _target_element(backend, action, call)
+    if isinstance(action, Fill):
+        value = action.text
+    elif isinstance(action, Press):
+        value = action.key
+    elif isinstance(action, Goto):
+        value = action.url
+    else:
+        value = ""
+    return {
+        "tool": call.name,
+        "role": element.role if element is not None else "",
+        "name": element.name if element is not None else "",
+        "value": value,
+    }
+
+
+def _target_element(backend: PlaywrightMcpBackend, action: object, call: ToolCall):
+    target = call.arguments.get("target")
+    if not isinstance(target, str) or not target:
+        target = getattr(action, "ref", None)
+    if not isinstance(target, str) or not target:
+        return None
+    for element in backend.observe().elements:
+        if element.id == target:
+            return element
+    return None
+
+
 async def _execute(
     child,
     backend: PlaywrightMcpBackend,
     yaml: str,
     observation: Observation,
     batch: ActionBatch,
-) -> None:
+) -> list[dict]:
     backend.load_snapshot(yaml, url=observation.url, title=observation.title)
+    recorded: list[dict] = []
     for action in batch.actions:
         call = backend.tool_call(action)
+        recorded.append(_recorded_step(backend, action, call))
         result = await child.call_tool(call.name, dict(call.arguments))
         if isinstance(result, dict) and result.get("isError") is True:
             detail = tool_text(result)[:300] or "the tool returned an error"
             raise ActionError(f"{action.summary()} failed: {detail}")
+    return recorded
 
 
 def _view(observation: Observation | None) -> tuple[str, str]:
@@ -413,20 +457,220 @@ def _controls_for_cheap(outcome: TierDecision, observation: Observation) -> list
     return list(observation.controls[:8])
 
 
-async def do_task_segment(child, arguments, *, client=_AUTO, env_path=_AUTO) -> dict:
-    """One call. No-model actions, then the cheap tier, and never Claude.
+_PROBE_ID = "replay-probe"
 
-    client and env_path are for tests. The server leaves both unset, which
-    reads the same Nebius key the router uses and skips the model when it is empty.
+
+class _ReplayAbandoned(Exception):
+    """A stored step cannot be replayed. The caller falls back to decide()."""
+
+
+class _ReplayResult:
+    def __init__(
+        self,
+        kind: str,
+        *,
+        payload: dict | None = None,
+        observation: Observation | None = None,
+        raw: str = "",
+        yaml: str = "",
+        summaries: list[str] | None = None,
+    ):
+        self.kind = kind
+        self.payload = payload
+        self.observation = observation
+        self.raw = raw
+        self.yaml = yaml
+        self.summaries = list(summaries or [])
+
+
+def _assertion_kind(assertion: Assertion) -> str:
+    if isinstance(assertion, AssertUrl):
+        return "url"
+    if isinstance(assertion, AssertTitle):
+        return "title"
+    if isinstance(assertion, AssertText):
+        return "text"
+    raise ActionError(f"unknown assertion: {assertion!r}")
+
+
+def _sequence_usable(stored: dict) -> bool:
+    actions = stored.get("actions")
+    assertions = stored.get("assertions")
+    if not isinstance(actions, list) or not isinstance(assertions, list):
+        return False
+    if not actions and not assertions:
+        return False
+    for step in actions:
+        if not isinstance(step, dict) or not isinstance(step.get("tool"), str) or not step["tool"]:
+            return False
+        for field in ("role", "name", "value"):
+            if field in step and not isinstance(step[field], str):
+                return False
+    for item in assertions:
+        if not isinstance(item, dict):
+            return False
+        text = item.get("text")
+        after = item.get("after")
+        if not isinstance(item.get("type"), str) or not isinstance(text, str) or not text:
+            return False
+        if isinstance(after, bool) or not isinstance(after, int) or after < 0 or after > len(actions):
+            return False
+    return True
+
+
+def _assert_stored(observation: Observation, raw: str, item: dict) -> tuple[bool, str]:
+    text = item["text"]
+    kind = item["type"]
+    if kind == "url":
+        return _assert_page(observation, raw, AssertUrl(text))
+    if kind == "title":
+        return _assert_page(observation, raw, AssertTitle(text))
+    if kind == "text":
+        return _assert_page(observation, raw, AssertText(text))
+    return False, "stored assertion type is not usable"
+
+
+def _replay_step(
+    backend: PlaywrightMcpBackend,
+    yaml: str,
+    observation: Observation,
+    step: dict,
+) -> tuple[ToolCall, str]:
+    """Refind the stored role and name, then build the child tool call."""
+    tool = step.get("tool")
+    role = step.get("role") if isinstance(step.get("role"), str) else ""
+    name = step.get("name") if isinstance(step.get("name"), str) else ""
+    value = step.get("value") if isinstance(step.get("value"), str) else ""
+    backend.load_snapshot(yaml, url=observation.url, title=observation.title)
+    if tool == "browser_navigate":
+        action = Goto(check_url(value))
+        return backend.tool_call(action), action.summary()
+    if tool == "browser_press_key" and not name.strip():
+        action = Press(value)
+        return backend.tool_call(action), action.summary()
+    if tool not in {"browser_click", "browser_type", "browser_press_key"}:
+        raise _ReplayAbandoned(f"stored tool cannot be replayed: {tool!r}")
+    if not role or not name.strip():
+        raise _ReplayAbandoned(f"stored {tool} has no role and name")
+    found = backend.refind(Element(id=_PROBE_ID, role=role, name=name, source="aria"))
+    if found is None:
+        raise _ReplayAbandoned(f"no unique {role} named {name}")
+    if tool == "browser_click":
+        played = Click(found.id)
+    elif tool == "browser_type":
+        played = Fill(found.id, value)
+    else:
+        played = Press(value, found.id)
+    return backend.tool_call(played), played.summary()
+
+
+async def _replay_sequence(
+    child,
+    cache_file: Path,
+    task: str,
+    observation: Observation,
+    raw: str,
+    yaml: str,
+) -> _ReplayResult:
+    """Play a stored sequence. This function does not call decide() or a model.
+
+    kind is done, miss, or fallback. fallback with observation None means the
+    page could not be read after an action, so the caller reads it again.
+    """
+    domain, stored_task, shape = cache_key(task, observation)
+    stored = load_sequence(cache_file, domain, stored_task, shape)
+    if stored is None or not _sequence_usable(stored):
+        return _ReplayResult("miss")
+    actions = stored["actions"]
+    assertions = stored["assertions"]
+    backend = PlaywrightMcpBackend()
+    summaries: list[str] = []
+    executed = 0
+    current_obs, current_raw, current_yaml = observation, raw, yaml
+
+    def abandon(_detail: str) -> _ReplayResult:
+        return _ReplayResult(
+            "fallback",
+            observation=current_obs,
+            raw=current_raw,
+            yaml=current_yaml,
+            summaries=summaries,
+        )
+
+    while True:
+        for item in assertions:
+            if item.get("after") != executed:
+                continue
+            ok, detail = _assert_stored(current_obs, current_raw, item)
+            if not ok:
+                return abandon(detail)
+        if executed == len(actions):
+            break
+        try:
+            call, summary = _replay_step(backend, current_yaml, current_obs, actions[executed])
+        except (_ReplayAbandoned, ActionError) as exc:
+            return abandon(str(exc))
+        result = await child.call_tool(call.name, dict(call.arguments))
+        if isinstance(result, dict) and result.get("isError") is True:
+            detail = tool_text(result)[:300] or "the tool returned an error"
+            try:
+                current_obs, current_raw, current_yaml = await _read_page(child)
+            except ActionError:
+                return _ReplayResult("fallback", observation=None, summaries=summaries)
+            return abandon(detail)
+        summaries.append(summary)
+        executed += 1
+        try:
+            current_obs, current_raw, current_yaml = await _read_page(child)
+        except ActionError:
+            return _ReplayResult("fallback", observation=None, summaries=summaries)
+
+    final_url, final_page = _view(current_obs)
+    payload = _payload(
+        ok=True,
+        status="done",
+        tier="replay",
+        url=final_url,
+        summary=_summary("Replayed a stored action sequence", summaries),
+        page=final_page,
+        actions=summaries,
+        cycles=1,
+        model_calls=0,
+        needs_model=False,
+    )
+    return _ReplayResult("done", payload=payload)
+
+
+async def do_task_segment(child, arguments, *, client=_AUTO, env_path=_AUTO, cache_path=_AUTO) -> dict:
+    """One call. Replay a stored sequence, then no-model actions, then the cheap tier.
+
+    client, env_path, and cache_path are for tests. The server leaves them unset,
+    which reads the same Nebius key the router uses and skips the model when it is empty.
     """
     task, url, max_cycles = _parse_call(arguments, cycles=True)
     if client is _AUTO:
         path = None if env_path is _AUTO else env_path
         client = cheap_client(path)
-    return await _run_segment(child, task, url=url, max_cycles=max_cycles, client=client)
+    chosen = None if cache_path is _AUTO else cache_path
+    return await _run_segment(
+        child,
+        task,
+        url=url,
+        max_cycles=max_cycles,
+        client=client,
+        cache_file=resolve_cache_path(chosen),
+    )
 
 
-async def _run_segment(child, task: str, *, url: str, max_cycles: int, client: FastClient | None) -> dict:
+async def _run_segment(
+    child,
+    task: str,
+    *,
+    url: str,
+    max_cycles: int,
+    client: FastClient | None,
+    cache_file: Path,
+) -> dict:
     backend = PlaywrightMcpBackend()
     history: list[dict] = []
     previous_batch: ActionBatch | None = None
@@ -440,6 +684,24 @@ async def _run_segment(child, task: str, *, url: str, max_cycles: int, client: F
     last_reason = ""
     observation: Observation | None = None
     latest: Observation | None = None
+    replay_checked = False
+    record_key = None
+    recorded_actions: list[dict] = []
+    recorded_assertions: list[dict] = []
+
+    def _remember() -> None:
+        if record_key is None:
+            return
+        if not recorded_actions and not recorded_assertions:
+            return
+        store_sequence(
+            cache_file,
+            record_key[0],
+            record_key[1],
+            record_key[2],
+            {"actions": list(recorded_actions), "assertions": list(recorded_assertions)},
+        )
+
     try:
         if url:
             await _navigate(child, url)
@@ -452,6 +714,20 @@ async def _run_segment(child, task: str, *, url: str, max_cycles: int, client: F
         except ActionError as exc:
             page_url, paragraph = _view(observation)
             return _failed(str(exc), url=page_url, page=paragraph, actions=actions, cycles=cycles)
+        if not replay_checked:
+            replay_checked = True
+            replayed = await _replay_sequence(child, cache_file, task, observation, _raw, yaml)
+            if replayed.kind == "done" and replayed.payload is not None:
+                return replayed.payload
+            if replayed.kind == "fallback":
+                actions.extend(replayed.summaries)
+                if replayed.observation is None:
+                    continue
+                observation = replayed.observation
+                _raw = replayed.raw
+                yaml = replayed.yaml
+        if record_key is None:
+            record_key = cache_key(task, observation)
         retry = awaiting_retry
         awaiting_retry = False
         outcome = decide(
@@ -522,7 +798,7 @@ async def _run_segment(child, task: str, *, url: str, max_cycles: int, client: F
         last_reason = batch.reason
         try:
             if batch.actions:
-                await _execute(child, backend, yaml, observation, batch)
+                recorded_actions.extend(await _execute(child, backend, yaml, observation, batch))
                 actions.extend(action.summary() for action in batch.actions)
                 after, after_raw, _yaml = await _read_page(child)
             else:
@@ -543,6 +819,14 @@ async def _run_segment(child, task: str, *, url: str, max_cycles: int, client: F
         assertion_detail = None
         if batch.assertion is not None:
             assertion_ok, assertion_detail = _assert_page(after, after_raw, batch.assertion)
+            if assertion_ok:
+                recorded_assertions.append(
+                    {
+                        "type": _assertion_kind(batch.assertion),
+                        "text": batch.assertion.text,
+                        "after": len(recorded_actions),
+                    }
+                )
             if not assertion_ok:
                 history.append(_history_item(batch, False, assertion_detail, tier))
                 previous_observation = observation
@@ -576,6 +860,7 @@ async def _run_segment(child, task: str, *, url: str, max_cycles: int, client: F
         cycles += 1
         if batch.done:
             final_url, final_page = _view(after)
+            _remember()
             return _payload(
                 ok=True,
                 status="done",
@@ -603,13 +888,21 @@ async def _run_segment(child, task: str, *, url: str, max_cycles: int, client: F
     )
 
 
-async def dispatch(child, name: str, arguments, *, client=_AUTO, env_path=_AUTO) -> dict:
+async def dispatch(child, name: str, arguments, *, client=_AUTO, env_path=_AUTO, cache_path=_AUTO) -> dict:
     """fast_act and do_task_segment stay here. Every other name is forwarded."""
     try:
         if name == FAST_ACT:
             return tool_result(await fast_act(child, arguments))
         if name == DO_TASK_SEGMENT:
-            return tool_result(await do_task_segment(child, arguments, client=client, env_path=env_path))
+            return tool_result(
+                await do_task_segment(
+                    child,
+                    arguments,
+                    client=client,
+                    env_path=env_path,
+                    cache_path=cache_path,
+                )
+            )
     except ValueError as exc:
         return tool_result(_failed(str(exc)))
     args = arguments if isinstance(arguments, dict) else None
