@@ -30,12 +30,7 @@ export ANTHROPIC_API_KEY=your-key-here
 python -m bench.harness
 
 # Run with a specific model
-python -c "
-import asyncio
-from bench.harness import run_benchmark
-from bench.tasks import BENCHMARK_TASKS
-asyncio.run(run_benchmark(BENCHMARK_TASKS, model='claude-sonnet-4-20250514'))
-"
+python -m bench.run
 ```
 
 ### Offline mode (no API key needed)
@@ -44,8 +39,8 @@ asyncio.run(run_benchmark(BENCHMARK_TASKS, model='claude-sonnet-4-20250514'))
 # Run shortcut replay on saved snapshots
 python -m bench.replay_shortcuts
 
-# Run unit tests
-pytest tests/test_bench.py -v
+# Run unit tests (no network, no API)
+pytest tests/test_bench.py bench/test_harness.py -v
 
 # Generate summary from a run file
 python -m bench.summarize bench/runs/latest.jsonl
@@ -146,6 +141,9 @@ This:
 bench/
 ├── __init__.py
 ├── harness.py       # Main benchmark runner
+├── budget.py        # Sonnet-4-6 price and the $40 project stop
+├── results/
+│   └── spend.json   # Running project total, including the M0 prior
 ├── tasks.py         # Task definitions (fixture + WebVoyager)
 ├── judge.py         # Success evaluation (checks + LLM judge)
 ├── summarize.py     # Markdown report generator
@@ -160,7 +158,13 @@ bench/
 
 ## Notes
 
-- `@playwright/mcp` version is pinned to `0.0.84` because the tool schema changes between releases
+- `@playwright/mcp` 0.0.84 is pinned because the tool schema changes between releases. The client speaks newline-delimited JSON and does not wait on notifications.
+- The model is `claude-sonnet-4-6`. `claude-sonnet-4-20250514` is retired. Opus is refused.
 - The harness uses `--snapshot-mode full` to get complete ARIA snapshots
 - Headless mode is on by default; set `headless=False` for debugging
-- The LLM judge uses Claude Haiku to minimize cost
+- The LLM judge uses Claude Haiku to minimize cost. It refuses Opus.
+- Model context keeps the opening task and the last 6 turns. Each tool result sent to the model is capped at 8000 characters. Saved snapshots keep the full page.
+- Navigate and find responses are counted as snapshot tokens, along with action responses.
+- After every task the harness prices that task's input and output tokens at the current sonnet-4-6 list price ($3 / MTok input, $15 / MTok output), adds it to `bench/results/spend.json`, and stops on its own if the project total would pass $40.
+- The M0 measurement is already in that file: 3.2M input tokens and 3k output tokens, $9.645, about $10. 4/5 succeeded, 36 steps, 94.8s, model time 87%, tools 13%, stopped after 5 of 12 tasks. That entry is the recorded usage, not a new run.
+- The 40% hit / 50% match figure is the 5 hand-made snapshots in `bench/snapshots/` only. Runs save real page snapshots under `bench/runs/<run_id>/snapshots/` so the no-model hit rate can be measured on real pages later. This tree does not add a new hit rate.

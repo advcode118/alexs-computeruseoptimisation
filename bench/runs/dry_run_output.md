@@ -53,7 +53,9 @@ Would run 12 tasks:
 ## Configuration
 
 - ANTHROPIC_API_KEY: NOT SET
-- Model: claude-sonnet-4-20250514
+- Model: claude-sonnet-4-6
+- Budget: stop when the project total would pass $40 (about $10 is already spent from the M0 measurement)
+- Spend file: bench/results/spend.json
 
 To run the benchmark:
 ```bash

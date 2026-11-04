@@ -17,8 +17,8 @@ Usage:
     # Run with visible browser
     python -m bench.run --no-headless
 
-    # Use a specific model
-    python -m bench.run --model claude-sonnet-4-20250514
+    # The model is claude-sonnet-4-6. Opus and claude-sonnet-4-20250514 are refused.
+    python -m bench.run
 """
 
 from __future__ import annotations
@@ -31,12 +31,13 @@ import os
 import sys
 from pathlib import Path
 
-from bench.harness import BenchmarkHarness, run_benchmark
+from bench.budget import BudgetExceeded, ModelNotAllowed, assert_allowed_model
+from bench.harness import DEFAULT_MODEL, run_benchmark
 from bench.tasks import BENCHMARK_TASKS, get_fixture_tasks, get_webvoyager_tasks
 from bench.summarize import generate_markdown_report, TaskSummary
 
 
-def dry_run_output(tasks: list[dict]) -> str:
+def dry_run_output(tasks: list[dict], model: str = DEFAULT_MODEL) -> str:
     """Generate dry-run output showing what would be run."""
     lines = [
         "# Benchmark Dry Run",
@@ -60,7 +61,10 @@ def dry_run_output(tasks: list[dict]) -> str:
         "## Configuration",
         "",
         f"- ANTHROPIC_API_KEY: {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'NOT SET'}",
-        f"- Model: {os.environ.get('BENCH_MODEL', 'claude-sonnet-4-20250514')}",
+        f"- Model: {model}",
+        "- Budget: stop when the project total would pass $40 "
+        "(about $10 is already spent from the M0 measurement)",
+        "- Spend file: bench/results/spend.json",
         "",
         "To run the benchmark:",
         "```bash",
@@ -72,7 +76,7 @@ def dry_run_output(tasks: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the mcp-turbo benchmark")
     parser.add_argument(
         "--fixtures-only",
@@ -96,8 +100,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        default="claude-sonnet-4-20250514",
-        help="Claude model to use",
+        default=DEFAULT_MODEL,
+        help="Claude model to use (claude-sonnet-4-6 only)",
     )
     parser.add_argument(
         "--max-steps",
@@ -110,7 +114,11 @@ def main() -> None:
         type=str,
         help="Output file for results (defaults to bench/runs/<timestamp>.jsonl)",
     )
+    return parser
 
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
 
     if args.fixtures_only:
@@ -120,8 +128,14 @@ def main() -> None:
     else:
         tasks = BENCHMARK_TASKS
 
+    try:
+        model = assert_allowed_model(args.model)
+    except ModelNotAllowed as exc:
+        print(exc)
+        sys.exit(2)
+
     if args.dry_run:
-        print(dry_run_output(tasks))
+        print(dry_run_output(tasks, model))
         return
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -138,19 +152,24 @@ def main() -> None:
     run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
     print(f"Running benchmark with {len(tasks)} tasks")
-    print(f"Model: {args.model}")
+    print(f"Model: {model}")
     print(f"Headless: {not args.no_headless}")
     print(f"Max steps: {args.max_steps}")
     print(f"Run ID: {run_id}")
     print()
 
-    results = asyncio.run(run_benchmark(
-        tasks=tasks,
-        api_key=api_key,
-        model=args.model,
-        headless=not args.no_headless,
-        run_id=run_id,
-    ))
+    stopped: BudgetExceeded | None = None
+    try:
+        results = asyncio.run(run_benchmark(
+            tasks=tasks,
+            api_key=api_key,
+            model=model,
+            headless=not args.no_headless,
+            run_id=run_id,
+        ))
+    except BudgetExceeded as exc:
+        results = exc.results
+        stopped = exc
 
     summaries = [
         TaskSummary(
@@ -178,6 +197,9 @@ def main() -> None:
     with open(report_file, "w", encoding="utf-8") as f:
         f.write(report)
     print(f"\nReport saved to: {report_file}")
+    if stopped is not None:
+        print(stopped)
+        sys.exit(2)
 
 
 if __name__ == "__main__":

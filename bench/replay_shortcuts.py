@@ -5,6 +5,12 @@ This script:
 2. Converts them to the Observation type used by the router
 3. Runs them through html_shortcut and route_decision
 4. Reports hit rate and whether the shortcut action matched the model's action
+
+The five JSON files in bench/snapshots/ are hand-made. Replaying those files
+is the 40% hit / 50% match figure (2 of 5 fired, 1 of those 2 matched).
+A benchmark run writes real page snapshots under bench/runs/<run_id>/snapshots/.
+Replay that directory when you want a measurement on real pages. This module
+does not publish a new hit rate for those pages.
 """
 
 from __future__ import annotations
@@ -129,6 +135,14 @@ def actions_match(shortcut: str | None, model: str | None) -> bool | None:
     return shortcut_clean == model_clean
 
 
+HANDMADE_SNAPSHOT_NOTE = (
+    "These 5 files are hand-made snapshots. "
+    "2 of 5 shortcuts fired (40% hit) and 1 of those 2 matched (50% match). "
+    "That figure is this set only. Real page snapshots are saved under "
+    "bench/runs/<run_id>/snapshots/ during a run."
+)
+
+
 TASK_DESCRIPTIONS = {
     "wv_wikipedia_search": "Search Wikipedia for Ada Lovelace and confirm you are on her article page",
     "wv_arxiv_search": "Search arXiv for 'attention is all you need' and identify the first author",
@@ -200,33 +214,38 @@ def replay_snapshot(
 
 
 def load_snapshots_from_run(run_file: Path) -> list[SnapshotRecord]:
-    """Load snapshots from a benchmark run JSONL file.
+    """Load page snapshots captured during a run.
 
-    Note: The current harness doesn't save full snapshots in the run file.
-    This function expects a separate snapshots file or extended run format.
+    Prefers ``<run_id>/snapshots/*.json`` next to the JSONL. Those files are
+    the pages saved while the run was going. The next model action is stored
+    on the file when the model took one. Otherwise uses ``snapshot_text`` on
+    each step, which is the page that tool returned.
     """
-    snapshots = []
+    sidecar = run_file.parent / run_file.stem / "snapshots"
+    if sidecar.is_dir() and any(sidecar.glob("*.json")):
+        return load_snapshots_from_dir(sidecar)
 
+    snapshots = []
     with open(run_file, encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
             data = json.loads(line)
             task_id = data["task_id"]
-
             for step in data.get("steps", []):
-                if step.get("tool_name") == "browser_snapshot":
+                text = (step.get("snapshot_text") or "").strip()
+                if not text:
                     continue
-
                 snapshots.append(SnapshotRecord(
                     task_id=task_id,
-                    step_number=step["step_number"],
-                    snapshot_text="",
+                    step_number=step.get("step_number", 1),
+                    snapshot_text=text,
                     model_action=None,
-                    model_tool_name=step.get("tool_name"),
-                    model_tool_args=step.get("tool_args", {}),
+                    model_tool_name=step.get("model_tool_name") or step.get("tool_name"),
+                    model_tool_args=step.get("model_tool_args") or step.get("tool_args") or {},
+                    url=step.get("page_url") or step.get("url") or "https://example.com",
+                    title=step.get("page_title") or step.get("title") or "Page",
                 ))
-
     return snapshots
 
 
@@ -244,9 +263,9 @@ def load_snapshots_from_dir(snapshots_dir: Path) -> list[SnapshotRecord]:
             snapshot_text=data.get("snapshot_text", ""),
             model_action=data.get("model_action"),
             model_tool_name=data.get("model_tool_name"),
-            model_tool_args=data.get("model_tool_args", {}),
-            url=data.get("url", "https://example.com"),
-            title=data.get("title", "Page"),
+            model_tool_args=data.get("model_tool_args") or {},
+            url=data.get("url") or "https://example.com",
+            title=data.get("title") or "Page",
         ))
 
     return snapshots
@@ -293,19 +312,26 @@ def generate_replay_report(results: list[ReplayResult]) -> str:
 def main() -> None:
     """CLI entry point."""
     snapshots_dir = Path(__file__).parent / "snapshots"
+    handmade = False
 
     if len(sys.argv) > 1:
         path = Path(sys.argv[1])
         if path.is_dir():
             snapshots = load_snapshots_from_dir(path)
+            handmade = path.resolve() == snapshots_dir.resolve()
         else:
             snapshots = load_snapshots_from_run(path)
     elif snapshots_dir.exists():
         snapshots = load_snapshots_from_dir(snapshots_dir)
+        handmade = True
     else:
         print("Usage: python -m bench.replay_shortcuts <snapshots_dir|run_file.jsonl>")
         print(f"No snapshots found in {snapshots_dir}")
         sys.exit(1)
+
+    if handmade:
+        print(HANDMADE_SNAPSHOT_NOTE)
+        print()
 
     if not snapshots:
         print("No snapshots found to replay")

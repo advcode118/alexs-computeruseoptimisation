@@ -102,6 +102,12 @@ def llm_judge(
     model: str = "claude-haiku-4-5-20251001",
 ) -> JudgeResult:
     """Use an LLM to judge task success."""
+    if "opus" in (model or "").lower():
+        return JudgeResult(
+            success=False,
+            reason="Refusing Opus. The bench never calls Opus.",
+            confidence=0.0,
+        )
     api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
         return JudgeResult(

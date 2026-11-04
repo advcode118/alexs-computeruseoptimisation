@@ -1,0 +1,29 @@
+{
+  "model": "claude-sonnet-4-6",
+  "budget_usd": 40.0,
+  "prices": {
+    "input_usd_per_mtok": 3.0,
+    "output_usd_per_mtok": 15.0
+  },
+  "prior": {
+    "label": "M0 measurement already spent",
+    "model": "claude-sonnet-4-6",
+    "input_tokens": 3200000,
+    "output_tokens": 3000,
+    "usd": 9.645,
+    "tasks_succeeded": "4/5",
+    "steps": 36,
+    "wall_s": 94.8,
+    "model_time_pct": 87,
+    "tool_time_pct": 13,
+    "tasks_started": 5,
+    "tasks_in_suite": 12,
+    "note": "Computed from the recorded M0 totals of 3.2M input tokens and 3k output tokens at the claude-sonnet-4-6 list price ($3/MTok input, $15/MTok output). That is $9.645, about $10. 4/5 tasks succeeded, 36 steps, 94.8s, model time 87%, tools 13%, stopped after 5 of 12 tasks. This is that measurement, not a new run."
+  },
+  "tasks": [],
+  "input_tokens": 3200000,
+  "output_tokens": 3000,
+  "running_total_usd": 9.645,
+  "aborted": false,
+  "abort_reason": null
+}

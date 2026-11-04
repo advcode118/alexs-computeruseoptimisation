@@ -1,7 +1,12 @@
-"""Harness that runs browser tasks via @playwright/mcp with a Claude model.
+"""Harness that runs browser tasks via @playwright/mcp with claude-sonnet-4-6.
+
+@playwright/mcp 0.0.84 speaks newline-delimited JSON-RPC on stdio. Notifications
+have no id and get no reply. The model context keeps the task plus the last
+few turns, and each tool result is capped before it is sent.
 
 Logs per-task metrics: wall time split (model vs tool vs other), steps,
-input/output tokens, snapshot tokens per step, and success.
+input/output tokens, snapshot tokens per step, and success. Page snapshots
+from the run are written under the run directory for a later offline replay.
 """
 
 from __future__ import annotations
@@ -9,15 +14,60 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import subprocess
-import sys
+import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+
+from bench.budget import (
+    ALLOWED_MODEL,
+    BudgetExceeded,
+    SpendLedger,
+    assert_allowed_model,
+)
 
 PLAYWRIGHT_MCP_VERSION = "0.0.84"
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
+DEFAULT_MODEL = ALLOWED_MODEL
+MCP_LINE_LIMIT = 16 * 1024 * 1024
+MAX_HISTORY_PAIRS = 6
+MAX_SNAPSHOT_CHARS = 8000
+_TRUNCATION_NOTE = "\n[snapshot truncated]"
+
+_NAVIGATE_TOOLS = frozenset(
+    {
+        "browser_navigate",
+        "browser_navigate_back",
+        "browser_navigate_forward",
+        "browser_reload",
+    }
+)
+_FIND_TOOLS = frozenset({"browser_find"})
+_ACTION_TOOLS = frozenset(
+    {
+        "browser_click",
+        "browser_type",
+        "browser_hover",
+        "browser_drag",
+        "browser_drop",
+        "browser_select_option",
+        "browser_press_key",
+        "browser_fill_form",
+        "browser_file_upload",
+        "browser_handle_dialog",
+        "browser_wait_for",
+        "browser_mouse_click_xy",
+        "browser_mouse_move_xy",
+        "browser_mouse_drag_xy",
+        "browser_mouse_wheel",
+    }
+)
+
+_SNAPSHOT_FENCE = re.compile(
+    r"### Snapshot\s*```(?:ya?ml)?\s*\n(.*?)```",
+    re.IGNORECASE | re.DOTALL,
+)
+_PAGE_FIELD = re.compile(r"(?m)^- Page ([A-Za-z]+):\s*(.+?)\s*$")
 
 SYSTEM_PROMPT = """You are a browser automation agent. You have access to tools for controlling a web browser.
 Your goal is to complete the given task by using the browser tools.
@@ -36,6 +86,7 @@ Be efficient - try to complete the task in as few steps as possible."""
 @dataclass
 class StepMetrics:
     """Metrics for a single step in a task run."""
+
     step_number: int
     tool_name: str
     tool_args: dict
@@ -45,11 +96,16 @@ class StepMetrics:
     tool_time_ms: float
     input_tokens: int
     output_tokens: int
+    snapshot_text: str = ""
+    snapshot_file: str = ""
+    page_url: str = ""
+    page_title: str = ""
 
 
 @dataclass
 class TaskResult:
     """Result of running a single task."""
+
     task_id: str
     task_description: str
     success: bool
@@ -71,15 +127,139 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+def encode_ndjson(payload: dict) -> bytes:
+    """One JSON-RPC object per line. No Content-Length header."""
+    return json.dumps(payload, separators=(",", ":")).encode() + b"\n"
+
+
+def cap_snapshot_text(text: str, limit: int = MAX_SNAPSHOT_CHARS) -> str:
+    """Shorten a tool result before it is placed in the model context."""
+    if len(text) <= limit:
+        return text
+    if limit <= len(_TRUNCATION_NOTE):
+        return _TRUNCATION_NOTE[:limit]
+    return text[: limit - len(_TRUNCATION_NOTE)] + _TRUNCATION_NOTE
+
+
+def cap_messages_for_model(
+    messages: list[dict],
+    max_pairs: int = MAX_HISTORY_PAIRS,
+) -> list[dict]:
+    """Keep the opening task and the last few assistant/tool pairs.
+
+    Tool results are shortened. The stored history is left intact.
+    """
+    if not messages:
+        return []
+    head = messages[0]
+    rest = messages[1:]
+    pairs: list[list[dict]] = []
+    bucket: list[dict] = []
+    for message in rest:
+        bucket.append(message)
+        if len(bucket) == 2:
+            pairs.append(bucket)
+            bucket = []
+    if bucket:
+        pairs.append(bucket)
+    kept = [message for pair in pairs[-max_pairs:] for message in pair]
+    return [_cap_message(message) for message in (head, *kept)]
+
+
+def _cap_message(message: dict) -> dict:
+    content = message.get("content")
+    if not isinstance(content, list):
+        return message
+    blocks = []
+    changed = False
+    for block in content:
+        if (
+            isinstance(block, dict)
+            and block.get("type") == "tool_result"
+            and isinstance(block.get("content"), str)
+        ):
+            capped = cap_snapshot_text(block["content"])
+            if capped != block["content"]:
+                changed = True
+                block = {**block, "content": capped}
+        blocks.append(block)
+    if not changed:
+        return message
+    return {**message, "content": blocks}
+
+
+def snapshot_tokens_for(tool_name: str, result_text: str) -> int:
+    """Token estimate for a response that carries a page snapshot.
+
+    Navigate and find responses are included along with action responses
+    and browser_snapshot. The whole tool result is counted, matching the
+    text the model would read.
+    """
+    if not result_text or not _carries_snapshot(tool_name, result_text):
+        return 0
+    return estimate_tokens(result_text)
+
+
+def _carries_snapshot(tool_name: str, result_text: str) -> bool:
+    name = tool_name or ""
+    lowered = result_text.lower()
+    if name == "browser_snapshot" or name in _NAVIGATE_TOOLS or name in _FIND_TOOLS:
+        return True
+    if "snapshot" in lowered[:100]:
+        return True
+    if name in _ACTION_TOOLS and ("snapshot" in lowered or "[ref=" in result_text):
+        return True
+    return False
+
+
+def page_field(result_text: str, label: str) -> str:
+    """Read `- Page URL:` or `- Page Title:` from a tool response."""
+    for match in _PAGE_FIELD.finditer(result_text or ""):
+        if match.group(1).lower() == label.lower():
+            return match.group(2).strip()
+    return ""
+
+
+def extract_page_snapshot(result_text: str) -> str:
+    """Pull the accessibility tree out of a playwright-mcp tool response."""
+    if not result_text:
+        return ""
+    fenced = _SNAPSHOT_FENCE.search(result_text)
+    if fenced:
+        return fenced.group(1).strip()
+    lines = []
+    for line in result_text.splitlines():
+        if line.strip().startswith("- Page "):
+            continue
+        if "[ref=" in line:
+            lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def _annotate_snapshot_file(path: Path, tool_use: dict, action_step: int) -> None:
+    """Attach the model action that was taken on this saved page."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["captured_on_step"] = data.get("step_number")
+    data["step_number"] = action_step
+    data["model_tool_name"] = tool_use.get("name")
+    data["model_tool_args"] = tool_use.get("input") or {}
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+
 class PlaywrightMCPClient:
-    """Client that communicates with @playwright/mcp over stdio."""
+    """Client that communicates with @playwright/mcp over stdio.
+
+    The server speaks newline-delimited JSON. A notification has a method and
+    no id; it is not a response and this client does not wait for one.
+    """
 
     def __init__(self, headless: bool = True, snapshot_mode: str = "full"):
         self.headless = headless
         self.snapshot_mode = snapshot_mode
-        self.process: subprocess.Popen | None = None
+        self.process: asyncio.subprocess.Process | None = None
         self._request_id = 0
         self._tools: list[dict] = []
+        self._stderr_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Start the @playwright/mcp process."""
@@ -93,62 +273,83 @@ class PlaywrightMCPClient:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            limit=MCP_LINE_LIMIT,
         )
-
+        self._stderr_task = asyncio.create_task(self._drain_stderr())
         await self._initialize()
 
-    async def _send_request(self, method: str, params: dict | None = None) -> dict:
-        """Send a JSON-RPC request and wait for response."""
+    async def _drain_stderr(self) -> None:
+        if self.process is None or self.process.stderr is None:
+            return
+        while True:
+            line = await self.process.stderr.readline()
+            if not line:
+                return
+
+    async def _write(self, payload: dict) -> None:
         if self.process is None or self.process.stdin is None:
             raise RuntimeError("MCP process not started")
+        raw = encode_ndjson(payload)
+        self.process.stdin.write(raw)
+        await self.process.stdin.drain()
 
+    async def _send_request(self, method: str, params: dict | None = None) -> dict:
+        """Send a JSON-RPC request and wait for the matching response id."""
         self._request_id += 1
-        request = {
+        request_id = self._request_id
+        request: dict = {
             "jsonrpc": "2.0",
-            "id": self._request_id,
+            "id": request_id,
             "method": method,
         }
         if params:
             request["params"] = params
+        await self._write(request)
+        return await self._read_response(request_id)
 
-        message = json.dumps(request)
-        content = f"Content-Length: {len(message)}\r\n\r\n{message}"
-        self.process.stdin.write(content.encode())
-        await self.process.stdin.drain()
+    async def _send_notification(self, method: str, params: dict | None = None) -> None:
+        """Send a notification. There is no id and no response to wait for."""
+        payload: dict = {"jsonrpc": "2.0", "method": method}
+        if params:
+            payload["params"] = params
+        await self._write(payload)
 
-        return await self._read_response()
-
-    async def _read_response(self) -> dict:
-        """Read a JSON-RPC response from stdout."""
+    async def _read_message(self) -> dict:
+        """Read one JSON object. Skip blank lines and non-JSON log lines."""
         if self.process is None or self.process.stdout is None:
             raise RuntimeError("MCP process not started")
-
-        header = b""
         while True:
-            char = await self.process.stdout.read(1)
-            if not char:
+            line = await self.process.stdout.readline()
+            if not line:
                 raise RuntimeError("MCP process ended unexpectedly")
-            header += char
-            if header.endswith(b"\r\n\r\n"):
-                break
+            stripped = line.strip()
+            if not stripped or stripped[:1] not in (b"{", b"["):
+                continue
+            try:
+                data = json.loads(stripped.decode())
+            except json.JSONDecodeError:
+                continue
+            if isinstance(data, dict):
+                return data
 
-        content_length = 0
-        for line in header.decode().split("\r\n"):
-            if line.lower().startswith("content-length:"):
-                content_length = int(line.split(":", 1)[1].strip())
-
-        body = await self.process.stdout.read(content_length)
-        return json.loads(body.decode())
+    async def _read_response(self, request_id: int) -> dict:
+        """Return the message with this id. Notifications are not that message."""
+        while True:
+            message = await self._read_message()
+            if message.get("id") == request_id:
+                return message
 
     async def _initialize(self) -> None:
         """Initialize the MCP connection and get tools list."""
-        await self._send_request("initialize", {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "bench-harness", "version": "0.1.0"}
-        })
-        await self._send_request("notifications/initialized")
-
+        await self._send_request(
+            "initialize",
+            {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "bench-harness", "version": "0.1.0"},
+            },
+        )
+        await self._send_notification("notifications/initialized")
         response = await self._send_request("tools/list")
         self._tools = response.get("result", {}).get("tools", [])
 
@@ -161,20 +362,22 @@ class PlaywrightMCPClient:
         """Convert MCP tools to Claude tool format."""
         claude_tools = []
         for tool in self._tools:
-            claude_tools.append({
-                "name": tool["name"],
-                "description": tool.get("description", ""),
-                "input_schema": tool.get("inputSchema", {"type": "object", "properties": {}})
-            })
+            claude_tools.append(
+                {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "input_schema": tool.get("inputSchema", {"type": "object", "properties": {}}),
+                }
+            )
         return claude_tools
 
     async def call_tool(self, name: str, arguments: dict) -> tuple[str, float]:
         """Call a tool and return (result_text, time_ms)."""
         start = time.perf_counter()
-        response = await self._send_request("tools/call", {
-            "name": name,
-            "arguments": arguments
-        })
+        response = await self._send_request(
+            "tools/call",
+            {"name": name, "arguments": arguments},
+        )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         result = response.get("result", {})
@@ -187,6 +390,13 @@ class PlaywrightMCPClient:
 
     async def stop(self) -> None:
         """Stop the MCP process."""
+        if self._stderr_task is not None:
+            self._stderr_task.cancel()
+            try:
+                await self._stderr_task
+            except asyncio.CancelledError:
+                pass
+            self._stderr_task = None
         if self.process:
             self.process.terminate()
             try:
@@ -197,11 +407,11 @@ class PlaywrightMCPClient:
 
 
 class AnthropicClient:
-    """Simple Anthropic API client for tool use."""
+    """Simple Anthropic API client for tool use. claude-sonnet-4-6 only."""
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
         self.api_key = api_key
-        self.model = model
+        self.model = assert_allowed_model(model)
         self.base_url = "https://api.anthropic.com/v1/messages"
 
     async def create_message(
@@ -212,8 +422,8 @@ class AnthropicClient:
         max_tokens: int = 4096,
     ) -> tuple[dict, float]:
         """Create a message and return (response, time_ms)."""
+        assert_allowed_model(self.model)
         import urllib.request
-        import urllib.error
 
         payload = {
             "model": self.model,
@@ -258,16 +468,20 @@ class BenchmarkHarness:
         headless: bool = True,
         max_steps: int = 30,
         runs_dir: Path | None = None,
+        snapshot_dir: Path | None = None,
     ):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
-        self.model = model
+        self.model = assert_allowed_model(model)
         self.headless = headless
         self.max_steps = max_steps
         self.runs_dir = runs_dir or Path(__file__).parent / "runs"
-        self.runs_dir.mkdir(exist_ok=True)
+        self.runs_dir.mkdir(parents=True, exist_ok=True)
+        self.snapshot_dir = snapshot_dir
 
         self.mcp_client: PlaywrightMCPClient | None = None
         self.anthropic: AnthropicClient | None = None
+        self._capture_index = 0
+        self._pending_snapshot_path: Path | None = None
 
     def has_api_key(self) -> bool:
         """Check if we have an API key configured."""
@@ -287,6 +501,36 @@ class BenchmarkHarness:
             await self.mcp_client.stop()
             self.mcp_client = None
 
+    def _write_page_snapshot(
+        self,
+        *,
+        task_id: str,
+        step_number: int,
+        tool_name: str,
+        snapshot_text: str,
+        page_url: str,
+        page_title: str,
+    ) -> Path | None:
+        """Save the page tree from a tool response. The next model action is added later."""
+        if self.snapshot_dir is None or not snapshot_text:
+            return None
+        self.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        self._capture_index += 1
+        path = self.snapshot_dir / f"{self._capture_index:03d}_{task_id}_step{step_number}.json"
+        payload = {
+            "task_id": task_id,
+            "step_number": step_number,
+            "url": page_url,
+            "title": page_title,
+            "snapshot_text": snapshot_text,
+            "model_tool_name": None,
+            "model_tool_args": {},
+            "captured_by": tool_name,
+            "source": "run",
+        }
+        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        return path
+
     async def run_task(
         self,
         task_id: str,
@@ -296,38 +540,21 @@ class BenchmarkHarness:
         judge_prompt: str | None = None,
     ) -> TaskResult:
         """Run a single task and collect metrics."""
+        del expected_answer, judge_prompt
         if not self.anthropic:
-            return TaskResult(
-                task_id=task_id,
-                task_description=task_description,
-                success=False,
-                success_reason="No API key configured",
-                total_steps=0,
-                total_wall_ms=0,
-                total_model_ms=0,
-                total_tool_ms=0,
-                total_other_ms=0,
-                total_input_tokens=0,
-                total_output_tokens=0,
-                total_snapshot_tokens=0,
-                error="ANTHROPIC_API_KEY not set",
+            return self._empty_result(
+                task_id,
+                task_description,
+                "No API key configured",
+                "ANTHROPIC_API_KEY not set",
             )
 
         if not self.mcp_client:
-            return TaskResult(
-                task_id=task_id,
-                task_description=task_description,
-                success=False,
-                success_reason="MCP client not initialized",
-                total_steps=0,
-                total_wall_ms=0,
-                total_model_ms=0,
-                total_tool_ms=0,
-                total_other_ms=0,
-                total_input_tokens=0,
-                total_output_tokens=0,
-                total_snapshot_tokens=0,
-                error="MCP client not started",
+            return self._empty_result(
+                task_id,
+                task_description,
+                "MCP client not initialized",
+                "MCP client not started",
             )
 
         wall_start = time.perf_counter()
@@ -337,6 +564,7 @@ class BenchmarkHarness:
         total_input_tokens = 0
         total_output_tokens = 0
         total_snapshot_tokens = 0
+        self._pending_snapshot_path = None
 
         messages: list[dict] = [
             {"role": "user", "content": f"Task: {task_description}\n\nStart URL: {start_url}"}
@@ -352,7 +580,10 @@ class BenchmarkHarness:
             while step_num < self.max_steps:
                 step_num += 1
 
-                response, model_ms = await self.anthropic.create_message(messages, tools)
+                response, model_ms = await self.anthropic.create_message(
+                    cap_messages_for_model(messages),
+                    tools,
+                )
                 total_model_ms += model_ms
 
                 usage = response.get("usage", {})
@@ -391,42 +622,62 @@ class BenchmarkHarness:
                         success_reason = "Model ended without completing task"
                     break
 
+                if self._pending_snapshot_path is not None:
+                    _annotate_snapshot_file(self._pending_snapshot_path, tool_uses[0], step_num)
+                    self._pending_snapshot_path = None
+
                 messages.append({"role": "assistant", "content": assistant_content})
 
                 tool_results = []
-                step_tool_ms = 0.0
-                step_snapshot_tokens = 0
-                for tool_use in tool_uses:
+                for index, tool_use in enumerate(tool_uses):
                     tool_name = tool_use.get("name", "")
                     tool_args = tool_use.get("input", {})
                     tool_id = tool_use.get("id", "")
 
                     result_text, tool_ms = await self.mcp_client.call_tool(tool_name, tool_args)
-                    step_tool_ms += tool_ms
                     total_tool_ms += tool_ms
 
-                    if tool_name == "browser_snapshot" or "snapshot" in result_text.lower()[:100]:
-                        snapshot_tokens = estimate_tokens(result_text)
-                        step_snapshot_tokens += snapshot_tokens
-                        total_snapshot_tokens += snapshot_tokens
-
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_id,
-                        "content": result_text,
-                    })
-
-                    steps.append(StepMetrics(
+                    this_snapshot_tokens = snapshot_tokens_for(tool_name, result_text)
+                    total_snapshot_tokens += this_snapshot_tokens
+                    snapshot_text = extract_page_snapshot(result_text)
+                    page_url = page_field(result_text, "URL")
+                    page_title = page_field(result_text, "Title")
+                    snapshot_path = self._write_page_snapshot(
+                        task_id=task_id,
                         step_number=step_num,
                         tool_name=tool_name,
-                        tool_args=tool_args,
-                        tool_result_size=len(result_text),
-                        snapshot_tokens=step_snapshot_tokens,
-                        model_time_ms=model_ms if tool_use == tool_uses[0] else 0,
-                        tool_time_ms=tool_ms,
-                        input_tokens=input_tokens if tool_use == tool_uses[0] else 0,
-                        output_tokens=output_tokens if tool_use == tool_uses[0] else 0,
-                    ))
+                        snapshot_text=snapshot_text,
+                        page_url=page_url,
+                        page_title=page_title,
+                    )
+                    if snapshot_path is not None:
+                        self._pending_snapshot_path = snapshot_path
+
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": result_text,
+                        }
+                    )
+
+                    steps.append(
+                        StepMetrics(
+                            step_number=step_num,
+                            tool_name=tool_name,
+                            tool_args=tool_args,
+                            tool_result_size=len(result_text),
+                            snapshot_tokens=this_snapshot_tokens,
+                            model_time_ms=model_ms if index == 0 else 0,
+                            tool_time_ms=tool_ms,
+                            input_tokens=input_tokens if index == 0 else 0,
+                            output_tokens=output_tokens if index == 0 else 0,
+                            snapshot_text=snapshot_text,
+                            snapshot_file=str(snapshot_path) if snapshot_path else "",
+                            page_url=page_url,
+                            page_title=page_title,
+                        )
+                    )
 
                 messages.append({"role": "user", "content": tool_results})
 
@@ -455,10 +706,33 @@ class BenchmarkHarness:
             error=error,
         )
 
+    def _empty_result(
+        self,
+        task_id: str,
+        task_description: str,
+        reason: str,
+        error: str,
+    ) -> TaskResult:
+        return TaskResult(
+            task_id=task_id,
+            task_description=task_description,
+            success=False,
+            success_reason=reason,
+            total_steps=0,
+            total_wall_ms=0,
+            total_model_ms=0,
+            total_tool_ms=0,
+            total_other_ms=0,
+            total_input_tokens=0,
+            total_output_tokens=0,
+            total_snapshot_tokens=0,
+            error=error,
+        )
+
     def save_result(self, result: TaskResult, run_id: str) -> Path:
         """Save a task result to a JSONL file."""
         run_file = self.runs_dir / f"{run_id}.jsonl"
-        with open(run_file, "a", encoding="utf-8") as f:
+        with open(run_file, "a", encoding="utf-8") as handle:
             data = {
                 "task_id": result.task_id,
                 "task_description": result.task_description,
@@ -475,21 +749,71 @@ class BenchmarkHarness:
                 "error": result.error,
                 "steps": [
                     {
-                        "step_number": s.step_number,
-                        "tool_name": s.tool_name,
-                        "tool_args": s.tool_args,
-                        "tool_result_size": s.tool_result_size,
-                        "snapshot_tokens": s.snapshot_tokens,
-                        "model_time_ms": s.model_time_ms,
-                        "tool_time_ms": s.tool_time_ms,
-                        "input_tokens": s.input_tokens,
-                        "output_tokens": s.output_tokens,
+                        "step_number": step.step_number,
+                        "tool_name": step.tool_name,
+                        "tool_args": step.tool_args,
+                        "tool_result_size": step.tool_result_size,
+                        "snapshot_tokens": step.snapshot_tokens,
+                        "model_time_ms": step.model_time_ms,
+                        "tool_time_ms": step.tool_time_ms,
+                        "input_tokens": step.input_tokens,
+                        "output_tokens": step.output_tokens,
+                        "snapshot_text": step.snapshot_text,
+                        "snapshot_file": step.snapshot_file,
+                        "page_url": step.page_url,
+                        "page_title": step.page_title,
                     }
-                    for s in result.steps
+                    for step in result.steps
                 ],
             }
-            f.write(json.dumps(data) + "\n")
+            handle.write(json.dumps(data) + "\n")
         return run_file
+
+
+async def execute_benchmark_tasks(
+    harness: BenchmarkHarness,
+    tasks: list[dict],
+    ledger: SpendLedger,
+    run_id: str,
+) -> list[TaskResult]:
+    """Run tasks until the project total would pass the budget.
+
+    Spend is estimated after every task from that task's tokens times the
+    current sonnet-4-6 price, then written to the ledger. The next task is
+    not started once the running total has reached $40.
+    """
+    results: list[TaskResult] = []
+    for task in tasks:
+        if not ledger.allows_another_task():
+            ledger.mark_aborted()
+            ledger.save()
+            raise BudgetExceeded(ledger.running_total_usd, results, ledger.budget_usd)
+
+        print(f"Running task: {task['id']} - {task['description'][:50]}...")
+        result = await harness.run_task(
+            task_id=task["id"],
+            task_description=task["description"],
+            start_url=task["start_url"],
+            expected_answer=task.get("expected_answer"),
+            judge_prompt=task.get("judge_prompt"),
+        )
+        results.append(result)
+        ledger.record_task(
+            run_id=run_id,
+            task_id=result.task_id,
+            input_tokens=result.total_input_tokens,
+            output_tokens=result.total_output_tokens,
+        )
+        over_budget = not ledger.allows_another_task()
+        if over_budget:
+            ledger.mark_aborted()
+        ledger.save()
+        harness.save_result(result, run_id)
+        print(f"  -> {'SUCCESS' if result.success else 'FAILED'}: {result.success_reason[:60]}")
+        print(f"  -> project total ${ledger.running_total_usd:.2f}")
+        if over_budget:
+            raise BudgetExceeded(ledger.running_total_usd, results, ledger.budget_usd)
+    return results
 
 
 async def run_benchmark(
@@ -498,36 +822,33 @@ async def run_benchmark(
     model: str = DEFAULT_MODEL,
     headless: bool = True,
     run_id: str | None = None,
+    spend_path: Path | None = None,
+    runs_dir: Path | None = None,
 ) -> list[TaskResult]:
     """Run a benchmark suite and return results."""
-    import datetime
-
+    assert_allowed_model(model)
+    ledger = SpendLedger.load(spend_path)
     if run_id is None:
-        run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    harness = BenchmarkHarness(api_key=api_key, model=model, headless=headless)
+    if not ledger.allows_another_task():
+        ledger.mark_aborted()
+        ledger.save()
+        raise BudgetExceeded(ledger.running_total_usd, [], ledger.budget_usd)
 
-    results = []
+    harness = BenchmarkHarness(
+        api_key=api_key,
+        model=model,
+        headless=headless,
+        runs_dir=runs_dir,
+    )
+    harness.snapshot_dir = harness.runs_dir / run_id / "snapshots"
+
     try:
         await harness.setup()
-
-        for task in tasks:
-            print(f"Running task: {task['id']} - {task['description'][:50]}...")
-            result = await harness.run_task(
-                task_id=task["id"],
-                task_description=task["description"],
-                start_url=task["start_url"],
-                expected_answer=task.get("expected_answer"),
-                judge_prompt=task.get("judge_prompt"),
-            )
-            results.append(result)
-            harness.save_result(result, run_id)
-            print(f"  -> {'SUCCESS' if result.success else 'FAILED'}: {result.success_reason[:60]}")
-
+        return await execute_benchmark_tasks(harness, tasks, ledger, run_id)
     finally:
         await harness.teardown()
-
-    return results
 
 
 if __name__ == "__main__":

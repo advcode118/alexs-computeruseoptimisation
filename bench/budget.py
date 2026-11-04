@@ -1,0 +1,213 @@
+"""Project spend for the bench harness.
+
+claude-sonnet-4-6 list price is $3 per million input tokens and $15 per
+million output tokens. The prior total is the recorded M0 usage: 3.2M input
+tokens and 3k output tokens, which is $9.645, about $10. That entry is the
+measurement already spent. It is not a new run.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+ALLOWED_MODEL = "claude-sonnet-4-6"
+RETIRED_MODEL = "claude-sonnet-4-20250514"
+INPUT_USD_PER_MTOK = 3.0
+OUTPUT_USD_PER_MTOK = 15.0
+PROJECT_BUDGET_USD = 40.0
+
+# Recorded M0 totals. "3.2M" and "3k" are the figures from that measurement.
+PRIOR_INPUT_TOKENS = 3_200_000
+PRIOR_OUTPUT_TOKENS = 3_000
+
+DEFAULT_SPEND_PATH = Path(__file__).resolve().parent / "results" / "spend.json"
+
+
+class ModelNotAllowed(ValueError):
+    """The bench calls claude-sonnet-4-6 and nothing else."""
+
+
+class BudgetExceeded(RuntimeError):
+    """The running project total would pass the budget, so the run stops."""
+
+    def __init__(
+        self,
+        running_total_usd: float,
+        results: list,
+        budget_usd: float = PROJECT_BUDGET_USD,
+    ):
+        self.running_total_usd = running_total_usd
+        self.results = results
+        self.budget_usd = budget_usd
+        super().__init__(
+            f"Stopped: project total ${running_total_usd:.2f} would pass "
+            f"the ${budget_usd:.0f} budget."
+        )
+
+
+def assert_allowed_model(model: str) -> str:
+    """Accept claude-sonnet-4-6. Refuse Opus and the retired Sonnet id."""
+    if not isinstance(model, str):
+        raise ModelNotAllowed(f"Refusing model {model!r}. The bench model is {ALLOWED_MODEL}.")
+    chosen = model.strip()
+    if "opus" in chosen.lower():
+        raise ModelNotAllowed(
+            f"Refusing {chosen}. The bench model is {ALLOWED_MODEL}. Opus is never used."
+        )
+    if chosen == RETIRED_MODEL:
+        raise ModelNotAllowed(
+            f"Refusing {RETIRED_MODEL}. That model is retired. The bench model is {ALLOWED_MODEL}."
+        )
+    if chosen != ALLOWED_MODEL:
+        raise ModelNotAllowed(f"Refusing {chosen}. The bench model is {ALLOWED_MODEL}.")
+    return ALLOWED_MODEL
+
+
+def estimate_usd(input_tokens: int, output_tokens: int) -> float:
+    """Dollars from token counts times the current sonnet-4-6 list price."""
+    return (
+        int(input_tokens) * INPUT_USD_PER_MTOK
+        + int(output_tokens) * OUTPUT_USD_PER_MTOK
+    ) / 1_000_000
+
+
+def prior_record() -> dict:
+    """M0 spend already on the books. Token counts are the recorded totals."""
+    usd = round(estimate_usd(PRIOR_INPUT_TOKENS, PRIOR_OUTPUT_TOKENS), 6)
+    return {
+        "label": "M0 measurement already spent",
+        "model": ALLOWED_MODEL,
+        "input_tokens": PRIOR_INPUT_TOKENS,
+        "output_tokens": PRIOR_OUTPUT_TOKENS,
+        "usd": usd,
+        "tasks_succeeded": "4/5",
+        "steps": 36,
+        "wall_s": 94.8,
+        "model_time_pct": 87,
+        "tool_time_pct": 13,
+        "tasks_started": 5,
+        "tasks_in_suite": 12,
+        "note": (
+            "Computed from the recorded M0 totals of 3.2M input tokens and 3k output tokens "
+            "at the claude-sonnet-4-6 list price ($3/MTok input, $15/MTok output). "
+            "That is $9.645, about $10. 4/5 tasks succeeded, 36 steps, 94.8s, "
+            "model time 87%, tools 13%, stopped after 5 of 12 tasks. "
+            "This is that measurement, not a new run."
+        ),
+    }
+
+
+@dataclass
+class SpendLedger:
+    """Running project total in bench/results/spend.json."""
+
+    path: Path
+    model: str = ALLOWED_MODEL
+    budget_usd: float = PROJECT_BUDGET_USD
+    input_usd_per_mtok: float = INPUT_USD_PER_MTOK
+    output_usd_per_mtok: float = OUTPUT_USD_PER_MTOK
+    prior: dict = field(default_factory=prior_record)
+    tasks: list = field(default_factory=list)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    running_total_usd: float = 0.0
+    aborted: bool = False
+    abort_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        self.input_usd_per_mtok = INPUT_USD_PER_MTOK
+        self.output_usd_per_mtok = OUTPUT_USD_PER_MTOK
+        self.recompute()
+
+    def recompute(self) -> None:
+        incoming = int(self.prior.get("input_tokens", 0)) + sum(
+            int(item["input_tokens"]) for item in self.tasks
+        )
+        outgoing = int(self.prior.get("output_tokens", 0)) + sum(
+            int(item["output_tokens"]) for item in self.tasks
+        )
+        self.input_tokens = incoming
+        self.output_tokens = outgoing
+        self.running_total_usd = round(estimate_usd(incoming, outgoing), 6)
+
+    def allows_another_task(self) -> bool:
+        """False once the project total has reached the budget."""
+        return self.running_total_usd < self.budget_usd
+
+    def record_task(
+        self,
+        *,
+        run_id: str,
+        task_id: str,
+        input_tokens: int,
+        output_tokens: int,
+    ) -> float:
+        usd = round(estimate_usd(input_tokens, output_tokens), 6)
+        self.tasks.append(
+            {
+                "run_id": run_id,
+                "task_id": task_id,
+                "model": self.model,
+                "input_tokens": int(input_tokens),
+                "output_tokens": int(output_tokens),
+                "usd": usd,
+            }
+        )
+        self.recompute()
+        return usd
+
+    def mark_aborted(self) -> None:
+        self.aborted = True
+        self.abort_reason = (
+            f"Project total ${self.running_total_usd:.2f} would pass "
+            f"the ${self.budget_usd:.0f} budget."
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "model": self.model,
+            "budget_usd": self.budget_usd,
+            "prices": {
+                "input_usd_per_mtok": self.input_usd_per_mtok,
+                "output_usd_per_mtok": self.output_usd_per_mtok,
+            },
+            "prior": self.prior,
+            "tasks": self.tasks,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "running_total_usd": self.running_total_usd,
+            "aborted": self.aborted,
+            "abort_reason": self.abort_reason,
+        }
+
+    def save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(self.to_dict(), indent=2) + "\n"
+        temporary = self.path.with_suffix(".json.tmp")
+        temporary.write_text(payload, encoding="utf-8")
+        temporary.replace(self.path)
+
+    @classmethod
+    def seed(cls, path: Path) -> SpendLedger:
+        return cls(path=path, prior=prior_record(), tasks=[])
+
+    @classmethod
+    def load(cls, path: Path | None = None) -> SpendLedger:
+        target = path or DEFAULT_SPEND_PATH
+        if not target.exists():
+            ledger = cls.seed(target)
+            ledger.save()
+            return ledger
+        data = json.loads(target.read_text(encoding="utf-8"))
+        model = assert_allowed_model(data.get("model", ALLOWED_MODEL))
+        return cls(
+            path=target,
+            model=model,
+            budget_usd=float(data.get("budget_usd", PROJECT_BUDGET_USD)),
+            prior=data.get("prior") or prior_record(),
+            tasks=list(data.get("tasks") or []),
+            aborted=bool(data.get("aborted", False)),
+            abort_reason=data.get("abort_reason"),
+        )
