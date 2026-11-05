@@ -22,7 +22,17 @@ from proxy.diff import (
     view_result_text,
 )
 from proxy.segment import dispatch
-from proxy.settle import decide_settle, mutation_is_meaningful, parse_settle_result, settle_page
+from proxy.settle import (
+    QUIET_MS,
+    SETTLE_TIMEOUT_MS,
+    configured_quiet_ms,
+    configured_timeout_ms,
+    decide_settle,
+    mutation_is_meaningful,
+    parse_settle_result,
+    settle_page,
+    settle_source,
+)
 
 URL = "https://en.wikipedia.org/wiki/Main_Page"
 TITLE = "Wikipedia, the free encyclopedia"
@@ -141,6 +151,33 @@ def test_find_keeps_the_path_and_nearby_lines():
     assert "Far Away Topic" not in found
     tool = find_result_text(page, "Deep Target Link")
     assert tool.startswith("### Result\n")
+
+
+def test_default_quiet_wait_is_500ms(monkeypatch):
+    assert QUIET_MS == 500
+    assert SETTLE_TIMEOUT_MS == 3000
+    assert "const quietMs = 500" in settle_source()
+    assert "const timeoutMs = 3000" in settle_source()
+    assert configured_quiet_ms() == 500
+    assert configured_timeout_ms() == 3000
+    monkeypatch.setenv("SETTLE_QUIET_MS", "250")
+    monkeypatch.setenv("SETTLE_TIMEOUT_MS", "4000")
+
+    class Record:
+        def __init__(self):
+            self.function = ""
+
+        async def call_tool(self, name, arguments):
+            self.function = arguments["function"]
+            return {"content": [{"type": "text", "text": '{"settled": true, "reason": "quiet"}'}], "isError": False}
+
+    recorded = Record()
+    result = asyncio.run(settle_page(recorded, timeout_s=1))
+    assert result["reason"] == "quiet"
+    assert "const quietMs = 250" in recorded.function
+    assert "const timeoutMs = 4000" in recorded.function
+    monkeypatch.setenv("SETTLE_QUIET_MS", "nope")
+    assert configured_quiet_ms() == 500
 
 
 def test_settle_times_out_while_the_page_keeps_mutating():

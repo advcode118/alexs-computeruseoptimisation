@@ -43,12 +43,15 @@ INSTRUCTIONS = (
     "The child is started with --snapshot-mode none. "
     "Prefer do_task_segment for a multi-step sub-task and fast_act for one obvious action, "
     "instead of calling browser_snapshot, browser_click, and browser_type one step at a time. "
-    "After a browser action this proxy waits for the page to settle and returns a compact diff. "
+    "After a browser action this proxy waits until the page is quiet (SETTLE_QUIET_MS, default 500ms) "
+    "and returns a compact diff. "
     "Refs for controls that are still there stay valid, so a separate browser_snapshot call is not required. "
     "fast_act does not call a model. "
-    "do_task_segment replays a stored sequence for the same domain, task, and page shape "
+    "do_task_segment replays a stored sequence for the same domain, normalized task, and role/name set "
     "before decide(), and does not call a model while that replay matches. "
-    "do_task_segment uses the cheap Nebius tier only when NEBIUS_API_KEY is set. "
+    "A partial replay leaves the page where it stopped and falls back to decide(). "
+    "do_task_segment uses the cheap Nebius tier only when NEBIUS_API_KEY is set. It does not call Claude. "
+    "fast_act and do_task_segment accept an optional Playwright-style script and run it with no model. "
     "This server does not call a model for a forwarded Playwright tool."
 )
 

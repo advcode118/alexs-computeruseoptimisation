@@ -21,6 +21,7 @@ class TaskSummary:
     total_output_tokens: int
     total_snapshot_tokens: int
     error: str | None
+    model_ignores_tools: int = 0
 
 
 def load_results(run_file: Path) -> list[TaskSummary]:
@@ -43,6 +44,7 @@ def load_results(run_file: Path) -> list[TaskSummary]:
                 total_output_tokens=data["total_output_tokens"],
                 total_snapshot_tokens=data["total_snapshot_tokens"],
                 error=data.get("error"),
+                model_ignores_tools=int(data.get("model_ignores_tools") or 0),
             ))
     return results
 
@@ -62,8 +64,8 @@ def format_pct(part: float, total: float) -> str:
 def generate_task_table(results: list[TaskSummary]) -> str:
     """Generate per-task results table."""
     lines = [
-        "| Task | Success | Steps | Wall Time | Model % | Tool % | Other % | Input Tok | Output Tok | Snapshot Tok |",
-        "|------|---------|-------|-----------|---------|--------|---------|-----------|------------|--------------|",
+        "| Task | Success | Steps | Wall Time | Model % | Tool % | Other % | Input Tok | Output Tok | Snapshot Tok | Ignores |",
+        "|------|---------|-------|-----------|---------|--------|---------|-----------|------------|--------------|---------|",
     ]
 
     for r in results:
@@ -76,7 +78,8 @@ def generate_task_table(results: list[TaskSummary]) -> str:
         lines.append(
             f"| {r.task_id} | {success} | {r.total_steps} | {wall} | "
             f"{model_pct} | {tool_pct} | {other_pct} | "
-            f"{r.total_input_tokens:,} | {r.total_output_tokens:,} | {r.total_snapshot_tokens:,} |"
+            f"{r.total_input_tokens:,} | {r.total_output_tokens:,} | {r.total_snapshot_tokens:,} | "
+            f"{r.model_ignores_tools} |"
         )
 
     return "\n".join(lines)
@@ -96,6 +99,7 @@ def generate_totals(results: list[TaskSummary]) -> str:
     total_input = sum(r.total_input_tokens for r in results)
     total_output = sum(r.total_output_tokens for r in results)
     total_snapshot = sum(r.total_snapshot_tokens for r in results)
+    total_ignores = sum(r.model_ignores_tools for r in results)
 
     lines = [
         "## Summary",
@@ -110,6 +114,7 @@ def generate_totals(results: list[TaskSummary]) -> str:
         f"- **Total Input Tokens**: {total_input:,}",
         f"- **Total Output Tokens**: {total_output:,}",
         f"- **Total Snapshot Tokens**: {total_snapshot:,}",
+        f"- **Model ignores tools**: {total_ignores}",
         "",
     ]
 

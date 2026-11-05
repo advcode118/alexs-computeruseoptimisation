@@ -3,12 +3,15 @@
 fast_act is one decide() call. An action batch runs through the child.
 A tier decision is returned as-is and nothing is clicked.
 
-do_task_segment is one tool call. When this domain, task, and page shape
-were stored after a success, it replays that sequence with no model call.
-A miss, or any step that cannot be refound or fails, uses the router loop:
-observe, decide(), act, then one retry after a failed assertion. A step
-that still needs a model uses the cheap Nebius client when a key is present.
-Claude is not called. The page summary is one paragraph from the latest snapshot.
+do_task_segment is one tool call. When this domain, normalized task, and
+order-independent role/name set were stored after a success, it replays that
+sequence with no model call. A miss, or any step that cannot be refound or
+fails, leaves the page where the replay stopped and uses the router loop:
+observe, decide(), act, then one retry after a failed assertion. That
+fallback does not call Claude. A step that still needs a model uses the cheap
+Nebius client when a key is present. An optional Playwright-style script runs
+instead of decide() and does not call a model either. The page summary is one
+paragraph from the latest snapshot.
 
 After each page action the proxy waits for the DOM to settle, snapshots, and
 returns a compact diff. The child stays on --snapshot-mode none.
@@ -38,8 +41,10 @@ from loop.actions import (
 from loop.decide import TierDecision, decide
 from loop.planner import FastClient, PlannerError, load_step5_env
 from proxy.diff import memory_of, note_baseline, rewrite_arguments, show_snapshot, view_result_text
+from proxy.ignores import ignore_counter
 from proxy.page import observation_from_tool_text, page_paragraph, tool_text
 from proxy.replay import cache_key, load_sequence, resolve_cache_path, store_sequence
+from proxy.script import ScriptAction, ScriptError, match_element, parse_script
 from proxy.settle import settle_page
 
 FAST_ACT = "fast_act"
@@ -114,6 +119,14 @@ PROXY_TOOLS = [
                     "type": "string",
                     "description": "The single action, in plain language.",
                 },
+                "script": {
+                    "type": "string",
+                    "description": (
+                        "Optional Playwright-style script, one locator action per line. "
+                        "Example: page.getByRole('button', { name: 'Search' }).click(). "
+                        "When set, the script runs with no model call."
+                    ),
+                },
                 "url": {
                     "type": "string",
                     "description": "Open this page first. Omit to use the current page.",
@@ -126,10 +139,12 @@ PROXY_TOOLS = [
         "name": DO_TASK_SEGMENT,
         "description": (
             "One call for a multi-step sub-task. "
-            "A stored sequence for this domain, task, and page shape is replayed first, "
-            "with no model call. If replay cannot refind a target, the action fails, "
-            "or an assertion fails, the call falls back to no-model actions from decide(), "
-            "then the cheap Nebius tier when NEBIUS_API_KEY is set. It does not call Claude. "
+            "A stored sequence for this domain, normalized task, and role/name set "
+            "is replayed first, with no model call. If replay cannot refind a target, "
+            "the action fails, or an assertion fails, the page stays where it stopped "
+            "and the call falls back to no-model actions from decide(), then the cheap "
+            "Nebius tier when NEBIUS_API_KEY is set. It does not call Claude. "
+            "Pass script to run Playwright-style locator lines instead, also with no model. "
             + _PREFER
         ),
         "inputSchema": _schema(
@@ -137,6 +152,13 @@ PROXY_TOOLS = [
                 "task": {
                     "type": "string",
                     "description": "The sub-task to finish.",
+                },
+                "script": {
+                    "type": "string",
+                    "description": (
+                        "Optional Playwright-style script, one locator action per line. "
+                        "When set, the script runs with no model call and decide() is not used."
+                    ),
                 },
                 "url": {
                     "type": "string",
@@ -200,6 +222,16 @@ def _task(value: object) -> str:
     if len(value) > 4000:
         raise ValueError("task is longer than 4000 characters")
     return value.strip()
+
+
+def _optional_script(value: object) -> str:
+    if value is None or value == "":
+        return ""
+    if not isinstance(value, str):
+        raise ValueError("script must be a string")
+    if len(value) > 4000:
+        raise ValueError("script is longer than 4000 characters")
+    return value
 
 
 def _optional_url(value: object) -> str:
@@ -328,8 +360,18 @@ async def _perform(child, name: str, arguments: dict) -> dict:
     result = await child.call_tool(name, arguments)
     if isinstance(result, dict) and result.get("isError") is True:
         return result
-    await settle_page(child)
+    setattr(child, "_last_settle", await settle_page(child))
     return result
+
+
+def _settle_suffix(child) -> str:
+    settled = getattr(child, "_last_settle", None)
+    if not isinstance(settled, dict):
+        return ""
+    reason = settled.get("reason")
+    if reason not in {"quiet", "timeout"}:
+        return ""
+    return f"\nsettle: {reason}"
 
 
 def _with_view(child, payload: dict, raw: str) -> dict:
@@ -341,6 +383,10 @@ def _with_view(child, payload: dict, raw: str) -> dict:
     noted["diff"] = view.text
     noted["full_snapshot_chars"] = view.full_chars
     noted["diff_chars"] = view.diff_chars
+    noted["model_ignores_tools"] = ignore_counter(child).count
+    suffix = _settle_suffix(child)
+    if suffix:
+        noted["settle"] = suffix.strip().split(": ", 1)[-1]
     return noted
 
 
@@ -352,7 +398,7 @@ async def _agent_snapshot(child, preface: str = "") -> dict:
     raw = tool_text(result if isinstance(result, dict) else {})
     view = show_snapshot(memory_of(child), raw)
     return {
-        "content": [{"type": "text", "text": view_result_text(view, preface)}],
+        "content": [{"type": "text", "text": view_result_text(view, preface) + _settle_suffix(child)}],
         "isError": False,
     }
 
@@ -431,9 +477,140 @@ def _view(observation: Observation | None) -> tuple[str, str]:
     return observation.url, page_paragraph(observation)
 
 
+def _script_invocation(backend: PlaywrightMcpBackend, yaml: str, observation: Observation, action: ScriptAction):
+    """Resolve one locator against the current snapshot and build the child call."""
+    backend.load_snapshot(yaml, url=observation.url, title=observation.title)
+    element = match_element(backend.observe().elements, action)
+    label = f'{element.role} "{element.name}"'
+    target = {"target": element.id, "element": label}
+    if action.op == "click":
+        call = backend.tool_call(Click(element.id))
+        value = ""
+    elif action.op == "fill":
+        call = backend.tool_call(Fill(element.id, action.value))
+        value = action.value
+    elif action.op == "press":
+        call = ToolCall("browser_press_key", {"key": action.value, **target})
+        value = action.value
+    elif action.op == "check":
+        call = ToolCall("browser_check", dict(target))
+        value = ""
+    elif action.op == "uncheck":
+        call = ToolCall("browser_uncheck", dict(target))
+        value = ""
+    else:
+        raise ScriptError(f"line {action.line}: unsupported action {action.op}")
+    recorded = {"tool": call.name, "role": element.role, "name": element.name, "value": value}
+    return call, call.name, recorded
+
+
+async def run_locator_script(
+    child,
+    script: str,
+    *,
+    url: str,
+    max_lines: int,
+    task: str = "",
+    cache_file: Path | None = None,
+) -> dict:
+    """Run a Playwright-style locator script. decide() and Claude are not called.
+
+    A failed line leaves the page on the last successful action. The page is
+    not rewound. Nothing in this function calls a model.
+    """
+    try:
+        actions = parse_script(script, max_lines=max_lines)
+    except ScriptError as exc:
+        raise ValueError(str(exc)) from exc
+    backend = PlaywrightMcpBackend()
+    latest = ""
+    ran: list[str] = []
+    recorded: list[dict] = []
+    record_key = None
+    observation: Observation | None = None
+
+    def finish(payload: dict, raw: str | None = None) -> dict:
+        return _with_view(child, payload, latest if raw is None else raw)
+
+    try:
+        if url:
+            await _navigate(child, url)
+        observation, raw, yaml = await _read_page(child)
+        latest = raw
+        if cache_file is not None and task:
+            record_key = cache_key(task, observation)
+    except ActionError as exc:
+        return finish(_failed(str(exc)))
+
+    for action in actions:
+        try:
+            call, _tool_name, step = _script_invocation(backend, yaml, observation, action)
+            summary = _script_summary(action, call)
+        except (ScriptError, ActionError) as exc:
+            page_url, paragraph = _view(observation)
+            return finish(_failed(str(exc), url=page_url, page=paragraph, actions=ran))
+        result = await _perform(child, call.name, dict(call.arguments))
+        if isinstance(result, dict) and result.get("isError") is True:
+            detail = tool_text(result)[:300] or "the tool returned an error"
+            try:
+                observation, raw, yaml = await _read_page(child)
+                latest = raw
+            except ActionError:
+                observation = None
+            page_url, paragraph = _view(observation)
+            return finish(
+                _failed(f"{summary} failed: {detail}", url=page_url, page=paragraph, actions=ran)
+            )
+        ran.append(summary)
+        recorded.append(step)
+        try:
+            observation, raw, yaml = await _read_page(child)
+            latest = raw
+        except ActionError as exc:
+            page_url, paragraph = _view(observation)
+            return finish(_failed(str(exc), url=page_url, page=paragraph, actions=ran))
+
+    if record_key is not None and recorded and cache_file is not None:
+        store_sequence(
+            cache_file,
+            record_key[0],
+            record_key[1],
+            record_key[2],
+            {"actions": recorded, "assertions": []},
+        )
+    final_url, final_page = _view(observation)
+    return finish(
+        _payload(
+            ok=True,
+            status="done",
+            tier="script",
+            url=final_url,
+            summary=_summary("Ran a Playwright-style locator script", ran),
+            page=final_page,
+            actions=ran,
+            cycles=1,
+            model_calls=0,
+            needs_model=False,
+        )
+    )
+
+
+def _script_summary(action: ScriptAction, call: ToolCall) -> str:
+    target = call.arguments.get("target")
+    if action.op == "fill":
+        return f"fill {target} {action.value!r}"
+    if action.op == "press":
+        return f"press {action.value} on {target}"
+    return f"{action.op} {target}"
+
+
 async def fast_act(child, arguments) -> dict:
-    """Run one no-model batch, or return the tier decide() asked for."""
+    """Run one no-model batch, or a locator script, or return the tier decide() asked for."""
+    raw_args = _arguments(arguments)
+    script = _optional_script(raw_args.get("script"))
     task, url, _cycles = _parse_call(arguments, cycles=False)
+    if script:
+        return await run_locator_script(child, script, url=url, max_lines=4)
     backend = PlaywrightMcpBackend()
     latest = ""
 
@@ -744,7 +921,19 @@ async def do_task_segment(child, arguments, *, client=_AUTO, env_path=_AUTO, cac
     client, env_path, and cache_path are for tests. The server leaves them unset,
     which reads the same Nebius key the router uses and skips the model when it is empty.
     """
+    raw_args = _arguments(arguments)
+    script = _optional_script(raw_args.get("script"))
     task, url, max_cycles = _parse_call(arguments, cycles=True)
+    if script:
+        chosen = None if cache_path is _AUTO else cache_path
+        return await run_locator_script(
+            child,
+            script,
+            url=url,
+            max_lines=12,
+            task=task,
+            cache_file=resolve_cache_path(chosen),
+        )
     if client is _AUTO:
         path = None if env_path is _AUTO else env_path
         client = cheap_client(path)
@@ -782,6 +971,7 @@ async def _run_segment(
     observation: Observation | None = None
     latest: Observation | None = None
     replay_checked = False
+    replay_fallback = False
     record_key = None
     recorded_actions: list[dict] = []
     recorded_assertions: list[dict] = []
@@ -822,6 +1012,7 @@ async def _run_segment(
             if replayed.kind == "done" and replayed.payload is not None:
                 return finish(replayed.payload, replayed.raw or latest_raw)
             if replayed.kind == "fallback":
+                replay_fallback = True
                 actions.extend(replayed.summaries)
                 if replayed.observation is None:
                     continue
@@ -829,7 +1020,7 @@ async def _run_segment(
                 _raw = replayed.raw
                 yaml = replayed.yaml
                 latest_raw = _raw or latest_raw
-        if record_key is None:
+        if record_key is None and not replay_fallback:
             record_key = cache_key(task, observation)
         retry = awaiting_retry
         awaiting_retry = False
@@ -1008,18 +1199,49 @@ async def _run_segment(
     )
 
 
+def _stamp_ignores(child, result: dict) -> dict:
+    """Expose the running count on JSON tool results. Snapshot text stays compact."""
+    content = result.get("content")
+    if not isinstance(content, list) or not content:
+        return result
+    block = content[0]
+    if not isinstance(block, dict) or not isinstance(block.get("text"), str):
+        return result
+    text = block["text"]
+    stripped = text.lstrip()
+    if not stripped.startswith("{"):
+        return result
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return result
+    if not isinstance(payload, dict) or "model_ignores_tools" in payload:
+        return result
+    payload["model_ignores_tools"] = ignore_counter(child).count
+    updated = dict(result)
+    updated["content"] = [{**block, "text": json.dumps(payload, ensure_ascii=False)}]
+    return updated
+
+
 async def dispatch(child, name: str, arguments, *, client=_AUTO, env_path=_AUTO, cache_path=_AUTO) -> dict:
     """fast_act and do_task_segment stay here. A page action settles, then diffs.
 
     Every other name is forwarded. The child's arguments are not renamed.
     A ref the agent already holds is rewritten to the live ref when the
-    element is still on the page.
+    element is still on the page. A full-page browser_snapshot after a
+    compact diff increments model_ignores_tools.
     """
+    counter = ignore_counter(child)
+    args = arguments if isinstance(arguments, dict) else None
+    counter.note_call(name, args)
+    setattr(child, "_last_settle", None)
     try:
         if name == FAST_ACT:
-            return tool_result(await fast_act(child, arguments))
+            result = tool_result(await fast_act(child, arguments))
+            counter.note_result(name, tool_text(result))
+            return _stamp_ignores(child, result)
         if name == DO_TASK_SEGMENT:
-            return tool_result(
+            result = tool_result(
                 await do_task_segment(
                     child,
                     arguments,
@@ -1028,16 +1250,22 @@ async def dispatch(child, name: str, arguments, *, client=_AUTO, env_path=_AUTO,
                     cache_path=cache_path,
                 )
             )
+            counter.note_result(name, tool_text(result))
+            return _stamp_ignores(child, result)
     except ValueError as exc:
-        return tool_result(_failed(str(exc)))
-    args = arguments if isinstance(arguments, dict) else None
+        failed = tool_result(_failed(str(exc)))
+        counter.note_result(name, tool_text(failed))
+        return failed
     if name == "browser_snapshot":
-        return await _agent_snapshot(child)
+        result = await _agent_snapshot(child)
+        counter.note_result(name, tool_text(result))
+        return result
     args = rewrite_arguments(memory_of(child), args)
     result = await child.call_tool(name, args if isinstance(args, dict) else None)
     if name in PAGE_ACTIONS and not (isinstance(result, dict) and result.get("isError") is True):
-        await settle_page(child)
+        setattr(child, "_last_settle", await settle_page(child))
         preface = tool_text(result if isinstance(result, dict) else {})
-        return await _agent_snapshot(child, preface)
+        result = await _agent_snapshot(child, preface)
+    counter.note_result(name, tool_text(result if isinstance(result, dict) else {}))
     return result
 

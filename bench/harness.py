@@ -26,6 +26,7 @@ from bench.budget import (
     SpendLedger,
     assert_allowed_model,
 )
+from proxy.ignores import IgnoreCounter
 
 PLAYWRIGHT_MCP_VERSION = "0.0.84"
 DEFAULT_MODEL = ALLOWED_MODEL
@@ -120,6 +121,8 @@ class TaskResult:
     total_snapshot_tokens: int
     steps: list[StepMetrics] = field(default_factory=list)
     error: str | None = None
+    # Full-page observes the outer model issued after an action already returned a compact diff.
+    model_ignores_tools: int = 0
 
 
 def estimate_tokens(text: str) -> int:
@@ -253,9 +256,10 @@ class PlaywrightMCPClient:
     no id; it is not a response and this client does not wait for one.
     """
 
-    def __init__(self, headless: bool = True, snapshot_mode: str = "full"):
+    def __init__(self, headless: bool = True, snapshot_mode: str = "full", argv: list[str] | None = None):
         self.headless = headless
         self.snapshot_mode = snapshot_mode
+        self.argv = list(argv) if argv is not None else None
         self.process: asyncio.subprocess.Process | None = None
         self._request_id = 0
         self._tools: list[dict] = []
@@ -263,10 +267,13 @@ class PlaywrightMCPClient:
 
     async def start(self) -> None:
         """Start the @playwright/mcp process."""
-        args = ["npx", f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}"]
-        if self.headless:
-            args.append("--headless")
-        args.extend(["--snapshot-mode", self.snapshot_mode])
+        if self.argv is not None:
+            args = list(self.argv)
+        else:
+            args = ["npx", f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}"]
+            if self.headless:
+                args.append("--headless")
+            args.extend(["--snapshot-mode", self.snapshot_mode])
 
         self.process = await asyncio.create_subprocess_exec(
             *args,
@@ -418,7 +425,7 @@ class AnthropicClient:
         self,
         messages: list[dict],
         tools: list[dict],
-        system: str = SYSTEM_PROMPT,
+        system: str | None = None,
         max_tokens: int = 4096,
     ) -> tuple[dict, float]:
         """Create a message and return (response, time_ms)."""
@@ -428,7 +435,7 @@ class AnthropicClient:
         payload = {
             "model": self.model,
             "max_tokens": max_tokens,
-            "system": system,
+            "system": system or SYSTEM_PROMPT,
             "messages": messages,
             "tools": tools,
         }
@@ -469,8 +476,13 @@ class BenchmarkHarness:
         max_steps: int = 30,
         runs_dir: Path | None = None,
         snapshot_dir: Path | None = None,
+        arm: str = "playwright_mcp",
     ):
+        from bench.arms import prompt_for
+
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        self.arm = arm
+        self.system_prompt = prompt_for(arm)
         self.model = assert_allowed_model(model)
         self.headless = headless
         self.max_steps = max_steps
@@ -492,7 +504,9 @@ class BenchmarkHarness:
         if self.api_key:
             self.anthropic = AnthropicClient(self.api_key, self.model)
 
-        self.mcp_client = PlaywrightMCPClient(headless=self.headless)
+        from bench.arms import build_client
+
+        self.mcp_client = build_client(self.arm, headless=self.headless)
         await self.mcp_client.start()
 
     async def teardown(self) -> None:
@@ -564,6 +578,7 @@ class BenchmarkHarness:
         total_input_tokens = 0
         total_output_tokens = 0
         total_snapshot_tokens = 0
+        ignores = IgnoreCounter()
         self._pending_snapshot_path = None
 
         messages: list[dict] = [
@@ -583,6 +598,7 @@ class BenchmarkHarness:
                 response, model_ms = await self.anthropic.create_message(
                     cap_messages_for_model(messages),
                     tools,
+                    system=self.system_prompt,
                 )
                 total_model_ms += model_ms
 
@@ -636,6 +652,8 @@ class BenchmarkHarness:
 
                     result_text, tool_ms = await self.mcp_client.call_tool(tool_name, tool_args)
                     total_tool_ms += tool_ms
+                    ignores.note_call(tool_name, tool_args if isinstance(tool_args, dict) else {})
+                    ignores.note_result(tool_name, result_text)
 
                     this_snapshot_tokens = snapshot_tokens_for(tool_name, result_text)
                     total_snapshot_tokens += this_snapshot_tokens
@@ -704,6 +722,7 @@ class BenchmarkHarness:
             total_snapshot_tokens=total_snapshot_tokens,
             steps=steps,
             error=error,
+            model_ignores_tools=ignores.count,
         )
 
     def _empty_result(
@@ -746,6 +765,7 @@ class BenchmarkHarness:
                 "total_input_tokens": result.total_input_tokens,
                 "total_output_tokens": result.total_output_tokens,
                 "total_snapshot_tokens": result.total_snapshot_tokens,
+                "model_ignores_tools": result.model_ignores_tools,
                 "error": result.error,
                 "steps": [
                     {
@@ -824,6 +844,7 @@ async def run_benchmark(
     run_id: str | None = None,
     spend_path: Path | None = None,
     runs_dir: Path | None = None,
+    arm: str = "playwright_mcp",
 ) -> list[TaskResult]:
     """Run a benchmark suite and return results."""
     assert_allowed_model(model)
@@ -841,6 +862,7 @@ async def run_benchmark(
         model=model,
         headless=headless,
         runs_dir=runs_dir,
+        arm=arm,
     )
     harness.snapshot_dir = harness.runs_dir / run_id / "snapshots"
 

@@ -11,13 +11,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 
 from proxy.page import tool_text
 
-QUIET_MS = 100
-SETTLE_TIMEOUT_MS = 1500
-PROXY_TIMEOUT_S = 2.0
+# LangChain's Stagehand settle waits until the page has been quiet for 500ms.
+# The cap is longer than that so a slow page can still finish; a page that
+# never goes quiet returns at the cap. SETTLE_QUIET_MS and SETTLE_TIMEOUT_MS
+# override the defaults. The Python wait is longer than the in-page cap so
+# the evaluate is not killed while it is still counting.
+QUIET_MS = 500
+SETTLE_TIMEOUT_MS = 3000
+PROXY_TIMEOUT_S = 4.0
+QUIET_ENV = "SETTLE_QUIET_MS"
+TIMEOUT_ENV = "SETTLE_TIMEOUT_MS"
 
 # Attribute names that can change the accessibility tree. style, class, and
 # data-* are ignored. Mutations inside script, style, noscript, and template
@@ -46,6 +54,29 @@ def mutation_is_meaningful(record: dict) -> bool:
     if not name or name in {"style", "class"} or name.startswith("data-"):
         return False
     return _MEANINGFUL_ATTR.match(name) is not None
+
+
+def _env_int(name: str, default: int, *, low: int, high: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    if value < low or value > high:
+        return default
+    return value
+
+
+def configured_quiet_ms() -> int:
+    """Quiet window in milliseconds. SETTLE_QUIET_MS overrides the 500ms default."""
+    return _env_int(QUIET_ENV, QUIET_MS, low=0, high=10_000)
+
+
+def configured_timeout_ms() -> int:
+    """In-page cap. SETTLE_TIMEOUT_MS overrides the 3000ms default."""
+    return _env_int(TIMEOUT_ENV, SETTLE_TIMEOUT_MS, low=1, high=30_000)
 
 
 def decide_settle(
@@ -139,17 +170,25 @@ def parse_settle_result(text: str) -> dict:
 async def settle_page(
     child,
     *,
-    quiet_ms: int = QUIET_MS,
-    timeout_ms: int = SETTLE_TIMEOUT_MS,
+    quiet_ms: int | None = None,
+    timeout_ms: int | None = None,
     timeout_s: float | None = None,
 ) -> dict:
-    """Wait for a quiet DOM. Always returns, including when the wait times out."""
+    """Wait for a quiet DOM. Always returns, including when the wait times out.
+
+    Omit quiet_ms and timeout_ms to use SETTLE_QUIET_MS / SETTLE_TIMEOUT_MS,
+    which fall back to 500ms and 3000ms.
+    """
+    quiet = configured_quiet_ms() if quiet_ms is None else quiet_ms
+    cap = configured_timeout_ms() if timeout_ms is None else timeout_ms
     limit = PROXY_TIMEOUT_S if timeout_s is None else timeout_s
+    if timeout_s is None:
+        limit = max(PROXY_TIMEOUT_S, cap / 1000 + 1.0)
     try:
         result = await asyncio.wait_for(
             child.call_tool(
                 "browser_evaluate",
-                {"function": settle_source(quiet_ms, timeout_ms)},
+                {"function": settle_source(quiet, cap)},
             ),
             limit,
         )

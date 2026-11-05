@@ -10,3 +10,4 @@ build/
 bench/runs/*.jsonl
 proxy/replay-cache.sqlite
 proxy/replay-cache.sqlite-journal
+.playwright-mcp/

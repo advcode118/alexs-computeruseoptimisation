@@ -1,9 +1,20 @@
 """Sqlite cache of action sequences that do_task_segment has already finished.
 
-A row is keyed by the page domain, the task text, and a stable shape of the
-page: each control's role and name, in order. Refs and typed values are not
-part of the key. The file lives under the repo unless REPLAY_CACHE_PATH or
-the cache_path argument points somewhere else.
+A row is keyed by the page domain, a normalized task, and an order-independent
+set of role/name pairs. Refs, typed values, control order, and controls with
+an empty name are not part of the key. The file lives under the repo unless
+REPLAY_CACHE_PATH or the cache_path argument points somewhere else.
+
+Tradeoff against the old ordered list: a page whose controls move, or whose
+accessible names stay the same while the DOM order changes, now hits. Two
+buttons with the same role and name collapse to one entry, so a second
+identical control does not change the key. An extra named control (a cookie
+banner, a new result link) misses, and two different tasks that normalize to
+the same string share a row. Normalization is casefold, collapsed whitespace,
+and a stripped trailing period. It does not stem words or drop tokens, so
+"search wikipedia" and "search wikiquote" stay apart. A wrong hit replays by
+role and name; if a step cannot be refound, the page is left where it stopped
+and the caller falls back to decide().
 """
 
 from __future__ import annotations
@@ -51,18 +62,35 @@ def page_domain(url: str) -> str:
     return ""
 
 
+def normalize_task(task: str) -> str:
+    """Casefold, collapse whitespace, and drop one trailing sentence mark.
+
+    "Search Wikipedia." and "  search wikipedia " share a key. The words
+    themselves are kept, so nearby tasks do not collapse together.
+    """
+    text = re.sub(r"\s+", " ", task or "").strip().casefold()
+    return text.rstrip(".!?")
+
+
 def page_shape(observation: Observation) -> str:
-    """Role and name for every control, in document order. Refs are omitted."""
-    lines = []
+    """Sorted unique role/name lines. Order, refs, and blank names are omitted.
+
+    Duplicate role/name pairs count once. A control with no name is dropped
+    because dynamic pages mint those freely. See the module docstring for
+    what this misses compared with an ordered list.
+    """
+    pairs: set[str] = set()
     for control in observation.controls:
         role = re.sub(r"\s+", " ", control.role).strip().casefold()
         name = re.sub(r"\s+", " ", control.name).strip().casefold()
-        lines.append(f"{role}\t{name}")
-    return "\n".join(lines)
+        if not name:
+            continue
+        pairs.add(f"{role}\t{name}")
+    return "\n".join(sorted(pairs))
 
 
 def cache_key(task: str, observation: Observation) -> tuple[str, str, str]:
-    return (page_domain(observation.url), task.strip(), page_shape(observation))
+    return (page_domain(observation.url), normalize_task(task), page_shape(observation))
 
 
 def load_sequence(path: Path, domain: str, task: str, shape: str) -> dict | None:

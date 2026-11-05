@@ -170,8 +170,8 @@ def test_cache_key_uses_domain_task_and_roles_not_refs():
     assert cache_key(SEARCH_TASK, first) == cache_key(SEARCH_TASK, shifted)
     domain, task, shape = cache_key(SEARCH_TASK, first)
     assert domain == "en.wikipedia.org"
-    assert task == SEARCH_TASK
-    assert shape == "textbox\tsearch wikipedia\nbutton\tsearch"
+    assert task == "search wikipedia for ada lovelace and confirm the article title"
+    assert shape == "button\tsearch\ntextbox\tsearch wikipedia"
     assert "e4" not in shape and "e40" not in shape
     assert cache_key(SEARCH_TASK, other)[0] == "example.test"
     assert cache_key(OTHER_TASK, first) != cache_key(SEARCH_TASK, first)
@@ -261,6 +261,14 @@ def test_replay_runs_with_no_model_and_refinds_when_refs_differ(tmp_path, monkey
 def test_replay_falls_back_when_a_step_cannot_be_refound(tmp_path, monkeypatch):
     _segment(FakeChild([SEARCH, ARTICLE]), SEARCH_TASK, tmp_path)
     seen = _count_decide(monkeypatch)
+    seen_page = {}
+    real = segment.decide
+
+    def wrapped(*args, **kwargs):
+        seen_page["observation"] = args[1]
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(segment, "decide", wrapped)
     sent = []
 
     def transport(url, headers, payload):
@@ -299,6 +307,12 @@ def test_replay_falls_back_when_a_step_cannot_be_refound(tmp_path, monkeypatch):
     kept = load_sequence(_cache(tmp_path), *_search_key())
     assert kept is not None
     assert [step["tool"] for step in kept["actions"]] == ["browser_type", "browser_click"]
+    # The page stays on the post-type snapshot. decide() sees that page, not a rewind.
+    fallen = seen_page["observation"]
+    assert fallen.url == "https://en.wikipedia.org/wiki/Main_Page"
+    assert [control.role for control in fallen.controls] == ["textbox"]
+    missing, _yaml = observation_from_tool_text(NO_BUTTON)
+    assert load_sequence(_cache(tmp_path), *cache_key(SEARCH_TASK, missing)) is None
 
 
 def test_replay_falls_back_when_the_action_fails(tmp_path, monkeypatch):
@@ -372,6 +386,38 @@ def test_default_cache_file_is_gitignored():
     ignore = (DEFAULT_CACHE_PATH.parents[1] / ".gitignore").read_text(encoding="utf-8")
     assert "proxy/replay-cache.sqlite" in ignore
     assert DEFAULT_CACHE_PATH.parent.name == "proxy"
+
+
+def test_softened_key_replays_reordered_controls_for_a_normalized_task(tmp_path, monkeypatch):
+    _segment(FakeChild([SEARCH, ARTICLE]), SEARCH_TASK, tmp_path)
+    _forbid_model(monkeypatch)
+    reordered = _page(
+        "https://en.wikipedia.org/wiki/Main_Page",
+        "Wikipedia, the free encyclopedia",
+        '- button "Search" [ref=e9]\n- generic [ref=e3]\n- textbox "Search Wikipedia" [ref=e8]',
+    )
+    extra = _page(
+        "https://en.wikipedia.org/wiki/Main_Page",
+        "Wikipedia, the free encyclopedia",
+        '- textbox "Search Wikipedia" [ref=e4]\n- button "Search" [ref=e5]\n- link "Log in" [ref=e6]',
+    )
+    same, _yaml = observation_from_tool_text(SEARCH)
+    moved, _yaml = observation_from_tool_text(reordered)
+    grown, _yaml = observation_from_tool_text(extra)
+    assert cache_key("  SEARCH WIKIPEDIA FOR ADA LOVELACE AND CONFIRM THE ARTICLE TITLE. ", moved) == cache_key(
+        SEARCH_TASK, same
+    )
+    assert cache_key(SEARCH_TASK, grown) != cache_key(SEARCH_TASK, same)
+    child = FakeChild([reordered, reordered, ARTICLE])
+    body = _segment(
+        child,
+        "  search wikipedia for ada lovelace and confirm the article title. ",
+        tmp_path,
+    )
+    assert body["ok"] is True
+    assert body["tier"] == "replay"
+    assert body["model_calls"] == 0
+    assert body["actions"] == ["fill e8 'Ada Lovelace'", "click e9"]
 
 
 def _forbid_model_plan(monkeypatch):

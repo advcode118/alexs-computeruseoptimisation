@@ -32,6 +32,7 @@ import sys
 from pathlib import Path
 
 from bench.budget import BudgetExceeded, ModelNotAllowed, assert_allowed_model
+from bench.arms import ARMS
 from bench.harness import DEFAULT_MODEL, run_benchmark
 from bench.tasks import BENCHMARK_TASKS, get_fixture_tasks, get_webvoyager_tasks
 from bench.summarize import generate_markdown_report, TaskSummary
@@ -104,6 +105,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Claude model to use (claude-sonnet-4-6 only)",
     )
     parser.add_argument(
+        "--arm",
+        default="playwright_mcp",
+        choices=ARMS,
+        help=(
+            "playwright_mcp, diff_fast_act, macro_replay, or stagehand. "
+            "stagehand is local Playwright with snapshot/run/screenshot. "
+            "diff_fast_act and macro_replay talk to the proxy."
+        ),
+    )
+    parser.add_argument(
         "--max-steps",
         type=int,
         default=30,
@@ -166,6 +177,7 @@ def main() -> None:
             model=model,
             headless=not args.no_headless,
             run_id=run_id,
+            arm=args.arm,
         ))
     except BudgetExceeded as exc:
         results = exc.results
