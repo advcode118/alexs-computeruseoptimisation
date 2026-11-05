@@ -7,7 +7,8 @@ import json
 
 from bench.arms import ARMS, arm_needs_claude, prompt_for
 from bench.budget import DEFAULT_SPEND_PATH
-from bench.harness import BenchmarkHarness, playwright_mcp_args
+from bench.harness import BenchmarkHarness, page_url_from_result, playwright_mcp_args
+from bench.judge import check_url_contains
 from bench.probe import (
     BOX_COMMANDS,
     PROBE_CLAUDE_BUDGET_USD,
@@ -17,10 +18,12 @@ from bench.probe import (
     main,
     plan_probe,
     snapshot_is_huge,
+    warm_summary,
 )
 from bench.stagehand_local import (
     StagehandLocalClient,
     actions_to_script,
+    context_browser,
     describe_backend,
 )
 from proxy.script import parse_script
@@ -98,11 +101,12 @@ def test_arms_share_the_outer_model_and_stagehand_stays_local(monkeypatch):
     assert backend["browserbase"] == "unset"
     harness = BenchmarkHarness(api_key="local-test", arm="stagehand")
     assert harness.model == "claude-sonnet-4-6"
-    assert [tool["name"] for tool in StagehandLocalClient().tools_for_claude()] == [
-        "snapshot",
-        "run",
-        "screenshot",
-    ]
+    tools = StagehandLocalClient().tools_for_claude()
+    assert [tool["name"] for tool in tools] == ["snapshot", "run", "screenshot"]
+    by_name = {tool["name"]: tool["description"] for tool in tools}
+    assert "model_ignores_tools" in by_name["snapshot"]
+    assert "Do not take a full snapshot after a diff was returned" in by_name["run"]
+    assert "one" in by_name["run"].lower()
 
 
 def test_run_accepts_a_playwright_script_and_a_structured_list():
@@ -141,9 +145,14 @@ def test_probe_plan_does_not_execute_and_caps_claude(capsys):
     assert plan["no_model_only_arms"] == ["diff_fast_act", "macro_replay"]
     assert plan["outer_model"] == "claude-sonnet-4-6"
     assert plan["claude_budget_usd"] == PROBE_CLAUDE_BUDGET_USD == 5.0
-    assert plan["project_spent_usd"] == 11.054514
+    assert plan["project_spent_usd"] == 12.912192
     assert plan["box_commands"] == list(BOX_COMMANDS)
-    assert "--isolated" in plan["browser_isolation"]["playwright_mcp"]
+    assert "--warm-replay" in plan["box_commands"][2]
+    assert plan["warm_replay"] is False
+    assert plan["warm_arms"] == ["macro_replay", "diff_fast_act"]
+    assert plan["huge_snapshot_uses_body_length_only"] is True
+    assert plan["browser_isolation"]["playwright_mcp"].startswith("--isolated only")
+    assert "rejects --user-data-dir" in plan["browser_isolation"]["playwright_mcp"]
     assert "--user-data-dir" in plan["browser_isolation"]["stagehand"]
     opted = plan_probe(no_model_only=True)
     assert opted["mode"] == "no_model_only"
@@ -151,8 +160,9 @@ def test_probe_plan_does_not_execute_and_caps_claude(capsys):
     assert opted["no_model_arms"] == ["diff_fast_act", "macro_replay"]
     assert snapshot_is_huge("x" * 40_001) is True
     assert snapshot_is_huge("short") is False
-    assert snapshot_is_huge('{"full_snapshot_chars": 40001, "diff_chars": 12}') is True
+    assert snapshot_is_huge('{"full_snapshot_chars": 40001, "diff_chars": 12}') is False
     assert snapshot_is_huge("full_snapshot_chars: 40000\ndiff_chars: 8") is False
+    assert snapshot_is_huge("full_snapshot_chars: 999999\nchanged") is False
     assert claude_block_reason(5.0, 9.645)
     assert claude_block_reason(0.0, 40.0)
     assert claude_block_reason(4.9, 9.645) is None
@@ -165,42 +175,31 @@ def test_probe_plan_does_not_execute_and_caps_claude(capsys):
 
 def test_each_arm_launch_is_a_private_browser(tmp_path, monkeypatch):
     """Sequential arms must not share the Playwright MCP profile lock."""
-    import os
-
     from proxy.child import DEFAULT_CHILD_ARGV, NdjsonChild
 
     monkeypatch.delenv("PLAYWRIGHT_MCP_PROXY_CHILD", raising=False)
 
-    plain = playwright_mcp_args(
-        headless=True,
-        snapshot_mode="full",
-        user_data_dir=str(tmp_path / "plain"),
-    )
-    assert plain[:5] == [
-        "npx",
-        "@playwright/mcp@0.0.84",
-        "--isolated",
-        "--user-data-dir",
-        str(tmp_path / "plain"),
-    ]
+    plain = playwright_mcp_args(headless=True, snapshot_mode="full")
+    assert plain[:3] == ["npx", "@playwright/mcp@0.0.84", "--isolated"]
+    assert "--user-data-dir" not in plain
     assert "--headless" in plain
     assert DEFAULT_CHILD_ARGV[2] == "--isolated"
+    assert "--user-data-dir" not in DEFAULT_CHILD_ARGV
     first = NdjsonChild()
     second = NdjsonChild()
-    first_dir = first._owned_profile
-    second_dir = second._owned_profile
     try:
-        assert first_dir and second_dir and first_dir != second_dir
-        assert first.argv[first.argv.index("--user-data-dir") + 1] == first_dir
+        assert first._owned_profile is None
+        assert second._owned_profile is None
+        assert "--user-data-dir" not in first.argv
+        assert "--user-data-dir" not in second.argv
+        assert "--isolated" in first.argv
         assert "--isolated" in second.argv
-        assert "ms-playwright" not in first_dir
+        assert first.argv != [] and second.argv == first.argv
         explicit = NdjsonChild(["python", "-c", "pass"])
         assert explicit._owned_profile is None
     finally:
         asyncio.run(first.stop())
         asyncio.run(second.stop())
-    assert not os.path.isdir(first_dir)
-    assert not os.path.isdir(second_dir)
 
 
 def test_competitive_probe_uses_outer_claude_for_the_proxy_arms(monkeypatch, tmp_path):
@@ -231,8 +230,9 @@ def test_competitive_probe_uses_outer_claude_for_the_proxy_arms(monkeypatch, tmp
     ]
     assert all(kind == "claude" for kind, _arm in seen)
     recorded = json.loads(DEFAULT_SPEND_PATH.read_text(encoding="utf-8"))
-    assert recorded["running_total_usd"] == 11.054514
+    assert recorded["running_total_usd"] == 12.912192
     assert recorded["prior"]["usd"] == 9.645
+    assert recorded["recorded_extra_usd"] == 3.267192
 
 
 def test_no_model_only_is_optional_and_not_the_competitive_path(monkeypatch, tmp_path):
@@ -266,3 +266,133 @@ def test_no_model_only_is_optional_and_not_the_competitive_path(monkeypatch, tmp
     assert seen.count(("claude", "stagehand")) == 3
     assert ("claude", "diff_fast_act") not in seen
     assert ("claude", "macro_replay") not in seen
+
+
+def test_url_judge_reads_json_url_and_stagehand_goto_prose():
+    prose = "Ran goto https://en.wikipedia.org/wiki/Ada_Lovelace.\nsettle: quiet\n"
+    url = page_url_from_result(prose)
+    assert url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    assert check_url_contains(url, "Ada_Lovelace").success is True
+    payload = '{"ok": true, "url": "https://docs.python.org/3/library/heapq.html", "diff": "changed"}'
+    assert page_url_from_result(payload) == "https://docs.python.org/3/library/heapq.html"
+    assert check_url_contains(page_url_from_result(payload), "heapq").success is True
+    assert page_url_from_result('- Page URL: https://news.ycombinator.com/\n') == "https://news.ycombinator.com/"
+    assert page_url_from_result("settle: quiet\n(unchanged)\nfull_snapshot_chars: 40001\n") == ""
+    assert check_url_contains("", "Ada_Lovelace").success is False
+    later = page_url_from_result("Ran goto https://example.com/; goto https://docs.python.org/3/library/heapq.html.")
+    assert later == "https://docs.python.org/3/library/heapq.html"
+
+
+def test_later_snapshot_keeps_the_stagehand_url(tmp_path):
+    prose = "Ran goto https://en.wikipedia.org/wiki/Ada_Lovelace.\nsettle: quiet\n"
+    responses = [
+        {
+            "content": [{"type": "tool_use", "id": "t1", "name": "run", "input": {"code": "page.goto()"}}],
+            "stop_reason": "tool_use",
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        },
+        {
+            "content": [{"type": "tool_use", "id": "t2", "name": "snapshot", "input": {}}],
+            "stop_reason": "tool_use",
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        },
+        {
+            "content": [{"type": "text", "text": "TASK_COMPLETE"}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        },
+    ]
+
+    class FakeModel:
+        def __init__(self):
+            self._responses = list(responses)
+
+        async def create_message(self, messages, tools, system=None, max_tokens=4096):
+            del messages, tools, system, max_tokens
+            return self._responses.pop(0), 1.0
+
+    class FakeMCP:
+        def tools_for_claude(self):
+            return [
+                {"name": "run", "description": "run", "input_schema": {"type": "object"}},
+                {"name": "snapshot", "description": "snapshot", "input_schema": {"type": "object"}},
+            ]
+
+        async def call_tool(self, name, arguments):
+            del arguments
+            if name == "run":
+                return prose, 1.0
+            return "(unchanged)\nfull_snapshot_chars: 12\ndiff_chars: 11\n", 1.0
+
+    harness = BenchmarkHarness(api_key="local-test", runs_dir=tmp_path, arm="stagehand")
+    harness.anthropic = FakeModel()
+    harness.mcp_client = FakeMCP()
+    result = asyncio.run(
+        harness.run_task(
+            task_id="wv_wikipedia_search",
+            task_description="Search Wikipedia",
+            start_url="https://en.wikipedia.org/wiki/Main_Page",
+        )
+    )
+    assert result.steps[-1].page_url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    judged = check_url_contains(result.steps[-1].page_url, "Ada_Lovelace")
+    assert judged.success is True
+
+
+def test_stagehand_reads_browser_as_a_property():
+    sentinel = object()
+
+    class Ctx:
+        @property
+        def browser(self):
+            return sentinel
+
+    ctx = Ctx()
+    assert context_browser(ctx) is sentinel
+    try:
+        ctx.browser()
+    except TypeError:
+        return
+    raise AssertionError("context.browser is a property and must not be called")
+
+
+def test_warm_replay_reruns_the_proxy_arms(monkeypatch, tmp_path):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "local-test-not-sent")
+    seen: list[str] = []
+
+    async def fake_claude(arm, task, **kwargs):
+        del kwargs
+        seen.append(arm)
+        row = empty_row(arm, task["id"], reason="stub", skipped=False)
+        row["claude"] = True
+        row["replay_hit"] = arm == "macro_replay"
+        row["wall_ms"] = 10.0
+        return row
+
+    async def fake_no_model(arm, task, **kwargs):
+        del arm, task, kwargs
+        raise AssertionError("warm pass stays on the outer model")
+
+    monkeypatch.setattr("bench.probe.run_claude_arm", fake_claude)
+    monkeypatch.setattr("bench.probe.run_no_model_arm", fake_no_model)
+    rows = asyncio.run(
+        execute_probe(
+            spend_path=tmp_path / "spend.json",
+            runs_dir=tmp_path / "runs",
+            warm_replay=True,
+        )
+    )
+    assert len(rows) == 18
+    assert sum(1 for row in rows if row["pass"] == "cold") == 12
+    warm = [row for row in rows if row["pass"] == "warm"]
+    assert [row["arm"] for row in warm] == ["macro_replay", "diff_fast_act"] * 3
+    summary = warm_summary(rows)
+    assert summary["macro_replay"]["replay_hits"] == 3
+    assert summary["macro_replay"]["replay_hit_rate"] == 1
+    assert summary["macro_replay"]["wall_ms"] == 30
+    assert summary["diff_fast_act"]["replay_hits"] == 0
+    assert summary["diff_fast_act"]["tasks"] == 3
+    assert seen.count("macro_replay") == 6
+    assert seen.count("diff_fast_act") == 6
+    assert seen.count("playwright_mcp") == 3
+    assert seen.count("stagehand") == 3

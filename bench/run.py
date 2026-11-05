@@ -65,7 +65,7 @@ def dry_run_output(tasks: list[dict], model: str = DEFAULT_MODEL) -> str:
         f"- Model: {model}",
         "- Budget: stop when the project total would pass $40 "
         "(M0 prior is $9.645; bench/results/spend.json running_total_usd "
-        "includes the box probe and is $11.054514)",
+        "includes the box probes and is $12.912192)",
         "- Spend file: bench/results/spend.json",
         "",
         "To run the benchmark:",

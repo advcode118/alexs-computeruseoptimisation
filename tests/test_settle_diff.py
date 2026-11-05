@@ -23,6 +23,8 @@ from proxy.diff import (
 )
 from proxy.segment import dispatch
 from proxy.settle import (
+    FAST_CAP_MS,
+    FAST_QUIET_MS,
     QUIET_MS,
     SETTLE_TIMEOUT_MS,
     configured_quiet_ms,
@@ -30,6 +32,7 @@ from proxy.settle import (
     decide_settle,
     mutation_is_meaningful,
     parse_settle_result,
+    plan_settle,
     settle_page,
     settle_source,
 )
@@ -198,6 +201,49 @@ def test_settle_ignores_mutations_that_do_not_change_the_tree():
     # style/class/script noise does not push a quiet page out to the timeout
     noisy = [(0, True), (40, False), (80, False), (500, False), (1200, False)]
     assert decide_settle(noisy, quiet_ms=100, timeout_ms=1500) == "quiet"
+
+
+def test_fast_path_does_not_skip_a_page_that_is_still_mutating():
+    """A short page keeps the 500ms quiet window while meaningful mutations continue."""
+    mutating = [(time_ms, True) for time_ms in range(0, 1500, 40)]
+    reason, end = plan_settle(
+        mutating,
+        quiet_ms=500,
+        timeout_ms=1500,
+        short=True,
+        network_quiet_ms=0,
+    )
+    assert reason == "timeout"
+    assert end == 1500
+    assert end > FAST_CAP_MS
+    assert decide_settle(mutating, quiet_ms=500, timeout_ms=1500, short=True, network_quiet_ms=0) == "timeout"
+
+    stopped = [(time_ms, True) for time_ms in range(0, 200, 40)]
+    reason, end = plan_settle(stopped, quiet_ms=500, timeout_ms=3000, short=True)
+    assert reason == "quiet"
+    assert end == 160 + 500
+
+    reason, end = plan_settle(
+        stopped,
+        quiet_ms=500,
+        timeout_ms=3000,
+        short=True,
+        network_quiet_ms=400,
+    )
+    assert reason == "quiet"
+    assert end == 400 + FAST_QUIET_MS
+    assert end < 160 + 500
+
+    reason, end = plan_settle([], quiet_ms=500, timeout_ms=3000, short=True)
+    assert reason == "quiet"
+    assert end == FAST_CAP_MS
+    assert end < 500
+
+    reason, end = plan_settle([], quiet_ms=500, timeout_ms=3000, short=False)
+    assert reason == "quiet"
+    assert end == 500
+    assert "const fastCapMs = 100" in settle_source()
+    assert "const quietMs = 500" in settle_source()
 
 
 def test_settle_times_out_when_evaluate_hangs():

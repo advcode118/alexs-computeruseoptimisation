@@ -1,7 +1,8 @@
 """MCP stdio proxy in front of pinned @playwright/mcp@0.0.84.
 
-The child is `npx @playwright/mcp@0.0.84 --isolated` with its own
-user-data-dir and `--snapshot-mode none`. tools/list
+The child is `npx @playwright/mcp@0.0.84 --isolated --snapshot-mode none`.
+@playwright/mcp@0.0.84 rejects --isolated together with --user-data-dir, so
+the child is --isolated only. tools/list
 runs once at startup. Every tool the child returns is exposed as-is, then
 fast_act and do_task_segment. A Playwright tools/call is forwarded without
 renaming arguments. After a page action the proxy waits for the DOM to settle,
@@ -41,11 +42,14 @@ SERVER_NAME = "playwright-mcp-proxy"
 SERVER_VERSION = "0.2.0"
 INSTRUCTIONS = (
     "Forwards @playwright/mcp@0.0.84 unchanged. "
-    "The child is started with --isolated, its own user-data-dir, and --snapshot-mode none. "
-    "Prefer do_task_segment for a multi-step sub-task and fast_act for one obvious action, "
+    "The child is started with --isolated and --snapshot-mode none. "
+    "--isolated is not combined with --user-data-dir. "
+    "Prefer one script or one do_task_segment over many tiny steps, "
     "instead of calling browser_snapshot, browser_click, and browser_type one step at a time. "
     "After a browser action this proxy waits until the page is quiet (SETTLE_QUIET_MS, default 500ms) "
     "and returns a compact diff. "
+    "Do not take a full snapshot after a diff was returned. "
+    "A full-page browser_snapshot after that diff is counted as model_ignores_tools. "
     "Refs for controls that are still there stay valid, so a separate browser_snapshot call is not required. "
     "fast_act does not call a model. "
     "do_task_segment replays a stored sequence for the same domain, normalized task, and role/name set "

@@ -15,13 +15,12 @@ import shlex
 import shutil
 import signal
 import sys
-import tempfile
 from typing import Any
 
 PLAYWRIGHT_MCP_VERSION = "0.0.84"
-# --isolated avoids the shared ~/.cache/ms-playwright profile lock.
-# A fresh --user-data-dir is added at launch so a slow previous Chrome
-# cannot hold that lock either. Do not drop --isolated.
+# --isolated is an in-memory profile, so two arms do not share the
+# ~/.cache/ms-playwright lock. @playwright/mcp@0.0.84 rejects --isolated
+# together with --user-data-dir. Do not pass both. Do not drop --isolated.
 DEFAULT_CHILD_ARGV = [
     "npx",
     f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}",
@@ -41,9 +40,7 @@ class ChildProtocolError(RuntimeError):
 def child_argv() -> list[str]:
     """Pinned npx command, or PLAYWRIGHT_MCP_PROXY_CHILD when a test sets it.
 
-    The default list includes --isolated and does not create a directory.
-    NdjsonChild() with no argv adds a fresh --user-data-dir and deletes it
-    on stop.
+    The default list is --isolated only. It does not pass --user-data-dir.
     """
     override = os.environ.get(CHILD_ARGV_ENV, "").strip()
     if not override:
@@ -57,23 +54,13 @@ def child_argv() -> list[str]:
 def resolve_child_argv(argv: list[str] | None) -> tuple[list[str], str | None]:
     """Return the child command and a profile directory this process owns.
 
-    An explicit argv is returned unchanged and the profile is not owned.
-    argv None uses PLAYWRIGHT_MCP_PROXY_CHILD when set, otherwise --isolated
-    plus a new user-data-dir.
+    An explicit argv is returned unchanged. argv None uses
+    PLAYWRIGHT_MCP_PROXY_CHILD when set, otherwise --isolated only.
+    The second value stays None: this process does not own a profile directory.
     """
     if argv is not None:
         return list(argv), None
-    override = os.environ.get(CHILD_ARGV_ENV, "").strip()
-    if override:
-        parsed = shlex.split(override)
-        if not parsed:
-            raise ChildProtocolError(f"{CHILD_ARGV_ENV} is empty")
-        return parsed, None
-    profile = tempfile.mkdtemp(prefix="pw-mcp-proxy-")
-    launch = list(DEFAULT_CHILD_ARGV)
-    at = launch.index("--snapshot-mode")
-    launch[at:at] = ["--user-data-dir", profile]
-    return launch, profile
+    return child_argv(), None
 
 
 def encode_ndjson(payload: dict) -> bytes:

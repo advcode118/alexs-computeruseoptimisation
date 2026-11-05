@@ -51,11 +51,22 @@ FAST_ACT = "fast_act"
 DO_TASK_SEGMENT = "do_task_segment"
 _DEFAULT_CYCLES = 8
 _MAX_CYCLES = 12
+# Stop a do_task_segment that repeats itself on a page that did not change.
+_WASTED_LOOP_CAP = 2
+# Outer-model tiny steps (click, type, snapshot, navigate) before the proxy
+# tells it to use one script or one do_task_segment instead.
+_TINY_STEP_CAP = 6
 _AUTO = object()
 
+_NO_FULL_SNAPSHOT = (
+    "Do not take a full snapshot after a diff was returned. "
+    "A full-page browser_snapshot after that diff is counted as model_ignores_tools. "
+    "Prefer one script or one do_task_segment over many tiny steps."
+)
 _PREFER = (
     "Prefer do_task_segment for a multi-step sub-task and fast_act for one obvious action. "
-    "Do not walk the page with browser_snapshot, browser_click, and browser_type one step at a time."
+    "Do not walk the page with browser_snapshot, browser_click, and browser_type one step at a time. "
+    + _NO_FULL_SNAPSHOT
 )
 
 # Tools that change the page. After one of these, the proxy settles and
@@ -475,6 +486,51 @@ def _view(observation: Observation | None) -> tuple[str, str]:
     if observation is None:
         return "", ""
     return observation.url, page_paragraph(observation)
+
+
+def _page_signature(observation: Observation | None) -> tuple:
+    """URL plus role, name, and value. A repeat of this is a wasted loop."""
+    if observation is None:
+        return ("", ())
+    controls = tuple(
+        (control.role, control.name, control.value)
+        for control in observation.controls
+    )
+    return (observation.url, controls)
+
+
+def _wasted_stop(wasted: int) -> bool:
+    return wasted >= _WASTED_LOOP_CAP
+
+
+def _cap_tiny_step(child, name: str) -> dict | None:
+    """Refuse another tiny step after the cap. A segment or fast_act resets it.
+
+    The refused call is still a tool result. When it is a full snapshot after
+    a diff, the caller has already counted model_ignores_tools.
+    """
+    if name in {FAST_ACT, DO_TASK_SEGMENT}:
+        setattr(child, "_tiny_steps", 0)
+        return None
+    if name not in PAGE_ACTIONS and name != "browser_snapshot":
+        return None
+    count = int(getattr(child, "_tiny_steps", 0)) + 1
+    setattr(child, "_tiny_steps", count)
+    if count <= _TINY_STEP_CAP:
+        return None
+    return {
+        "content": [
+            {
+                "type": "text",
+                "text": (
+                    "Stopped a wasted loop. Prefer one script or one do_task_segment "
+                    "over more tiny steps. Do not take a full snapshot after a diff was returned. "
+                    "That full snapshot is counted as model_ignores_tools."
+                ),
+            }
+        ],
+        "isError": True,
+    }
 
 
 def _script_invocation(backend: PlaywrightMcpBackend, yaml: str, observation: Observation, action: ScriptAction):
@@ -965,6 +1021,7 @@ async def _run_segment(
     awaiting_retry = False
     cycles = 0
     model_calls = 0
+    wasted = 0
     actions: list[str] = []
     last_tier = "direct"
     last_reason = ""
@@ -1120,6 +1177,10 @@ async def _run_segment(
                 )
             )
         latest = after
+        if _page_signature(observation) == _page_signature(after):
+            wasted += 1
+        else:
+            wasted = 0
         assertion_ok = None
         assertion_detail = None
         if batch.assertion is not None:
@@ -1160,6 +1221,25 @@ async def _run_segment(
                     )
                 retries_used += 1
                 awaiting_retry = True
+                if _wasted_stop(wasted):
+                    final_url, final_page = _view(after)
+                    return finish(
+                        _payload(
+                            ok=False,
+                            status="stopped",
+                            tier=tier,
+                            url=final_url,
+                            summary=(
+                                "Stopped a wasted loop. The same steps repeated on a page that did not change. "
+                                "Prefer one script or one do_task_segment over many tiny steps."
+                            ),
+                            page=final_page,
+                            actions=actions,
+                            cycles=cycles,
+                            model_calls=model_calls,
+                            needs_model=False,
+                        )
+                    )
                 continue
         history.append(_history_item(batch, assertion_ok, assertion_detail, tier))
         previous_observation = observation
@@ -1175,6 +1255,25 @@ async def _run_segment(
                     tier=tier,
                     url=final_url,
                     summary=_summary(batch.reason, actions),
+                    page=final_page,
+                    actions=actions,
+                    cycles=cycles,
+                    model_calls=model_calls,
+                    needs_model=False,
+                )
+            )
+        if _wasted_stop(wasted):
+            final_url, final_page = _view(after)
+            return finish(
+                _payload(
+                    ok=False,
+                    status="stopped",
+                    tier=tier,
+                    url=final_url,
+                    summary=(
+                        "Stopped a wasted loop. The same steps repeated on a page that did not change. "
+                        "Prefer one script or one do_task_segment over many tiny steps."
+                    ),
                     page=final_page,
                     actions=actions,
                     cycles=cycles,
@@ -1234,6 +1333,10 @@ async def dispatch(child, name: str, arguments, *, client=_AUTO, env_path=_AUTO,
     counter = ignore_counter(child)
     args = arguments if isinstance(arguments, dict) else None
     counter.note_call(name, args)
+    refused = _cap_tiny_step(child, name)
+    if refused is not None:
+        counter.note_result(name, tool_text(refused))
+        return refused
     setattr(child, "_last_settle", None)
     try:
         if name == FAST_ACT:

@@ -12,7 +12,7 @@ import json
 import pytest
 
 from loop.planner import ClaudePlanner, FastClient
-from proxy.segment import PROXY_TOOLS, dispatch, listed_tools
+from proxy.segment import PROXY_TOOLS, _TINY_STEP_CAP, _WASTED_LOOP_CAP, dispatch, listed_tools
 
 SEARCH_TASK = "Search Wikipedia for Ada Lovelace and confirm the article title."
 PACK_TASK = "Add milk to the packing list"
@@ -99,6 +99,9 @@ def test_tool_descriptions_prefer_a_segment_over_single_steps():
         assert "browser_snapshot" in text
         assert "browser_click" in text
         assert "browser_type" in text
+        assert "Do not take a full snapshot after a diff was returned" in text
+        assert "model_ignores_tools" in text
+        assert "one script or one do_task_segment" in text
     child = [{"name": "browser_click", "description": "Click a ref", "inputSchema": {"type": "object"}}]
     listed = listed_tools(child)
     assert listed[0] == child[0]
@@ -248,6 +251,48 @@ def test_do_task_segment_uses_the_cheap_client_and_not_claude():
         "browser_evaluate",
         "browser_snapshot",
     ]
+
+
+def test_do_task_segment_stops_a_wasted_loop(tmp_path):
+    """The same click on an unchanged page stops before max_cycles."""
+    calls = {"n": 0}
+
+    def transport(url, headers, payload):
+        del url, headers, payload
+        calls["n"] += 1
+        return json.dumps(
+            {
+                "reason": "Click Add again.",
+                "done": False,
+                "actions": [{"type": "click", "ref": "e2"}],
+                "assertion": None,
+            }
+        )
+
+    client = FastClient(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        model="test-model",
+        transport=transport,
+    )
+    child = FakeChild([PACKING])
+    result = asyncio.run(
+        dispatch(
+            child,
+            "do_task_segment",
+            {"task": PACK_TASK, "max_cycles": 8},
+            client=client,
+            env_path=str(tmp_path / "missing.env"),
+        )
+    )
+    body = _payload(result)
+    assert body["ok"] is False
+    assert body["status"] == "stopped"
+    assert body["cycles"] == _WASTED_LOOP_CAP
+    assert body["cycles"] < 8
+    assert "wasted loop" in body["summary"]
+    assert "one do_task_segment" in body["summary"]
+    assert calls["n"] == _WASTED_LOOP_CAP
 
 
 def test_dispatch_forwards_a_playwright_tool_unchanged():

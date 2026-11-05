@@ -20,6 +20,27 @@ FULL_PAGE_OBSERVE_TOOLS = frozenset(
 _SCOPE_KEYS = ("target", "ref", "depth", "selector")
 
 
+_AFTER_DIFF = (
+    " Do not take a full snapshot after a diff was returned."
+    " That call is counted as model_ignores_tools."
+)
+
+
+def annotate_tool_description(name: str, description: str) -> str:
+    """Tell the outer model not to snapshot again after a compact diff.
+
+    The child's own description is left unchanged on tools/list. This note is
+    added when the description is handed to the model, and only on a full-page
+    observe tool that does not already mention the counter.
+    """
+    text = description or ""
+    if (name or "").strip() not in FULL_PAGE_OBSERVE_TOOLS:
+        return text
+    if "model_ignores_tools" in text:
+        return text
+    return text.rstrip() + _AFTER_DIFF
+
+
 def is_full_page_observe(tool_name: str, tool_args: dict | None) -> bool:
     """True for a snapshot or observe that asks for the whole page."""
     if (tool_name or "").strip() not in FULL_PAGE_OBSERVE_TOOLS:

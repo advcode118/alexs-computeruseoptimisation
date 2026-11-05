@@ -20,9 +20,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import shutil
 import sys
-import tempfile
 import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -48,30 +46,27 @@ def _serve_fixture() -> tuple[ThreadingHTTPServer, str]:
     return server, url
 
 
-def _child_argv() -> tuple[list[str], str | None]:
-    """Proxy child command, and a profile directory this smoke owns."""
+def _child_argv() -> list[str]:
+    """Proxy child command. --isolated only; 0.0.84 rejects --user-data-dir with it."""
     override = os.environ.get("PLAYWRIGHT_MCP_PROXY_CHILD", "").strip()
     if override:
         import shlex
 
-        return shlex.split(override), None
-    profile = tempfile.mkdtemp(prefix="pw-mcp-smoke-")
+        return shlex.split(override)
     return [
         "npx",
         "@playwright/mcp@0.0.84",
         "--isolated",
-        "--user-data-dir",
-        profile,
         "--headless",
         "--browser",
         "chrome",
         "--snapshot-mode",
         "none",
-    ], profile
+    ]
 
 
 async def smoke_proxy(url: str) -> dict:
-    argv, profile = _child_argv()
+    argv = _child_argv()
     child = NdjsonChild(argv)
     from proxy.segment import dispatch
 
@@ -102,8 +97,6 @@ async def smoke_proxy(url: str) -> dict:
         }
     finally:
         await child.stop()
-        if profile:
-            shutil.rmtree(profile, ignore_errors=True)
 
 
 async def smoke_stagehand(url: str) -> dict:

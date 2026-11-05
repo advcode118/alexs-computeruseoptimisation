@@ -16,7 +16,6 @@ import json
 import os
 import re
 import shutil
-import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -28,7 +27,7 @@ from bench.budget import (
     SpendLedger,
     assert_allowed_model,
 )
-from proxy.ignores import IgnoreCounter
+from proxy.ignores import IgnoreCounter, annotate_tool_description
 
 PLAYWRIGHT_MCP_VERSION = "0.0.84"
 DEFAULT_MODEL = ALLOWED_MODEL
@@ -71,6 +70,9 @@ _SNAPSHOT_FENCE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _PAGE_FIELD = re.compile(r"(?m)^- Page ([A-Za-z]+):\s*(.+?)\s*$")
+_JSON_URL = re.compile(r'"url"\s*:\s*"(https?://[^"\\]+)"')
+_GOTO_URL = re.compile(r"\bgoto\s+(https?://[^\s'\"<>]+)", re.IGNORECASE)
+_URL_TRAILING = ".,;)]}>\"'"
 
 SYSTEM_PROMPT = """You are a browser automation agent. You have access to tools for controlling a web browser.
 Your goal is to complete the given task by using the browser tools.
@@ -227,6 +229,41 @@ def page_field(result_text: str, label: str) -> str:
     return ""
 
 
+def _clean_url(value: str) -> str:
+    return (value or "").strip().rstrip(_URL_TRAILING)
+
+
+def page_url_from_result(result_text: str) -> str:
+    """URL for the judge: Playwright's page line, a JSON url, or Stagehand prose.
+
+    Stagehand run text looks like `Ran goto https://...`. Proxy tool results
+    are JSON with a url field. A compact diff that only names full_snapshot_chars
+    does not invent a URL.
+    """
+    text = result_text or ""
+    direct = _clean_url(page_field(text, "URL"))
+    if direct.startswith(("http://", "https://")):
+        return direct
+    stripped = text.strip()
+    if stripped.startswith("{"):
+        try:
+            data = json.loads(stripped)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict):
+            url = data.get("url")
+            if isinstance(url, str) and url.startswith(("http://", "https://")):
+                return _clean_url(url)
+    match = _JSON_URL.search(text)
+    if match:
+        return _clean_url(match.group(1))
+    found = [_clean_url(item.group(1)) for item in _GOTO_URL.finditer(text)]
+    found = [url for url in found if url.startswith(("http://", "https://"))]
+    if found:
+        return found[-1]
+    return ""
+
+
 def extract_page_snapshot(result_text: str) -> str:
     """Pull the accessibility tree out of a playwright-mcp tool response."""
     if not result_text:
@@ -243,19 +280,17 @@ def extract_page_snapshot(result_text: str) -> str:
     return "\n".join(lines).strip()
 
 
-def playwright_mcp_args(*, headless: bool, snapshot_mode: str, user_data_dir: str) -> list[str]:
+def playwright_mcp_args(*, headless: bool, snapshot_mode: str) -> list[str]:
     """Plain Playwright MCP, one private browser per process.
 
-    --isolated keeps the profile in memory. The unique user-data-dir is the
-    other way the CLI avoids the shared workspace profile lock. Sequential
-    arms each get their own directory.
+    --isolated keeps the profile in memory. @playwright/mcp@0.0.84 rejects
+    --isolated together with --user-data-dir, so this argv is --isolated only.
+    Sequential arms each get their own process.
     """
     args = [
         "npx",
         f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}",
         "--isolated",
-        "--user-data-dir",
-        user_data_dir,
     ]
     if headless:
         args.append("--headless")
@@ -307,11 +342,9 @@ class PlaywrightMCPClient:
             else:
                 env.pop("PLAYWRIGHT_MCP_HEADLESS", None)
         else:
-            self._profile_dir = tempfile.mkdtemp(prefix="pw-mcp-arm-")
             args = playwright_mcp_args(
                 headless=self.headless,
                 snapshot_mode=self.snapshot_mode,
-                user_data_dir=self._profile_dir,
             )
 
         try:
@@ -417,10 +450,11 @@ class PlaywrightMCPClient:
         """Convert MCP tools to Claude tool format."""
         claude_tools = []
         for tool in self._tools:
+            name = tool["name"]
             claude_tools.append(
                 {
-                    "name": tool["name"],
-                    "description": tool.get("description", ""),
+                    "name": name,
+                    "description": annotate_tool_description(name, tool.get("description", "")),
                     "input_schema": tool.get("inputSchema", {"type": "object", "properties": {}}),
                 }
             )
@@ -635,6 +669,7 @@ class BenchmarkHarness:
         total_snapshot_tokens = 0
         ignores = IgnoreCounter()
         replay_hits = 0
+        last_url = ""
         self._pending_snapshot_path = None
 
         messages: list[dict] = [
@@ -716,7 +751,10 @@ class BenchmarkHarness:
                     this_snapshot_tokens = snapshot_tokens_for(tool_name, result_text)
                     total_snapshot_tokens += this_snapshot_tokens
                     snapshot_text = extract_page_snapshot(result_text)
-                    page_url = page_field(result_text, "URL")
+                    found_url = page_url_from_result(result_text)
+                    page_url = found_url or last_url
+                    if found_url:
+                        last_url = found_url
                     page_title = page_field(result_text, "Title")
                     snapshot_path = self._write_page_snapshot(
                         task_id=task_id,

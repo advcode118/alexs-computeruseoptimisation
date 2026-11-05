@@ -54,7 +54,7 @@ Would run 12 tasks:
 
 - ANTHROPIC_API_KEY: NOT SET
 - Model: claude-sonnet-4-6
-- Budget: stop when the project total would pass $40 (M0 prior is $9.645; bench/results/spend.json running_total_usd includes the box probe and is $11.054514)
+- Budget: stop when the project total would pass $40 (M0 prior is $9.645; bench/results/spend.json running_total_usd includes the box probes and is $12.912192)
 - Spend file: bench/results/spend.json
 
 To run the benchmark:

@@ -18,8 +18,18 @@ import shutil
 import tempfile
 import time
 
+from proxy.ignores import annotate_tool_description
 from proxy.script import ScriptAction, ScriptError, parse_script
 from proxy.settle import configured_quiet_ms, configured_timeout_ms, parse_settle_result, settle_source
+
+
+def context_browser(context):
+    """Return context.browser. Playwright exposes it as a property.
+
+    A persistent context's browser property is None. Calling context.browser()
+    raises TypeError because the property is not a method.
+    """
+    return context.browser
 
 _SNAPSHOT_JS = r"""() => {
   const skipRole = new Set(["presentation", "none", "generic"]);
@@ -227,15 +237,20 @@ class StagehandLocalClient:
         return [
             {
                 "name": "snapshot",
-                "description": "Read the page's interactive elements and label them with ids. This is a full-page observe.",
+                "description": annotate_tool_description(
+                    "snapshot",
+                    "Read the page's interactive elements and label them with ids. This is a full-page observe.",
+                ),
                 "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
             },
             {
                 "name": "run",
                 "description": (
-                    "Act on the page. Prefer code, a Playwright-style script with page.getByRole, "
-                    "page.getByLabel, page.getByText, or page.goto. "
-                    "actions is a structured list and is the weaker form."
+                    "Act on the page. Prefer one Playwright-style script over many tiny steps, "
+                    "with page.getByRole, page.getByLabel, page.getByText, or page.goto. "
+                    "actions is a structured list and is the weaker form. "
+                    "run returns a compact diff. Do not take a full snapshot after a diff was returned. "
+                    "That snapshot is counted as model_ignores_tools."
                 ),
                 "input_schema": {
                     "type": "object",
@@ -288,7 +303,7 @@ class StagehandLocalClient:
             await self._playwright.stop()
             self._playwright = None
             raise RuntimeError(f"Could not launch local Chrome for the Stagehand arm. {launch_error}")
-        self._browser = self._context.browser()
+        self._browser = context_browser(self._context)
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
 
     async def stop(self) -> None:
