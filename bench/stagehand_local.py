@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import tempfile
 import time
 
 from proxy.script import ScriptAction, ScriptError, parse_script
@@ -216,6 +218,8 @@ class StagehandLocalClient:
         self._playwright = None
         self._browser = None
         self._context = None
+        self._profile_dir: str | None = None
+        self._owns_page = page is None
         self._previous: list[str] | None = None
         self.backend = describe_backend()
 
@@ -260,31 +264,53 @@ class StagehandLocalClient:
 
         self._playwright = await async_playwright().start()
         launch_error: Exception | None = None
-        for kwargs in ({"channel": "chrome", "headless": self.headless}, {"headless": self.headless}):
+        # A fresh directory per arm. This does not use the shared
+        # ~/.cache/ms-playwright/mcp-* profile the Playwright MCP arms lock.
+        attempts = (
+            {"channel": "chrome", "headless": self.headless},
+            {"headless": self.headless},
+        )
+        for kwargs in attempts:
+            profile = tempfile.mkdtemp(prefix="stagehand-arm-")
             try:
-                self._browser = await self._playwright.chromium.launch(**kwargs)
+                self._context = await self._playwright.chromium.launch_persistent_context(
+                    profile,
+                    **kwargs,
+                )
+                self._profile_dir = profile
                 launch_error = None
                 break
             except Exception as exc:
                 launch_error = exc
-        if self._browser is None:
+                self._context = None
+                shutil.rmtree(profile, ignore_errors=True)
+        if self._context is None:
             await self._playwright.stop()
             self._playwright = None
             raise RuntimeError(f"Could not launch local Chrome for the Stagehand arm. {launch_error}")
-        self._context = await self._browser.new_context()
-        self._page = await self._context.new_page()
+        self._browser = self._context.browser()
+        self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
 
     async def stop(self) -> None:
-        if self._context is not None:
-            await self._context.close()
+        if not self._owns_page:
+            self._page = None
+            return
+        try:
+            if self._context is not None:
+                await self._context.close()
+            if self._browser is not None:
+                await self._browser.close()
+            if self._playwright is not None:
+                await self._playwright.stop()
+        finally:
             self._context = None
-        if self._browser is not None:
-            await self._browser.close()
             self._browser = None
-        if self._playwright is not None:
-            await self._playwright.stop()
             self._playwright = None
-        self._page = None
+            self._page = None
+            profile = self._profile_dir
+            self._profile_dir = None
+            if profile:
+                shutil.rmtree(profile, ignore_errors=True)
 
     async def call_tool(self, name: str, arguments: dict | None) -> tuple[str, float]:
         if self._page is None:

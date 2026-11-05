@@ -113,6 +113,10 @@ class SpendLedger:
     input_tokens: int = 0
     output_tokens: int = 0
     running_total_usd: float = 0.0
+    # Probe dollars already spent that are not a token line in tasks.
+    # The M0 prior stays $9.645. This is added on top and must not be dropped.
+    recorded_extra_usd: float = 0.0
+    recorded_probe: dict = field(default_factory=dict)
     aborted: bool = False
     abort_reason: str | None = None
 
@@ -130,7 +134,10 @@ class SpendLedger:
         )
         self.input_tokens = incoming
         self.output_tokens = outgoing
-        self.running_total_usd = round(estimate_usd(incoming, outgoing), 6)
+        self.running_total_usd = round(
+            estimate_usd(incoming, outgoing) + float(self.recorded_extra_usd),
+            6,
+        )
 
     def allows_another_task(self) -> bool:
         """False once the project total has reached the budget."""
@@ -166,7 +173,7 @@ class SpendLedger:
         )
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "model": self.model,
             "budget_usd": self.budget_usd,
             "prices": {
@@ -177,10 +184,14 @@ class SpendLedger:
             "tasks": self.tasks,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
+            "recorded_extra_usd": self.recorded_extra_usd,
             "running_total_usd": self.running_total_usd,
             "aborted": self.aborted,
             "abort_reason": self.abort_reason,
         }
+        if self.recorded_probe:
+            payload["recorded_probe"] = self.recorded_probe
+        return payload
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -208,6 +219,8 @@ class SpendLedger:
             budget_usd=float(data.get("budget_usd", PROJECT_BUDGET_USD)),
             prior=data.get("prior") or prior_record(),
             tasks=list(data.get("tasks") or []),
+            recorded_extra_usd=float(data.get("recorded_extra_usd") or 0.0),
+            recorded_probe=dict(data.get("recorded_probe") or {}),
             aborted=bool(data.get("aborted", False)),
             abort_reason=data.get("abort_reason"),
         )

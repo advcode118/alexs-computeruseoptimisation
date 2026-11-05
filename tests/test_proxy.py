@@ -145,6 +145,7 @@ def test_proxy_lists_tools_without_a_network_key(tmp_path: Path):
     assert DEFAULT_CHILD_ARGV == [
         "npx",
         "@playwright/mcp@0.0.84",
+        "--isolated",
         "--snapshot-mode",
         "none",
     ]

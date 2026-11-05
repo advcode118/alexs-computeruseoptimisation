@@ -15,6 +15,8 @@ import asyncio
 import json
 import os
 import re
+import shutil
+import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -123,6 +125,8 @@ class TaskResult:
     error: str | None = None
     # Full-page observes the outer model issued after an action already returned a compact diff.
     model_ignores_tools: int = 0
+    # do_task_segment results whose tier was replay. The outer model still ran.
+    replay_hits: int = 0
 
 
 def estimate_tokens(text: str) -> int:
@@ -239,6 +243,32 @@ def extract_page_snapshot(result_text: str) -> str:
     return "\n".join(lines).strip()
 
 
+def playwright_mcp_args(*, headless: bool, snapshot_mode: str, user_data_dir: str) -> list[str]:
+    """Plain Playwright MCP, one private browser per process.
+
+    --isolated keeps the profile in memory. The unique user-data-dir is the
+    other way the CLI avoids the shared workspace profile lock. Sequential
+    arms each get their own directory.
+    """
+    args = [
+        "npx",
+        f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}",
+        "--isolated",
+        "--user-data-dir",
+        user_data_dir,
+    ]
+    if headless:
+        args.append("--headless")
+    args.extend(["--snapshot-mode", snapshot_mode])
+    return args
+
+
+def result_is_replay(text: str) -> bool:
+    """True when a proxy tool result says the stored sequence ran."""
+    compact = (text or "").replace(" ", "")
+    return '"tier":"replay"' in compact
+
+
 def _annotate_snapshot_file(path: Path, tool_use: dict, action_step: int) -> None:
     """Attach the model action that was taken on this saved page."""
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -264,26 +294,44 @@ class PlaywrightMCPClient:
         self._request_id = 0
         self._tools: list[dict] = []
         self._stderr_task: asyncio.Task | None = None
+        self._profile_dir: str | None = None
 
     async def start(self) -> None:
-        """Start the @playwright/mcp process."""
+        """Start the @playwright/mcp process, or the proxy, with its own browser."""
+        env = os.environ.copy()
         if self.argv is not None:
             args = list(self.argv)
-        else:
-            args = ["npx", f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}"]
+            # The proxy child inherits this. It does not share the caller's shell.
             if self.headless:
-                args.append("--headless")
-            args.extend(["--snapshot-mode", self.snapshot_mode])
+                env["PLAYWRIGHT_MCP_HEADLESS"] = "1"
+            else:
+                env.pop("PLAYWRIGHT_MCP_HEADLESS", None)
+        else:
+            self._profile_dir = tempfile.mkdtemp(prefix="pw-mcp-arm-")
+            args = playwright_mcp_args(
+                headless=self.headless,
+                snapshot_mode=self.snapshot_mode,
+                user_data_dir=self._profile_dir,
+            )
 
-        self.process = await asyncio.create_subprocess_exec(
-            *args,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            limit=MCP_LINE_LIMIT,
-        )
+        try:
+            self.process = await asyncio.create_subprocess_exec(
+                *args,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+                limit=MCP_LINE_LIMIT,
+            )
+        except BaseException:
+            self._discard_profile()
+            raise
         self._stderr_task = asyncio.create_task(self._drain_stderr())
-        await self._initialize()
+        try:
+            await self._initialize()
+        except BaseException:
+            await self.stop()
+            raise
 
     async def _drain_stderr(self) -> None:
         if self.process is None or self.process.stderr is None:
@@ -411,6 +459,13 @@ class PlaywrightMCPClient:
             except asyncio.TimeoutError:
                 self.process.kill()
             self.process = None
+        self._discard_profile()
+
+    def _discard_profile(self) -> None:
+        profile = self._profile_dir
+        self._profile_dir = None
+        if profile:
+            shutil.rmtree(profile, ignore_errors=True)
 
 
 class AnthropicClient:
@@ -579,6 +634,7 @@ class BenchmarkHarness:
         total_output_tokens = 0
         total_snapshot_tokens = 0
         ignores = IgnoreCounter()
+        replay_hits = 0
         self._pending_snapshot_path = None
 
         messages: list[dict] = [
@@ -654,6 +710,8 @@ class BenchmarkHarness:
                     total_tool_ms += tool_ms
                     ignores.note_call(tool_name, tool_args if isinstance(tool_args, dict) else {})
                     ignores.note_result(tool_name, result_text)
+                    if result_is_replay(result_text):
+                        replay_hits += 1
 
                     this_snapshot_tokens = snapshot_tokens_for(tool_name, result_text)
                     total_snapshot_tokens += this_snapshot_tokens
@@ -723,6 +781,7 @@ class BenchmarkHarness:
             steps=steps,
             error=error,
             model_ignores_tools=ignores.count,
+            replay_hits=replay_hits,
         )
 
     def _empty_result(
@@ -766,6 +825,7 @@ class BenchmarkHarness:
                 "total_output_tokens": result.total_output_tokens,
                 "total_snapshot_tokens": result.total_snapshot_tokens,
                 "model_ignores_tools": result.model_ignores_tools,
+                "replay_hits": result.replay_hits,
                 "error": result.error,
                 "steps": [
                     {

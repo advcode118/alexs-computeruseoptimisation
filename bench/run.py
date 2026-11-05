@@ -64,7 +64,8 @@ def dry_run_output(tasks: list[dict], model: str = DEFAULT_MODEL) -> str:
         f"- ANTHROPIC_API_KEY: {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'NOT SET'}",
         f"- Model: {model}",
         "- Budget: stop when the project total would pass $40 "
-        "(about $10 is already spent from the M0 measurement)",
+        "(M0 prior is $9.645; bench/results/spend.json running_total_usd "
+        "includes the box probe and is $11.054514)",
         "- Spend file: bench/results/spend.json",
         "",
         "To run the benchmark:",

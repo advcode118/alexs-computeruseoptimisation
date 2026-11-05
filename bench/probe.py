@@ -1,18 +1,35 @@
-"""Small probe: 3 WebVoyager tasks x 4 arms. Prepared, not launched.
+"""Small probe: 3 WebVoyager tasks x 4 arms. Prepared here, not launched.
 
-Claude arms are plain Playwright MCP and Stagehand. They use claude-sonnet-4-6
-and stop once this probe has spent $5, and once the project total would pass
-$40. diff_fast_act and macro_replay do not call Anthropic. A page whose first
-snapshot is longer than HUGE_SNAPSHOT_CHARS is skipped before any model call.
+The competitive path is the outer model claude-sonnet-4-6 on every arm.
+diff_fast_act and macro_replay use the same loop as playwright_mcp and
+stagehand. Their tools are the proxy surface: settle plus a compact diff,
+fast_act with a script, and do_task_segment. The tools do not call Claude.
+The outer loop does. Opus is never used.
 
-Do not pass --execute from this checkout. ANTHROPIC_API_KEY is not forwarded
-here. The command for a box that has the key is:
+That probe stops once it has spent $5 on Claude, and once the project total
+would pass $40. A first snapshot longer than HUGE_SNAPSHOT_CHARS is skipped
+before any model call. full_snapshot_chars on a compact diff counts too.
+Each arm gets its own browser: Playwright MCP --isolated and a unique
+user-data-dir, or a unique user-data-dir for the Stagehand arm. Sequential
+arms do not share the workspace Chrome profile.
 
-    python -m bench.probe --execute
+--no-model-only is optional. It puts diff_fast_act and macro_replay back on
+decide() with no outer model. That path cannot close the Stagehand gap. It
+is not the competitive measurement.
+
+Do not pass --execute from a checkout that has no ANTHROPIC_API_KEY. This
+tree does not call Claude. Box commands, from the repo root:
+
+    python -m bench.probe
+    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute
+    python -m bench.probe --execute --no-model-only
+
+The first prints the plan and exits. The second is the competitive 3x4.
+The third is the optional no-model path for the two proxy arms only.
 
 Environment variables it reads, by name only:
 
-    ANTHROPIC_API_KEY     outer model for playwright_mcp and stagehand
+    ANTHROPIC_API_KEY     outer model for every competitive arm
     NEBIUS_API_KEY        optional, do_task_segment's cheap fallback only
     NEBIUS_BASE_URL       optional, with NEBIUS_API_KEY
     NEBIUS_FAST_MODEL     optional, with NEBIUS_API_KEY
@@ -22,6 +39,7 @@ Environment variables it reads, by name only:
     SETTLE_TIMEOUT_MS     default 3000
     REPLAY_CACHE_PATH     macro_replay cache file
     PLAYWRIGHT_MCP_PROXY_CHILD   optional override for the proxy's browser
+    PLAYWRIGHT_MCP_HEADLESS      set on the proxy process when the probe is headless
 
 No variable value is printed.
 """
@@ -32,11 +50,12 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
 
-from bench.arms import ARMS, arm_needs_claude
+from bench.arms import ARMS, NO_MODEL_CAPABLE, arm_needs_claude
 from bench.budget import PROJECT_BUDGET_USD, SpendLedger, estimate_usd
 from bench.judge import check_text_present, check_url_contains
 from bench.tasks import get_webvoyager_tasks
@@ -45,6 +64,14 @@ PROBE_TASK_IDS = ("wv_wikipedia_search", "wv_python_docs", "wv_hackernews_top")
 PROBE_CLAUDE_BUDGET_USD = 5.0
 HUGE_SNAPSHOT_CHARS = 40_000
 RUNS_DIR = Path(__file__).resolve().parent / "runs"
+_FULL_SNAPSHOT_CHARS = re.compile(r"""full_snapshot_chars["']?\s*[:=]\s*(\d+)""")
+
+# Exact commands for a box that has the key. This checkout does not run them.
+BOX_COMMANDS = (
+    "python -m bench.probe",
+    'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute',
+    "python -m bench.probe --execute --no-model-only",
+)
 
 
 def probe_tasks() -> list[dict]:
@@ -58,20 +85,29 @@ def probe_tasks() -> list[dict]:
     return sorted(found, key=lambda task: order[task["id"]])
 
 
-def plan_probe() -> dict:
+def plan_probe(*, no_model_only: bool = False) -> dict:
     """What --execute would run. This does not start a browser or a model."""
     spent = SpendLedger.load().running_total_usd
     return {
         "execute": False,
+        "mode": "no_model_only" if no_model_only else "outer_claude",
         "tasks": [task["id"] for task in probe_tasks()],
         "arms": list(ARMS),
-        "claude_arms": [arm for arm in ARMS if arm_needs_claude(arm)],
-        "no_model_arms": [arm for arm in ARMS if not arm_needs_claude(arm)],
+        "claude_arms": [arm for arm in ARMS if arm_needs_claude(arm, no_model_only=no_model_only)],
+        "no_model_arms": [arm for arm in ARMS if not arm_needs_claude(arm, no_model_only=no_model_only)],
+        "no_model_only_arms": [arm for arm in ARMS if arm in NO_MODEL_CAPABLE],
         "outer_model": "claude-sonnet-4-6",
         "claude_budget_usd": PROBE_CLAUDE_BUDGET_USD,
         "project_budget_usd": PROJECT_BUDGET_USD,
         "project_spent_usd": spent,
         "huge_snapshot_chars": HUGE_SNAPSHOT_CHARS,
+        "browser_isolation": {
+            "playwright_mcp": "--isolated and a unique --user-data-dir",
+            "diff_fast_act": "proxy child --isolated and a unique --user-data-dir",
+            "macro_replay": "proxy child --isolated and a unique --user-data-dir",
+            "stagehand": "a unique --user-data-dir",
+        },
+        "box_commands": list(BOX_COMMANDS),
         "records": [
             "wall_ms",
             "success",
@@ -87,7 +123,12 @@ def plan_probe() -> dict:
 
 
 def snapshot_is_huge(text: str, limit: int = HUGE_SNAPSHOT_CHARS) -> bool:
-    return len(text or "") > limit
+    """True for a long body or a compact diff of a long page."""
+    body = text or ""
+    if len(body) > limit:
+        return True
+    match = _FULL_SNAPSHOT_CHARS.search(body)
+    return bool(match) and int(match.group(1)) > limit
 
 
 def claude_block_reason(probe_spent_usd: float, project_spent_usd: float) -> str | None:
@@ -110,7 +151,14 @@ def deterministic_success(task: dict, url: str, text: str) -> tuple[bool | None,
     return None, "no deterministic check; LLM judge was not called"
 
 
-def empty_row(arm: str, task_id: str, *, reason: str, skipped: bool = True) -> dict:
+def empty_row(
+    arm: str,
+    task_id: str,
+    *,
+    reason: str,
+    skipped: bool = True,
+    no_model_only: bool = False,
+) -> dict:
     return {
         "arm": arm,
         "task_id": task_id,
@@ -123,7 +171,7 @@ def empty_row(arm: str, task_id: str, *, reason: str, skipped: bool = True) -> d
         "output_tokens": 0,
         "usd": 0.0,
         "model_ignores_tools": 0,
-        "no_model": not arm_needs_claude(arm),
+        "no_model": not arm_needs_claude(arm, no_model_only=no_model_only),
         "replay_hit": False,
         "claude": False,
     }
@@ -139,8 +187,12 @@ async def _peek_snapshot(client, arm: str, url: str) -> tuple[str, float]:
 
 
 async def run_no_model_arm(arm: str, task: dict, *, headless: bool = True) -> dict:
-    """diff_fast_act or macro_replay. This function does not call Anthropic."""
-    if arm_needs_claude(arm):
+    """Optional decide() path. This function does not call Anthropic.
+
+    The competitive probe does not call this. A no-model-only run cannot
+    close the Stagehand gap on open WebVoyager tasks.
+    """
+    if arm_needs_claude(arm, no_model_only=True):
         raise RuntimeError(f"{arm} needs Claude and must not use the no-model runner")
     from bench.arms import build_client
 
@@ -230,7 +282,7 @@ async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, 
             "usd": usd,
             "model_ignores_tools": result.model_ignores_tools,
             "no_model": False,
-            "replay_hit": False,
+            "replay_hit": result.replay_hits > 0,
             "claude": True,
         }
     finally:
@@ -242,8 +294,14 @@ async def execute_probe(
     headless: bool = True,
     spend_path: Path | None = None,
     runs_dir: Path | None = None,
+    no_model_only: bool = False,
 ) -> list[dict]:
-    """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit."""
+    """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
+
+    The default is the competitive outer-Claude matrix, including the two
+    proxy arms. no_model_only keeps those two on decide() and still sends
+    playwright_mcp and stagehand through Claude when a key is set.
+    """
     ledger = SpendLedger.load(spend_path)
     destination = runs_dir or RUNS_DIR
     destination.mkdir(parents=True, exist_ok=True)
@@ -252,15 +310,24 @@ async def execute_probe(
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     for task in probe_tasks():
         for arm in ARMS:
-            if not arm_needs_claude(arm):
+            if not arm_needs_claude(arm, no_model_only=no_model_only):
                 rows.append(await run_no_model_arm(arm, task, headless=headless))
                 continue
             if not api_key:
-                rows.append(empty_row(arm, task["id"], reason="ANTHROPIC_API_KEY unset"))
+                rows.append(
+                    empty_row(
+                        arm,
+                        task["id"],
+                        reason="ANTHROPIC_API_KEY unset",
+                        no_model_only=no_model_only,
+                    )
+                )
                 continue
             blocked = claude_block_reason(probe_spent, ledger.running_total_usd)
             if blocked:
-                rows.append(empty_row(arm, task["id"], reason=blocked))
+                rows.append(
+                    empty_row(arm, task["id"], reason=blocked, no_model_only=no_model_only)
+                )
                 continue
             row = await run_claude_arm(
                 arm,
@@ -299,11 +366,21 @@ def main(argv: list[str] | None = None) -> int:
         help="Run the probe. Omit this to print the plan and exit.",
     )
     parser.add_argument("--no-headless", action="store_true", help="Show the browser. Only with --execute.")
+    parser.add_argument(
+        "--no-model-only",
+        action="store_true",
+        help=(
+            "Run diff_fast_act and macro_replay through decide() with no outer model. "
+            "Not the competitive measurement. Those arms cannot close the Stagehand gap this way."
+        ),
+    )
     args = parser.parse_args(argv)
     if not args.execute:
-        print(json.dumps(plan_probe(), indent=2))
+        print(json.dumps(plan_probe(no_model_only=args.no_model_only), indent=2))
         return 0
-    rows = asyncio.run(execute_probe(headless=not args.no_headless))
+    rows = asyncio.run(
+        execute_probe(headless=not args.no_headless, no_model_only=args.no_model_only)
+    )
     spent = sum(row["usd"] for row in rows)
     print(f"probe rows: {len(rows)}")
     print(f"probe claude usd: {spent:.4f}")

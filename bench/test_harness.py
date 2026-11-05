@@ -299,13 +299,16 @@ def test_prior_spend_is_the_recorded_m0_total():
     assert "opus" not in json.dumps(data).lower()
     assert data["prior"]["input_tokens"] == 3_200_000
     assert data["prior"]["output_tokens"] == 3000
-    assert data["running_total_usd"] == pytest.approx(9.645)
+    assert data["prior"]["usd"] == pytest.approx(9.645)
+    assert data["recorded_extra_usd"] == pytest.approx(1.409514)
+    assert data["running_total_usd"] == pytest.approx(11.054514)
     assert "4/5" in data["prior"]["note"]
     assert "94.8" in data["prior"]["note"]
 
     ledger = SpendLedger.load(DEFAULT_SPEND_PATH)
     assert ledger.tasks == []
-    assert ledger.running_total_usd == pytest.approx(9.645)
+    assert ledger.recorded_extra_usd == pytest.approx(1.409514)
+    assert ledger.running_total_usd == pytest.approx(11.054514)
     assert ledger.allows_another_task()
 
 

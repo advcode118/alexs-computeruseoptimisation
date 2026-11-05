@@ -1,6 +1,7 @@
 """MCP stdio proxy in front of pinned @playwright/mcp@0.0.84.
 
-The child is `npx @playwright/mcp@0.0.84 --snapshot-mode none`. tools/list
+The child is `npx @playwright/mcp@0.0.84 --isolated` with its own
+user-data-dir and `--snapshot-mode none`. tools/list
 runs once at startup. Every tool the child returns is exposed as-is, then
 fast_act and do_task_segment. A Playwright tools/call is forwarded without
 renaming arguments. After a page action the proxy waits for the DOM to settle,
@@ -33,14 +34,14 @@ from mcp.server.stdio import stdio_server
 from mcp.shared.exceptions import MCPError
 from mcp_types import INTERNAL_ERROR
 
-from proxy.child import ChildProtocolError, NdjsonChild, child_argv
+from proxy.child import ChildProtocolError, NdjsonChild
 from proxy.segment import dispatch, listed_tools
 
 SERVER_NAME = "playwright-mcp-proxy"
 SERVER_VERSION = "0.2.0"
 INSTRUCTIONS = (
     "Forwards @playwright/mcp@0.0.84 unchanged. "
-    "The child is started with --snapshot-mode none. "
+    "The child is started with --isolated, its own user-data-dir, and --snapshot-mode none. "
     "Prefer do_task_segment for a multi-step sub-task and fast_act for one obvious action, "
     "instead of calling browser_snapshot, browser_click, and browser_type one step at a time. "
     "After a browser action this proxy waits until the page is quiet (SETTLE_QUIET_MS, default 500ms) "
@@ -78,7 +79,7 @@ def build_server(child: NdjsonChild) -> Server:
 
 
 async def serve() -> None:
-    child = NdjsonChild(child_argv())
+    child = NdjsonChild()
     await child.start()
     server = build_server(child)
     try:

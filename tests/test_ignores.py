@@ -34,6 +34,25 @@ def test_full_page_observe_is_not_a_scoped_snapshot():
     assert counter.count == 2
 
 
+def test_full_snapshot_still_counts_when_its_text_includes_the_diff_sizes():
+    """A proxy or Stagehand snapshot stamps both sizes. That is still an ignore."""
+    diff = 'changed\nfull_snapshot_chars: 100\ndiff_chars: 8\n'
+    snapshot = "(empty)\nfull_snapshot_chars: 40000\ndiff_chars: 7\n"
+    counter = IgnoreCounter()
+    counter.note_call("fast_act", {"script": 'page.getByRole("button", { name: "Search" }).click()'})
+    counter.note_result("fast_act", diff)
+    assert counter.note_call("browser_snapshot", {}) is True
+    counter.note_result("browser_snapshot", snapshot)
+    assert counter.count == 1
+    assert action_returned_compact_diff("browser_snapshot", snapshot) is False
+    assert action_returned_compact_diff("snapshot", snapshot) is False
+    counter.note_call("run", {})
+    counter.note_result("run", diff)
+    assert counter.note_call("snapshot", {}) is True
+    counter.note_result("snapshot", snapshot)
+    assert counter.count == 2
+
+
 def test_proxy_counts_a_snapshot_that_ignores_the_diff():
     before = '- button "OK" [ref=e2]\n- textbox "Item" [ref=e4]'
     after = '- button "OK" [ref=e2]\n- textbox "Item" [ref=e4]: milk'

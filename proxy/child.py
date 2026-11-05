@@ -12,14 +12,20 @@ import contextlib
 import json
 import os
 import shlex
+import shutil
 import signal
 import sys
+import tempfile
 from typing import Any
 
 PLAYWRIGHT_MCP_VERSION = "0.0.84"
+# --isolated avoids the shared ~/.cache/ms-playwright profile lock.
+# A fresh --user-data-dir is added at launch so a slow previous Chrome
+# cannot hold that lock either. Do not drop --isolated.
 DEFAULT_CHILD_ARGV = [
     "npx",
     f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}",
+    "--isolated",
     "--snapshot-mode",
     "none",
 ]
@@ -33,7 +39,12 @@ class ChildProtocolError(RuntimeError):
 
 
 def child_argv() -> list[str]:
-    """Pinned npx command, or PLAYWRIGHT_MCP_PROXY_CHILD when a test sets it."""
+    """Pinned npx command, or PLAYWRIGHT_MCP_PROXY_CHILD when a test sets it.
+
+    The default list includes --isolated and does not create a directory.
+    NdjsonChild() with no argv adds a fresh --user-data-dir and deletes it
+    on stop.
+    """
     override = os.environ.get(CHILD_ARGV_ENV, "").strip()
     if not override:
         return list(DEFAULT_CHILD_ARGV)
@@ -41,6 +52,28 @@ def child_argv() -> list[str]:
     if not argv:
         raise ChildProtocolError(f"{CHILD_ARGV_ENV} is empty")
     return argv
+
+
+def resolve_child_argv(argv: list[str] | None) -> tuple[list[str], str | None]:
+    """Return the child command and a profile directory this process owns.
+
+    An explicit argv is returned unchanged and the profile is not owned.
+    argv None uses PLAYWRIGHT_MCP_PROXY_CHILD when set, otherwise --isolated
+    plus a new user-data-dir.
+    """
+    if argv is not None:
+        return list(argv), None
+    override = os.environ.get(CHILD_ARGV_ENV, "").strip()
+    if override:
+        parsed = shlex.split(override)
+        if not parsed:
+            raise ChildProtocolError(f"{CHILD_ARGV_ENV} is empty")
+        return parsed, None
+    profile = tempfile.mkdtemp(prefix="pw-mcp-proxy-")
+    launch = list(DEFAULT_CHILD_ARGV)
+    at = launch.index("--snapshot-mode")
+    launch[at:at] = ["--user-data-dir", profile]
+    return launch, profile
 
 
 def encode_ndjson(payload: dict) -> bytes:
@@ -52,7 +85,7 @@ class NdjsonChild:
     """One @playwright/mcp process. tools/list runs once, during start."""
 
     def __init__(self, argv: list[str] | None = None):
-        self.argv = list(argv) if argv is not None else child_argv()
+        self.argv, self._owned_profile = resolve_child_argv(argv)
         self.process: asyncio.subprocess.Process | None = None
         self.tools: list[dict[str, Any]] = []
         self._request_id = 0
@@ -91,19 +124,22 @@ class NdjsonChild:
                 await task
         process = self.process
         self.process = None
-        if process is None:
-            return
-        if process.stdin is not None:
-            process.stdin.close()
-        if process.returncode is None:
-            with contextlib.suppress(ProcessLookupError, PermissionError):
-                os.killpg(process.pid, signal.SIGTERM)
-            try:
-                await asyncio.wait_for(process.wait(), timeout=5)
-            except TimeoutError:
+        if process is not None:
+            if process.stdin is not None:
+                process.stdin.close()
+            if process.returncode is None:
                 with contextlib.suppress(ProcessLookupError, PermissionError):
-                    os.killpg(process.pid, signal.SIGKILL)
-                await process.wait()
+                    os.killpg(process.pid, signal.SIGTERM)
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=5)
+                except TimeoutError:
+                    with contextlib.suppress(ProcessLookupError, PermissionError):
+                        os.killpg(process.pid, signal.SIGKILL)
+                    await process.wait()
+        profile = self._owned_profile
+        self._owned_profile = None
+        if profile:
+            shutil.rmtree(profile, ignore_errors=True)
 
     async def call_tool(self, name: str, arguments: dict | None) -> dict:
         """Forward one tools/call. The child's result object is returned as-is."""

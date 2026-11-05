@@ -1,9 +1,15 @@
-"""Benchmark arms. The outer model, when one is used, is claude-sonnet-4-6.
+"""Benchmark arms. The outer model is claude-sonnet-4-6. Opus is never used.
 
-plain Playwright MCP is the weak comparison. Stagehand's snapshot/run/screenshot
-tools are the one that matters. diff_fast_act and macro_replay are the proxy:
-the tools themselves do not call Claude. Nebius is used only when a key is
-already set, and only inside do_task_segment's existing fallback.
+The competitive probe drives every arm with that outer model. plain Playwright
+MCP is the weak comparison. Stagehand's snapshot/run/screenshot tools are the
+one that matters. diff_fast_act and macro_replay expose the proxy: settle,
+a compact diff, fast_act with a script, and do_task_segment. Those tools do
+not call Claude. The outer loop does.
+
+no_model_only is optional. It runs the two proxy arms through decide() with
+no outer model. That path is not the competitive measurement. It cannot
+close the Stagehand gap on open WebVoyager tasks. Nebius is used only when
+a key is already set, and only inside do_task_segment's existing fallback.
 """
 
 from __future__ import annotations
@@ -17,9 +23,9 @@ ARM_STAGEHAND = "stagehand"
 
 ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
 
-# These two need an outer model to choose tools. The proxy arms can finish a
-# task through decide(), replay, or a locator script with no Claude call.
-CLAUDE_ARMS = frozenset({ARM_PLAYWRIGHT, ARM_STAGEHAND})
+# The proxy arms can still finish through decide(), replay, or a locator
+# script when no_model_only is requested. The competitive probe does not.
+NO_MODEL_CAPABLE = frozenset({ARM_DIFF, ARM_REPLAY})
 
 _DIFF_PROMPT = """You are a browser automation agent. Tools include fast_act, do_task_segment, and the forwarded Playwright tools.
 
@@ -57,11 +63,17 @@ Guidelines:
 Be efficient - batch the browser steps into one run call."""
 
 
-def arm_needs_claude(arm: str) -> bool:
-    """True when the arm cannot act without the outer Claude model."""
+def arm_needs_claude(arm: str, *, no_model_only: bool = False) -> bool:
+    """True when this arm is driven by the outer Claude model.
+
+    Competitive runs pass no_model_only False, so every arm needs Claude.
+    no_model_only True leaves diff_fast_act and macro_replay on decide().
+    """
     if arm not in ARMS:
         raise ValueError(f"unknown arm {arm!r}")
-    return arm in CLAUDE_ARMS
+    if no_model_only and arm in NO_MODEL_CAPABLE:
+        return False
+    return True
 
 
 def prompt_for(arm: str) -> str:

@@ -23,7 +23,47 @@
   "tasks": [],
   "input_tokens": 3200000,
   "output_tokens": 3000,
-  "running_total_usd": 9.645,
+  "recorded_extra_usd": 1.409514,
+  "recorded_probe": {
+    "label": "3-task box probe already spent",
+    "usd": 1.409514,
+    "claude_usd_reported": 1.4095,
+    "note": "Do not reset running_total_usd to the M0 prior of 9.645. The box probe already spent this on top of that prior. Per-arm dollars below are the reported figures; their sum rounds to the Claude spend of $1.4095 and the project total of $11.054514. diff_fast_act and macro_replay were the no-model path and spent $0. They are not a competitive result.",
+    "arms": [
+      {
+        "arm": "playwright_mcp",
+        "success": "1/3",
+        "wall_s": 417.5,
+        "usd": 1.3122,
+        "steps": 63
+      },
+      {
+        "arm": "stagehand",
+        "success": "1/3",
+        "wall_s": 33.5,
+        "usd": 0.0974,
+        "steps": 8,
+        "model_ignores_tools": 2
+      },
+      {
+        "arm": "diff_fast_act",
+        "success": "0/3",
+        "wall_s": 35.2,
+        "usd": 0.0,
+        "note": "no-model path only, empty URL"
+      },
+      {
+        "arm": "macro_replay",
+        "success": "0/3",
+        "wall_s": 35.0,
+        "usd": 0.0,
+        "replay_hits": 0,
+        "note": "no-model path only, empty URL"
+      }
+    ],
+    "successes": ["playwright_mcp x wikipedia", "stagehand x hackernews"]
+  },
+  "running_total_usd": 11.054514,
   "aborted": false,
   "abort_reason": null
 }
