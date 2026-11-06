@@ -50,5 +50,21 @@ npx vercel --prod
 
 ### What still blocks a deploy
 
-- **Tom’s Vercel account.** The app is ready to build, and it is not linked to a Vercel project. A deploy has to be started by someone who can sign in to that account.
-- **The remote is Origin, not GitHub.** There is no GitHub remote, so a Vercel Git integration (deploy on push) cannot be connected. Use the CLI above, or mirror the repo to GitHub, GitLab, or Bitbucket first.
+- **Tom’s Vercel account.** The app is ready to build. A deploy has to be started by someone who can sign in to that account (CLI above), or via a Vercel Git integration on this GitHub repo once linked.
+
+## Computer-use loop (from Cursor Origin)
+
+The Python agent stack lives beside this site (synced from Origin tip through PR #17 / script-first repair):
+
+- `loop/` — local observe/decide/act loop + MCP server
+- `bench/` — competitive probe harness (playwright_mcp, script_first, stagehand, …)
+- `proxy/`, `backends/`, `core/`, `tests/`
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+python -m loop demo
+# or: ANTHROPIC_API_KEY=… python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand
+```
+
+Cursor Origin remains the day-to-day forge for open stack PRs; this GitHub repo mirrors the progress site plus the current tip tree for visibility and Vercel.

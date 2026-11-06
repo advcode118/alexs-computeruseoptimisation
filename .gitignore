@@ -5,3 +5,16 @@ out
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
+
+# Python (computer-use stack from Origin)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.playwright-mcp/
+bench/runs/
+bench/results/
+bench/snapshots/
