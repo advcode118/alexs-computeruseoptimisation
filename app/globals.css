@@ -1,44 +1,92 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-instrument), ui-serif, Georgia, serif;
-  --font-mono: var(--font-plex), ui-monospace, monospace;
-  --color-ink: #0e0e0c;
-  --color-paper: #efeae0;
-  --color-muted: #b4afa4;
-  --color-line: #2c2b26;
-  --color-amber: #f0a202;
-  --color-amber-ink: #1c1507;
-  --color-amber-muted: #4a3b12;
-  --color-lime: #d6ff4a;
-  --color-gap: #ff6b4a;
+  --font-sans: var(--font-public), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --color-paper: #eef1f6;
+  --color-sheet: #f8f9fc;
+  --color-ink: #0f1b33;
+  --color-mute: #4e5b74;
+  --color-rule: #cfd6e3;
+  --color-night: #13224a;
+  --color-night-ink: #dfe6f5;
+  --color-night-mute: #9fb0d3;
+  --color-arm-mcp: #2856c8;
+  --color-arm-proxy: #8a3a9e;
+  --color-arm-replay: #c07ad0;
+  --color-arm-script: #0b7f62;
+  --color-arm-stagehand: #b5770a;
+  --color-stop: #c2253d;
 }
 
 html {
   scroll-behavior: smooth;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-}
-
 body {
-  background-color: var(--color-ink);
-  background-image:
-    radial-gradient(900px 420px at 100% -8%, rgba(240, 162, 2, 0.16), transparent 55%),
-    radial-gradient(640px 360px at -12% 8%, rgba(214, 255, 74, 0.05), transparent 50%);
-  color: var(--color-paper);
+  background-color: var(--color-paper);
+  background-image: linear-gradient(to right, rgba(15, 27, 51, 0.045) 1px, transparent 1px);
+  background-size: 96px 100%;
+  color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: #f0a202;
-  color: #1c1507;
+  background: #2856c8;
+  color: #f8f9fc;
 }
 
-section[id] {
-  scroll-margin-top: 8rem;
+:focus-visible {
+  outline: 3px solid var(--color-arm-mcp);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+[id] {
+  scroll-margin-top: 6rem;
+}
+
+.bar-grow {
+  transition: width 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.step-enter {
+  animation: step-in 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.loop-pulse {
+  animation: loop-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes loop-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .bar-grow {
+    transition: none;
+  }
+
+  .step-enter,
+  .loop-pulse {
+    animation: none;
+  }
 }

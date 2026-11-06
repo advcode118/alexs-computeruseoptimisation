@@ -1,9 +1,9 @@
 # Computer-use optimisation
 
-A dark-mode progress page for this work: the current bottleneck, what to do next, the four tracks, and what is still missing.
+A progress page for this work: the current status, the history from the browser loop to script_first, step-through demos of how each arm runs a task, probe charts, and the loop and pathway.
 Browser loop, separate from this page: `python -m loop demo` ([loop/README.md](loop/README.md)).
 
-All of the copy is hardcoded in [`data/progress.ts`](data/progress.ts). Edit that file to update the page.
+All of the copy and every probe number is hardcoded in [`data/progress.ts`](data/progress.ts). Edit that file to update the page.
 
 ## Run locally
 

@@ -1,243 +1,226 @@
-import { progress, type TrackStatus } from "@/data/progress";
+import LoopPathway from "@/app/components/loop-pathway";
+import ProbeCharts from "@/app/components/probe-charts";
+import RunDemo from "@/app/components/run-demo";
+import StatusBand from "@/app/components/status-band";
+import { armMeta, probes, progress } from "@/data/progress";
 
 const sections = [
-  { href: "#next", label: "Next" },
-  { href: "#bottleneck", label: "Bottleneck" },
-  { href: "#tracks", label: "Tracks" },
-  { href: "#missing", label: "Missing" },
+  { href: "#status", label: "Status" },
+  { href: "#history", label: "History" },
+  { href: "#how", label: "How it runs" },
+  { href: "#charts", label: "Charts" },
+  { href: "#loop", label: "Loop and pathway" },
 ];
 
-function StatusMark({ status, label }: { status: TrackStatus; label: string }) {
-  const live = status === "in_progress";
-
+function SectionHead({ id, number, title, lede }: { id: string; number: string; title: string; lede: string }) {
   return (
-    <span
-      className={`inline-flex items-center gap-2 font-mono text-[11px] tracking-[0.18em] whitespace-nowrap uppercase ${
-        live ? "text-lime" : "text-muted"
-      }`}
-    >
-      <span
-        aria-hidden
-        className={`size-2 shrink-0 rounded-full ${live ? "bg-lime" : "border border-current"}`}
-      />
-      {label}
-    </span>
+    <div className="grid gap-3 sm:grid-cols-[4rem_minmax(0,1fr)] sm:gap-6">
+      <span className="font-mono text-sm font-bold text-mute">{number}</span>
+      <div>
+        <h2 id={id} className="font-display text-4xl leading-[1.02] font-bold tracking-[-0.03em] text-balance sm:text-5xl">
+          {title}
+        </h2>
+        <p className="mt-3 max-w-2xl text-lg leading-relaxed text-mute">{lede}</p>
+      </div>
+    </div>
+  );
+}
+
+function Timeline() {
+  return (
+    <ol className="relative mt-12 sm:ml-[5.5rem]">
+      <span aria-hidden className="absolute top-2 bottom-2 left-[7px] w-0.5 bg-ink/80" />
+      {progress.timeline.map((entry) => {
+        const dot =
+          entry.tone === "stop"
+            ? "bg-stop"
+            : entry.tone === "now"
+              ? "bg-[var(--color-arm-script)]"
+              : entry.id === "next"
+                ? "border-2 border-ink bg-paper"
+                : "bg-ink";
+
+        return (
+          <li key={entry.id} className="relative pb-12 pl-10 last:pb-0">
+            <span aria-hidden className={`absolute top-1.5 left-0 size-4 rounded-full ring-4 ring-paper ${dot}`} />
+            <p className={`font-mono text-sm ${entry.tone === "stop" ? "font-bold text-stop" : "text-mute"}`}>
+              {entry.label}
+            </p>
+            <h3 className="mt-1 font-display text-2xl leading-tight font-bold tracking-tight sm:text-3xl">{entry.title}</h3>
+            <p className="mt-2 max-w-3xl leading-relaxed text-mute">{entry.body}</p>
+            {entry.stack ? (
+              <ol className="mt-4 grid max-w-3xl gap-x-6 sm:grid-cols-2">
+                {entry.stack.map((item) => (
+                  <li key={item.pr} className="grid grid-cols-[2.75rem_minmax(0,1fr)] border-b border-rule py-1.5 text-sm">
+                    <span className="font-mono font-bold">{item.pr}</span>
+                    <span>{item.text}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
+            {entry.figures.length ? (
+              <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
+                {entry.figures.map((figure) => (
+                  <div key={figure.label} className="flex min-w-[8rem] flex-col-reverse">
+                    <dt className="text-sm text-mute">{figure.label}</dt>
+                    <dd className="font-mono text-2xl font-bold tracking-tight tabular-nums">{figure.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function ProbeTable() {
+  return (
+    <details className="mt-10 border-t border-rule pt-4">
+      <summary className="cursor-pointer font-display font-semibold">The same numbers as a table</summary>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[36rem] text-left text-sm">
+          <thead className="border-b-2 border-ink font-display">
+            <tr>
+              <th className="py-2 pr-4">Probe</th>
+              <th className="py-2 pr-4">Arm</th>
+              <th className="py-2 pr-4">Success</th>
+              <th className="py-2 pr-4">Wall time per success</th>
+              <th className="py-2 pr-4">Cost</th>
+              <th className="py-2">Note</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-rule font-mono">
+            {probes.flatMap((probe) =>
+              probe.results.map((result) => (
+                <tr key={`${probe.id}-${result.arm}`}>
+                  <td className="py-2 pr-4">{probe.label}</td>
+                  <td className="py-2 pr-4">{armMeta[result.arm].short}</td>
+                  <td className="py-2 pr-4">
+                    {result.successes}/{result.tasks}
+                  </td>
+                  <td className="py-2 pr-4">{result.seconds !== undefined ? `${result.seconds}s` : "—"}</td>
+                  <td className="py-2 pr-4">{result.cost !== undefined ? `$${result.cost}` : "—"}</td>
+                  <td className="py-2 font-sans text-mute">{result.note ?? ""}</td>
+                </tr>
+              )),
+            )}
+          </tbody>
+        </table>
+      </div>
+    </details>
   );
 }
 
 export default function HomePage() {
-  const headline = progress.headline.split("\n");
-
   return (
     <>
-      <header className="sticky top-0 z-20 border-b border-line bg-ink/95 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-4 sm:px-8">
-          <a href="#top" className="flex items-center gap-3">
-            <span aria-hidden className="size-2.5 shrink-0 bg-amber" />
-            <span className="font-mono text-[11px] tracking-[0.18em] uppercase">
-              {progress.project}
+      <a
+        href="#status"
+        className="sr-only z-50 rounded-md bg-ink px-4 py-2 text-sheet focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+      >
+        Skip to the status
+      </a>
+      <header className="sticky top-0 z-20 border-b border-rule bg-paper/90 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-5 py-3 sm:px-8">
+          <a href="#top" className="flex items-center gap-2.5 font-display text-lg font-bold tracking-tight">
+            <span aria-hidden className="grid size-6 place-items-center rounded-full bg-ink">
+              <span className="size-2 rounded-full bg-[var(--color-arm-script)]" />
             </span>
+            {progress.project}
           </a>
-          <p className="font-mono text-[11px] tracking-[0.16em] text-muted uppercase">
-            {progress.asOf}
-          </p>
+          <nav aria-label="On this page" className="-mx-3 flex max-w-full gap-1 overflow-x-auto text-sm">
+            {sections.map((section) => (
+              <a
+                key={section.href}
+                href={section.href}
+                className="shrink-0 rounded-full px-3 py-1.5 text-mute hover:bg-sheet hover:text-ink"
+              >
+                {section.label}
+              </a>
+            ))}
+          </nav>
         </div>
-        <nav
-          aria-label="On this page"
-          className="mx-auto flex max-w-6xl gap-5 overflow-x-auto px-5 pb-3 font-mono text-[11px] tracking-[0.16em] uppercase sm:px-8"
-        >
-          {sections.map((section) => (
-            <a
-              key={section.href}
-              href={section.href}
-              className="shrink-0 text-muted hover:text-paper"
-            >
-              {section.label}
-            </a>
-          ))}
-        </nav>
       </header>
 
       <main id="top">
-        <div className="mx-auto max-w-6xl px-5 pt-14 sm:px-8 sm:pt-20">
-          <h1 className="max-w-[14ch] font-serif text-6xl leading-[0.9] tracking-[-0.03em] sm:text-7xl lg:text-8xl">
-            {headline.map((line, index) => (
-              <span key={line} className={index === headline.length - 1 ? "italic" : undefined}>
-                {index > 0 ? <br /> : null}
-                {line}
-              </span>
-            ))}
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-balance text-muted sm:text-xl">
-            {progress.dek}
-          </p>
+        <StatusBand />
+
+        <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
+          <div className="grid gap-6 border-b border-rule pb-10 lg:grid-cols-2 lg:gap-16">
+            <p className="text-lg leading-relaxed">{progress.goal}</p>
+            <div>
+              <p className="font-display text-base font-semibold">The bar to beat</p>
+              <p className="text-sm text-mute">{progress.benchmark.source}</p>
+              <dl className="mt-3 divide-y divide-rule border-y border-rule">
+                {progress.benchmark.rows.map((row) => (
+                  <div key={row.name} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 py-2.5">
+                    <dt className="font-semibold">{row.name}</dt>
+                    <dd className="font-mono text-sm">
+                      {row.pass} pass, {row.cost}
+                    </dd>
+                    <dd className="col-span-2 font-mono text-xs text-mute">
+                      {row.time}, {row.steps}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </div>
         </div>
 
-        <section
-          id={progress.next.id}
-          aria-labelledby="next-title"
-          className="mt-12 bg-amber bg-[linear-gradient(165deg,#ffc44d_0%,#f0a202_48%,#e09400_100%)] text-amber-ink"
-        >
-          <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <p className="font-mono text-[11px] tracking-[0.22em] uppercase">
-                {progress.next.kicker}
-              </p>
-              <p className="font-mono text-[11px] tracking-[0.18em] text-amber-muted uppercase">
-                {progress.next.aside}
-              </p>
+        <section aria-labelledby="history" className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
+          <SectionHead
+            id="history"
+            number="01"
+            title="How it got here"
+            lede="From a loop that owns each step, through one measurement and a stack of speed-layer PRs, to one script per task."
+          />
+          <Timeline />
+        </section>
+
+        <section aria-labelledby="how" className="border-t border-rule py-14 sm:py-20">
+          <div className="mx-auto max-w-6xl px-5 sm:px-8">
+            <SectionHead
+              id="how"
+              number="02"
+              title="How a task runs, arm by arm"
+              lede="Pick an arm, then press Play or Step. Watch where the model calls happen. The numbers beside it are that arm's probe results."
+            />
+          </div>
+          <div className="mx-auto mt-10 max-w-6xl sm:px-8">
+            <RunDemo demos={progress.demos} probes={probes} tasks={progress.tasks} />
+          </div>
+        </section>
+
+        <section aria-labelledby="charts" className="border-t border-rule bg-sheet/60 py-14 sm:py-20">
+          <div className="mx-auto max-w-6xl px-5 sm:px-8">
+            <SectionHead
+              id="charts"
+              number="03"
+              title="Every probe, every arm"
+              lede={`Three tasks per probe: ${progress.tasks.join(", ")}. Switch the measure, or group by arm to follow one arm across probes.`}
+            />
+            <div className="mt-10">
+              <ProbeCharts probes={probes} />
             </div>
-            <h2
-              id="next-title"
-              className="mt-4 max-w-[16ch] font-serif text-4xl leading-[1.02] tracking-[-0.03em] text-balance sm:text-6xl"
-            >
-              {progress.next.title}
-            </h2>
-            <p className="mt-5 max-w-2xl text-lg leading-relaxed text-amber-muted">
-              {progress.next.body}
-            </p>
-            <ol className="mt-10 grid gap-8 sm:grid-cols-3">
-              {progress.next.steps.map((step, index) => (
-                <li key={step.label} className="border-t border-amber-ink/20 pt-4">
-                  <p className="font-mono text-[11px] tracking-[0.18em] uppercase">
-                    {String(index + 1).padStart(2, "0")} {step.label}
-                  </p>
-                  <p className="mt-3 text-base leading-snug">{step.text}</p>
-                </li>
-              ))}
-            </ol>
+            <ProbeTable />
           </div>
         </section>
 
-        <section
-          id={progress.bottleneck.id}
-          aria-labelledby="bottleneck-title"
-          className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24"
-        >
-          <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">
-            {progress.bottleneck.kicker}
-          </p>
-          <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-end lg:gap-16">
-            <h2
-              id="bottleneck-title"
-              className="font-serif text-5xl leading-none tracking-[-0.03em] sm:text-6xl"
-            >
-              {progress.bottleneck.title}
-            </h2>
-            <p className="max-w-xl text-lg leading-relaxed text-muted">{progress.bottleneck.body}</p>
-          </div>
-          <ol className="mt-12 divide-y divide-line border-y border-line">
-            {progress.bottleneck.levers.map((lever) => (
-              <li
-                key={lever.index}
-                className="grid gap-3 py-7 sm:grid-cols-[4.5rem_minmax(0,1fr)] sm:gap-8"
-              >
-                <span className="font-mono text-sm tracking-[0.14em] text-amber">{lever.index}</span>
-                <div>
-                  <h3 className="font-serif text-3xl tracking-[-0.02em] sm:text-4xl">{lever.title}</h3>
-                  <p className="mt-2 text-muted">{lever.detail}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section
-          id={progress.tracks.id}
-          aria-labelledby="tracks-title"
-          className="mx-auto max-w-6xl px-5 pb-16 sm:px-8 sm:pb-24"
-        >
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
-            <div>
-              <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">
-                {progress.tracks.kicker}
-              </p>
-              <h2
-                id="tracks-title"
-                className="mt-3 font-serif text-5xl tracking-[-0.03em] sm:text-6xl"
-              >
-                {progress.tracks.title}
-              </h2>
-            </div>
-            <p className="font-mono text-[11px] tracking-[0.16em] text-muted uppercase">
-              {progress.tracks.items.length} tracks
-            </p>
-          </div>
-          <ol>
-            {progress.tracks.items.map((track) => {
-              const live = track.status === "in_progress";
-
-              return (
-                <li
-                  key={track.index}
-                  className={`grid grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1 border-b border-line py-6 lg:grid-cols-[4.5rem_minmax(0,1.15fr)_max-content_minmax(0,1fr)] lg:gap-x-8 ${
-                    live ? "shadow-[inset_3px_0_0_0_var(--color-lime)]" : ""
-                  }`}
-                >
-                  <span
-                    className={`font-serif text-3xl italic ${live ? "text-lime" : "text-paper/35"}`}
-                  >
-                    {track.index}
-                  </span>
-                  <h3 className="min-w-0 font-serif text-2xl tracking-[-0.02em] lg:text-3xl">
-                    {track.title}
-                  </h3>
-                  <div className="col-start-2 lg:col-start-3">
-                    <StatusMark status={track.status} label={track.statusLabel} />
-                  </div>
-                  <p className="col-start-2 max-w-sm min-w-0 text-muted lg:col-start-4">{track.summary}</p>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-
-        <section
-          id={progress.missing.id}
-          aria-labelledby="missing-title"
-          className="border-t-4 border-gap bg-[#191813]"
-        >
-          <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="font-mono text-[11px] tracking-[0.22em] text-gap uppercase">
-                  {progress.missing.kicker}
-                </p>
-                <h2
-                  id="missing-title"
-                  className="mt-3 font-serif text-5xl tracking-[-0.03em] sm:text-6xl"
-                >
-                  {progress.missing.title}
-                </h2>
-              </div>
-              <p className="font-mono text-[11px] tracking-[0.16em] text-gap uppercase">
-                {progress.missing.items.length} open
-              </p>
-            </div>
-            <ol className="mt-10">
-              {progress.missing.items.map((item, index) => (
-                <li
-                  key={item.title}
-                  className="grid grid-cols-[3.25rem_minmax(0,1fr)] items-baseline gap-x-4 gap-y-2 border-b border-line py-7 lg:grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,0.9fr)] lg:gap-x-8"
-                >
-                  <span className="font-mono text-sm tracking-[0.14em] text-gap">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <h3 className="min-w-0 font-serif text-2xl leading-tight tracking-[-0.02em] lg:text-3xl">
-                    {item.title}
-                  </h3>
-                  <p className="col-start-2 min-w-0 leading-relaxed text-muted lg:col-start-3">
-                    {item.detail}
-                  </p>
-                </li>
-              ))}
-            </ol>
+        <section aria-labelledby="loop" className="border-t border-rule py-14 sm:py-20">
+          <div className="mx-auto max-w-6xl px-5 sm:px-8">
+            <SectionHead id="loop" number="04" title="The loop and the pathway" lede={progress.loop.body} />
+            <LoopPathway />
           </div>
         </section>
 
-        <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 font-mono text-[11px] tracking-[0.14em] text-muted uppercase sm:px-8">
-          <p>Dark mode only</p>
-          <p>Edit {progress.sourceFile}</p>
+        <footer className="border-t border-rule">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 font-mono text-xs text-mute sm:px-8">
+            <p>As of {progress.asOf}. Numbers are from the probe logs.</p>
+            <p>Edit {progress.sourceFile}</p>
+          </div>
         </footer>
       </main>
     </>

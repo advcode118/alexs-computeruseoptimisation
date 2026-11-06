@@ -1,35 +1,37 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Figtree, IBM_Plex_Mono, Instrument_Serif } from "next/font/google";
+import { Bricolage_Grotesque, JetBrains_Mono, Public_Sans } from "next/font/google";
 import "./globals.css";
 
-const sans = Figtree({
+const sans = Public_Sans({
   subsets: ["latin"],
-  variable: "--font-figtree",
+  variable: "--font-public",
 });
 
-const serif = Instrument_Serif({
+const display = Bricolage_Grotesque({
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-instrument",
+  variable: "--font-bricolage",
 });
 
-const mono = IBM_Plex_Mono({
+const mono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-plex",
+  weight: ["400", "500", "700"],
+  variable: "--font-jetbrains",
 });
 
 export const metadata: Metadata = {
   title: "Computer-use optimisation",
   description:
-    "Where the work is stuck, what to do next, and what is still missing.",
+    "How the browser tool got faster, how each arm runs a task, and the probe numbers behind it.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#eef1f6",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${serif.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
       <body className="font-sans antialiased">{children}</body>
     </html>
   );
