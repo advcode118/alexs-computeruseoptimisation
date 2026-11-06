@@ -20,7 +20,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Computer-use optimisation",
+  title: "Alex's browser tool: script_first",
   description:
     "How the browser tool got faster, how each arm runs a task, and the probe numbers behind it.",
 };

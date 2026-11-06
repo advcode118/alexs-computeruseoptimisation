@@ -158,8 +158,7 @@ export default class ProbeCharts extends Component<Props, State> {
                               armMeta[row.result.arm].owner === "yours" ? "font-bold text-[var(--color-yours)]" : "text-mute"
                             }`}
                           >
-                            {armMeta[row.result.arm].owner === "yours" && grouping === "probe" ? "Yours: " : ""}
-                            {row.label}
+                                                        {row.label}
                           </span>
                           {row.result.note ? (
                             <span className="block truncate font-sans text-[11px] text-mute">{row.result.note}</span>

@@ -59,14 +59,14 @@ export type DemoArm = {
 export type ArmOwner = "yours" | "baseline" | "competitor" | "parked";
 
 export const ownerLabel: Record<ArmOwner, string> = {
-  yours: "Yours",
+  yours: "Alex's tool",
   baseline: "Baseline tool",
   competitor: "Competitor bar",
   parked: "Parked experiment",
 };
 
 export const armMeta: Record<ArmId, { name: string; short: string; color: string; owner: ArmOwner }> = {
-  script_first: { name: "Yours: script_first", short: "script_first", color: "var(--color-yours)", owner: "yours" },
+  script_first: { name: "script_first", short: "script_first", color: "var(--color-yours)", owner: "yours" },
   playwright_mcp: { name: "Plain Playwright MCP", short: "Playwright MCP", color: "var(--color-arm-mcp)", owner: "baseline" },
   stagehand: { name: "Stagehand", short: "Stagehand", color: "var(--color-arm-stagehand)", owner: "competitor" },
   diff_fast_act: { name: "Proxy: diff + fast act", short: "diff_fast_act", color: "var(--color-arm-proxy)", owner: "parked" },
@@ -146,20 +146,24 @@ export const probes: Probe[] = [
 ];
 
 export const progress = {
-  project: "Computer-use optimisation",
+  project: "Alex's browser tool",
+  links: [
+    { label: "GitHub", href: "https://github.com/advcode118/alexs-computeruseoptimisation" },
+    { label: "Cursor Origin", href: "https://cursor.com/codebase/tom-wei-de-vrieze/alexs-computeruseoptimisation" },
+  ],
   asOf: "6 November 2026",
   sourceFile: "data/progress.ts",
   goal: "A faster browser tool for computer use. An outer agent (Claude, Cursor) drives a browser. The main number is wall time per successful task, with success within about 2 points of the stronger baseline. Browser first. Desktop later, not started.",
   status: {
     headline: "script_first is 3/3 and the cheapest.",
     subhead: "About 0.7s over the ~3.1s bar.",
-    body: "In the latest probe (PR #18, Claude Sonnet 5.5, three tasks), your script_first is 3.67s per success at $0.047, and every task is still 2 steps. Plain Playwright MCP is 2.98s at $0.165. Stagehand is 4.62s at $0.074.",
+    body: "In the latest probe (PR #18, Claude Sonnet 5.5, three tasks), script_first is 3.67s per success at $0.047, and every task is still 2 steps. Plain Playwright MCP is 2.98s at $0.165. Stagehand is 4.62s at $0.074.",
     probe: "pr18" as ProbeId,
     next: "Next: stop-check PR, in progress.",
     spend: { used: 16.64, cap: 50, abortAt: 40 },
   },
   pitch: {
-    kicker: "script_first, Tom's browser tool",
+    kicker: "script_first, Alex's browser tool",
     headline: "One Claude call writes the whole browser task.",
     line: "Chrome runs the script. No model between clicks. If the end-state check fails, Claude gets one repair.",
     proof: [
@@ -358,7 +362,7 @@ export const progress = {
     },
     {
       id: "script_first",
-      name: "Yours: script_first",
+      name: "script_first",
       arms: ["script_first"],
       oneLine: "One Claude call writes the whole task as a short Playwright script. Chrome runs it.",
       steps: [
@@ -370,7 +374,7 @@ export const progress = {
         { lane: "tool", title: "Run the repaired script", detail: "Chrome runs the second script.", counts: "browser", branch: "repair" },
         { lane: "check", title: "Check again", detail: "Pass, or the run fails.", branch: "repair" },
       ],
-      takeaway: "Your product. Cheapest arm per run. In PR #18 every task is still 2 steps, about 0.7s over the ~3.1s bar.",
+      takeaway: "Alex's product. Cheapest arm per run. In PR #18 every task is still 2 steps, about 0.7s over the ~3.1s bar.",
     },
     {
       id: "stagehand",

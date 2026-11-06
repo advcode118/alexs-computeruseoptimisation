@@ -71,8 +71,7 @@ function Timeline() {
                     }`}
                   >
                     <dt className={`text-sm ${figure.yours ? "font-semibold text-[var(--color-yours)]" : "text-mute"}`}>
-                      {figure.yours ? "Yours: " : ""}
-                      {figure.label}
+                                            {figure.label}
                     </dt>
                     <dd
                       className={`font-mono text-2xl font-bold tracking-tight tabular-nums ${
@@ -130,6 +129,26 @@ function ProbeTable() {
   );
 }
 
+function RepoLinks({ className }: { className: string }) {
+  return (
+    <ul aria-label="Source code" className={className}>
+      {progress.links.map((link) => (
+        <li key={link.href}>
+          <a
+            href={link.href}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 rounded-full border border-ink px-3 py-1 font-semibold text-ink hover:bg-ink hover:text-sheet"
+          >
+            {link.label}
+            <span aria-hidden>↗</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function HomePage() {
   const spend = progress.status.spend;
 
@@ -161,6 +180,7 @@ export default function HomePage() {
               </a>
             ))}
           </nav>
+          <RepoLinks className="flex shrink-0 gap-2 text-sm" />
         </div>
       </header>
 
@@ -174,7 +194,7 @@ export default function HomePage() {
               id="how"
               number="01"
               title="Compare it, step by step"
-              lede="Press Play or Step. See where each arm calls a model. Pink is yours."
+              lede="Press Play or Step. See where each arm calls a model. Pink is script_first."
             />
           </div>
           <div className="reveal mx-auto mt-10 max-w-6xl sm:px-8">
@@ -270,6 +290,7 @@ export default function HomePage() {
         <footer className="border-t border-rule">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 font-mono text-xs text-mute sm:px-8">
             <p>As of {progress.asOf}. Numbers are from the probe logs.</p>
+            <RepoLinks className="flex gap-2 font-sans text-sm" />
             <p>Edit {progress.sourceFile}</p>
           </div>
         </footer>
