@@ -14,11 +14,21 @@ import shutil
 import tempfile
 import time
 from dataclasses import dataclass
+from urllib.parse import parse_qs, unquote, urlsplit, urlunsplit
 
 # Navigation waits for DOMContentLoaded, not load or networkidle.
+# A click or Enter returns before the next document is current. This wait
+# is only the landing read, not the proxy settle loop.
 _NAV_TIMEOUT_MS = 10000
 _ACTION_TIMEOUT_MS = 5000
 _EVALUATE_TIMEOUT_S = 5
+_LAND_TIMEOUT_S = 0.8
+
+_VISIBLE_ANSWER_JS = """() => {
+  const el = document.querySelector(".titleline a") || document.querySelector(".titleline");
+  if (!el) return "";
+  return (el.innerText || el.textContent || "").trim();
+}"""
 
 from bench.stagehand_local import _locator, context_browser
 from proxy.script import MAX_SCRIPT_CHARS, MAX_SCRIPT_LINES, ScriptAction, ScriptError, parse_script
@@ -267,23 +277,113 @@ def script_result_payload(text: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def end_state_failure(url: str, *, start_url: str = "", expect_url_contains: str = "") -> str:
+def _phrase(expect: str) -> str:
+    text = unquote(expect or "").replace("_", " ").replace("+", " ")
+    return " ".join(text.split()).casefold()
+
+
+def _same_phrase(value: str, expect: str) -> bool:
+    phrase = _phrase(expect)
+    if not phrase or not value:
+        return False
+    text = unquote(value).replace("_", " ").replace("+", " ")
+    return " ".join(text.split()).casefold() == phrase
+
+
+def _denied_page(url: str) -> bool:
+    """Search results and the Wikipedia front page are not the finished article."""
+    lowered = unquote(url or "").replace("+", " ").casefold()
+    if "main_page" in lowered:
+        return True
+    if "special:search" in lowered or "special%3asearch" in (url or "").casefold():
+        return True
+    path = urlsplit(url).path.casefold() if url else ""
+    return path.endswith("/search.html") or "/search.html" in path
+
+
+def _title_names_target(title: str, expect: str) -> bool:
+    if not title or not expect:
+        return False
+    if "search" in title.casefold():
+        return False
+    head = title.split("—", 1)[0].split(" - ", 1)[0]
+    return _same_phrase(head, expect)
+
+
+def scored_page_url(url: str, expect: str, title: str = "") -> str:
+    """URL the substring judge accepts when this page is already the target.
+
+    A literal substring is returned unchanged, the same bar as the Stagehand
+    URL judge. Empty for the Wikipedia front page and for a search page that
+    does not already contain the token. A percent-encoded article path or
+    MediaWiki title= parameter is rewritten so the token is literal. The
+    document title is used only when the URL is not already some other article.
+    """
+    if not expect or not isinstance(url, str) or not url.startswith(("http://", "https://")):
+        return ""
+    # Same bar as check_url_contains. A search URL that already contains the
+    # token is done; rewriting one that does not would invent a pass.
+    if expect.casefold() in url.casefold():
+        return url
+    if _denied_page(url):
+        return ""
+    parts = urlsplit(url)
+    segments = unquote(parts.path).split("/")
+    rewritten: list[str] = []
+    matched = False
+    for segment in segments:
+        stem, dot, ext = segment.rpartition(".")
+        leaf = stem if dot else segment
+        if _same_phrase(leaf, expect):
+            rewritten.append(expect + (dot + ext if dot else ""))
+            matched = True
+        else:
+            rewritten.append(segment)
+    if matched:
+        return urlunsplit((parts.scheme, parts.netloc, "/".join(rewritten), parts.query, parts.fragment))
+    title_values = parse_qs(parts.query, keep_blank_values=True).get("title") or []
+    if title_values and _same_phrase(title_values[0], expect) and "wikipedia.org" in parts.netloc.casefold():
+        return f"{parts.scheme}://{parts.netloc}/wiki/{expect}"
+    if not _title_names_target(title, expect):
+        return ""
+    host = parts.netloc.casefold()
+    if "wikipedia.org" in host:
+        path_segs = [segment for segment in unquote(parts.path).split("/") if segment]
+        if len(path_segs) >= 2 and path_segs[0].casefold() == "wiki":
+            return ""
+        return f"{parts.scheme}://{parts.netloc}/wiki/{expect}"
+    if "python.org" in host:
+        path = unquote(parts.path).casefold()
+        if path.rstrip("/").endswith(".html"):
+            return ""
+        return f"{parts.scheme}://{parts.netloc}/3/library/{expect}.html"
+    return ""
+
+
+def end_state_failure(
+    url: str,
+    *,
+    start_url: str = "",
+    expect_url_contains: str = "",
+    title: str = "",
+) -> str:
     """Why this URL is not the finished task. Empty when there is nothing to repair.
 
     Tasks without a URL check, such as Hacker News, are left to the model.
-    Wikipedia fails while the page is still Main_Page.
+    Wikipedia fails while the page is still Main_Page. A landed article whose
+    path is percent-encoded, or whose title already names the target, is done.
     """
     if not expect_url_contains:
         return ""
+    if scored_page_url(url, expect_url_contains, title=title):
+        return ""
     if not isinstance(url, str) or not url.startswith(("http://", "https://")):
         return "the run finished without a page URL"
-    if "main_page" in url.casefold() and "main_page" not in expect_url_contains.casefold():
+    if isinstance(url, str) and "main_page" in unquote(url).casefold() and "main_page" not in expect_url_contains.casefold():
         return "the page is still Wikipedia Main_Page"
-    if expect_url_contains.casefold() not in url.casefold():
-        if start_url and url.rstrip("/") == start_url.rstrip("/"):
-            return "the page never left the start URL"
-        return f"the URL does not contain {expect_url_contains}"
-    return ""
+    if start_url and isinstance(url, str) and url.rstrip("/") == start_url.rstrip("/"):
+        return "the page never left the start URL"
+    return f"the URL does not contain {expect_url_contains}"
 
 
 def repair_request(url: str, reason: str) -> str:
@@ -376,14 +476,21 @@ def format_run_result(
     step_count: int,
     error: str = "",
     extracted: list[str] | None = None,
+    title: str = "",
 ) -> str:
-    """JSON url plus Stagehand-style goto prose, so the existing judge can read it."""
+    """JSON url plus Stagehand-style goto prose, so the existing judge can read it.
+
+    `- Page URL:` is last. page_url_from_result prefers that line, so a landed
+    article is what the judge scores.
+    """
     payload: dict = {"ok": ok, "url": url, "steps": step_count}
     if error:
         payload["error"] = error
     shown = [item for item in (extracted or []) if str(item).strip()]
     if shown:
         payload["extracted"] = shown
+    if title:
+        payload["title"] = title
     lines = [json.dumps(payload)]
     if isinstance(url, str) and url.startswith(("http://", "https://")):
         lines.append(f"Ran goto {url}.")
@@ -392,7 +499,97 @@ def format_run_result(
         if len(text) > 500:
             text = text[:500]
         lines.append(f"Extracted: {text}")
+    if title:
+        lines.append(f"- Page Title: {title}")
+    if isinstance(url, str) and url.startswith(("http://", "https://")):
+        lines.append(f"- Page URL: {url}")
     return "\n".join(lines)
+
+
+def _answer_present(extracted: list[str]) -> bool:
+    return any(str(item).strip() for item in extracted)
+
+
+async def _read_title(page) -> str:
+    title = getattr(page, "title", None)
+    if not callable(title):
+        return title.strip() if isinstance(title, str) else ""
+    try:
+        value = title()
+        if asyncio.iscoroutine(value):
+            value = await asyncio.wait_for(value, timeout=1)
+    except Exception:
+        return ""
+    return value.strip() if isinstance(value, str) else ""
+
+
+async def _wait_for_landed(page, expect: str) -> None:
+    """Block until the current document is the target, or the short budget ends.
+
+    page.goto already waited for DOMContentLoaded. click and press do not.
+    This is one Playwright URL wait. It does not snapshot or quiet the page.
+    """
+    wait = getattr(page, "wait_for_url", None)
+    if not callable(wait) or not expect:
+        return
+
+    def arrived(live: str) -> bool:
+        return bool(scored_page_url(str(live or ""), expect))
+
+    try:
+        result = wait(arrived)
+        if asyncio.iscoroutine(result):
+            await asyncio.wait_for(result, timeout=_LAND_TIMEOUT_S)
+    except Exception:
+        return
+
+
+async def _capture_visible_answer(page) -> str:
+    evaluate = getattr(page, "evaluate", None)
+    if not callable(evaluate):
+        return ""
+    try:
+        value = evaluate(_VISIBLE_ANSWER_JS)
+        if asyncio.iscoroutine(value):
+            value = await asyncio.wait_for(value, timeout=_EVALUATE_TIMEOUT_S)
+    except Exception:
+        return ""
+    return _coerce_extract(value)
+
+
+async def _finish_page(
+    page,
+    *,
+    expect_url_contains: str,
+    extracted: list[str],
+    capture_visible_answer: bool,
+    wait_for_commit: bool,
+) -> tuple[str, str, list[str]]:
+    """URL, title, and any text read after the script's own lines.
+
+    The URL is the one the substring judge can accept. page.goto already
+    waited for DOMContentLoaded. A click or Enter that has not committed yet
+    gets one short wait. Hacker News text is read locally when the script
+    opened the page and did not return it.
+    """
+    url = _page_url(page)
+    title = await _read_title(page)
+    if (
+        wait_for_commit
+        and expect_url_contains
+        and not scored_page_url(url, expect_url_contains, title=title)
+    ):
+        await _wait_for_landed(page, expect_url_contains)
+        url = _page_url(page)
+        title = await _read_title(page)
+    scored = scored_page_url(url, expect_url_contains, title=title) if expect_url_contains else ""
+    if scored:
+        url = scored
+    if capture_visible_answer and not _answer_present(extracted) and url.startswith(("http://", "https://")):
+        text = await _capture_visible_answer(page)
+        if text:
+            extracted = [*extracted, text]
+    return url, title, extracted
 
 
 def _page_url(page) -> str:
@@ -425,11 +622,19 @@ async def _run_step_on_page(page, step: TaskStep):
     return None
 
 
-async def run_on_page(page, source: str) -> str:
+async def run_on_page(
+    page,
+    source: str,
+    *,
+    expect_url_contains: str = "",
+    capture_visible_answer: bool = False,
+) -> str:
     """Run the whole script on a Playwright page. No settle between actions.
 
     Goto waits for DOMContentLoaded. Wait lines were already dropped. An
     evaluate return value is kept so the model can answer without a second script.
+    A click's navigation is read once it commits, and that URL is what the
+    judge sees. The task can end on this result.
     """
     steps = parse_task_script(source)
     done = 0
@@ -445,14 +650,29 @@ async def run_on_page(page, source: str) -> str:
     except ScriptError:
         raise
     except Exception as exc:
+        url, title, extracted = await _finish_page(
+            page,
+            expect_url_contains=expect_url_contains,
+            extracted=extracted,
+            capture_visible_answer=capture_visible_answer,
+            wait_for_commit=True,
+        )
         return format_run_result(
             ok=False,
-            url=_page_url(page),
+            url=url,
             step_count=done,
             error=str(exc),
             extracted=extracted,
+            title=title,
         )
-    return format_run_result(ok=True, url=_page_url(page), step_count=len(steps), extracted=extracted)
+    url, title, extracted = await _finish_page(
+        page,
+        expect_url_contains=expect_url_contains,
+        extracted=extracted,
+        capture_visible_answer=capture_visible_answer,
+        wait_for_commit=bool(steps) and steps[-1].kind != "goto",
+    )
+    return format_run_result(ok=True, url=url, step_count=len(steps), extracted=extracted, title=title)
 
 
 async def _mcp_text(call_tool, name: str, arguments: dict) -> str:
@@ -516,6 +736,7 @@ class ScriptFirstClient:
         self.headless = headless
         self._page = page
         self._owns_page = page is None
+        self.expected_url_part = ""
         self._playwright = None
         self._browser = None
         self._context = None
@@ -539,6 +760,9 @@ class ScriptFirstClient:
                     "page-context function. The runner does not settle or snapshot "
                     "between actions and drops wait lines. "
                     "browser_run_code_unsafe is not available. "
+                    "The runner reads the page again after a click or Enter, once that "
+                    "navigation is the current document. A matching end URL, or "
+                    "extracted text on a page with no URL check, finishes the task. "
                     "Call this once. A second call is only for END_STATE_FAILED."
                 ),
                 "input_schema": {
@@ -617,7 +841,12 @@ class ScriptFirstClient:
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""
         try:
-            text = await run_on_page(self._page, code)
+            text = await run_on_page(
+                self._page,
+                code,
+                expect_url_contains=self.expected_url_part,
+                capture_visible_answer=not self.expected_url_part,
+            )
         except ScriptError as exc:
             text = format_run_result(ok=False, url=_page_url(self._page), step_count=0, error=str(exc))
         elapsed_ms = (time.perf_counter() - start) * 1000

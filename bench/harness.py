@@ -737,11 +737,14 @@ class BenchmarkHarness:
                 missing_page_text,
                 next_script_first_limit,
                 repair_request,
+                scored_page_url,
                 script_made_progress,
                 script_result_payload,
             )
 
             turn_limit = min(self.max_steps, SCRIPT_FIRST_HARD_CAP)
+            if hasattr(self.mcp_client, "expected_url_part"):
+                self.mcp_client.expected_url_part = expect_url
 
         try:
             while step_num < turn_limit:
@@ -895,10 +898,19 @@ class BenchmarkHarness:
                             payload = script_result_payload(result_text)
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
+                            landed_title = page_field(result_text, "Title")
+                            if not landed_title and isinstance(payload.get("title"), str):
+                                landed_title = payload["title"]
+                            if expect_url:
+                                scored = scored_page_url(page_url, expect_url, title=landed_title)
+                                if scored:
+                                    page_url = scored
+                                    last_url = scored
                             failure = end_state_failure(
                                 page_url,
                                 start_url=start_url,
                                 expect_url_contains=expect_url,
+                                title=landed_title,
                             )
                             if not failure:
                                 failure = missing_page_text(payload, expect_url_contains=expect_url)
@@ -915,11 +927,17 @@ class BenchmarkHarness:
                                 repair_pending=repair_pending,
                                 refused_extra_script=False,
                             )
+                            extracted = payload.get("extracted") if isinstance(payload, dict) else None
+                            has_answer = isinstance(extracted, str) and bool(extracted.strip())
+                            if isinstance(extracted, list):
+                                has_answer = any(str(item).strip() for item in extracted)
+                            # A finished first script ends the task. The completion
+                            # sentence is not another step and does not call the model.
                             if (
                                 not failure
-                                and expect_url
                                 and isinstance(page_url, str)
                                 and page_url.startswith(("http://", "https://"))
+                                and (bool(expect_url) or has_answer)
                             ):
                                 success = True
                                 success_reason = "Task completed successfully"

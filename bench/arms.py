@@ -84,7 +84,7 @@ Guidelines:
 - Do not click, type, or snapshot one element at a time.
 - browser_run_code_unsafe is not a tool. Do not ask for it.
 - If the tool result says END_STATE_FAILED, send one corrected script that lands on the finished page. Do not send a second repair.
-- If the result is already the finished page, the next message is TASK_COMPLETE, plus the extracted title on Hacker News. Do not call run_script again. If it cannot be done, respond with TASK_FAILED.
+- If the result is already the finished page, the run stops. Do not call run_script again and do not send a separate completion turn. A matching URL, or the extracted Hacker News title, is the end. If it cannot be done, respond with TASK_FAILED.
 
 Be efficient - one script, at most one repair, then stop."""
 

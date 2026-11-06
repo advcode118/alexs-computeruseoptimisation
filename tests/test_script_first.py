@@ -38,6 +38,7 @@ from bench.script_first import (
     repair_request,
     run_on_mcp,
     run_on_page,
+    scored_page_url,
     script_made_progress,
 )
 from proxy.script import ScriptError
@@ -458,6 +459,24 @@ def test_end_state_asks_for_one_repair_until_the_url_leaves_main_page():
         start_url="https://en.wikipedia.org/wiki/Main_Page",
         expect_url_contains="Ada_Lovelace",
     ) == ""
+    encoded = "https://en.wikipedia.org/wiki/Ada%20Lovelace"
+    assert scored_page_url(encoded, "Ada_Lovelace") == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    assert end_state_failure(encoded, expect_url_contains="Ada_Lovelace") == ""
+    assert check_url_contains(scored_page_url(encoded, "Ada_Lovelace"), "Ada_Lovelace").success is True
+    search = "https://en.wikipedia.org/wiki/Special:Search?search=Ada+Lovelace"
+    assert scored_page_url(search, "Ada_Lovelace") == ""
+    assert "Ada_Lovelace" in end_state_failure(search, expect_url_contains="Ada_Lovelace")
+    titled = scored_page_url(
+        "https://en.wikipedia.org/?curid=401",
+        "Ada_Lovelace",
+        title="Ada Lovelace - Wikipedia",
+    )
+    assert titled == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    assert scored_page_url(
+        "https://en.wikipedia.org/wiki/Charles_Babbage",
+        "Ada_Lovelace",
+        title="Charles Babbage - Wikipedia",
+    ) == ""
     assert end_state_failure("https://news.ycombinator.com/", expect_url_contains="") == ""
     note = repair_request("https://en.wikipedia.org/wiki/Main_Page", reason)
     assert note.startswith("END_STATE_FAILED:")
@@ -620,14 +639,15 @@ def test_script_first_does_not_add_a_turn_after_a_moving_page(tmp_path):
         )
     )
     assert client.calls == 1
-    assert len(model.seen) == 2
+    assert len(model.seen) == 1
+    assert result.total_steps == 1
     assert "END_STATE_FAILED" not in json.dumps(model.seen)
     assert result.success is True
     assert result.success_reason != "Max steps reached"
     assert result.steps[-1].page_url == "https://news.ycombinator.com/"
 
 
-def test_script_first_refuses_a_second_script_after_the_text_is_back(tmp_path):
+def test_script_first_stops_when_the_text_is_already_back(tmp_path):
     async def call_tool(name, arguments, nth):
         del name, arguments, nth
         return (
@@ -654,7 +674,9 @@ def test_script_first_refuses_a_second_script_after_the_text_is_back(tmp_path):
         )
     )
     assert client.calls == 1
-    assert "The first script already finished" in json.dumps(model.seen)
+    assert len(model.seen) == 1
+    assert result.total_steps == 1
+    assert "The first script already finished" not in json.dumps(model.seen)
     assert "END_STATE_FAILED" not in json.dumps(model.seen)
     assert result.success is True
 
@@ -732,3 +754,88 @@ def test_script_first_stops_when_the_repair_stays_on_main_page(tmp_path):
     assert client.calls == 2
     assert result.success is False
     assert "Main_Page" in result.success_reason
+
+
+def test_encoded_article_url_ends_the_task_without_a_repair(tmp_path):
+    async def call_tool(name, arguments, nth):
+        del name, arguments, nth
+        return format_run_result(ok=True, url="https://en.wikipedia.org/wiki/Ada%20Lovelace", step_count=1), 1.0
+
+    harness, model, client = _script_harness(
+        tmp_path,
+        [_tool_reply("goto"), _tool_reply("repair"), _done_reply()],
+        call_tool,
+        max_steps=4,
+    )
+    result = asyncio.run(
+        harness.run_task(
+            task_id="wv_wikipedia_search",
+            task_description="Search Wikipedia for Ada Lovelace",
+            start_url="https://en.wikipedia.org/wiki/Main_Page",
+            check_url_contains="Ada_Lovelace",
+        )
+    )
+    assert client.calls == 1
+    assert len(model.seen) == 1
+    assert "END_STATE_FAILED" not in json.dumps(model.seen)
+    assert result.success is True
+    assert result.total_steps == 1
+    assert result.steps[-1].page_url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    assert check_url_contains(result.steps[-1].page_url, "Ada_Lovelace").success is True
+
+
+class _LatePage(_Page):
+    def __init__(self):
+        super().__init__()
+        self.url = "https://en.wikipedia.org/wiki/Main_Page"
+        self.waits = 0
+
+    async def title(self):
+        if "Ada" in self.url:
+            return "Ada Lovelace - Wikipedia"
+        return "Wikipedia, the free encyclopedia"
+
+    async def wait_for_url(self, predicate, **kwargs):
+        del kwargs
+        self.waits += 1
+        self.url = "https://en.wikipedia.org/wiki/Ada%20Lovelace"
+        if not predicate(self.url):
+            raise TimeoutError("landed url was not the article")
+
+
+def test_click_navigation_is_read_after_it_commits():
+    page = _LatePage()
+    script = 'page.getByRole("combobox", { name: "Search Wikipedia" }).press("Enter")'
+    text = asyncio.run(run_on_page(page, script, expect_url_contains="Ada_Lovelace"))
+    assert page.waits == 1
+    assert "MutationObserver" not in text
+    assert "quietMs" not in text
+    url = page_url_from_result(text)
+    assert url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    assert check_url_contains(url, "Ada_Lovelace").success is True
+    assert end_state_failure(url, expect_url_contains="Ada_Lovelace") == ""
+
+
+def test_finished_goto_does_not_wait_again():
+    page = _LatePage()
+    page.waits = 0
+
+    async def count_wait(predicate, **kwargs):
+        del predicate, kwargs
+        page.waits += 1
+
+    page.wait_for_url = count_wait
+    script = 'page.goto("https://en.wikipedia.org/wiki/Ada_Lovelace")'
+    text = asyncio.run(run_on_page(page, script, expect_url_contains="Ada_Lovelace"))
+    assert page.waits == 0
+    assert page_url_from_result(text) == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+
+
+def test_visible_answer_is_read_without_a_second_script():
+    page = _Page()
+    script = 'page.goto("https://news.ycombinator.com/")'
+    text = asyncio.run(run_on_page(page, script, capture_visible_answer=True))
+    payload = json.loads(text.splitlines()[0])
+    assert payload["extracted"] == ["Example Story"]
+    assert missing_page_text(payload) == ""
+    assert [item[0] for item in page.log] == ["goto", "evaluate"]
