@@ -168,7 +168,7 @@ export default class ProbeCharts extends Component<Props, State> {
                         <span className="h-5 rounded-sm bg-rule/40">
                           {measured ? (
                             <span
-                              className="bar-grow block h-full rounded-sm"
+                              className="bar-grow grow-x block h-full rounded-sm"
                               style={{ width: `${bar}%`, background: row.color }}
                             />
                           ) : null}
@@ -185,7 +185,7 @@ export default class ProbeCharts extends Component<Props, State> {
                   })}
                 </ul>
                 {metric !== "success" ? (
-                  <div aria-hidden className="relative mr-[6.5rem] ml-[9.5rem] h-4 font-mono text-[10px] text-mute">
+                  <div aria-hidden className="relative mr-[6.5rem] ml-[9.5rem] h-4 font-mono text-[11px] text-mute">
                     {ticks[metric].map((tick) => (
                       <span key={tick.label} className="absolute -translate-x-1/2" style={{ left: `${tick.at}%` }}>
                         {tick.label}

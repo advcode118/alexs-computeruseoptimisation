@@ -1,15 +1,17 @@
 import LoopPathway from "@/app/components/loop-pathway";
+import PitchSteps from "@/app/components/pitch-steps";
 import ProbeCharts from "@/app/components/probe-charts";
 import RunDemo from "@/app/components/run-demo";
 import StatusBand from "@/app/components/status-band";
 import { armMeta, probes, progress, type TimelineEntry } from "@/data/progress";
 
 const sections = [
-  { href: "#status", label: "Status" },
+  { href: "#pitch", label: "Pitch" },
+  { href: "#works", label: "How it works" },
+  { href: "#how", label: "Compare" },
+  { href: "#charts", label: "Results" },
   { href: "#history", label: "History" },
-  { href: "#how", label: "How it runs" },
-  { href: "#charts", label: "Charts" },
-  { href: "#loop", label: "Loop and pathway" },
+  { href: "#loop", label: "Background" },
 ];
 
 function SectionHead({ id, number, title, lede }: { id: string; number: string; title: string; lede: string }) {
@@ -29,7 +31,8 @@ function SectionHead({ id, number, title, lede }: { id: string; number: string; 
 function Timeline() {
   return (
     <ol className="relative mt-12 sm:ml-[5.5rem]">
-      <span aria-hidden className="absolute top-2 bottom-2 left-[7px] w-0.5 bg-ink/80" />
+      <span aria-hidden className="absolute top-2 bottom-2 left-[7px] w-0.5 bg-rule" />
+      <span aria-hidden className="rail-fill absolute top-2 bottom-2 left-[7px] w-0.5 bg-ink" />
       {progress.timeline.map((entry: TimelineEntry) => {
         const dot =
           entry.tone === "stop"
@@ -128,13 +131,16 @@ function ProbeTable() {
 }
 
 export default function HomePage() {
+  const spend = progress.status.spend;
+
   return (
     <>
+      <span aria-hidden className="scroll-progress fixed top-0 left-0 z-30 h-[3px] w-full bg-[var(--color-yours)]" />
       <a
-        href="#status"
+        href="#pitch"
         className="sr-only z-50 rounded-md bg-ink px-4 py-2 text-sheet focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
       >
-        Skip to the status
+        Skip to the pitch
       </a>
       <header className="sticky top-0 z-20 border-b border-rule bg-paper/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-5 py-3 sm:px-8">
@@ -156,70 +162,19 @@ export default function HomePage() {
             ))}
           </nav>
         </div>
-        <div className="border-t border-rule/70">
-          <ul
-            aria-label="Colour key"
-            className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-1 px-5 py-1.5 text-xs sm:px-8"
-          >
-            <li className="flex items-center gap-2 font-bold text-[var(--color-yours)]">
-              <span aria-hidden className="h-2.5 w-6 rounded-full bg-[var(--color-yours)]" />
-              Yours (script_first)
-            </li>
-            <li className="flex items-center gap-2 text-mute">
-              <span aria-hidden className="flex gap-0.5">
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-arm-mcp)]" />
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-arm-stagehand)]" />
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-arm-proxy)]" />
-              </span>
-              Baselines &amp; others: Playwright MCP, Stagehand, parked proxy
-            </li>
-          </ul>
-        </div>
       </header>
 
       <main id="top">
         <StatusBand />
+        <PitchSteps />
 
-        <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8">
-          <div className="grid gap-6 border-b border-rule pb-10 lg:grid-cols-2 lg:gap-16">
-            <p className="text-lg leading-relaxed">{progress.goal}</p>
-            <div>
-              <p className="font-display text-base font-semibold">The bar to beat</p>
-              <p className="text-sm text-mute">{progress.benchmark.source}</p>
-              <dl className="mt-3 divide-y divide-rule border-y border-rule">
-                {progress.benchmark.rows.map((row) => (
-                  <div key={row.name} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 py-2.5">
-                    <dt className="font-semibold">{row.name}</dt>
-                    <dd className="font-mono text-sm">
-                      {row.pass} pass, {row.cost}
-                    </dd>
-                    <dd className="col-span-2 font-mono text-xs text-mute">
-                      {row.time}, {row.steps}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          </div>
-        </div>
-
-        <section aria-labelledby="history" className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
-          <SectionHead
-            id="history"
-            number="01"
-            title="How it got here"
-            lede="From a loop that owns each step, through one measurement and a stack of speed-layer PRs, to one script per task."
-          />
-          <Timeline />
-        </section>
-
-        <section aria-labelledby="how" className="border-t border-rule py-14 sm:py-20">
-          <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        <section aria-labelledby="how" className="py-16 sm:py-24">
+          <div className="reveal mx-auto max-w-6xl px-5 sm:px-8">
             <SectionHead
               id="how"
-              number="02"
-              title="How a task runs, arm by arm"
-              lede="Pick an arm, then press Play or Step. Watch where the model calls happen. The numbers beside it are that arm's probe results."
+              number="01"
+              title="Compare it, step by step"
+              lede="Press Play or Step. See where each arm calls a model. Pink is yours."
             />
           </div>
           <div className="reveal mx-auto mt-10 max-w-6xl sm:px-8">
@@ -234,25 +189,81 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section aria-labelledby="charts" className="border-t border-rule bg-sheet/60 py-14 sm:py-20">
+        <section aria-labelledby="charts" className="border-y border-rule bg-sheet/70 py-16 sm:py-24">
           <div className="mx-auto max-w-6xl px-5 sm:px-8">
-            <SectionHead
-              id="charts"
-              number="03"
-              title="Every probe, every arm"
-              lede={`Three tasks per probe: ${progress.tasks.join(", ")}. Switch the measure, or group by arm to follow one arm across probes.`}
-            />
+            <div className="reveal">
+              <SectionHead
+                id="charts"
+                number="02"
+                title="Results, probe by probe"
+                lede={`Scored on wall time per successful task. Three tasks per probe: ${progress.tasks.join(", ")}.`}
+              />
+            </div>
             <div className="reveal mt-10">
               <ProbeCharts probes={probes} />
             </div>
             <ProbeTable />
+
+            <div className="reveal mt-14 grid gap-10 border-t-2 border-ink pt-8 lg:grid-cols-2 lg:gap-16">
+              <div>
+                <h3 className="font-display text-xl font-bold">The bar to beat</h3>
+                <p className="text-sm text-mute">{progress.benchmark.source}</p>
+                <dl className="mt-3 divide-y divide-rule border-y border-rule">
+                  {progress.benchmark.rows.map((row) => (
+                    <div key={row.name} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 py-2.5">
+                      <dt className="font-semibold">{row.name}</dt>
+                      <dd className="font-mono text-sm">
+                        {row.pass} pass, {row.cost}
+                      </dd>
+                      <dd className="col-span-2 font-mono text-xs text-mute">
+                        {row.time}, {row.steps}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <div>
+                <h3 className="font-display text-xl font-bold">Claude spend</h3>
+                <p className="mt-1 font-mono text-2xl font-bold">
+                  about ${spend.used} <span className="text-base font-normal text-mute">of ${spend.cap}</span>
+                </p>
+                <div className="relative mt-3 h-3 rounded-full bg-rule/60">
+                  <span
+                    className="grow-x block h-full rounded-full bg-ink"
+                    style={{ width: `${(spend.used / spend.cap) * 100}%` }}
+                  />
+                  <span
+                    aria-hidden
+                    className="absolute -top-1 -bottom-1 w-0.5 bg-stop"
+                    style={{ left: `${(spend.abortAt / spend.cap) * 100}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-sm text-mute">Scripts abort at ${spend.abortAt}.</p>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section aria-labelledby="loop" className="border-t border-rule py-14 sm:py-20">
+        <section aria-labelledby="history" className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+          <div className="reveal">
+            <SectionHead
+              id="history"
+              number="03"
+              title="How it got here"
+              lede="A browser loop, one measurement, a stack of speed-layer PRs, then one script per task."
+            />
+          </div>
+          <Timeline />
+        </section>
+
+        <section aria-labelledby="loop" className="border-t border-rule bg-sheet/70 py-16 sm:py-24">
           <div className="mx-auto max-w-6xl px-5 sm:px-8">
-            <SectionHead id="loop" number="04" title="The loop and the pathway" lede={progress.loop.body} />
-            <LoopPathway />
+            <div className="reveal">
+              <SectionHead id="loop" number="04" title="Background: the loop and the pathway" lede={progress.loop.body} />
+            </div>
+            <div className="reveal">
+              <LoopPathway />
+            </div>
           </div>
         </section>
 

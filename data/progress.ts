@@ -158,6 +158,34 @@ export const progress = {
     next: "Next: stop-check PR, in progress.",
     spend: { used: 16.64, cap: 50, abortAt: 40 },
   },
+  pitch: {
+    kicker: "script_first, Tom's browser tool",
+    headline: "One Claude call writes the whole browser task.",
+    line: "Chrome runs the script. No model between clicks. If the end-state check fails, Claude gets one repair.",
+    proof: [
+      { value: "3/3", label: "tasks passed", compare: "Same as plain Playwright MCP" },
+      { value: "$0.047", label: "per run", compare: "Playwright MCP $0.165, about 3.5x more" },
+      { value: "3.67s", label: "per success", compare: "About 0.7s behind Playwright MCP (2.98s)" },
+    ],
+    steps: [
+      {
+        title: "Claude writes the script",
+        body: "One call. Claude writes a short Playwright script for the whole task, not one click at a time.",
+        tag: "1 model call",
+      },
+      {
+        title: "Chrome runs it",
+        body: "The harness runs the script in Chrome. Search, open, read. No model call between actions.",
+        tag: "0 model calls",
+      },
+      {
+        title: "Check, repair once",
+        body: "The harness checks the final page. Only if that fails does Claude see the failure and rewrite the script once.",
+        tag: "At most 1 repair",
+      },
+    ],
+    stepsNote: "In the PR #18 probe, every task was still 2 steps.",
+  },
   tasks: ["Wikipedia search", "Python docs", "Hacker News top"],
   benchmark: {
     source: "LangChain, 3 Nov 2026, WebVoyager 100",

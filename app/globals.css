@@ -79,24 +79,101 @@ body {
   }
 }
 
+.scroll-progress {
+  display: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
     .reveal {
       animation: reveal linear both;
       animation-timeline: view();
-      animation-range: entry 0% entry 40%;
+      animation-range: entry 0% entry 55%;
+    }
+
+    .hero-out {
+      animation: hero-out linear both;
+      animation-timeline: view();
+      animation-range: exit 0% exit 90%;
+    }
+
+    .spotlight {
+      animation: spotlight linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+
+    .grow-x {
+      transform-origin: left center;
+      animation: grow-x linear both;
+      animation-timeline: view();
+      animation-range: entry 30% cover 45%;
+    }
+
+    .rail-fill {
+      transform-origin: top center;
+      animation: rail-fill linear both;
+      animation-timeline: view();
+      animation-range: cover 15% cover 85%;
+    }
+
+    .scroll-progress {
+      display: block;
+      transform-origin: left center;
+      animation: grow-x linear both;
+      animation-timeline: scroll(root);
     }
   }
 }
 
 @keyframes reveal {
   from {
-    opacity: 0.2;
-    transform: translateY(36px);
+    opacity: 0;
+    transform: translateY(48px);
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes hero-out {
+  to {
+    opacity: 0.35;
+    transform: translateY(-48px) scale(0.97);
+  }
+}
+
+@keyframes spotlight {
+  0% {
+    opacity: 0.2;
+    transform: translateY(32px);
+  }
+  35%,
+  65% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes rail-fill {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
   }
 }
 
