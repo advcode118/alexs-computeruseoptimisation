@@ -1,6 +1,6 @@
 "use client";
 
-import { Component } from "react";
+import { Component, createRef } from "react";
 import {
   armMeta,
   type DemoArm,
@@ -50,6 +50,7 @@ function latestProbe(demo: DemoArm, probes: Probe[]): ProbeId {
 export default class RunDemo extends Component<Props, State> {
   private timer: ReturnType<typeof setInterval> | null = null;
   private reducedMotion = false;
+  private list = createRef<HTMLOListElement>();
 
   constructor(props: Props) {
     super(props);
@@ -64,6 +65,15 @@ export default class RunDemo extends Component<Props, State> {
 
   componentDidMount() {
     this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  componentDidUpdate(_props: Props, previous: State) {
+    if (this.state.shown > previous.shown && this.state.demoIndex === previous.demoIndex) {
+      const latest = this.list.current?.lastElementChild;
+      if (latest && latest.getBoundingClientRect().bottom > window.innerHeight) {
+        latest.scrollIntoView({ block: "nearest", behavior: this.reducedMotion ? "auto" : "smooth" });
+      }
+    }
   }
 
   componentWillUnmount() {
@@ -223,19 +233,33 @@ export default class RunDemo extends Component<Props, State> {
               ) : null}
             </div>
 
-            <div className="mt-6 hidden grid-cols-4 gap-3 border-b border-rule pb-2 font-mono text-xs text-mute md:grid">
+            {current ? (
+              <div
+                aria-live="polite"
+                className="mt-5 min-h-[5.5rem] rounded-md border-l-[5px] bg-white px-4 py-3"
+                style={{ borderColor: accent }}
+              >
+                <p className="font-mono text-xs text-mute">
+                  Step {shown} of {steps.length} · {lanes.find((lane) => lane.id === current.lane)?.label}
+                </p>
+                <p className="mt-0.5 font-display text-lg leading-tight font-bold">{current.title}</p>
+                <p className="mt-1 text-sm leading-snug text-mute">{current.detail}</p>
+              </div>
+            ) : null}
+
+            <div className="mt-5 hidden grid-cols-4 gap-3 border-b border-rule pb-1.5 font-mono text-xs text-mute md:grid">
               {lanes.map((lane) => (
                 <span key={lane.id}>{lane.label}</span>
               ))}
             </div>
-            <ol className="mt-3 grid gap-2 md:grid-cols-4 md:gap-x-3" aria-live="polite">
+            <ol ref={this.list} className="mt-2 grid gap-1.5 md:grid-cols-4 md:gap-x-3">
               {visible.map((step, index) => {
                 const latest = index === visible.length - 1;
 
                 return (
                   <li
                     key={`${demo.id}-${step.title}-${index}`}
-                    className={`step-enter md:col-span-1 ${laneColumn[step.lane]} rounded-md border px-3 py-2.5 ${
+                    className={`step-enter md:col-span-1 ${laneColumn[step.lane]} rounded-md border px-3 py-1.5 ${
                       latest ? "border-ink bg-white shadow-[0_2px_0_0_var(--color-ink)]" : "border-rule bg-white/60"
                     }`}
                     style={{ gridRow: index + 1, borderLeft: latest ? `5px solid ${accent}` : undefined }}
@@ -246,16 +270,11 @@ export default class RunDemo extends Component<Props, State> {
                       {step.repeats ? <span className="text-ink">repeats each page step</span> : null}
                       {step.branch === "repair" ? <span className="text-stop">only on a failed check</span> : null}
                     </p>
-                    <p className="mt-0.5 font-display text-base leading-tight font-semibold">{step.title}</p>
-                    {latest ? <p className="mt-1 text-sm leading-snug text-mute">{step.detail}</p> : null}
+                    <p className="font-display text-[15px] leading-tight font-semibold">{step.title}</p>
                   </li>
                 );
               })}
             </ol>
-            <p className="mt-4 text-sm text-mute">
-              Step {shown} of {steps.length}
-              {current ? `: ${current.title}` : ""}
-            </p>
           </div>
 
           <aside className="min-w-0 border-t border-rule pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-8">
