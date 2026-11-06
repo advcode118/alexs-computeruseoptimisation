@@ -32,6 +32,7 @@ from bench.script_first import (
     ScriptFirstClient,
     end_state_failure,
     format_run_result,
+    missing_page_text,
     next_script_first_limit,
     parse_task_script,
     repair_request,
@@ -47,26 +48,32 @@ class _Locator:
         self.log = log
         self.name = name
 
-    async def click(self):
+    async def click(self, **kwargs):
         self.log.append(("click", self.name))
+        self.timeout = kwargs.get("timeout")
 
-    async def fill(self, value):
+    async def fill(self, value, **kwargs):
         self.log.append(("fill", self.name, value))
+        self.timeout = kwargs.get("timeout")
 
-    async def press(self, value):
+    async def press(self, value, **kwargs):
         self.log.append(("press", self.name, value))
+        self.timeout = kwargs.get("timeout")
 
-    async def check(self):
+    async def check(self, **kwargs):
         self.log.append(("check", self.name))
+        self.timeout = kwargs.get("timeout")
 
-    async def uncheck(self):
+    async def uncheck(self, **kwargs):
         self.log.append(("uncheck", self.name))
+        self.timeout = kwargs.get("timeout")
 
 
 class _Page:
     def __init__(self):
         self.log: list = []
         self.url = "about:blank"
+        self.last_goto_wait = ""
 
     def get_by_role(self, role, name=None):
         del role
@@ -81,8 +88,9 @@ class _Page:
     def get_by_placeholder(self, name):
         return _Locator(self.log, name)
 
-    async def goto(self, url):
+    async def goto(self, url, **kwargs):
         self.url = url
+        self.last_goto_wait = kwargs.get("wait_until") or ""
         self.log.append(("goto", url))
 
     async def evaluate(self, source):
@@ -91,6 +99,9 @@ class _Page:
             self.url = "https://docs.python.org/3/library/heapq.html"
         if "quietMs" in source or "MutationObserver" in source:
             raise AssertionError("script_first settled")
+        if "titleline" in source:
+            return "Example Story"
+        return None
 
 
 def test_script_first_is_selectable_and_uses_sonnet_5_5():
@@ -105,12 +116,19 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     assert "END_STATE_FAILED" in prompt
     assert "one corrected script" in prompt
     assert "does not settle or snapshot" in prompt
+    assert "waitForTimeout" in prompt
+    assert "The first script must finish" in prompt
+    assert "Special:Search" in prompt
+    assert "one script" in prompt.casefold()
     assert 3 < SCRIPT_FIRST_MAX_CALLS <= SCRIPT_FIRST_HARD_CAP <= 6
     assert SCRIPT_FIRST_MAX_SCRIPTS == 2
     client = build_client("script_first")
     assert isinstance(client, ScriptFirstClient)
-    names = [tool["name"] for tool in client.tools_for_claude()]
+    tools = client.tools_for_claude()
+    names = [tool["name"] for tool in tools]
     assert names == ["run_script"]
+    assert "waitForTimeout" in tools[0]["description"]
+    assert "finished page" in tools[0]["description"]
     assert "browser_run_code_unsafe" not in names
     source = Path(__file__).resolve().parents[1].joinpath("bench", "script_first.py").read_text(encoding="utf-8")
     assert "settle_playwright_page" not in source
@@ -156,6 +174,37 @@ def test_page_evaluate_sequence_updates_the_url_the_judge_reads():
     assert check_url_contains(url, "heapq").success is True
     assert text.startswith("{")
     assert "Ran goto https://docs.python.org/3/library/heapq.html." in text
+
+
+def test_wait_lines_are_dropped_and_goto_waits_for_dom_content():
+    page = _Page()
+    script = """
+    await page.goto("https://docs.python.org/3/library/heapq.html", { waitUntil: "networkidle" });
+    await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(2000);
+    await page.getByRole("button", { name: "Search" }).waitFor();
+    """
+    text = asyncio.run(run_on_page(page, script))
+    assert page.log == [("goto", "https://docs.python.org/3/library/heapq.html")]
+    assert page.last_goto_wait == "domcontentloaded"
+    assert "networkidle" not in text
+    assert "waitFor" not in text
+    url = page_url_from_result(text)
+    assert check_url_contains(url, "heapq").success is True
+
+
+def test_evaluate_return_is_visible_without_a_second_script():
+    page = _Page()
+    script = """
+    await page.goto("https://news.ycombinator.com/");
+    await page.evaluate(() => document.querySelector(".titleline a").textContent);
+    """
+    text = asyncio.run(run_on_page(page, script))
+    payload = json.loads(text.splitlines()[0])
+    assert payload["extracted"] == ["Example Story"]
+    assert "Extracted: Example Story" in text
+    assert page.last_goto_wait == "domcontentloaded"
+    assert [item[0] for item in page.log] == ["goto", "evaluate"]
 
 
 def test_unsafe_script_does_not_touch_the_page():
@@ -423,7 +472,26 @@ def test_end_state_asks_for_one_repair_until_the_url_leaves_main_page():
         made_progress=True,
         repair_pending=False,
         refused_extra_script=False,
-    ) == 3
+    ) == 2
+    assert next_script_first_limit(
+        step_num=1,
+        limit=2,
+        hard_cap=SCRIPT_FIRST_HARD_CAP,
+        made_progress=False,
+        repair_pending=True,
+        refused_extra_script=False,
+    ) == 2
+    assert next_script_first_limit(
+        step_num=1,
+        limit=1,
+        hard_cap=SCRIPT_FIRST_HARD_CAP,
+        made_progress=True,
+        repair_pending=True,
+        refused_extra_script=False,
+    ) == 2
+    assert missing_page_text({"extracted": ["Show HN"]}) == ""
+    assert "text" in missing_page_text({"ok": True, "url": "https://news.ycombinator.com/"})
+    assert missing_page_text({"extracted": []}, expect_url_contains="Ada_Lovelace") == ""
     assert next_script_first_limit(
         step_num=2,
         limit=4,
@@ -503,7 +571,7 @@ def test_script_first_repairs_a_main_page_script_once(tmp_path):
         )
     )
     assert client.calls == 2
-    assert len(model.seen) == 3
+    assert len(model.seen) == 2
 
     def _asks(messages: list) -> int:
         count = 0
@@ -521,19 +589,26 @@ def test_script_first_repairs_a_main_page_script_once(tmp_path):
 
     assert _asks(model.seen[0]) == 0
     assert _asks(model.seen[1]) == 1
-    assert _asks(model.seen[2]) == 1
     assert result.success is True
     assert result.steps[-1].page_url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
 
 
-def test_script_first_keeps_a_turn_while_the_script_makes_progress(tmp_path):
+def test_script_first_does_not_add_a_turn_after_a_moving_page(tmp_path):
     async def call_tool(name, arguments, nth):
-        del name, arguments
-        return format_run_result(ok=True, url="https://news.ycombinator.com/", step_count=nth), 1.0
+        del name, arguments, nth
+        return (
+            format_run_result(
+                ok=True,
+                url="https://news.ycombinator.com/",
+                step_count=1,
+                extracted=["Show HN"],
+            ),
+            1.0,
+        )
 
     harness, model, client = _script_harness(
         tmp_path,
-        [_tool_reply("open"), _tool_reply("read title"), _done_reply("Show HN title\nTASK_COMPLETE")],
+        [_tool_reply("open and read"), _done_reply("Show HN\nTASK_COMPLETE"), _tool_reply("again")],
         call_tool,
         max_steps=2,
     )
@@ -544,11 +619,70 @@ def test_script_first_keeps_a_turn_while_the_script_makes_progress(tmp_path):
             start_url="https://news.ycombinator.com/",
         )
     )
-    assert client.calls == 2
-    assert len(model.seen) == 3
+    assert client.calls == 1
+    assert len(model.seen) == 2
+    assert "END_STATE_FAILED" not in json.dumps(model.seen)
     assert result.success is True
     assert result.success_reason != "Max steps reached"
     assert result.steps[-1].page_url == "https://news.ycombinator.com/"
+
+
+def test_script_first_refuses_a_second_script_after_the_text_is_back(tmp_path):
+    async def call_tool(name, arguments, nth):
+        del name, arguments, nth
+        return (
+            format_run_result(
+                ok=True,
+                url="https://news.ycombinator.com/",
+                step_count=1,
+                extracted=["Show HN"],
+            ),
+            1.0,
+        )
+
+    harness, model, client = _script_harness(
+        tmp_path,
+        [_tool_reply("read"), _tool_reply("again"), _done_reply("Show HN\nTASK_COMPLETE")],
+        call_tool,
+        max_steps=4,
+    )
+    result = asyncio.run(
+        harness.run_task(
+            task_id="wv_hackernews_top",
+            task_description="Read the top Hacker News story",
+            start_url="https://news.ycombinator.com/",
+        )
+    )
+    assert client.calls == 1
+    assert "The first script already finished" in json.dumps(model.seen)
+    assert "END_STATE_FAILED" not in json.dumps(model.seen)
+    assert result.success is True
+
+
+def test_script_first_stops_when_the_finished_url_is_already_open(tmp_path):
+    async def call_tool(name, arguments, nth):
+        del name, arguments, nth
+        return format_run_result(ok=True, url="https://en.wikipedia.org/wiki/Ada_Lovelace", step_count=1), 1.0
+
+    harness, model, client = _script_harness(
+        tmp_path,
+        [_tool_reply('page.goto("https://en.wikipedia.org/wiki/Ada_Lovelace")'), _done_reply()],
+        call_tool,
+        max_steps=4,
+    )
+    result = asyncio.run(
+        harness.run_task(
+            task_id="wv_wikipedia_search",
+            task_description="Search Wikipedia for Ada Lovelace",
+            start_url="https://en.wikipedia.org/wiki/Main_Page",
+            check_url_contains="Ada_Lovelace",
+        )
+    )
+    assert client.calls == 1
+    assert len(model.seen) == 1
+    assert "END_STATE_FAILED" not in json.dumps(model.seen)
+    assert result.success is True
+    assert result.steps[-1].page_url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
 
 
 def test_script_first_refuses_a_third_script_and_still_accepts_the_answer(tmp_path):

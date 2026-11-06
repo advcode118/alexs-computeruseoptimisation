@@ -8,11 +8,17 @@ and is not a tool.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import shutil
 import tempfile
 import time
 from dataclasses import dataclass
+
+# Navigation waits for DOMContentLoaded, not load or networkidle.
+_NAV_TIMEOUT_MS = 10000
+_ACTION_TIMEOUT_MS = 5000
+_EVALUATE_TIMEOUT_S = 5
 
 from bench.stagehand_local import _locator, context_browser
 from proxy.script import MAX_SCRIPT_CHARS, MAX_SCRIPT_LINES, ScriptAction, ScriptError, parse_script
@@ -198,8 +204,29 @@ def _parse_evaluate(text: str, line: int) -> TaskStep:
     return TaskStep(kind="evaluate", line=line, source=text, function=function)
 
 
+def _is_wait_statement(body: str) -> bool:
+    """True for a Playwright wait or settle line. page.evaluate is not a wait."""
+    compact = "".join(body.split()).casefold()
+    if compact.startswith("page.evaluate"):
+        return False
+    if compact.startswith("page.waitfor") or compact.startswith("page.wait_for"):
+        return True
+    if compact.startswith("page.setdefaulttimeout") or compact.startswith("page.setdefaultnavigationtimeout"):
+        return True
+    if ".waitfor(" in compact:
+        return True
+    if "networkidle" in compact and "goto" not in compact:
+        return True
+    return False
+
+
 def parse_task_script(source: str) -> list[TaskStep]:
-    """Parse a whole-task script. Raises ScriptError before the page is touched."""
+    """Parse a whole-task script. Raises ScriptError before the page is touched.
+
+    page.waitForTimeout, page.waitForLoadState, and locator.waitFor lines are
+    dropped. A goto that asks for networkidle is kept; the runner does not
+    honor that wait.
+    """
     if not isinstance(source, str):
         raise ScriptError("script must be a string")
     text = _strip_fence(source)
@@ -211,6 +238,8 @@ def parse_task_script(source: str) -> list[TaskStep]:
     steps: list[TaskStep] = []
     for index, stmt in enumerate(_statements(text), 1):
         body = _normalize_stmt(stmt)
+        if _is_wait_statement(body):
+            continue
         if body.casefold().startswith("page.evaluate"):
             steps.append(_parse_evaluate(body, index))
             continue
@@ -264,8 +293,9 @@ def repair_request(url: str, reason: str) -> str:
         "END_STATE_FAILED: "
         f"{reason}. Current URL: {shown}. "
         "Send one corrected script that finishes the task. "
-        "The end URL must be the search result or the page the task asked for. "
+        "The end URL must be the finished page the task asked for. "
         "Wikipedia must leave Main_Page. "
+        "Return any title or answer with page.evaluate in that same script. "
         "Do not repeat the same script."
     )
 
@@ -295,23 +325,73 @@ def next_script_first_limit(
     repair_pending: bool,
     refused_extra_script: bool,
 ) -> int:
-    """Keep one more model turn while a script is still moving or a repair is due.
+    """Add one turn for a repair or a refused extra script.
 
-    A stuck page does not grow the limit. The hard cap stays at a few calls.
+    A script that only moved the page does not grow the limit. The default
+    path stays inside the starting limit: one script, then TASK_COMPLETE.
     """
-    if made_progress or repair_pending or refused_extra_script:
+    del made_progress
+    if repair_pending or refused_extra_script:
         return min(hard_cap, max(limit, step_num + 1))
     return limit
 
 
-def format_run_result(*, ok: bool, url: str, step_count: int, error: str = "") -> str:
+def missing_page_text(payload: dict, *, expect_url_contains: str = "") -> str:
+    """Why a task with no URL check still needs one repair.
+
+    Empty when the script returned text, or when the URL check is the judge.
+    """
+    if expect_url_contains:
+        return ""
+    extracted = payload.get("extracted") if isinstance(payload, dict) else None
+    if isinstance(extracted, str) and extracted.strip():
+        return ""
+    if isinstance(extracted, list) and any(str(item).strip() for item in extracted):
+        return ""
+    return "the script did not return the text the task asked for"
+
+
+def _coerce_extract(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        text = value.strip()
+    else:
+        try:
+            text = json.dumps(value, ensure_ascii=False)
+        except TypeError:
+            text = str(value).strip()
+    text = text.strip()
+    if text in {"", "null", "undefined", "{}"}:
+        return ""
+    if len(text) > 400:
+        text = text[:400]
+    return text
+
+
+def format_run_result(
+    *,
+    ok: bool,
+    url: str,
+    step_count: int,
+    error: str = "",
+    extracted: list[str] | None = None,
+) -> str:
     """JSON url plus Stagehand-style goto prose, so the existing judge can read it."""
     payload: dict = {"ok": ok, "url": url, "steps": step_count}
     if error:
         payload["error"] = error
+    shown = [item for item in (extracted or []) if str(item).strip()]
+    if shown:
+        payload["extracted"] = shown
     lines = [json.dumps(payload)]
     if isinstance(url, str) and url.startswith(("http://", "https://")):
         lines.append(f"Ran goto {url}.")
+    if shown:
+        text = " | ".join(shown)
+        if len(text) > 500:
+            text = text[:500]
+        lines.append(f"Extracted: {text}")
     return "\n".join(lines)
 
 
@@ -320,44 +400,59 @@ def _page_url(page) -> str:
     return url if isinstance(url, str) else ""
 
 
-async def _run_step_on_page(page, step: TaskStep) -> None:
+async def _run_step_on_page(page, step: TaskStep):
     if step.kind == "evaluate":
-        await page.evaluate(step.function)
-        return
+        return await asyncio.wait_for(page.evaluate(step.function), timeout=_EVALUATE_TIMEOUT_S)
     action = step.action
     if action is None:
         raise ScriptError(f"line {step.line}: missing action")
     if action.op == "goto":
-        await page.goto(action.value)
-        return
+        await page.goto(action.value, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+        return None
     locator = _locator(page, action)
     if action.op == "click":
-        await locator.click()
+        await locator.click(timeout=_ACTION_TIMEOUT_MS)
     elif action.op == "fill":
-        await locator.fill(action.value)
+        await locator.fill(action.value, timeout=_ACTION_TIMEOUT_MS)
     elif action.op == "press":
-        await locator.press(action.value)
+        await locator.press(action.value, timeout=_ACTION_TIMEOUT_MS)
     elif action.op == "check":
-        await locator.check()
+        await locator.check(timeout=_ACTION_TIMEOUT_MS)
     elif action.op == "uncheck":
-        await locator.uncheck()
+        await locator.uncheck(timeout=_ACTION_TIMEOUT_MS)
     else:
         raise ScriptError(f"line {step.line}: unsupported action {action.op}")
+    return None
 
 
 async def run_on_page(page, source: str) -> str:
-    """Run the whole script on a Playwright page. No settle between actions."""
+    """Run the whole script on a Playwright page. No settle between actions.
+
+    Goto waits for DOMContentLoaded. Wait lines were already dropped. An
+    evaluate return value is kept so the model can answer without a second script.
+    """
     steps = parse_task_script(source)
     done = 0
+    extracted: list[str] = []
     try:
         for step in steps:
-            await _run_step_on_page(page, step)
+            value = await _run_step_on_page(page, step)
             done += 1
+            if step.kind == "evaluate":
+                text = _coerce_extract(value)
+                if text:
+                    extracted.append(text)
     except ScriptError:
         raise
     except Exception as exc:
-        return format_run_result(ok=False, url=_page_url(page), step_count=done, error=str(exc))
-    return format_run_result(ok=True, url=_page_url(page), step_count=len(steps))
+        return format_run_result(
+            ok=False,
+            url=_page_url(page),
+            step_count=done,
+            error=str(exc),
+            extracted=extracted,
+        )
+    return format_run_result(ok=True, url=_page_url(page), step_count=len(steps), extracted=extracted)
 
 
 async def _mcp_text(call_tool, name: str, arguments: dict) -> str:
@@ -431,13 +526,20 @@ class ScriptFirstClient:
             {
                 "name": "run_script",
                 "description": (
-                    "Run one short Playwright script that finishes the whole task. "
-                    "The end URL must be the page the task asked for, or its search "
-                    "results. Wikipedia must leave Main_Page. "
+                    "Run one Playwright script that finishes the whole task in this call. "
+                    "The end URL must already be the finished page. "
+                    "Wikipedia: page.goto(\"https://en.wikipedia.org/wiki/Article_Title\") "
+                    "with underscores, not Main_Page and not Special:Search. "
+                    "Docs: page.goto the module URL. "
+                    "Hacker News: page.goto the site and page.evaluate the top "
+                    ".titleline a text. The result includes that string. "
+                    "Do not call page.waitForTimeout, page.waitForLoadState, or networkidle. "
                     "Allowed lines are page.goto, page.getByRole, page.getByLabel, "
                     "page.getByText, page.getByPlaceholder, and page.evaluate with a "
                     "page-context function. The runner does not settle or snapshot "
-                    "between actions. browser_run_code_unsafe is not available."
+                    "between actions and drops wait lines. "
+                    "browser_run_code_unsafe is not available. "
+                    "Call this once. A second call is only for END_STATE_FAILED."
                 ),
                 "input_schema": {
                     "type": "object",

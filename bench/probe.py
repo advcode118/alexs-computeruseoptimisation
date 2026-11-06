@@ -317,9 +317,9 @@ async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, 
     from bench.harness import BenchmarkHarness
 
     started = time.perf_counter()
-    # script_first starts here. The harness adds one turn while a script is
-    # still moving the page, stops at SCRIPT_FIRST_HARD_CAP, and runs at most
-    # one repair script.
+    # script_first starts at one script plus a completion turn. The harness
+    # adds a turn only for a repair or a refused extra script, stops at
+    # SCRIPT_FIRST_HARD_CAP, and runs at most one repair script.
     max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
     harness = BenchmarkHarness(
         api_key=api_key,
