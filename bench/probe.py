@@ -1,6 +1,6 @@
 """Small probe: 3 WebVoyager tasks x 4 arms. Prepared here, not launched.
 
-The competitive path is the outer model claude-sonnet-4-6 on every arm.
+The competitive path is the outer model claude-sonnet-5-5 on every arm.
 diff_fast_act and macro_replay use the same loop as playwright_mcp and
 stagehand. Their tools are the proxy surface: settle plus a compact diff,
 fast_act with a script, and do_task_segment. The tools do not call Claude.
@@ -29,10 +29,15 @@ tree does not call Claude. Box commands, from the repo root:
     ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute
     ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay
     python -m bench.probe --execute --no-model-only
+    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand
 
 The first prints the plan and exits. The second is the competitive 3x4.
 The third is that 3x4 plus the warm second pass. Do not run it from this
 checkout. The fourth is the optional no-model path for the two proxy arms only.
+The fifth is the script_first comparison. Its Claude stop is $2. The project
+abort stays $40. The operator envelope is $50. Do not pass --execute from
+this VM. script_first writes one Playwright script for the whole task and
+runs it with no per-click settle or snapshot.
 
 Environment variables it reads, by name only:
 
@@ -57,17 +62,26 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
-from bench.arms import ARMS, NO_MODEL_CAPABLE, arm_needs_claude
-from bench.budget import PROJECT_BUDGET_USD, SpendLedger, estimate_usd
+from bench.arms import (
+    ARM_SCRIPT_FIRST,
+    ARMS,
+    NO_MODEL_CAPABLE,
+    SCRIPT_FIRST_MAX_CALLS,
+    SELECTABLE_ARMS,
+    arm_needs_claude,
+)
+from bench.budget import ALLOWED_MODEL, PROJECT_BUDGET_USD, SpendLedger, estimate_usd
 from bench.judge import check_text_present, check_url_contains
 from bench.tasks import get_webvoyager_tasks
 
 PROBE_TASK_IDS = ("wv_wikipedia_search", "wv_python_docs", "wv_hackernews_top")
 PROBE_CLAUDE_BUDGET_USD = 5.0
+SCRIPT_FIRST_CLAUDE_BUDGET_USD = 2.0
 HUGE_SNAPSHOT_CHARS = 40_000
 WARM_ARMS = ("macro_replay", "diff_fast_act")
 RUNS_DIR = Path(__file__).resolve().parent / "runs"
@@ -78,6 +92,7 @@ BOX_COMMANDS = (
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute',
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay',
     "python -m bench.probe --execute --no-model-only",
+    'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand',
 )
 
 
@@ -92,19 +107,54 @@ def probe_tasks() -> list[dict]:
     return sorted(found, key=lambda task: order[task["id"]])
 
 
-def plan_probe(*, no_model_only: bool = False, warm_replay: bool = False) -> dict:
+def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
+    """Default is the four-arm probe. A comma string selects, including script_first."""
+    if spec is None:
+        return ARMS
+    if isinstance(spec, str):
+        if not spec.strip():
+            return ARMS
+        names = tuple(part.strip() for part in spec.split(",") if part.strip())
+    else:
+        names = tuple(spec)
+    if not names:
+        raise ValueError("no arms selected")
+    unknown = [name for name in names if name not in SELECTABLE_ARMS]
+    if unknown:
+        raise ValueError(f"unknown arm {unknown[0]!r}")
+    if len(names) != len(set(names)):
+        raise ValueError("arms contains a duplicate")
+    return names
+
+
+def claude_budget_for(arms: tuple[str, ...]) -> float:
+    """script_first's execute path stops at $2. The four-arm probe stays at $5."""
+    if ARM_SCRIPT_FIRST in arms:
+        return SCRIPT_FIRST_CLAUDE_BUDGET_USD
+    return PROBE_CLAUDE_BUDGET_USD
+
+
+def plan_probe(
+    *,
+    no_model_only: bool = False,
+    warm_replay: bool = False,
+    arms: str | tuple[str, ...] | list[str] | None = None,
+) -> dict:
     """What --execute would run. This does not start a browser or a model."""
+    chosen = resolve_arms(arms)
     spent = SpendLedger.load().running_total_usd
     return {
         "execute": False,
         "mode": "no_model_only" if no_model_only else "outer_claude",
         "tasks": [task["id"] for task in probe_tasks()],
-        "arms": list(ARMS),
-        "claude_arms": [arm for arm in ARMS if arm_needs_claude(arm, no_model_only=no_model_only)],
-        "no_model_arms": [arm for arm in ARMS if not arm_needs_claude(arm, no_model_only=no_model_only)],
-        "no_model_only_arms": [arm for arm in ARMS if arm in NO_MODEL_CAPABLE],
-        "outer_model": "claude-sonnet-4-6",
-        "claude_budget_usd": PROBE_CLAUDE_BUDGET_USD,
+        "arms": list(chosen),
+        "available_arms": list(SELECTABLE_ARMS),
+        "claude_arms": [arm for arm in chosen if arm_needs_claude(arm, no_model_only=no_model_only)],
+        "no_model_arms": [arm for arm in chosen if not arm_needs_claude(arm, no_model_only=no_model_only)],
+        "no_model_only_arms": [arm for arm in chosen if arm in NO_MODEL_CAPABLE],
+        "outer_model": ALLOWED_MODEL,
+        "claude_budget_usd": claude_budget_for(chosen),
+        "script_first_claude_budget_usd": SCRIPT_FIRST_CLAUDE_BUDGET_USD,
         "project_budget_usd": PROJECT_BUDGET_USD,
         "project_spent_usd": spent,
         "huge_snapshot_chars": HUGE_SNAPSHOT_CHARS,
@@ -116,6 +166,7 @@ def plan_probe(*, no_model_only: bool = False, warm_replay: bool = False) -> dic
             "diff_fast_act": "proxy child --isolated only",
             "macro_replay": "proxy child --isolated only",
             "stagehand": "a unique --user-data-dir via launch_persistent_context",
+            "script_first": "local Chrome via the Playwright Python API, own user-data-dir, no per-click settle",
         },
         "box_commands": list(BOX_COMMANDS),
         "records": [
@@ -142,10 +193,15 @@ def snapshot_is_huge(text: str, limit: int = HUGE_SNAPSHOT_CHARS) -> bool:
     return len(text or "") > limit
 
 
-def claude_block_reason(probe_spent_usd: float, project_spent_usd: float) -> str | None:
+def claude_block_reason(
+    probe_spent_usd: float,
+    project_spent_usd: float,
+    *,
+    budget_usd: float = PROBE_CLAUDE_BUDGET_USD,
+) -> str | None:
     """Why the next Claude task must not start. None when it may."""
-    if probe_spent_usd >= PROBE_CLAUDE_BUDGET_USD:
-        return f"probe Claude spend ${probe_spent_usd:.2f} has reached ${PROBE_CLAUDE_BUDGET_USD:.0f}"
+    if probe_spent_usd >= budget_usd:
+        return f"probe Claude spend ${probe_spent_usd:.2f} has reached ${budget_usd:.0f}"
     if project_spent_usd >= PROJECT_BUDGET_USD:
         return f"project total ${project_spent_usd:.2f} has reached ${PROJECT_BUDGET_USD:.0f}"
     return None
@@ -189,7 +245,13 @@ def empty_row(
 
 
 async def _peek_snapshot(client, arm: str, url: str) -> tuple[str, float]:
-    """Open the page and return the first snapshot text. No model call."""
+    """Open the page and return the first snapshot text. No model call.
+
+    script_first does not snapshot before the script. An empty peek is not a
+    huge page, so the model call is not skipped for length.
+    """
+    if arm == ARM_SCRIPT_FIRST:
+        return "", 0.0
     if arm == "stagehand":
         await client.call_tool("run", {"code": f"page.goto({json.dumps(url)})"})
         return await client.call_tool("snapshot", {})
@@ -251,11 +313,18 @@ async def run_no_model_arm(arm: str, task: dict, *, headless: bool = True) -> di
 
 
 async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, runs_dir: Path) -> dict:
-    """Outer claude-sonnet-4-6. Caller has already checked both budgets."""
+    """Outer claude-sonnet-5-5. Caller has already checked both budgets."""
     from bench.harness import BenchmarkHarness
 
     started = time.perf_counter()
-    harness = BenchmarkHarness(api_key=api_key, headless=headless, runs_dir=runs_dir, arm=arm)
+    max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
+    harness = BenchmarkHarness(
+        api_key=api_key,
+        headless=headless,
+        runs_dir=runs_dir,
+        arm=arm,
+        max_steps=max_steps,
+    )
     await harness.setup()
     try:
         peeked, _elapsed = await _peek_snapshot(harness.mcp_client, arm, task["start_url"])
@@ -316,7 +385,18 @@ def warm_summary(rows: list[dict]) -> dict:
     return summary
 
 
-async def _run_one(arm: str, task: dict, *, headless: bool, no_model_only: bool, api_key: str, probe_spent: float, ledger: SpendLedger, destination: Path) -> tuple[dict, float]:
+async def _run_one(
+    arm: str,
+    task: dict,
+    *,
+    headless: bool,
+    no_model_only: bool,
+    api_key: str,
+    probe_spent: float,
+    ledger: SpendLedger,
+    destination: Path,
+    budget_usd: float,
+) -> tuple[dict, float]:
     """One task on one arm. Returns the row and the probe's Claude spend so far."""
     if not arm_needs_claude(arm, no_model_only=no_model_only):
         return await run_no_model_arm(arm, task, headless=headless), probe_spent
@@ -330,7 +410,7 @@ async def _run_one(arm: str, task: dict, *, headless: bool, no_model_only: bool,
             ),
             probe_spent,
         )
-    blocked = claude_block_reason(probe_spent, ledger.running_total_usd)
+    blocked = claude_block_reason(probe_spent, ledger.running_total_usd, budget_usd=budget_usd)
     if blocked:
         return empty_row(arm, task["id"], reason=blocked, no_model_only=no_model_only), probe_spent
     row = await run_claude_arm(
@@ -348,7 +428,7 @@ async def _run_one(arm: str, task: dict, *, headless: bool, no_model_only: bool,
             output_tokens=row["output_tokens"],
         )
         probe_spent += row["usd"]
-        if claude_block_reason(probe_spent, ledger.running_total_usd):
+        if ledger.running_total_usd >= PROJECT_BUDGET_USD:
             ledger.mark_aborted()
         ledger.save()
     return row, probe_spent
@@ -361,6 +441,7 @@ async def execute_probe(
     runs_dir: Path | None = None,
     no_model_only: bool = False,
     warm_replay: bool = False,
+    arms: tuple[str, ...] | None = None,
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -368,6 +449,8 @@ async def execute_probe(
     proxy arms. no_model_only keeps those two on decide() and still sends
     playwright_mcp and stagehand through Claude when a key is set.
     """
+    chosen = resolve_arms(arms)
+    budget_usd = claude_budget_for(chosen)
     ledger = SpendLedger.load(spend_path)
     destination = runs_dir or RUNS_DIR
     destination.mkdir(parents=True, exist_ok=True)
@@ -387,17 +470,20 @@ async def execute_probe(
             probe_spent=probe_spent,
             ledger=ledger,
             destination=destination,
+            budget_usd=budget_usd,
         )
         row["pass"] = phase
         rows.append(row)
 
     for task in tasks:
-        for arm in ARMS:
+        for arm in chosen:
             await take(arm, task, "cold")
     if warm_replay:
         # Same cache file as the cold pass. Do not delete it between passes.
         for task in tasks:
             for arm in WARM_ARMS:
+                if arm not in chosen:
+                    continue
                 await take(arm, task, "warm")
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out = destination / f"probe_{stamp}.jsonl"
@@ -428,6 +514,15 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--arms",
+        default="",
+        help=(
+            "Comma-separated arms. Default is the four-arm probe. "
+            "script_first is the whole-task script arm. "
+            "A selection that includes it stops Claude at $2."
+        ),
+    )
+    parser.add_argument(
         "--warm-replay",
         action="store_true",
         help=(
@@ -436,14 +531,29 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    try:
+        chosen = resolve_arms(args.arms)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     if not args.execute:
-        print(json.dumps(plan_probe(no_model_only=args.no_model_only, warm_replay=args.warm_replay), indent=2))
+        print(
+            json.dumps(
+                plan_probe(
+                    no_model_only=args.no_model_only,
+                    warm_replay=args.warm_replay,
+                    arms=chosen,
+                ),
+                indent=2,
+            )
+        )
         return 0
     rows = asyncio.run(
         execute_probe(
             headless=not args.no_headless,
             no_model_only=args.no_model_only,
             warm_replay=args.warm_replay,
+            arms=chosen,
         )
     )
     spent = sum(row["usd"] for row in rows)

@@ -17,7 +17,7 @@ Usage:
     # Run with visible browser
     python -m bench.run --no-headless
 
-    # The model is claude-sonnet-4-6. Opus and claude-sonnet-4-20250514 are refused.
+    # The model is claude-sonnet-5-5. Opus and claude-sonnet-4-6 are refused.
     python -m bench.run
 """
 
@@ -103,7 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default=DEFAULT_MODEL,
-        help="Claude model to use (claude-sonnet-4-6 only)",
+        help="Claude model to use (claude-sonnet-5-5 only)",
     )
     parser.add_argument(
         "--arm",

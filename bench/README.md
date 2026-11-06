@@ -141,7 +141,7 @@ This:
 bench/
 ├── __init__.py
 ├── harness.py       # Main benchmark runner
-├── budget.py        # Sonnet-4-6 price and the $40 project stop
+├── budget.py        # claude-sonnet-5-5 id, recorded rate, and the $40 project stop
 ├── results/
 │   └── spend.json   # Running project total, including the M0 prior
 ├── tasks.py         # Task definitions (fixture + WebVoyager)
@@ -159,17 +159,17 @@ bench/
 ## Notes
 
 - `@playwright/mcp` 0.0.84 is pinned because the tool schema changes between releases. The client speaks newline-delimited JSON and does not wait on notifications.
-- The model is `claude-sonnet-4-6`. `claude-sonnet-4-20250514` is retired. Opus is refused.
+- The outer model id is `claude-sonnet-5-5` (Claude Sonnet 5.5, no date suffix). `claude-sonnet-4-6` and `claude-sonnet-4-20250514` are refused. Opus is refused. The Messages call sends `anthropic-version: 2026-10-21`.
 - The harness uses `--snapshot-mode full` to get complete ARIA snapshots
 - Headless mode is on by default; set `headless=False` for debugging
 - The LLM judge uses Claude Haiku to minimize cost. It refuses Opus.
 - Model context keeps the opening task and the last 6 turns. Each tool result sent to the model is capped at 8000 characters. Saved snapshots keep the full page.
 - Navigate and find responses are counted as snapshot tokens, along with action responses.
-- After every task the harness prices that task's input and output tokens at the current sonnet-4-6 list price ($3 / MTok input, $15 / MTok output), adds it to `bench/results/spend.json`, and stops on its own if the project total would pass $40.
+- After every task the harness prices that task's input and output tokens at the recorded ledger rate ($3 / MTok input, $15 / MTok output), adds it to `bench/results/spend.json`, and stops on its own if the project total would pass $40. Sonnet 5.5 list price is $2 / $10. That price is not applied here, so `running_total_usd` does not move. The operator envelope is $50. The abort stays $40.
 - The M0 measurement is already in that file: 3.2M input tokens and 3k output tokens, $9.645, about $10. 4/5 succeeded, 36 steps, 94.8s, model time 87%, tools 13%, stopped after 5 of 12 tasks. That entry is the recorded usage, not a new run. Later box probes are recorded on top of it. `running_total_usd` is $12.912192. Do not reset that total to $9.645 or $11.054514.
 - The 40% hit / 50% match figure is the 5 hand-made snapshots in `bench/snapshots/` only. Runs save real page snapshots under `bench/runs/<run_id>/snapshots/` so the no-model hit rate can be measured on real pages later. This tree does not add a new hit rate.
 - `model_ignores_tools` counts a full-page `browser_snapshot` (or Stagehand `snapshot` / `observe`) that the outer model issues after an action already returned a compact diff. A snapshot whose own text also contains `full_snapshot_chars` and `diff_chars` still counts. A snapshot with a target or a depth does not count. The same counter lives on the proxy child and on the outer harness.
-- Arms: `playwright_mcp` (plain MCP, full snapshots), `diff_fast_act` and `macro_replay` (the proxy tools: settle, compact diff, `fast_act` script, `do_task_segment`), `stagehand` (local Playwright, tools `snapshot` / `run` / `screenshot`). The competitive path drives all four with the outer model `claude-sonnet-4-6`. The proxy tools themselves do not call Claude. Pass `--arm`. Browserbase is not opened. Each Playwright MCP process uses `--isolated` only. `@playwright/mcp@0.0.84` rejects `--isolated` together with `--user-data-dir`. The Stagehand arm uses its own user-data-dir, and `context.browser` is a property. Sequential arms do not share the workspace Chrome profile.
+- Arms: `playwright_mcp` (plain MCP, full snapshots), `diff_fast_act` and `macro_replay` (the proxy tools: settle, compact diff, `fast_act` script, `do_task_segment`), `stagehand` (local Playwright, tools `snapshot` / `run` / `screenshot`), and `script_first` (one whole-task Playwright script, run through the Playwright Python API or MCP `browser_evaluate`, with no per-click settle or snapshot). `browser_run_code_unsafe` is not a tool. The default probe is still the first four. Select the comparison with `--arms playwright_mcp,script_first,stagehand`. That path's Claude stop is $2. The competitive path drives the selected arms with the outer model `claude-sonnet-5-5`. The proxy tools themselves do not call Claude. Pass `--arm` on the full runner for the original four. Browserbase is not opened. Each Playwright MCP process uses `--isolated` only. `@playwright/mcp@0.0.84` rejects `--isolated` together with `--user-data-dir`. The Stagehand and script_first arms use their own user-data-dir, and `context.browser` is a property. Sequential arms do not share the workspace Chrome profile.
 - The 3-task probe is prepared, not run, from a checkout without `ANTHROPIC_API_KEY`. Box commands, from the repo root:
 
   ```bash
@@ -177,6 +177,7 @@ bench/
   ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute
   ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay
   python -m bench.probe --execute --no-model-only
+  ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand
   ```
 
-  The first prints the plan. The second is the competitive 3 tasks times `playwright_mcp`, `diff_fast_act`, `macro_replay`, and `stagehand`, all on the outer Claude loop. Hard Claude stop is $5. The project total still stops at $40. A first snapshot over 40,000 characters is skipped only when the returned body is longer than that. `full_snapshot_chars` inside a compact diff does not skip the task. The third command is the same cold 3x4, then the same 3 tasks again on `macro_replay` and `diff_fast_act`. It records replay hit rate and wall for that warm pass and keeps the replay cache between the two passes. The fourth command is optional. It runs the two proxy arms through `decide()` with no outer model. That path cannot close the Stagehand gap. It is not the competitive measurement. Do not pass `--execute` where the key is unset if you expected the Claude arms to move. This tree does not call Claude.
+  The first prints the plan. The second is the competitive 3 tasks times `playwright_mcp`, `diff_fast_act`, `macro_replay`, and `stagehand`, all on the outer Claude loop. Hard Claude stop is $5. The project total still stops at $40. The fifth command is the script_first comparison and stops Claude at $2. Do not pass `--execute` from a checkout that is not supposed to spend. A first snapshot over 40,000 characters is skipped only when the returned body is longer than that. `full_snapshot_chars` inside a compact diff does not skip the task. The third command is the same cold 3x4, then the same 3 tasks again on `macro_replay` and `diff_fast_act`. It records replay hit rate and wall for that warm pass and keeps the replay cache between the two passes. The fourth command is optional. It runs the two proxy arms through `decide()` with no outer model. That path cannot close the Stagehand gap. It is not the competitive measurement. Do not pass `--execute` where the key is unset if you expected the Claude arms to move. This tree does not call Claude.

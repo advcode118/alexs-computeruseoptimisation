@@ -295,7 +295,7 @@ def test_prior_spend_is_the_recorded_m0_total():
 
     data = json.loads(DEFAULT_SPEND_PATH.read_text(encoding="utf-8"))
     assert data["tasks"] == []
-    assert data["model"] == "claude-sonnet-4-6"
+    assert data["model"] == "claude-sonnet-5-5"
     assert "opus" not in json.dumps(data).lower()
     assert data["prior"]["input_tokens"] == 3_200_000
     assert data["prior"]["output_tokens"] == 3000
@@ -389,6 +389,8 @@ def test_opus_and_retired_sonnet_are_refused_before_http(monkeypatch: pytest.Mon
         AnthropicClient("local-test", model="claude-opus-4-6")
     with pytest.raises(ModelNotAllowed, match="retired"):
         assert_allowed_model("claude-sonnet-4-20250514")
+    with pytest.raises(ModelNotAllowed):
+        assert_allowed_model("claude-sonnet-4-6")
 
     client = AnthropicClient("local-test")
     client.model = "claude-opus-4-7"
@@ -416,10 +418,11 @@ def test_opus_and_retired_sonnet_are_refused_before_http(monkeypatch: pytest.Mon
     assert not (tmp_path / "spend.json").exists()
 
 
-def test_default_model_is_claude_sonnet_4_6():
-    assert DEFAULT_MODEL == "claude-sonnet-4-6"
-    assert build_parser().get_default("model") == "claude-sonnet-4-6"
+def test_default_model_is_claude_sonnet_5_5():
+    assert DEFAULT_MODEL == "claude-sonnet-5-5"
+    assert build_parser().get_default("model") == "claude-sonnet-5-5"
     assert "20250514" not in DEFAULT_MODEL
+    assert DEFAULT_MODEL != "claude-sonnet-4-6"
 
 
 def test_handmade_figure_stays_the_five_file_set():

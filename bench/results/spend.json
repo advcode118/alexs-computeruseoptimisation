@@ -1,5 +1,5 @@
 {
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-5-5",
   "budget_usd": 40.0,
   "prices": {
     "input_usd_per_mtok": 3.0,
@@ -7,7 +7,7 @@
   },
   "prior": {
     "label": "M0 measurement already spent",
-    "model": "claude-sonnet-4-6",
+    "model": "claude-sonnet-5-5",
     "input_tokens": 3200000,
     "output_tokens": 3000,
     "usd": 9.645,
@@ -18,7 +18,7 @@
     "tool_time_pct": 13,
     "tasks_started": 5,
     "tasks_in_suite": 12,
-    "note": "Computed from the recorded M0 totals of 3.2M input tokens and 3k output tokens at the claude-sonnet-4-6 list price ($3/MTok input, $15/MTok output). That is $9.645, about $10. 4/5 tasks succeeded, 36 steps, 94.8s, model time 87%, tools 13%, stopped after 5 of 12 tasks. This is that measurement, not a new run."
+    "note": "Computed from the recorded M0 totals of 3.2M input tokens and 3k output tokens at the recorded ledger rate ($3/MTok input, $15/MTok output). That is $9.645, about $10. 4/5 tasks succeeded, 36 steps, 94.8s, model time 87%, tools 13%, stopped after 5 of 12 tasks. This is that measurement, not a new run. The outer model id is claude-sonnet-5-5. The recorded total is not repriced."
   },
   "tasks": [],
   "input_tokens": 3200000,

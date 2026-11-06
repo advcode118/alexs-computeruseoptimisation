@@ -1,4 +1,4 @@
-"""Benchmark arms. The outer model is claude-sonnet-4-6. Opus is never used.
+"""Benchmark arms. The outer model is claude-sonnet-5-5. Opus is never used.
 
 The competitive probe drives every arm with that outer model. plain Playwright
 MCP is the weak comparison. Stagehand's snapshot/run/screenshot tools are the
@@ -20,8 +20,13 @@ ARM_PLAYWRIGHT = "playwright_mcp"
 ARM_DIFF = "diff_fast_act"
 ARM_REPLAY = "macro_replay"
 ARM_STAGEHAND = "stagehand"
+ARM_SCRIPT_FIRST = "script_first"
 
+# The default probe stays these four. script_first is selected with --arms.
 ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
+SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST,)
+# One script for the task, plus a retry and a completion turn.
+SCRIPT_FIRST_MAX_CALLS = 3
 
 # The proxy arms can still finish through decide(), replay, or a locator
 # script when no_model_only is requested. The competitive probe does not.
@@ -62,6 +67,18 @@ Guidelines:
 
 Be efficient - batch the browser steps into one run call."""
 
+_SCRIPT_FIRST_PROMPT = """You are a browser automation agent. You get one tool, run_script.
+
+Guidelines:
+- Write one short Playwright script for the whole task. One call should finish it.
+- Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, and page.evaluate(() => { ... }) with a page-context function.
+- Do not click, type, or snapshot one element at a time. The runner does not settle or snapshot between actions.
+- browser_run_code_unsafe is not a tool. Do not ask for it.
+- Call run_script, then on the next turn respond with TASK_COMPLETE if the task is done, or TASK_FAILED if it is not. Do not put TASK_COMPLETE in the same message as the tool call.
+- Send another script only when the first one failed.
+
+Be efficient - one script, then stop."""
+
 
 def arm_needs_claude(arm: str, *, no_model_only: bool = False) -> bool:
     """True when this arm is driven by the outer Claude model.
@@ -69,7 +86,7 @@ def arm_needs_claude(arm: str, *, no_model_only: bool = False) -> bool:
     Competitive runs pass no_model_only False, so every arm needs Claude.
     no_model_only True leaves diff_fast_act and macro_replay on decide().
     """
-    if arm not in ARMS:
+    if arm not in SELECTABLE_ARMS:
         raise ValueError(f"unknown arm {arm!r}")
     if no_model_only and arm in NO_MODEL_CAPABLE:
         return False
@@ -88,13 +105,19 @@ def prompt_for(arm: str) -> str:
         return _REPLAY_PROMPT
     if arm == ARM_STAGEHAND:
         return _STAGEHAND_PROMPT
+    if arm == ARM_SCRIPT_FIRST:
+        return _SCRIPT_FIRST_PROMPT
     raise ValueError(f"unknown arm {arm!r}")
 
 
 def build_client(arm: str, *, headless: bool = True):
     """The tool client for this arm. Stagehand stays on local Playwright."""
-    if arm not in ARMS:
+    if arm not in SELECTABLE_ARMS:
         raise ValueError(f"unknown arm {arm!r}")
+    if arm == ARM_SCRIPT_FIRST:
+        from bench.script_first import ScriptFirstClient
+
+        return ScriptFirstClient(headless=headless)
     if arm == ARM_STAGEHAND:
         from bench.stagehand_local import StagehandLocalClient
 

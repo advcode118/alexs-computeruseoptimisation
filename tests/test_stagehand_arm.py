@@ -100,7 +100,7 @@ def test_arms_share_the_outer_model_and_stagehand_stays_local(monkeypatch):
     assert backend["backend"] == "local"
     assert backend["browserbase"] == "unset"
     harness = BenchmarkHarness(api_key="local-test", arm="stagehand")
-    assert harness.model == "claude-sonnet-4-6"
+    assert harness.model == "claude-sonnet-5-5"
     tools = StagehandLocalClient().tools_for_claude()
     assert [tool["name"] for tool in tools] == ["snapshot", "run", "screenshot"]
     by_name = {tool["name"]: tool["description"] for tool in tools}
@@ -143,7 +143,7 @@ def test_probe_plan_does_not_execute_and_caps_claude(capsys):
     assert plan["claude_arms"] == ["playwright_mcp", "diff_fast_act", "macro_replay", "stagehand"]
     assert plan["no_model_arms"] == []
     assert plan["no_model_only_arms"] == ["diff_fast_act", "macro_replay"]
-    assert plan["outer_model"] == "claude-sonnet-4-6"
+    assert plan["outer_model"] == "claude-sonnet-5-5"
     assert plan["claude_budget_usd"] == PROBE_CLAUDE_BUDGET_USD == 5.0
     assert plan["project_spent_usd"] == 12.912192
     assert plan["box_commands"] == list(BOX_COMMANDS)

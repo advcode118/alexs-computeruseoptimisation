@@ -1,9 +1,13 @@
 """Project spend for the bench harness.
 
-claude-sonnet-4-6 list price is $3 per million input tokens and $15 per
-million output tokens. The prior total is the recorded M0 usage: 3.2M input
-tokens and 3k output tokens, which is $9.645, about $10. That entry is the
-measurement already spent. It is not a new run.
+The outer model id is claude-sonnet-5-5. The ledger still prices tokens at
+the recorded rate of $3 per million input tokens and $15 per million output
+tokens. Repricing at the Sonnet 5.5 list price ($2 / $10) would change
+running_total_usd, so this file does not. The prior total is the recorded M0
+usage: 3.2M input tokens and 3k output tokens, which is $9.645, about $10.
+That entry is the measurement already spent. It is not a new run.
+
+The operator envelope is $50. A run aborts at $40.
 """
 
 from __future__ import annotations
@@ -12,10 +16,17 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-ALLOWED_MODEL = "claude-sonnet-4-6"
+# Claude API id from the Sonnet 5.5 model page. No date suffix.
+ALLOWED_MODEL = "claude-sonnet-5-5"
 RETIRED_MODEL = "claude-sonnet-4-20250514"
+FORMER_MODEL = "claude-sonnet-4-6"
+# Messages API version used with claude-sonnet-5-5. Not sent by this checkout.
+ANTHROPIC_VERSION = "2026-10-21"
+# Recorded ledger rate. Sonnet 5.5 list price is $2 / $10. Applying that
+# here would move running_total_usd, so the recorded rate stays.
 INPUT_USD_PER_MTOK = 3.0
 OUTPUT_USD_PER_MTOK = 15.0
+# Abort. The operator envelope is $50; the run stops at $40.
 PROJECT_BUDGET_USD = 40.0
 
 # Recorded M0 totals. "3.2M" and "3k" are the figures from that measurement.
@@ -26,7 +37,7 @@ DEFAULT_SPEND_PATH = Path(__file__).resolve().parent / "results" / "spend.json"
 
 
 class ModelNotAllowed(ValueError):
-    """The bench calls claude-sonnet-4-6 and nothing else."""
+    """The bench calls claude-sonnet-5-5 and nothing else."""
 
 
 class BudgetExceeded(RuntimeError):
@@ -48,13 +59,17 @@ class BudgetExceeded(RuntimeError):
 
 
 def assert_allowed_model(model: str) -> str:
-    """Accept claude-sonnet-4-6. Refuse Opus and the retired Sonnet id."""
+    """Accept claude-sonnet-5-5. Refuse Opus, Sonnet 4.6, and the retired id."""
     if not isinstance(model, str):
         raise ModelNotAllowed(f"Refusing model {model!r}. The bench model is {ALLOWED_MODEL}.")
     chosen = model.strip()
     if "opus" in chosen.lower():
         raise ModelNotAllowed(
             f"Refusing {chosen}. The bench model is {ALLOWED_MODEL}. Opus is never used."
+        )
+    if chosen == FORMER_MODEL:
+        raise ModelNotAllowed(
+            f"Refusing {FORMER_MODEL}. The bench model is {ALLOWED_MODEL}."
         )
     if chosen == RETIRED_MODEL:
         raise ModelNotAllowed(
@@ -66,7 +81,11 @@ def assert_allowed_model(model: str) -> str:
 
 
 def estimate_usd(input_tokens: int, output_tokens: int) -> float:
-    """Dollars from token counts times the current sonnet-4-6 list price."""
+    """Dollars from token counts times the recorded ledger rate.
+
+    The rate stays $3/MTok input and $15/MTok output so the recorded
+    running total does not move. Sonnet 5.5 list price is $2 / $10.
+    """
     return (
         int(input_tokens) * INPUT_USD_PER_MTOK
         + int(output_tokens) * OUTPUT_USD_PER_MTOK
@@ -91,10 +110,11 @@ def prior_record() -> dict:
         "tasks_in_suite": 12,
         "note": (
             "Computed from the recorded M0 totals of 3.2M input tokens and 3k output tokens "
-            "at the claude-sonnet-4-6 list price ($3/MTok input, $15/MTok output). "
+            "at the recorded ledger rate ($3/MTok input, $15/MTok output). "
             "That is $9.645, about $10. 4/5 tasks succeeded, 36 steps, 94.8s, "
             "model time 87%, tools 13%, stopped after 5 of 12 tasks. "
-            "This is that measurement, not a new run."
+            "This is that measurement, not a new run. The outer model id is "
+            "claude-sonnet-5-5. The recorded total is not repriced."
         ),
     }
 

@@ -1,4 +1,4 @@
-"""Harness that runs browser tasks via @playwright/mcp with claude-sonnet-4-6.
+"""Harness that runs browser tasks via @playwright/mcp with claude-sonnet-5-5.
 
 @playwright/mcp 0.0.84 speaks newline-delimited JSON-RPC on stdio. Notifications
 have no id and get no reply. The model context keeps the task plus the last
@@ -23,6 +23,7 @@ from pathlib import Path
 
 from bench.budget import (
     ALLOWED_MODEL,
+    ANTHROPIC_VERSION,
     BudgetExceeded,
     SpendLedger,
     assert_allowed_model,
@@ -503,7 +504,7 @@ class PlaywrightMCPClient:
 
 
 class AnthropicClient:
-    """Simple Anthropic API client for tool use. claude-sonnet-4-6 only."""
+    """Simple Anthropic API client for tool use. claude-sonnet-5-5 only."""
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
         self.api_key = api_key
@@ -531,7 +532,7 @@ class AnthropicClient:
 
         headers = {
             "x-api-key": self.api_key,
-            "anthropic-version": "2023-06-01",
+            "anthropic-version": ANTHROPIC_VERSION,
             "content-type": "application/json",
         }
 
@@ -897,7 +898,7 @@ async def execute_benchmark_tasks(
     """Run tasks until the project total would pass the budget.
 
     Spend is estimated after every task from that task's tokens times the
-    current sonnet-4-6 price, then written to the ledger. The next task is
+    recorded ledger rate, then written to the ledger. The next task is
     not started once the running total has reached $40.
     """
     results: list[TaskResult] = []
