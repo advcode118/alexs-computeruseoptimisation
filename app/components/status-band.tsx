@@ -1,6 +1,6 @@
-import { armMeta, probes, progress } from "@/data/progress";
+import { armMeta, ownerLabel, probes, progress } from "@/data/progress";
 
-const highlight = "#4fd1a5";
+const highlight = "var(--color-yours-bright)";
 
 export default function StatusBand() {
   const { status } = progress;
@@ -18,7 +18,8 @@ export default function StatusBand() {
             id="status-title"
             className="mt-4 font-display text-5xl leading-[0.95] font-bold tracking-[-0.035em] text-balance sm:text-7xl"
           >
-            {status.headline}
+            <span style={{ color: highlight }}>script_first</span>
+            {status.headline.replace("script_first", "")}
             <span className="mt-2 block text-night-mute">{status.subhead}</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed">{status.body}</p>
@@ -34,12 +35,26 @@ export default function StatusBand() {
           </p>
           <div className="mt-4 space-y-5">
             {latest.results.map((result) => {
-              const fill = result.arm === "script_first" ? highlight : "var(--color-night-ink)";
+              const yours = armMeta[result.arm].owner === "yours";
+              const fill = yours ? highlight : "rgba(223, 230, 245, 0.35)";
 
               return (
-                <div key={result.arm}>
+                <div
+                  key={result.arm}
+                  className={yours ? "-mx-3 rounded-lg px-3 py-2 ring-2 ring-[var(--color-yours-bright)]" : "opacity-80"}
+                >
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-mono text-sm font-bold">{armMeta[result.arm].short}</span>
+                    <span className="flex items-center gap-2 font-mono text-sm font-bold">
+                      {yours ? (
+                        <span className="rounded-full bg-[var(--color-yours-bright)] px-2 py-0.5 font-sans text-xs font-bold text-night">
+                          Yours
+                        </span>
+                      ) : null}
+                      <span style={yours ? { color: highlight } : undefined}>{armMeta[result.arm].short}</span>
+                      {!yours ? (
+                        <span className="font-sans text-xs font-normal text-night-mute">{ownerLabel[armMeta[result.arm].owner]}</span>
+                      ) : null}
+                    </span>
                     <span className="font-mono text-sm text-night-mute">
                       {result.successes}/{result.tasks} passed
                     </span>
@@ -83,11 +98,11 @@ export default function StatusBand() {
               />
               <span
                 aria-hidden
-                className="absolute -top-1 -bottom-1 w-0.5 bg-[#ff8a9a]"
+                className="absolute -top-1 -bottom-1 w-0.5 bg-[#f2b84b]"
                 style={{ left: `${(spend.abortAt / spend.cap) * 100}%` }}
               />
             </div>
-            <p className="mt-1.5 text-xs text-night-mute">Scripts abort at ${spend.abortAt}, marked in red.</p>
+            <p className="mt-1.5 text-xs text-night-mute">Scripts abort at ${spend.abortAt}, marked in amber.</p>
           </div>
         </div>
       </div>

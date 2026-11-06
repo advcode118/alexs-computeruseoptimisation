@@ -1,7 +1,7 @@
 "use client";
 
 import { Component } from "react";
-import { armMeta, type ArmId, type ArmResult, type Probe } from "@/data/progress";
+import { armMeta, ownerLabel, type ArmId, type ArmResult, type Probe } from "@/data/progress";
 
 type Metric = "seconds" | "success" | "cost";
 type Grouping = "probe" | "arm";
@@ -73,7 +73,7 @@ export default class ProbeCharts extends Component<Props, State> {
     return armOrder.map((arm) => ({
       key: arm,
       title: armMeta[arm].name,
-      caption: armMeta[arm].short,
+      caption: ownerLabel[armMeta[arm].owner],
       rows: probes.flatMap((probe) => {
         const result = probe.results.find((item) => item.arm === arm);
         return result ? [{ key: probe.id, label: probe.label, color: armMeta[arm].color, result }] : [];
@@ -125,7 +125,13 @@ export default class ProbeCharts extends Component<Props, State> {
           {this.groups().map((group) => (
             <figure key={group.key} className="min-w-0">
               <figcaption className="flex items-baseline justify-between gap-3 border-b-2 border-ink pb-1.5">
-                <span className="font-display text-xl font-semibold tracking-tight">{group.title}</span>
+                <span
+                  className={`font-display text-xl font-semibold tracking-tight ${
+                    group.key === "script_first" ? "text-[var(--color-yours)]" : ""
+                  }`}
+                >
+                  {group.title}
+                </span>
                 <span className="truncate font-mono text-xs text-mute">{group.caption}</span>
               </figcaption>
               <div className="relative mt-2">
@@ -135,7 +141,7 @@ export default class ProbeCharts extends Component<Props, State> {
                         key={tick.label}
                         aria-hidden
                         className="absolute top-0 bottom-0 border-l border-dashed border-rule"
-                        style={{ left: `calc(7.5rem + (100% - 7.5rem - 6.5rem) * ${tick.at / 100})` }}
+                        style={{ left: `calc(9.5rem + (100% - 9.5rem - 6.5rem) * ${tick.at / 100})` }}
                       />
                     ))
                   : null}
@@ -145,9 +151,16 @@ export default class ProbeCharts extends Component<Props, State> {
                     const measured = bar !== null;
 
                     return (
-                      <li key={row.key} className="grid grid-cols-[7.5rem_minmax(0,1fr)_6.5rem] items-center py-1.5">
+                      <li key={row.key} className="grid grid-cols-[9.5rem_minmax(0,1fr)_6.5rem] items-center py-1.5">
                         <span className="min-w-0 pr-2 font-mono text-xs">
-                          <span className="block truncate">{row.label}</span>
+                          <span
+                            className={`block truncate ${
+                              armMeta[row.result.arm].owner === "yours" ? "font-bold text-[var(--color-yours)]" : "text-mute"
+                            }`}
+                          >
+                            {armMeta[row.result.arm].owner === "yours" && grouping === "probe" ? "Yours: " : ""}
+                            {row.label}
+                          </span>
                           {row.result.note ? (
                             <span className="block truncate font-sans text-[11px] text-mute">{row.result.note}</span>
                           ) : null}
@@ -172,7 +185,7 @@ export default class ProbeCharts extends Component<Props, State> {
                   })}
                 </ul>
                 {metric !== "success" ? (
-                  <div aria-hidden className="relative mr-[6.5rem] ml-[7.5rem] h-4 font-mono text-[10px] text-mute">
+                  <div aria-hidden className="relative mr-[6.5rem] ml-[9.5rem] h-4 font-mono text-[10px] text-mute">
                     {ticks[metric].map((tick) => (
                       <span key={tick.label} className="absolute -translate-x-1/2" style={{ left: `${tick.at}%` }}>
                         {tick.label}

@@ -12,12 +12,15 @@
   --color-night: #13224a;
   --color-night-ink: #dfe6f5;
   --color-night-mute: #9fb0d3;
-  --color-arm-mcp: #2856c8;
-  --color-arm-proxy: #8a3a9e;
-  --color-arm-replay: #c07ad0;
-  --color-arm-script: #0b7f62;
-  --color-arm-stagehand: #b5770a;
-  --color-stop: #c2253d;
+  --color-yours: #e0115f;
+  --color-yours-bright: #ff4d8d;
+  --color-yours-soft: #fde4ee;
+  --color-arm-mcp: #4d5b74;
+  --color-arm-stagehand: #8e96a7;
+  --color-arm-proxy: #b4bbc8;
+  --color-arm-replay: #ccd2dc;
+  --color-arm-script: var(--color-yours);
+  --color-stop: #8a5a00;
 }
 
 html {
@@ -33,12 +36,12 @@ body {
 }
 
 ::selection {
-  background: #2856c8;
+  background: #e0115f;
   color: #f8f9fc;
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-arm-mcp);
+  outline: 3px solid var(--color-ink);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -73,6 +76,27 @@ body {
 @keyframes loop-pulse {
   50% {
     opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 40%;
+    }
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0.2;
+    transform: translateY(36px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 

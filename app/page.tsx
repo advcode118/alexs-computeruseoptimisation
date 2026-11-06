@@ -2,7 +2,7 @@ import LoopPathway from "@/app/components/loop-pathway";
 import ProbeCharts from "@/app/components/probe-charts";
 import RunDemo from "@/app/components/run-demo";
 import StatusBand from "@/app/components/status-band";
-import { armMeta, probes, progress } from "@/data/progress";
+import { armMeta, probes, progress, type TimelineEntry } from "@/data/progress";
 
 const sections = [
   { href: "#status", label: "Status" },
@@ -30,7 +30,7 @@ function Timeline() {
   return (
     <ol className="relative mt-12 sm:ml-[5.5rem]">
       <span aria-hidden className="absolute top-2 bottom-2 left-[7px] w-0.5 bg-ink/80" />
-      {progress.timeline.map((entry) => {
+      {progress.timeline.map((entry: TimelineEntry) => {
         const dot =
           entry.tone === "stop"
             ? "bg-stop"
@@ -41,7 +41,7 @@ function Timeline() {
                 : "bg-ink";
 
         return (
-          <li key={entry.id} className="relative pb-12 pl-10 last:pb-0">
+          <li key={entry.id} className="reveal relative pb-14 pl-10 last:pb-0">
             <span aria-hidden className={`absolute top-1.5 left-0 size-4 rounded-full ring-4 ring-paper ${dot}`} />
             <p className={`font-mono text-sm ${entry.tone === "stop" ? "font-bold text-stop" : "text-mute"}`}>
               {entry.label}
@@ -61,9 +61,23 @@ function Timeline() {
             {entry.figures.length ? (
               <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
                 {entry.figures.map((figure) => (
-                  <div key={figure.label} className="flex min-w-[8rem] flex-col-reverse">
-                    <dt className="text-sm text-mute">{figure.label}</dt>
-                    <dd className="font-mono text-2xl font-bold tracking-tight tabular-nums">{figure.value}</dd>
+                  <div
+                    key={figure.label}
+                    className={`flex min-w-[8rem] flex-col-reverse ${
+                      figure.yours ? "-mx-2 rounded-md bg-[var(--color-yours-soft)] px-2 py-1" : ""
+                    }`}
+                  >
+                    <dt className={`text-sm ${figure.yours ? "font-semibold text-[var(--color-yours)]" : "text-mute"}`}>
+                      {figure.yours ? "Yours: " : ""}
+                      {figure.label}
+                    </dt>
+                    <dd
+                      className={`font-mono text-2xl font-bold tracking-tight tabular-nums ${
+                        figure.yours ? "text-[var(--color-yours)]" : ""
+                      }`}
+                    >
+                      {figure.value}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -126,7 +140,7 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-5 py-3 sm:px-8">
           <a href="#top" className="flex items-center gap-2.5 font-display text-lg font-bold tracking-tight">
             <span aria-hidden className="grid size-6 place-items-center rounded-full bg-ink">
-              <span className="size-2 rounded-full bg-[var(--color-arm-script)]" />
+              <span className="size-2 rounded-full bg-[var(--color-yours-bright)]" />
             </span>
             {progress.project}
           </a>
@@ -141,6 +155,25 @@ export default function HomePage() {
               </a>
             ))}
           </nav>
+        </div>
+        <div className="border-t border-rule/70">
+          <ul
+            aria-label="Colour key"
+            className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-5 gap-y-1 px-5 py-1.5 text-xs sm:px-8"
+          >
+            <li className="flex items-center gap-2 font-bold text-[var(--color-yours)]">
+              <span aria-hidden className="h-2.5 w-6 rounded-full bg-[var(--color-yours)]" />
+              Yours (script_first)
+            </li>
+            <li className="flex items-center gap-2 text-mute">
+              <span aria-hidden className="flex gap-0.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-arm-mcp)]" />
+                <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-arm-stagehand)]" />
+                <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-arm-proxy)]" />
+              </span>
+              Baselines &amp; others: Playwright MCP, Stagehand, parked proxy
+            </li>
+          </ul>
         </div>
       </header>
 
@@ -189,8 +222,15 @@ export default function HomePage() {
               lede="Pick an arm, then press Play or Step. Watch where the model calls happen. The numbers beside it are that arm's probe results."
             />
           </div>
-          <div className="mx-auto mt-10 max-w-6xl sm:px-8">
-            <RunDemo demos={progress.demos} probes={probes} tasks={progress.tasks} />
+          <div className="reveal mx-auto mt-10 max-w-6xl sm:px-8">
+            <RunDemo
+              demos={[
+                ...progress.demos.filter((demo) => demo.id === "script_first"),
+                ...progress.demos.filter((demo) => demo.id !== "script_first"),
+              ]}
+              probes={probes}
+              tasks={progress.tasks}
+            />
           </div>
         </section>
 
@@ -202,7 +242,7 @@ export default function HomePage() {
               title="Every probe, every arm"
               lede={`Three tasks per probe: ${progress.tasks.join(", ")}. Switch the measure, or group by arm to follow one arm across probes.`}
             />
-            <div className="mt-10">
+            <div className="reveal mt-10">
               <ProbeCharts probes={probes} />
             </div>
             <ProbeTable />

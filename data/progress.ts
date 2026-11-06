@@ -5,7 +5,7 @@
 
 export type ArmId = "playwright_mcp" | "diff_fast_act" | "macro_replay" | "script_first" | "stagehand";
 
-export type ProbeId = "probe1" | "pr14" | "pr15" | "pr16" | "pr17";
+export type ProbeId = "probe1" | "pr14" | "pr15" | "pr16" | "pr17" | "pr18";
 
 export type ArmResult = {
   arm: ArmId;
@@ -31,7 +31,7 @@ export type TimelineEntry = {
   label: string;
   title: string;
   body: string;
-  figures: { value: string; label: string }[];
+  figures: { value: string; label: string; yours?: boolean }[];
   stack?: { pr: string; text: string }[];
   tone?: "stop" | "now";
 };
@@ -56,12 +56,21 @@ export type DemoArm = {
   takeaway: string;
 };
 
-export const armMeta: Record<ArmId, { name: string; short: string; color: string }> = {
-  playwright_mcp: { name: "Plain Playwright MCP", short: "Playwright MCP", color: "var(--color-arm-mcp)" },
-  diff_fast_act: { name: "Proxy: diff + fast act", short: "diff_fast_act", color: "var(--color-arm-proxy)" },
-  macro_replay: { name: "Proxy: macro replay", short: "macro_replay", color: "var(--color-arm-replay)" },
-  script_first: { name: "Script first", short: "script_first", color: "var(--color-arm-script)" },
-  stagehand: { name: "Stagehand", short: "Stagehand", color: "var(--color-arm-stagehand)" },
+export type ArmOwner = "yours" | "baseline" | "competitor" | "parked";
+
+export const ownerLabel: Record<ArmOwner, string> = {
+  yours: "Yours",
+  baseline: "Baseline tool",
+  competitor: "Competitor bar",
+  parked: "Parked experiment",
+};
+
+export const armMeta: Record<ArmId, { name: string; short: string; color: string; owner: ArmOwner }> = {
+  script_first: { name: "Yours: script_first", short: "script_first", color: "var(--color-yours)", owner: "yours" },
+  playwright_mcp: { name: "Plain Playwright MCP", short: "Playwright MCP", color: "var(--color-arm-mcp)", owner: "baseline" },
+  stagehand: { name: "Stagehand", short: "Stagehand", color: "var(--color-arm-stagehand)", owner: "competitor" },
+  diff_fast_act: { name: "Proxy: diff + fast act", short: "diff_fast_act", color: "var(--color-arm-proxy)", owner: "parked" },
+  macro_replay: { name: "Proxy: macro replay", short: "macro_replay", color: "var(--color-arm-replay)", owner: "parked" },
 };
 
 export const probes: Probe[] = [
@@ -123,6 +132,17 @@ export const probes: Probe[] = [
       { arm: "stagehand", successes: 3, tasks: 3, seconds: 15.52, cost: 0.103, note: "Wikipedia alone ~40.9s" },
     ],
   },
+  {
+    id: "pr18",
+    label: "PR #18",
+    model: "Claude Sonnet 5.5",
+    summary: "script_first stays 3/3 and cheapest, about 0.7s over the ~3.1s bar.",
+    results: [
+      { arm: "playwright_mcp", successes: 3, tasks: 3, seconds: 2.98, cost: 0.165 },
+      { arm: "script_first", successes: 3, tasks: 3, seconds: 3.67, cost: 0.047, note: "Every task still 2 steps" },
+      { arm: "stagehand", successes: 3, tasks: 3, seconds: 4.62, cost: 0.074, note: "Wikipedia 8.74s" },
+    ],
+  },
 ];
 
 export const progress = {
@@ -132,11 +152,11 @@ export const progress = {
   goal: "A faster browser tool for computer use. An outer agent (Claude, Cursor) drives a browser. The main number is wall time per successful task, with success within about 2 points of the stronger baseline. Browser first. Desktop later, not started.",
   status: {
     headline: "script_first is 3/3 and the cheapest.",
-    subhead: "It is not yet the fastest.",
-    body: "In the latest probe (PR #17, Claude Sonnet 5.5, three tasks), plain Playwright MCP is 3.06s per success. script_first is 4.56s. The next PR targets fewer repair calls.",
-    probe: "pr17" as ProbeId,
-    next: "Next: one-shot rate PR, in progress. Fewer repair calls.",
-    spend: { used: 16.35, cap: 50, abortAt: 40 },
+    subhead: "About 0.7s over the ~3.1s bar.",
+    body: "In the latest probe (PR #18, Claude Sonnet 5.5, three tasks), your script_first is 3.67s per success at $0.047, and every task is still 2 steps. Plain Playwright MCP is 2.98s at $0.165. Stagehand is 4.62s at $0.074.",
+    probe: "pr18" as ProbeId,
+    next: "Next: stop-check PR, in progress.",
+    spend: { used: 16.64, cap: 50, abortAt: 40 },
   },
   tasks: ["Wikipedia search", "Python docs", "Hacker News top"],
   benchmark: {
@@ -239,7 +259,7 @@ export const progress = {
       figures: [
         { value: "2.5s", label: "Stagehand, 2/3, $0.053" },
         { value: "3.8s", label: "Playwright MCP, 3/3, $0.150" },
-        { value: "4.1s", label: "script_first, 1/3, $0.031" },
+        { value: "4.1s", label: "script_first, 1/3, $0.031", yours: true },
       ],
     },
     {
@@ -249,16 +269,27 @@ export const progress = {
       body: "If the end-state check fails, Claude gets one repair call. The Stagehand URL fix lands too.",
       figures: [
         { value: "3.06s", label: "Playwright MCP, 3/3, $0.167" },
-        { value: "4.56s", label: "script_first, 3/3, $0.042" },
+        { value: "4.56s", label: "script_first, 3/3, $0.042", yours: true },
         { value: "15.52s", label: "Stagehand, 3/3, $0.103" },
+      ],
+    },
+    {
+      id: "pr18",
+      label: "Probe on PR #18",
+      title: "script_first stays 3/3 and cheapest, about 0.7s over the bar",
+      body: "Sonnet 5.5. Every script_first task is still 2 steps. The bar is plain Playwright MCP at ~3.1s.",
+      figures: [
+        { value: "3.67s", label: "script_first, 3/3, $0.047", yours: true },
+        { value: "2.98s", label: "Playwright MCP, 3/3, $0.165" },
+        { value: "4.62s", label: "Stagehand, 3/3, $0.074 (wiki 8.74s)" },
       ],
       tone: "now",
     },
     {
       id: "next",
       label: "Next",
-      title: "Raise the one-shot rate",
-      body: "In progress. Fewer repair calls, so script_first spends less time on its second pass.",
+      title: "A stop-check PR",
+      body: "In progress.",
       figures: [],
     },
   ] satisfies TimelineEntry[],
@@ -282,7 +313,7 @@ export const progress = {
     },
     {
       id: "proxy",
-      name: "Speed-layer proxy",
+      name: "Proxy (parked)",
       arms: ["diff_fast_act", "macro_replay"],
       oneLine: "The same outer loop, with a proxy that settles the page and returns only what changed.",
       steps: [
@@ -299,7 +330,7 @@ export const progress = {
     },
     {
       id: "script_first",
-      name: "Script first",
+      name: "Yours: script_first",
       arms: ["script_first"],
       oneLine: "One Claude call writes the whole task as a short Playwright script. Chrome runs it.",
       steps: [
@@ -311,7 +342,7 @@ export const progress = {
         { lane: "tool", title: "Run the repaired script", detail: "Chrome runs the second script.", counts: "browser", branch: "repair" },
         { lane: "check", title: "Check again", detail: "Pass, or the run fails.", branch: "repair" },
       ],
-      takeaway: "Cheapest arm per run. The repair pass is why it is not yet the fastest, which is what the next PR targets.",
+      takeaway: "Your product. Cheapest arm per run. In PR #18 every task is still 2 steps, about 0.7s over the ~3.1s bar.",
     },
     {
       id: "stagehand",
