@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600" width="1200" height="600" role="img" aria-labelledby="t d">
+  <title id="t">Alex's browser tool: one Claude call writes the whole browser task</title>
+  <desc id="d">script_first is 3/3 at 3.67s and $0.047 per run in the PR #18 probe. Playwright MCP is 3/3 at 2.98s and $0.165. Stagehand is 3/3 at 4.62s and $0.074. Next: PR #20, in progress.</desc>
+  <style>
+    .display { font-family: 'Bricolage Grotesque', 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif; }
+    .sans { font-family: 'Public Sans', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace; }
+    .bar { transform-box: fill-box; transform-origin: left center; animation: grow 900ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .b2 { animation-delay: 120ms; }
+    .b3 { animation-delay: 240ms; }
+    .pulse { animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes grow { from { transform: scaleX(0); } }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+    @media (prefers-reduced-motion: reduce) { .bar, .pulse { animation: none; } }
+  </style>
+  <defs>
+    <pattern id="grid" width="96" height="600" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="1" height="600" fill="#dfe6f5" opacity="0.05"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="600" rx="24" fill="#13224a"/>
+  <rect width="1200" height="600" rx="24" fill="url(#grid)"/>
+
+  <circle cx="70" cy="90" r="5" fill="#ff4d8d"/>
+  <text x="86" y="96" class="mono" font-size="17" fill="#ff4d8d">script_first, Alex's browser tool</text>
+
+  <g class="display" font-size="66" font-weight="800" letter-spacing="-2.4" fill="#dfe6f5">
+    <text x="62" y="182">One Claude call</text>
+    <text x="62" y="252">writes the whole</text>
+    <text x="62" y="322">browser task.</text>
+  </g>
+
+  <g class="sans" font-size="20" fill="#9fb0d3">
+    <text x="64" y="378">Chrome runs the script. No model between clicks.</text>
+    <text x="64" y="406">If the end-state check fails, Claude gets one repair.</text>
+  </g>
+
+  <rect x="64" y="446" width="560" height="1" fill="#dfe6f5" opacity="0.15"/>
+  <g class="mono" font-size="38" font-weight="700" fill="#ff4d8d">
+    <text x="64" y="502">3/3</text>
+    <text x="254" y="502">$0.047</text>
+    <text x="444" y="502">3.67s</text>
+  </g>
+  <g class="sans" font-size="15" fill="#dfe6f5">
+    <text x="64" y="528">tasks passed</text>
+    <text x="254" y="528">per run</text>
+    <text x="444" y="528">per success</text>
+  </g>
+  <g class="sans" font-size="13" fill="#9fb0d3">
+    <text x="64" y="550">Same as Playwright MCP</text>
+    <text x="254" y="550">MCP is $0.165, ~3.5x</text>
+    <text x="444" y="550">~0.7s behind MCP</text>
+  </g>
+
+  <text x="700" y="96" class="display" font-size="19" font-weight="600" fill="#dfe6f5">Latest probe: PR #18, Claude Sonnet 5.5</text>
+  <g class="sans" font-size="13" fill="#9fb0d3">
+    <circle cx="705" cy="120" r="5" fill="#ff4d8d"/>
+    <text x="716" y="125">script_first (Alex's tool)</text>
+    <circle cx="905" cy="120" r="5" fill="#dfe6f5" opacity="0.35"/>
+    <text x="916" y="125">Baselines and others</text>
+  </g>
+
+  <rect x="688" y="146" width="460" height="104" rx="14" fill="none" stroke="#ff4d8d" stroke-width="2"/>
+
+  <g>
+    <text x="700" y="178" class="mono" font-size="15" font-weight="700" fill="#ff4d8d">script_first <tspan class="sans" font-size="12" font-weight="400" fill="#9fb0d3">Alex's tool</tspan></text>
+    <text x="1136" y="178" class="mono" font-size="14" fill="#9fb0d3" text-anchor="end">3/3</text>
+    <text x="700" y="207" class="sans" font-size="12" fill="#9fb0d3">time</text>
+    <rect x="750" y="198" width="300" height="10" rx="5" fill="#dfe6f5" opacity="0.1"/>
+    <rect class="bar" x="750" y="198" width="238" height="10" rx="5" fill="#ff4d8d"/>
+    <text x="1136" y="208" class="mono" font-size="14" fill="#dfe6f5" text-anchor="end">3.67s</text>
+    <text x="700" y="233" class="sans" font-size="12" fill="#9fb0d3">cost</text>
+    <rect x="750" y="224" width="300" height="10" rx="5" fill="#dfe6f5" opacity="0.1"/>
+    <rect class="bar" x="750" y="224" width="85" height="10" rx="5" fill="#ff4d8d"/>
+    <text x="1136" y="234" class="mono" font-size="14" fill="#dfe6f5" text-anchor="end">$0.047</text>
+  </g>
+
+  <g>
+    <text x="700" y="292" class="mono" font-size="15" font-weight="700" fill="#dfe6f5">Playwright MCP <tspan class="sans" font-size="12" font-weight="400" fill="#9fb0d3">Baseline tool</tspan></text>
+    <text x="1136" y="292" class="mono" font-size="14" fill="#9fb0d3" text-anchor="end">3/3</text>
+    <text x="700" y="321" class="sans" font-size="12" fill="#9fb0d3">time</text>
+    <rect x="750" y="312" width="300" height="10" rx="5" fill="#dfe6f5" opacity="0.1"/>
+    <rect class="bar b2" x="750" y="312" width="194" height="10" rx="5" fill="#dfe6f5" opacity="0.35"/>
+    <text x="1136" y="322" class="mono" font-size="14" fill="#dfe6f5" text-anchor="end">2.98s</text>
+    <text x="700" y="347" class="sans" font-size="12" fill="#9fb0d3">cost</text>
+    <rect x="750" y="338" width="300" height="10" rx="5" fill="#dfe6f5" opacity="0.1"/>
+    <rect class="bar b2" x="750" y="338" width="300" height="10" rx="5" fill="#dfe6f5" opacity="0.35"/>
+    <text x="1136" y="348" class="mono" font-size="14" fill="#dfe6f5" text-anchor="end">$0.165</text>
+  </g>
+
+  <g>
+    <text x="700" y="396" class="mono" font-size="15" font-weight="700" fill="#dfe6f5">Stagehand <tspan class="sans" font-size="12" font-weight="400" fill="#9fb0d3">Competitor bar</tspan></text>
+    <text x="1136" y="396" class="mono" font-size="14" fill="#9fb0d3" text-anchor="end">3/3</text>
+    <text x="700" y="425" class="sans" font-size="12" fill="#9fb0d3">time</text>
+    <rect x="750" y="416" width="300" height="10" rx="5" fill="#dfe6f5" opacity="0.1"/>
+    <rect class="bar b3" x="750" y="416" width="300" height="10" rx="5" fill="#dfe6f5" opacity="0.35"/>
+    <text x="1136" y="426" class="mono" font-size="14" fill="#dfe6f5" text-anchor="end">4.62s</text>
+    <text x="700" y="451" class="sans" font-size="12" fill="#9fb0d3">cost</text>
+    <rect x="750" y="442" width="300" height="10" rx="5" fill="#dfe6f5" opacity="0.1"/>
+    <rect class="bar b3" x="750" y="442" width="135" height="10" rx="5" fill="#dfe6f5" opacity="0.35"/>
+    <text x="1136" y="452" class="mono" font-size="14" fill="#dfe6f5" text-anchor="end">$0.074</text>
+  </g>
+
+  <rect x="700" y="506" width="436" height="40" rx="20" fill="none" stroke="#9fb0d3" stroke-opacity="0.4"/>
+  <circle class="pulse" cx="722" cy="526" r="5" fill="#ff4d8d"/>
+  <text x="738" y="531" class="sans" font-size="14" fill="#dfe6f5">Next: PR #20, stop when the first page is done</text>
+</svg>
