@@ -23,8 +23,10 @@ from bench.probe import (
 from bench.stagehand_local import (
     StagehandLocalClient,
     actions_to_script,
+    append_stagehand_url,
     context_browser,
     describe_backend,
+    stagehand_page_url,
 )
 from proxy.script import parse_script
 
@@ -281,6 +283,97 @@ def test_url_judge_reads_json_url_and_stagehand_goto_prose():
     assert check_url_contains("", "Ada_Lovelace").success is False
     later = page_url_from_result("Ran goto https://example.com/; goto https://docs.python.org/3/library/heapq.html.")
     assert later == "https://docs.python.org/3/library/heapq.html"
+
+
+class _ArticlePage(_Page):
+    """Click navigation updates page.url the way Playwright does."""
+
+    def __init__(self, explode: bool = False):
+        super().__init__()
+        self.url = "https://en.wikipedia.org/wiki/Main_Page"
+        self.explode = explode
+
+    async def goto(self, url):
+        self.url = url
+        self.log.append(("goto", url))
+
+    def get_by_role(self, role, name=None):
+        del role
+        return _ArticleLocator(self, name or "")
+
+
+class _ArticleLocator:
+    def __init__(self, page: _ArticlePage, name: str):
+        self.page = page
+        self.name = name
+
+    async def click(self):
+        self.page.log.append(("click", self.name))
+        self.page.url = "https://en.wikipedia.org/wiki/Ada_Lovelace"
+        if self.page.explode:
+            raise RuntimeError("click timed out")
+
+    async def fill(self, value):
+        self.page.log.append(("fill", self.name, value))
+
+
+def test_stagehand_click_navigation_is_not_an_empty_url():
+    page = _ArticlePage()
+    client = StagehandLocalClient(page=page)
+    text, _ms = asyncio.run(
+        client.call_tool("run", {"code": 'page.getByRole("button", { name: "Search" }).click()'})
+    )
+    assert "Ran goto https://en.wikipedia.org/wiki/Main_Page" not in text
+    url = page_url_from_result(text)
+    assert url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    assert check_url_contains(url, "Ada_Lovelace").success is True
+    assert '"url": "https://en.wikipedia.org/wiki/Ada_Lovelace"' in text
+    assert "Ran goto https://en.wikipedia.org/wiki/Ada_Lovelace." in text
+    assert "- Page URL: https://en.wikipedia.org/wiki/Ada_Lovelace" in text
+
+
+def test_stagehand_live_url_wins_over_the_script_goto_and_a_failed_click():
+    page = _ArticlePage()
+    client = StagehandLocalClient(page=page)
+    text, _ms = asyncio.run(
+        client.call_tool(
+            "run",
+            {
+                "code": (
+                    'page.goto("https://en.wikipedia.org/wiki/Main_Page")\n'
+                    'page.getByRole("button", { name: "Search" }).click()'
+                )
+            },
+        )
+    )
+    assert page_url_from_result(text) == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    failed = _ArticlePage(explode=True)
+    client = StagehandLocalClient(page=failed)
+    text, _ms = asyncio.run(
+        client.call_tool("run", {"code": 'page.getByRole("button", { name: "Search" }).click()'})
+    )
+    assert text.startswith("run failed:")
+    assert page_url_from_result(text) == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    assert stagehand_page_url(failed) == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    assert append_stagehand_url("settle: quiet", "") == "settle: quiet"
+
+
+def test_page_url_from_result_reads_every_stagehand_location():
+    quoted = 'run failed: page.goto("https://en.wikipedia.org/wiki/Ada_Lovelace")'
+    assert page_url_from_result(quoted) == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    single = "run failed: page.goto('https://docs.python.org/3/library/heapq.html')"
+    assert page_url_from_result(single) == "https://docs.python.org/3/library/heapq.html"
+    escaped = '{"url": "https:\\/\\/en.wikipedia.org\\/wiki\\/Ada_Lovelace"}'
+    assert page_url_from_result(escaped) == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    mixed = (
+        "Ran goto https://en.wikipedia.org/wiki/Main_Page; click Search.\n"
+        '{"url": "https://en.wikipedia.org/wiki/Ada_Lovelace"}\n'
+        "- Page URL: https://en.wikipedia.org/wiki/Ada_Lovelace\n"
+    )
+    assert page_url_from_result(mixed) == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+    kept = "- Page URL: https://news.ycombinator.com/\nRan goto https://example.com/.\n"
+    assert page_url_from_result(kept) == "https://news.ycombinator.com/"
+    assert page_url_from_result("settle: quiet\n(unchanged)\nfull_snapshot_chars: 40001\n") == ""
 
 
 def test_later_snapshot_keeps_the_stagehand_url(tmp_path):

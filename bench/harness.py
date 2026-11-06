@@ -73,6 +73,10 @@ _SNAPSHOT_FENCE = re.compile(
 _PAGE_FIELD = re.compile(r"(?m)^- Page ([A-Za-z]+):\s*(.+?)\s*$")
 _JSON_URL = re.compile(r'"url"\s*:\s*"(https?://[^"\\]+)"')
 _GOTO_URL = re.compile(r"\bgoto\s+(https?://[^\s'\"<>]+)", re.IGNORECASE)
+_QUOTED_GOTO = re.compile(
+    r"""\bpage\.goto\(\s*(['"])(https?://.+?)\1""",
+    re.IGNORECASE,
+)
 _URL_TRAILING = ".,;)]}>\"'"
 
 SYSTEM_PROMPT = """You are a browser automation agent. You have access to tools for controlling a web browser.
@@ -234,17 +238,36 @@ def _clean_url(value: str) -> str:
     return (value or "").strip().rstrip(_URL_TRAILING)
 
 
-def page_url_from_result(result_text: str) -> str:
-    """URL for the judge: Playwright's page line, a JSON url, or Stagehand prose.
+def _remember_url(found: list[tuple[int, str]], pos: int, url: str) -> None:
+    cleaned = _clean_url(url)
+    if cleaned.startswith(("http://", "https://")):
+        found.append((pos, cleaned))
 
-    Stagehand run text looks like `Ran goto https://...`. Proxy tool results
-    are JSON with a url field. A compact diff that only names full_snapshot_chars
-    does not invent a URL.
+
+def _last_url(found: list[tuple[int, str]]) -> str:
+    if not found:
+        return ""
+    found.sort(key=lambda item: item[0])
+    return found[-1][1]
+
+
+def page_url_from_result(result_text: str) -> str:
+    """URL for the judge. A `- Page URL:` line wins; otherwise the last reported URL.
+
+    Stagehand emits a JSON url, `Ran goto https://...`, `- Page URL:`, and
+    sometimes `page.goto("https://...")` in a failure. The live page URL is
+    appended last, so an earlier goto in the script does not hide the page a
+    click opened. A compact diff that only names full_snapshot_chars does not
+    invent a URL.
     """
     text = result_text or ""
-    direct = _clean_url(page_field(text, "URL"))
-    if direct.startswith(("http://", "https://")):
-        return direct
+    page_lines: list[tuple[int, str]] = []
+    found: list[tuple[int, str]] = []
+    for match in _PAGE_FIELD.finditer(text):
+        if match.group(1).lower() == "url":
+            _remember_url(page_lines, match.start(), match.group(2))
+    if page_lines:
+        return _last_url(page_lines)
     stripped = text.strip()
     if stripped.startswith("{"):
         try:
@@ -253,16 +276,34 @@ def page_url_from_result(result_text: str) -> str:
             data = None
         if isinstance(data, dict):
             url = data.get("url")
-            if isinstance(url, str) and url.startswith(("http://", "https://")):
-                return _clean_url(url)
-    match = _JSON_URL.search(text)
-    if match:
-        return _clean_url(match.group(1))
-    found = [_clean_url(item.group(1)) for item in _GOTO_URL.finditer(text)]
-    found = [url for url in found if url.startswith(("http://", "https://"))]
-    if found:
-        return found[-1]
-    return ""
+            if isinstance(url, str):
+                _remember_url(found, 0, url)
+    for line_start, line in _line_spans(text):
+        body = line.strip()
+        if not body.startswith("{"):
+            continue
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict) and isinstance(data.get("url"), str):
+            _remember_url(found, line_start, data["url"])
+    for match in _JSON_URL.finditer(text):
+        _remember_url(found, match.start(), match.group(1))
+    for match in _GOTO_URL.finditer(text):
+        _remember_url(found, match.start(), match.group(1))
+    for match in _QUOTED_GOTO.finditer(text):
+        _remember_url(found, match.start(), match.group(2))
+    return _last_url(found)
+
+
+def _line_spans(text: str) -> list[tuple[int, str]]:
+    spans: list[tuple[int, str]] = []
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        spans.append((offset, line))
+        offset += len(line)
+    return spans
 
 
 def extract_page_snapshot(result_text: str) -> str:
@@ -642,6 +683,7 @@ class BenchmarkHarness:
         start_url: str,
         expected_answer: str | None = None,
         judge_prompt: str | None = None,
+        check_url_contains: str | None = None,
     ) -> TaskResult:
         """Run a single task and collect metrics."""
         del expected_answer, judge_prompt
@@ -682,9 +724,26 @@ class BenchmarkHarness:
         success = False
         success_reason = "Max steps reached"
         error: str | None = None
+        expect_url = check_url_contains or ""
+        turn_limit = self.max_steps
+        script_calls = 0
+        repairs_sent = 0
+        refusal_extended = False
+        previous_payload: dict | None = None
+        if self.arm == "script_first":
+            from bench.arms import SCRIPT_FIRST_HARD_CAP, SCRIPT_FIRST_MAX_SCRIPTS
+            from bench.script_first import (
+                end_state_failure,
+                next_script_first_limit,
+                repair_request,
+                script_made_progress,
+                script_result_payload,
+            )
+
+            turn_limit = min(self.max_steps, SCRIPT_FIRST_HARD_CAP)
 
         try:
-            while step_num < self.max_steps:
+            while step_num < turn_limit:
                 step_num += 1
 
                 response, model_ms = await self.anthropic.create_message(
@@ -705,10 +764,18 @@ class BenchmarkHarness:
 
                 assistant_content = []
                 tool_uses = []
+                saw_complete = False
+                saw_failed_text = ""
                 for block in content:
                     if block.get("type") == "text":
                         text = block.get("text", "")
                         assistant_content.append(block)
+                        if self.arm == "script_first":
+                            if "TASK_COMPLETE" in text:
+                                saw_complete = True
+                            if "TASK_FAILED" in text and not saw_failed_text:
+                                saw_failed_text = text
+                            continue
                         if "TASK_COMPLETE" in text:
                             success = True
                             success_reason = "Task completed successfully"
@@ -721,11 +788,41 @@ class BenchmarkHarness:
                         tool_uses.append(block)
                         assistant_content.append(block)
 
-                if success or "TASK_FAILED" in str(content):
+                if self.arm != "script_first" and (success or "TASK_FAILED" in str(content)):
                     messages.append({"role": "assistant", "content": assistant_content})
                     break
 
                 if not tool_uses:
+                    if self.arm == "script_first" and saw_complete:
+                        failure = ""
+                        if repairs_sent < 1:
+                            failure = end_state_failure(
+                                last_url,
+                                start_url=start_url,
+                                expect_url_contains=expect_url,
+                            )
+                        if failure:
+                            messages.append({"role": "assistant", "content": assistant_content})
+                            messages.append({"role": "user", "content": repair_request(last_url, failure)})
+                            repairs_sent += 1
+                            turn_limit = next_script_first_limit(
+                                step_num=step_num,
+                                limit=turn_limit,
+                                hard_cap=SCRIPT_FIRST_HARD_CAP,
+                                made_progress=False,
+                                repair_pending=True,
+                                refused_extra_script=False,
+                            )
+                            continue
+                        success = True
+                        success_reason = "Task completed successfully"
+                        messages.append({"role": "assistant", "content": assistant_content})
+                        break
+                    if self.arm == "script_first" and saw_failed_text:
+                        success = False
+                        success_reason = f"Task failed: {saw_failed_text}"
+                        messages.append({"role": "assistant", "content": assistant_content})
+                        break
                     if stop_reason == "end_turn":
                         success_reason = "Model ended without completing task"
                     break
@@ -737,12 +834,25 @@ class BenchmarkHarness:
                 messages.append({"role": "assistant", "content": assistant_content})
 
                 tool_results = []
+                stop_after_tools = False
                 for index, tool_use in enumerate(tool_uses):
                     tool_name = tool_use.get("name", "")
                     tool_args = tool_use.get("input", {})
                     tool_id = tool_use.get("id", "")
 
-                    result_text, tool_ms = await self.mcp_client.call_tool(tool_name, tool_args)
+                    refused = (
+                        self.arm == "script_first"
+                        and tool_name == "run_script"
+                        and script_calls >= SCRIPT_FIRST_MAX_SCRIPTS
+                    )
+                    if refused:
+                        result_text = (
+                            "No further scripts. One script and one repair already ran. "
+                            "Reply with TASK_COMPLETE or TASK_FAILED. Do not call run_script again."
+                        )
+                        tool_ms = 0.0
+                    else:
+                        result_text, tool_ms = await self.mcp_client.call_tool(tool_name, tool_args)
                     total_tool_ms += tool_ms
                     ignores.note_call(tool_name, tool_args if isinstance(tool_args, dict) else {})
                     ignores.note_result(tool_name, result_text)
@@ -756,6 +866,52 @@ class BenchmarkHarness:
                     page_url = found_url or last_url
                     if found_url:
                         last_url = found_url
+                    if self.arm == "script_first" and tool_name == "run_script":
+                        if refused:
+                            if refusal_extended:
+                                stop_after_tools = True
+                            else:
+                                turn_limit = next_script_first_limit(
+                                    step_num=step_num,
+                                    limit=turn_limit,
+                                    hard_cap=SCRIPT_FIRST_HARD_CAP,
+                                    made_progress=False,
+                                    repair_pending=False,
+                                    refused_extra_script=True,
+                                )
+                                refusal_extended = True
+                        else:
+                            script_calls += 1
+                            payload = script_result_payload(result_text)
+                            progress = script_made_progress(previous_payload, payload)
+                            previous_payload = payload
+                            failure = end_state_failure(
+                                page_url,
+                                start_url=start_url,
+                                expect_url_contains=expect_url,
+                            )
+                            repair_pending = False
+                            if failure and repairs_sent < 1:
+                                result_text += "\n" + repair_request(page_url, failure)
+                                repairs_sent += 1
+                                repair_pending = True
+                            turn_limit = next_script_first_limit(
+                                step_num=step_num,
+                                limit=turn_limit,
+                                hard_cap=SCRIPT_FIRST_HARD_CAP,
+                                made_progress=progress,
+                                repair_pending=repair_pending,
+                                refused_extra_script=False,
+                            )
+                            if (
+                                failure
+                                and not progress
+                                and not repair_pending
+                                and script_calls >= SCRIPT_FIRST_MAX_SCRIPTS
+                            ):
+                                stop_after_tools = True
+                                success = False
+                                success_reason = failure
                     page_title = page_field(result_text, "Title")
                     snapshot_path = self._write_page_snapshot(
                         task_id=task_id,
@@ -795,6 +951,17 @@ class BenchmarkHarness:
                     )
 
                 messages.append({"role": "user", "content": tool_results})
+                if self.arm == "script_first" and saw_complete and not stop_after_tools:
+                    if not end_state_failure(
+                        last_url,
+                        start_url=start_url,
+                        expect_url_contains=expect_url,
+                    ):
+                        success = True
+                        success_reason = "Task completed successfully"
+                        break
+                if stop_after_tools:
+                    break
 
         except Exception as exc:
             error = str(exc)

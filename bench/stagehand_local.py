@@ -23,6 +23,39 @@ from proxy.script import ScriptAction, ScriptError, parse_script
 from proxy.settle import configured_quiet_ms, configured_timeout_ms, parse_settle_result, settle_source
 
 
+def stagehand_page_url(page) -> str:
+    """Live http(s) URL after a run. about:blank is not a scored navigation."""
+    try:
+        url = getattr(page, "url", "") or ""
+    except Exception:
+        return ""
+    if isinstance(url, str) and url.startswith(("http://", "https://")):
+        return url
+    return ""
+
+
+def append_stagehand_url(text: str, url: str) -> str:
+    """Put the live page URL in every shape the judge already reads.
+
+    JSON `url`, prose `Ran goto https://...`, and `- Page URL:` are appended
+    after the action summary so an earlier goto in the script does not hide
+    the page the click actually opened.
+    """
+    if not url:
+        return text
+    trailer = "\n".join(
+        [
+            json.dumps({"url": url}),
+            f"Ran goto {url}.",
+            f"- Page URL: {url}",
+        ]
+    )
+    body = text or ""
+    if body and not body.endswith("\n"):
+        body += "\n"
+    return body + trailer
+
+
 def context_browser(context):
     """Return context.browser. Playwright exposes it as a property.
 
@@ -333,7 +366,10 @@ class StagehandLocalClient:
         args = arguments or {}
         start = time.perf_counter()
         if name == "snapshot":
-            text = await self._snapshot(diff=False)
+            text = append_stagehand_url(
+                await self._snapshot(diff=False),
+                stagehand_page_url(self._page),
+            )
         elif name == "run":
             text = await self._run(args)
         elif name == "screenshot":
@@ -360,14 +396,17 @@ class StagehandLocalClient:
         elif actions:
             source = actions_to_script(actions)
         else:
-            return "run needs code or actions"
+            return append_stagehand_url("run needs code or actions", stagehand_page_url(self._page))
         try:
             summaries, settled = await apply_script(self._page, source)
         except (ScriptError, Exception) as exc:
-            return f"run failed: {exc}"
+            return append_stagehand_url(f"run failed: {exc}", stagehand_page_url(self._page))
         diff = await self._snapshot(diff=True)
         ran = "; ".join(summaries)
-        return f"Ran {ran}.\nsettle: {settled.get('reason', 'quiet')}\n{diff}"
+        return append_stagehand_url(
+            f"Ran {ran}.\nsettle: {settled.get('reason', 'quiet')}\n{diff}",
+            stagehand_page_url(self._page),
+        )
 
     async def _screenshot(self) -> str:
         png = await self._page.screenshot(type="png")

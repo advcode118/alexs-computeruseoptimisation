@@ -317,6 +317,9 @@ async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, 
     from bench.harness import BenchmarkHarness
 
     started = time.perf_counter()
+    # script_first starts here. The harness adds one turn while a script is
+    # still moving the page, stops at SCRIPT_FIRST_HARD_CAP, and runs at most
+    # one repair script.
     max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
     harness = BenchmarkHarness(
         api_key=api_key,
@@ -339,6 +342,7 @@ async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, 
             start_url=task["start_url"],
             expected_answer=task.get("expected_answer"),
             judge_prompt=task.get("judge_prompt"),
+            check_url_contains=task.get("check_url_contains") or "",
         )
         final_url = result.steps[-1].page_url if result.steps else ""
         final_text = result.steps[-1].snapshot_text if result.steps else ""

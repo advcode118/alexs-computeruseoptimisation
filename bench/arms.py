@@ -25,8 +25,11 @@ ARM_SCRIPT_FIRST = "script_first"
 # The default probe stays these four. script_first is selected with --arms.
 ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
 SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST,)
-# One script for the task, plus a retry and a completion turn.
-SCRIPT_FIRST_MAX_CALLS = 3
+# One script, one repair, a completion turn, and room for a turn that is
+# still moving the page. The harness will not run a third script.
+SCRIPT_FIRST_MAX_CALLS = 4
+SCRIPT_FIRST_MAX_SCRIPTS = 2
+SCRIPT_FIRST_HARD_CAP = 6
 
 # The proxy arms can still finish through decide(), replay, or a locator
 # script when no_model_only is requested. The competitive probe does not.
@@ -70,14 +73,16 @@ Be efficient - batch the browser steps into one run call."""
 _SCRIPT_FIRST_PROMPT = """You are a browser automation agent. You get one tool, run_script.
 
 Guidelines:
-- Write one short Playwright script for the whole task. One call should finish it.
+- Write one short Playwright script that finishes the whole task. The end URL must be the page the task asked for, or that page's search results. Do not stop on the start URL.
+- Wikipedia: leave Main_Page. Fill the search box, submit the search, and finish on the article URL (it contains the article title, such as Ada_Lovelace) or on the search-results URL. Main_Page is not done.
+- Hacker News: one script opens the site and reads the top story title with page.evaluate. Then reply with that title and TASK_COMPLETE. Do not open stories one by one.
 - Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, and page.evaluate(() => { ... }) with a page-context function.
 - Do not click, type, or snapshot one element at a time. The runner does not settle or snapshot between actions.
 - browser_run_code_unsafe is not a tool. Do not ask for it.
-- Call run_script, then on the next turn respond with TASK_COMPLETE if the task is done, or TASK_FAILED if it is not. Do not put TASK_COMPLETE in the same message as the tool call.
-- Send another script only when the first one failed.
+- Call run_script. If the tool result says END_STATE_FAILED, send one corrected script. Do not send a second repair.
+- On the turn after a script that reached the right page, respond with TASK_COMPLETE. If it cannot be done, respond with TASK_FAILED. Do not put TASK_COMPLETE in the same message as the tool call.
 
-Be efficient - one script, then stop."""
+Be efficient - one script, at most one repair, then stop."""
 
 
 def arm_needs_claude(arm: str, *, no_model_only: bool = False) -> bool:

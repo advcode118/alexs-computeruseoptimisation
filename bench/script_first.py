@@ -226,6 +226,84 @@ def parse_task_script(source: str) -> list[TaskStep]:
     return steps
 
 
+def script_result_payload(text: str) -> dict:
+    """The JSON object on the first line of a script result. Empty when it is prose."""
+    line = ((text or "").strip().splitlines() or [""])[0].strip()
+    if not line.startswith("{"):
+        return {}
+    try:
+        data = json.loads(line)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def end_state_failure(url: str, *, start_url: str = "", expect_url_contains: str = "") -> str:
+    """Why this URL is not the finished task. Empty when there is nothing to repair.
+
+    Tasks without a URL check, such as Hacker News, are left to the model.
+    Wikipedia fails while the page is still Main_Page.
+    """
+    if not expect_url_contains:
+        return ""
+    if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+        return "the run finished without a page URL"
+    if "main_page" in url.casefold() and "main_page" not in expect_url_contains.casefold():
+        return "the page is still Wikipedia Main_Page"
+    if expect_url_contains.casefold() not in url.casefold():
+        if start_url and url.rstrip("/") == start_url.rstrip("/"):
+            return "the page never left the start URL"
+        return f"the URL does not contain {expect_url_contains}"
+    return ""
+
+
+def repair_request(url: str, reason: str) -> str:
+    """One short ask for a corrected script. The harness sends this at most once."""
+    shown = url if url else "(empty)"
+    return (
+        "END_STATE_FAILED: "
+        f"{reason}. Current URL: {shown}. "
+        "Send one corrected script that finishes the task. "
+        "The end URL must be the search result or the page the task asked for. "
+        "Wikipedia must leave Main_Page. "
+        "Do not repeat the same script."
+    )
+
+
+def script_made_progress(previous: dict | None, current: dict) -> bool:
+    """True when this script moved the page or finished more actions than the last one."""
+    if not current:
+        return False
+    steps = int(current.get("steps") or 0)
+    url = current.get("url") if isinstance(current.get("url"), str) else ""
+    moved = url.startswith(("http://", "https://"))
+    if previous is None:
+        return steps > 0 or moved
+    prev_url = previous.get("url") if isinstance(previous.get("url"), str) else ""
+    prev_steps = int(previous.get("steps") or 0)
+    if moved and url != prev_url:
+        return True
+    return bool(steps > prev_steps and current.get("ok"))
+
+
+def next_script_first_limit(
+    *,
+    step_num: int,
+    limit: int,
+    hard_cap: int,
+    made_progress: bool,
+    repair_pending: bool,
+    refused_extra_script: bool,
+) -> int:
+    """Keep one more model turn while a script is still moving or a repair is due.
+
+    A stuck page does not grow the limit. The hard cap stays at a few calls.
+    """
+    if made_progress or repair_pending or refused_extra_script:
+        return min(hard_cap, max(limit, step_num + 1))
+    return limit
+
+
 def format_run_result(*, ok: bool, url: str, step_count: int, error: str = "") -> str:
     """JSON url plus Stagehand-style goto prose, so the existing judge can read it."""
     payload: dict = {"ok": ok, "url": url, "steps": step_count}
@@ -353,7 +431,9 @@ class ScriptFirstClient:
             {
                 "name": "run_script",
                 "description": (
-                    "Run one short Playwright script for the whole task. "
+                    "Run one short Playwright script that finishes the whole task. "
+                    "The end URL must be the page the task asked for, or its search "
+                    "results. Wikipedia must leave Main_Page. "
                     "Allowed lines are page.goto, page.getByRole, page.getByLabel, "
                     "page.getByText, page.getByPlaceholder, and page.evaluate with a "
                     "page-context function. The runner does not settle or snapshot "

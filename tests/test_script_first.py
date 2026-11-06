@@ -9,7 +9,9 @@ from pathlib import Path
 from bench.arms import (
     ARM_SCRIPT_FIRST,
     ARMS,
+    SCRIPT_FIRST_HARD_CAP,
     SCRIPT_FIRST_MAX_CALLS,
+    SCRIPT_FIRST_MAX_SCRIPTS,
     arm_needs_claude,
     build_client,
     prompt_for,
@@ -28,10 +30,14 @@ from bench.probe import (
 )
 from bench.script_first import (
     ScriptFirstClient,
+    end_state_failure,
     format_run_result,
+    next_script_first_limit,
     parse_task_script,
+    repair_request,
     run_on_mcp,
     run_on_page,
+    script_made_progress,
 )
 from proxy.script import ScriptError
 
@@ -95,6 +101,12 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     assert "run_script" in prompt
     assert "page.evaluate" in prompt
     assert "browser_run_code_unsafe is not a tool" in prompt
+    assert "Main_Page" in prompt
+    assert "END_STATE_FAILED" in prompt
+    assert "one corrected script" in prompt
+    assert "does not settle or snapshot" in prompt
+    assert 3 < SCRIPT_FIRST_MAX_CALLS <= SCRIPT_FIRST_HARD_CAP <= 6
+    assert SCRIPT_FIRST_MAX_SCRIPTS == 2
     client = build_client("script_first")
     assert isinstance(client, ScriptFirstClient)
     names = [tool["name"] for tool in client.tools_for_claude()]
@@ -273,8 +285,8 @@ def test_run_claude_arm_caps_script_first_calls_and_keeps_the_url(monkeypatch, t
     async def fake_teardown(self):
         return None
 
-    async def fake_run_task(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None):
-        del task_id, task_description, start_url, expected_answer, judge_prompt
+    async def fake_run_task(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del task_id, task_description, start_url, expected_answer, judge_prompt, check_url_contains
         seen.append(self.max_steps)
         assert self.model == "claude-sonnet-5-5"
         return TaskResult(
@@ -383,3 +395,206 @@ def test_harness_keeps_the_script_url_for_the_judge(tmp_path):
     assert result.steps[-1].page_url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
     assert check_url_contains(result.steps[-1].page_url, "Ada_Lovelace").success is True
     assert result.success is True
+
+
+def test_end_state_asks_for_one_repair_until_the_url_leaves_main_page():
+    reason = end_state_failure(
+        "https://en.wikipedia.org/wiki/Main_Page",
+        start_url="https://en.wikipedia.org/wiki/Main_Page",
+        expect_url_contains="Ada_Lovelace",
+    )
+    assert "Main_Page" in reason
+    assert end_state_failure(
+        "https://en.wikipedia.org/wiki/Ada_Lovelace",
+        start_url="https://en.wikipedia.org/wiki/Main_Page",
+        expect_url_contains="Ada_Lovelace",
+    ) == ""
+    assert end_state_failure("https://news.ycombinator.com/", expect_url_contains="") == ""
+    note = repair_request("https://en.wikipedia.org/wiki/Main_Page", reason)
+    assert note.startswith("END_STATE_FAILED:")
+    assert "one corrected script" in note
+    assert script_made_progress(None, {"ok": True, "url": "https://news.ycombinator.com/", "steps": 1}) is True
+    stuck = {"ok": True, "url": "https://en.wikipedia.org/wiki/Main_Page", "steps": 2}
+    assert script_made_progress(stuck, stuck) is False
+    assert next_script_first_limit(
+        step_num=2,
+        limit=2,
+        hard_cap=SCRIPT_FIRST_HARD_CAP,
+        made_progress=True,
+        repair_pending=False,
+        refused_extra_script=False,
+    ) == 3
+    assert next_script_first_limit(
+        step_num=2,
+        limit=4,
+        hard_cap=SCRIPT_FIRST_HARD_CAP,
+        made_progress=False,
+        repair_pending=False,
+        refused_extra_script=False,
+    ) == 4
+
+
+def _script_harness(tmp_path, replies, call_tool, max_steps):
+    class FakeModel:
+        def __init__(self):
+            self._replies = list(replies)
+            self.seen: list = []
+
+        async def create_message(self, messages, tools, system=None, max_tokens=4096):
+            del tools, system, max_tokens
+            self.seen.append(messages)
+            return self._replies.pop(0), 1.0
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = 0
+
+        def tools_for_claude(self):
+            return [{"name": "run_script", "description": "run", "input_schema": {"type": "object"}}]
+
+        async def call_tool(self, name, arguments):
+            self.calls += 1
+            return await call_tool(name, arguments, self.calls)
+
+    harness = BenchmarkHarness(api_key="local-test", runs_dir=tmp_path, arm="script_first", max_steps=max_steps)
+    model = FakeModel()
+    client = FakeClient()
+    harness.anthropic = model
+    harness.mcp_client = client
+    return harness, model, client
+
+
+def _tool_reply(code: str) -> dict:
+    return {
+        "content": [{"type": "tool_use", "id": "t", "name": "run_script", "input": {"code": code}}],
+        "stop_reason": "tool_use",
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }
+
+
+def _done_reply(text: str = "TASK_COMPLETE") -> dict:
+    return {
+        "content": [{"type": "text", "text": text}],
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }
+
+
+def test_script_first_repairs_a_main_page_script_once(tmp_path):
+    async def call_tool(name, arguments, nth):
+        del name
+        url = "https://en.wikipedia.org/wiki/Main_Page"
+        if nth > 1:
+            url = "https://en.wikipedia.org/wiki/Ada_Lovelace"
+        return format_run_result(ok=True, url=url, step_count=nth), 1.0
+
+    harness, model, client = _script_harness(
+        tmp_path,
+        [_tool_reply("stay"), _tool_reply("article"), _done_reply()],
+        call_tool,
+        max_steps=3,
+    )
+    result = asyncio.run(
+        harness.run_task(
+            task_id="wv_wikipedia_search",
+            task_description="Search Wikipedia for Ada Lovelace",
+            start_url="https://en.wikipedia.org/wiki/Main_Page",
+            check_url_contains="Ada_Lovelace",
+        )
+    )
+    assert client.calls == 2
+    assert len(model.seen) == 3
+
+    def _asks(messages: list) -> int:
+        count = 0
+        for message in messages:
+            content = message.get("content")
+            texts = [content] if isinstance(content, str) else []
+            if isinstance(content, list):
+                texts.extend(
+                    block.get("content", "")
+                    for block in content
+                    if isinstance(block, dict) and isinstance(block.get("content"), str)
+                )
+            count += sum(text.count("END_STATE_FAILED") for text in texts)
+        return count
+
+    assert _asks(model.seen[0]) == 0
+    assert _asks(model.seen[1]) == 1
+    assert _asks(model.seen[2]) == 1
+    assert result.success is True
+    assert result.steps[-1].page_url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+
+
+def test_script_first_keeps_a_turn_while_the_script_makes_progress(tmp_path):
+    async def call_tool(name, arguments, nth):
+        del name, arguments
+        return format_run_result(ok=True, url="https://news.ycombinator.com/", step_count=nth), 1.0
+
+    harness, model, client = _script_harness(
+        tmp_path,
+        [_tool_reply("open"), _tool_reply("read title"), _done_reply("Show HN title\nTASK_COMPLETE")],
+        call_tool,
+        max_steps=2,
+    )
+    result = asyncio.run(
+        harness.run_task(
+            task_id="wv_hackernews_top",
+            task_description="Read the top Hacker News story",
+            start_url="https://news.ycombinator.com/",
+        )
+    )
+    assert client.calls == 2
+    assert len(model.seen) == 3
+    assert result.success is True
+    assert result.success_reason != "Max steps reached"
+    assert result.steps[-1].page_url == "https://news.ycombinator.com/"
+
+
+def test_script_first_refuses_a_third_script_and_still_accepts_the_answer(tmp_path):
+    async def call_tool(name, arguments, nth):
+        del name, arguments
+        return format_run_result(ok=True, url="https://news.ycombinator.com/", step_count=nth), 1.0
+
+    harness, model, client = _script_harness(
+        tmp_path,
+        [_tool_reply("a"), _tool_reply("b"), _tool_reply("c"), _done_reply("top story\nTASK_COMPLETE")],
+        call_tool,
+        max_steps=3,
+    )
+    result = asyncio.run(
+        harness.run_task(
+            task_id="wv_hackernews_top",
+            task_description="Read the top Hacker News story",
+            start_url="https://news.ycombinator.com/",
+        )
+    )
+    assert client.calls == SCRIPT_FIRST_MAX_SCRIPTS == 2
+    assert len(model.seen) == 4
+    assert "Do not call run_script again" in json.dumps(model.seen)
+    assert result.success is True
+    assert result.success_reason != "Max steps reached"
+
+
+def test_script_first_stops_when_the_repair_stays_on_main_page(tmp_path):
+    async def call_tool(name, arguments, nth):
+        del name, arguments, nth
+        return format_run_result(ok=True, url="https://en.wikipedia.org/wiki/Main_Page", step_count=2), 1.0
+
+    harness, _model, client = _script_harness(
+        tmp_path,
+        [_tool_reply("a"), _tool_reply("b"), _tool_reply("c"), _done_reply()],
+        call_tool,
+        max_steps=6,
+    )
+    result = asyncio.run(
+        harness.run_task(
+            task_id="wv_wikipedia_search",
+            task_description="Search Wikipedia for Ada Lovelace",
+            start_url="https://en.wikipedia.org/wiki/Main_Page",
+            check_url_contains="Ada_Lovelace",
+        )
+    )
+    assert client.calls == 2
+    assert result.success is False
+    assert "Main_Page" in result.success_reason
