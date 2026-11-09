@@ -50,6 +50,7 @@ Environment variables it reads, by name only:
     SETTLE_QUIET_MS       default 500
     SETTLE_TIMEOUT_MS     default 3000
     REPLAY_CACHE_PATH     macro_replay cache file
+    CU_SPEND_LEDGER       shared spend.json. Missing file: live run refuses
     PLAYWRIGHT_MCP_PROXY_CHILD   optional override for the proxy's browser
     PLAYWRIGHT_MCP_HEADLESS      set on the proxy process when the probe is headless
 
@@ -75,7 +76,7 @@ from bench.arms import (
     SELECTABLE_ARMS,
     arm_needs_claude,
 )
-from bench.budget import ALLOWED_MODEL, PROJECT_BUDGET_USD, SpendLedger, estimate_usd
+from bench.budget import ALLOWED_MODEL, PROJECT_BUDGET_USD, LedgerMissing, SpendLedger, estimate_usd
 from bench.judge import check_text_present, check_url_contains
 from bench.tasks import get_webvoyager_tasks
 
@@ -346,18 +347,30 @@ async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, 
         )
         final_url = result.steps[-1].page_url if result.steps else ""
         final_text = result.steps[-1].snapshot_text if result.steps else ""
-        checked, reason = deterministic_success(task, final_url, final_text)
-        success = result.success if checked is None else bool(result.success and checked)
-        if checked is not None and not checked:
-            reason = reason
-        elif result.success_reason:
-            reason = result.success_reason
+        substring_ok, substring_reason = deterministic_success(task, final_url, final_text)
+        end_state = result.end_state or ""
+        if arm == ARM_SCRIPT_FIRST and end_state:
+            # UNKNOWN is its own outcome. It is not a success, and a FAIL
+            # is not rescued by the old substring check.
+            success = end_state == "PASS"
+            reason = result.success_reason or substring_reason
+        else:
+            success = result.success if substring_ok is None else bool(result.success and substring_ok)
+            if substring_ok is not None and not substring_ok:
+                reason = substring_reason
+            elif result.success_reason:
+                reason = result.success_reason
+            else:
+                reason = substring_reason
         usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
         return {
             "arm": arm,
             "task_id": task["id"],
             "success": success,
             "success_reason": reason,
+            "end_state": end_state,
+            "substring_success": substring_ok,
+            "substring_reason": substring_reason,
             "skipped": False,
             "wall_ms": result.total_wall_ms or ((time.perf_counter() - started) * 1000),
             "steps": result.total_steps,
@@ -540,26 +553,30 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    if not args.execute:
-        print(
-            json.dumps(
-                plan_probe(
-                    no_model_only=args.no_model_only,
-                    warm_replay=args.warm_replay,
-                    arms=chosen,
-                ),
-                indent=2,
+    try:
+        if not args.execute:
+            print(
+                json.dumps(
+                    plan_probe(
+                        no_model_only=args.no_model_only,
+                        warm_replay=args.warm_replay,
+                        arms=chosen,
+                    ),
+                    indent=2,
+                )
+            )
+            return 0
+        rows = asyncio.run(
+            execute_probe(
+                headless=not args.no_headless,
+                no_model_only=args.no_model_only,
+                warm_replay=args.warm_replay,
+                arms=chosen,
             )
         )
-        return 0
-    rows = asyncio.run(
-        execute_probe(
-            headless=not args.no_headless,
-            no_model_only=args.no_model_only,
-            warm_replay=args.warm_replay,
-            arms=chosen,
-        )
-    )
+    except LedgerMissing as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     spent = sum(row["usd"] for row in rows)
     print(f"probe rows: {len(rows)}")
     print(f"probe claude usd: {spent:.4f}")

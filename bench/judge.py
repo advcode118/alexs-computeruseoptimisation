@@ -12,6 +12,7 @@ import os
 import urllib.request
 import urllib.error
 from dataclasses import dataclass
+from urllib.parse import unquote, urlsplit
 
 
 @dataclass
@@ -22,8 +23,41 @@ class JudgeResult:
     confidence: float
 
 
+def is_search_results_url(url: str) -> bool:
+    """True for a results page, including Special:Search?search=Ada_Lovelace.
+
+    A query that merely contains the token is not the finished article.
+    """
+    if not isinstance(url, str) or not url:
+        return False
+    raw = url.strip()
+    decoded = unquote(raw).casefold()
+    if "special:search" in decoded or "special%3asearch" in raw.casefold():
+        return True
+    parts = urlsplit(raw)
+    path = unquote(parts.path).casefold()
+    trimmed = path.rstrip("/")
+    if trimmed.endswith("/search") or trimmed.endswith("/search.html") or "/search.html" in path:
+        return True
+    query = unquote(parts.query).casefold()
+    if trimmed.endswith("index.php") and (
+        query.startswith("search=") or query.startswith("search%3d") or "&search=" in f"&{query}"
+    ):
+        return True
+    return False
+
+
 def check_url_contains(current_url: str, expected: str) -> JudgeResult:
-    """Check if URL contains expected string."""
+    """Check if URL contains expected string.
+
+    Search-results URLs fail even when the token is in the query.
+    """
+    if is_search_results_url(current_url):
+        return JudgeResult(
+            success=False,
+            reason=f"URL is a search page: '{current_url}'",
+            confidence=1.0,
+        )
     if expected.lower() in current_url.lower():
         return JudgeResult(
             success=True,
