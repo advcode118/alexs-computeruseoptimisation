@@ -25,8 +25,8 @@ ARM_SCRIPT_FIRST = "script_first"
 # The default probe stays these four. script_first is selected with --arms.
 ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
 SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST,)
-# One script, one repair, a completion turn, and room for a turn that is
-# still moving the page. The harness will not run a third script.
+# One script and a completion turn. A repair may use the spare calls.
+# Moving the page does not add a turn. The harness will not run a third script.
 SCRIPT_FIRST_MAX_CALLS = 4
 SCRIPT_FIRST_MAX_SCRIPTS = 2
 SCRIPT_FIRST_HARD_CAP = 6
@@ -73,14 +73,18 @@ Be efficient - batch the browser steps into one run call."""
 _SCRIPT_FIRST_PROMPT = """You are a browser automation agent. You get one tool, run_script.
 
 Guidelines:
-- Write one short Playwright script that finishes the whole task. The end URL must be the page the task asked for, or that page's search results. Do not stop on the start URL.
-- Wikipedia: leave Main_Page. Fill the search box, submit the search, and finish on the article URL (it contains the article title, such as Ada_Lovelace) or on the search-results URL. Main_Page is not done.
-- Hacker News: one script opens the site and reads the top story title with page.evaluate. Then reply with that title and TASK_COMPLETE. Do not open stories one by one.
+- The first script must finish the task. Call run_script once. Do not plan a second script.
+- The end URL must be the finished page the task named. Do not stop on the start URL, and do not stop on a search-results URL when the task named a specific page.
+- Prefer one page.goto of that finished page over clicking through the site. Put the whole navigation in the same script.
+- Wikipedia: leave Main_Page. page.goto("https://en.wikipedia.org/wiki/Article_Title") with underscores in the title, such as https://en.wikipedia.org/wiki/Ada_Lovelace. The URL must contain that slug. Main_Page and Special:Search are not done. A search box is optional: the field is getByRole("combobox", { name: "Search Wikipedia" }) or getByPlaceholder("Search Wikipedia"), submit with press("Enter"), then goto the article URL in that same script.
+- A named docs page is the same shape: page.goto the module URL so the URL contains the module name, such as https://docs.python.org/3/library/heapq.html for heapq.
+- Hacker News: one script only. page.goto("https://news.ycombinator.com/") and return the top story with page.evaluate(() => (document.querySelector(".titleline a") || document.querySelector(".titleline")).textContent.trim()). The tool result includes that text. Reply with the title and TASK_COMPLETE. Do not open stories and do not send a second script.
 - Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, and page.evaluate(() => { ... }) with a page-context function.
-- Do not click, type, or snapshot one element at a time. The runner does not settle or snapshot between actions.
+- Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle. The runner drops those lines and does not settle or snapshot between actions.
+- Do not click, type, or snapshot one element at a time.
 - browser_run_code_unsafe is not a tool. Do not ask for it.
-- Call run_script. If the tool result says END_STATE_FAILED, send one corrected script. Do not send a second repair.
-- On the turn after a script that reached the right page, respond with TASK_COMPLETE. If it cannot be done, respond with TASK_FAILED. Do not put TASK_COMPLETE in the same message as the tool call.
+- If the tool result says END_STATE_FAILED, send one corrected script that lands on the finished page. Do not send a second repair.
+- If the result is already the finished page, the run stops. Do not call run_script again and do not send a separate completion turn. A matching URL, or the extracted Hacker News title, is the end. If it cannot be done, respond with TASK_FAILED.
 
 Be efficient - one script, at most one repair, then stop."""
 

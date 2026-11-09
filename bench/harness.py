@@ -734,13 +734,17 @@ class BenchmarkHarness:
             from bench.arms import SCRIPT_FIRST_HARD_CAP, SCRIPT_FIRST_MAX_SCRIPTS
             from bench.script_first import (
                 end_state_failure,
+                missing_page_text,
                 next_script_first_limit,
                 repair_request,
+                scored_page_url,
                 script_made_progress,
                 script_result_payload,
             )
 
             turn_limit = min(self.max_steps, SCRIPT_FIRST_HARD_CAP)
+            if hasattr(self.mcp_client, "expected_url_part"):
+                self.mcp_client.expected_url_part = expect_url
 
         try:
             while step_num < turn_limit:
@@ -836,20 +840,29 @@ class BenchmarkHarness:
                 tool_results = []
                 stop_after_tools = False
                 for index, tool_use in enumerate(tool_uses):
+                    if stop_after_tools:
+                        break
                     tool_name = tool_use.get("name", "")
                     tool_args = tool_use.get("input", {})
                     tool_id = tool_use.get("id", "")
 
+                    finished_first = script_calls >= 1 and repairs_sent < 1
                     refused = (
                         self.arm == "script_first"
                         and tool_name == "run_script"
-                        and script_calls >= SCRIPT_FIRST_MAX_SCRIPTS
+                        and (script_calls >= SCRIPT_FIRST_MAX_SCRIPTS or finished_first)
                     )
                     if refused:
-                        result_text = (
-                            "No further scripts. One script and one repair already ran. "
-                            "Reply with TASK_COMPLETE or TASK_FAILED. Do not call run_script again."
-                        )
+                        if script_calls >= SCRIPT_FIRST_MAX_SCRIPTS:
+                            result_text = (
+                                "No further scripts. One script and one repair already ran. "
+                                "Reply with TASK_COMPLETE or TASK_FAILED. Do not call run_script again."
+                            )
+                        else:
+                            result_text = (
+                                "No further scripts. The first script already finished. "
+                                "Reply with TASK_COMPLETE or TASK_FAILED. Do not call run_script again."
+                            )
                         tool_ms = 0.0
                     else:
                         result_text, tool_ms = await self.mcp_client.call_tool(tool_name, tool_args)
@@ -885,11 +898,22 @@ class BenchmarkHarness:
                             payload = script_result_payload(result_text)
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
+                            landed_title = page_field(result_text, "Title")
+                            if not landed_title and isinstance(payload.get("title"), str):
+                                landed_title = payload["title"]
+                            if expect_url:
+                                scored = scored_page_url(page_url, expect_url, title=landed_title)
+                                if scored:
+                                    page_url = scored
+                                    last_url = scored
                             failure = end_state_failure(
                                 page_url,
                                 start_url=start_url,
                                 expect_url_contains=expect_url,
+                                title=landed_title,
                             )
+                            if not failure:
+                                failure = missing_page_text(payload, expect_url_contains=expect_url)
                             repair_pending = False
                             if failure and repairs_sent < 1:
                                 result_text += "\n" + repair_request(page_url, failure)
@@ -903,7 +927,22 @@ class BenchmarkHarness:
                                 repair_pending=repair_pending,
                                 refused_extra_script=False,
                             )
+                            extracted = payload.get("extracted") if isinstance(payload, dict) else None
+                            has_answer = isinstance(extracted, str) and bool(extracted.strip())
+                            if isinstance(extracted, list):
+                                has_answer = any(str(item).strip() for item in extracted)
+                            # A finished first script ends the task. The completion
+                            # sentence is not another step and does not call the model.
                             if (
+                                not failure
+                                and isinstance(page_url, str)
+                                and page_url.startswith(("http://", "https://"))
+                                and (bool(expect_url) or has_answer)
+                            ):
+                                success = True
+                                success_reason = "Task completed successfully"
+                                stop_after_tools = True
+                            elif (
                                 failure
                                 and not progress
                                 and not repair_pending
