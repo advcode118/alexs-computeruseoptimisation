@@ -1,0 +1,7 @@
+{
+  "task_id": "wv_wikipedia_search",
+  "step_number": 3,
+  "url": "https://en.wikipedia.org/wiki/Ada_Lovelace",
+  "title": "Ada Lovelace - Wikipedia",
+  "snapshot_text": "- main \"Article\" [ref=e1]:\n  - heading \"Ada Lovelace\" [ref=e2]\n  - link \"Charles Babbage\" [ref=e3]\n"
+}
