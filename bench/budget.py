@@ -13,6 +13,7 @@ The operator envelope is $50. A run aborts at $40.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,11 +34,35 @@ PROJECT_BUDGET_USD = 40.0
 PRIOR_INPUT_TOKENS = 3_200_000
 PRIOR_OUTPUT_TOKENS = 3_000
 
-DEFAULT_SPEND_PATH = Path(__file__).resolve().parent / "results" / "spend.json"
+def default_spend_path() -> Path:
+    """One shared ledger for every worktree.
+
+    CU_SPEND_LEDGER wins. Otherwise the file is
+    %USERPROFILE%\\.cu-optimisation\\spend.json on Windows and
+    ~/.cu-optimisation/spend.json elsewhere. A missing file is not created.
+    """
+    override = os.environ.get("CU_SPEND_LEDGER", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return Path.home() / ".cu-optimisation" / "spend.json"
 
 
 class ModelNotAllowed(ValueError):
     """The bench calls claude-sonnet-5-5 and nothing else."""
+
+
+class LedgerMissing(FileNotFoundError):
+    """A live run will not start without the shared spend ledger."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        super().__init__(
+            f"Spend ledger not found at {path}. "
+            "Refusing to run live without it. "
+            "Set CU_SPEND_LEDGER to the shared spend.json "
+            f"(default {Path.home() / '.cu-optimisation' / 'spend.json'}). "
+            "This process will not invent a starting total."
+        )
 
 
 class BudgetExceeded(RuntimeError):
@@ -121,7 +146,7 @@ def prior_record() -> dict:
 
 @dataclass
 class SpendLedger:
-    """Running project total in bench/results/spend.json."""
+    """Running project total in the shared CU_SPEND_LEDGER file."""
 
     path: Path
     model: str = ALLOWED_MODEL
@@ -226,11 +251,10 @@ class SpendLedger:
 
     @classmethod
     def load(cls, path: Path | None = None) -> SpendLedger:
-        target = path or DEFAULT_SPEND_PATH
+        """Read an existing ledger. Never seeds a missing file."""
+        target = Path(path) if path is not None else default_spend_path()
         if not target.exists():
-            ledger = cls.seed(target)
-            ledger.save()
-            return ledger
+            raise LedgerMissing(target)
         data = json.loads(target.read_text(encoding="utf-8"))
         model = assert_allowed_model(data.get("model", ALLOWED_MODEL))
         return cls(

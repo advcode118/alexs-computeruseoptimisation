@@ -31,7 +31,7 @@ import os
 import sys
 from pathlib import Path
 
-from bench.budget import BudgetExceeded, ModelNotAllowed, assert_allowed_model
+from bench.budget import BudgetExceeded, LedgerMissing, ModelNotAllowed, assert_allowed_model, default_spend_path
 from bench.arms import ARMS
 from bench.harness import DEFAULT_MODEL, run_benchmark
 from bench.tasks import BENCHMARK_TASKS, get_fixture_tasks, get_webvoyager_tasks
@@ -64,9 +64,9 @@ def dry_run_output(tasks: list[dict], model: str = DEFAULT_MODEL) -> str:
         f"- ANTHROPIC_API_KEY: {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'NOT SET'}",
         f"- Model: {model}",
         "- Budget: stop when the project total would pass $40 "
-        "(M0 prior is $9.645; bench/results/spend.json running_total_usd "
-        "includes the box probes and is $12.912192)",
-        "- Spend file: bench/results/spend.json",
+        "(the M0 prior inside a ledger is $9.645; a live run reads the shared "
+        "ledger and does not invent a starting total)",
+        f"- Spend file: {default_spend_path()}",
         "",
         "To run the benchmark:",
         "```bash",
@@ -183,6 +183,9 @@ def main() -> None:
     except BudgetExceeded as exc:
         results = exc.results
         stopped = exc
+    except LedgerMissing as exc:
+        print(exc)
+        sys.exit(2)
 
     summaries = [
         TaskSummary(

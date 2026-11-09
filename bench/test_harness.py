@@ -10,7 +10,8 @@ from types import SimpleNamespace
 import pytest
 
 from bench.budget import (
-    DEFAULT_SPEND_PATH,
+    LedgerMissing,
+    default_spend_path,
     PRIOR_INPUT_TOKENS,
     PRIOR_OUTPUT_TOKENS,
     BudgetExceeded,
@@ -293,23 +294,44 @@ def test_prior_spend_is_the_recorded_m0_total():
     assert usd == pytest.approx(9.645)
     assert 9 < usd < 11
 
-    data = json.loads(DEFAULT_SPEND_PATH.read_text(encoding="utf-8"))
+    data = json.loads(default_spend_path().read_text(encoding="utf-8"))
     assert data["tasks"] == []
     assert data["model"] == "claude-sonnet-5-5"
     assert "opus" not in json.dumps(data).lower()
     assert data["prior"]["input_tokens"] == 3_200_000
     assert data["prior"]["output_tokens"] == 3000
     assert data["prior"]["usd"] == pytest.approx(9.645)
-    assert data["recorded_extra_usd"] == pytest.approx(3.267192)
-    assert data["running_total_usd"] == pytest.approx(12.912192)
+    assert data["recorded_extra_usd"] == 0
+    assert data["running_total_usd"] == pytest.approx(9.645)
     assert "4/5" in data["prior"]["note"]
     assert "94.8" in data["prior"]["note"]
 
-    ledger = SpendLedger.load(DEFAULT_SPEND_PATH)
+    ledger = SpendLedger.load()
     assert ledger.tasks == []
-    assert ledger.recorded_extra_usd == pytest.approx(3.267192)
-    assert ledger.running_total_usd == pytest.approx(12.912192)
+    assert ledger.recorded_extra_usd == 0
+    assert ledger.running_total_usd == pytest.approx(9.645)
     assert ledger.allows_another_task()
+
+
+def test_a_temp_ledger_can_round_trip_an_extra_total(tmp_path: Path):
+    path = tmp_path / "boxed.json"
+    ledger = SpendLedger.seed(path)
+    ledger.recorded_extra_usd = 3.267192
+    ledger.recompute()
+    ledger.save()
+    loaded = SpendLedger.load(path)
+    assert loaded.running_total_usd == pytest.approx(12.912192)
+    assert loaded.recorded_extra_usd == pytest.approx(3.267192)
+
+
+def test_a_missing_ledger_is_not_created(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    missing = tmp_path / "absent.json"
+    monkeypatch.setenv("CU_SPEND_LEDGER", str(missing))
+    with pytest.raises(LedgerMissing) as caught:
+        SpendLedger.load()
+    assert not missing.exists()
+    assert "invent a starting total" in str(caught.value)
+    assert str(missing) in str(caught.value)
 
 
 def test_running_total_updates_and_stops_before_the_next_task(tmp_path: Path):
