@@ -21,6 +21,7 @@ from bench.openai_spend import (
     EffortNotAllowed,
     OpenAIModelNotAllowed,
     OpenAISpendLedger,
+    PriceUnknown,
     assert_effort,
     assert_openai_model,
     cap_statement,
@@ -186,6 +187,8 @@ def _record(row: dict, ledger: OpenAISpendLedger, *, arm: str, model: str, effor
         input_tokens=int(row.get("input_tokens") or 0),
         output_tokens=int(row.get("output_tokens") or 0),
         cached_tokens=int(row.get("cached_tokens") or 0),
+        cache_write_30m_tokens=int(row.get("cache_write_30m_tokens") or 0),
+        cache_write_12h_tokens=int(row.get("cache_write_12h_tokens") or 0),
     )
     row["usd"] = recorded
     if not ledger.allows_project():
@@ -211,32 +214,40 @@ async def _one(
 
     cell_model = cell["model"]
     cell_effort = cell["effort"]
-    if not arm_needs_claude(arm):
-        row = empty_row(arm, task["id"], reason=f"{arm} is not an OpenAI computer-use arm")
-    elif arm == ARM_BROWSER_USE:
-        from bench.browser_use_arm import run_browser_use_task
+    try:
+        if not arm_needs_claude(arm):
+            row = empty_row(arm, task["id"], reason=f"{arm} is not an OpenAI computer-use arm")
+        elif arm == ARM_BROWSER_USE:
+            from bench.browser_use_arm import run_browser_use_task
 
-        row = await run_browser_use_task(
-            task,
-            api_key=api_key,
-            headless=headless,
-            model=cell_model,
-            provider="openai",
-            effort=cell_effort,
-        )
-    else:
-        row = await run_claude_arm(
-            arm,
-            task,
-            api_key=api_key,
-            headless=headless,
-            runs_dir=destination,
-            provider="openai",
-            model=cell_model,
-            effort=cell_effort,
-        )
+            row = await run_browser_use_task(
+                task,
+                api_key=api_key,
+                headless=headless,
+                model=cell_model,
+                provider="openai",
+                effort=cell_effort,
+            )
+        else:
+            row = await run_claude_arm(
+                arm,
+                task,
+                api_key=api_key,
+                headless=headless,
+                runs_dir=destination,
+                provider="openai",
+                model=cell_model,
+                effort=cell_effort,
+            )
+    except PriceUnknown as exc:
+        ledger.note_unpriced_call(str(exc))
+        raise
     _stamp(row, model=cell_model, effort=cell_effort)
-    _record(row, ledger, arm=arm, model=cell_model, effort=cell_effort)
+    try:
+        _record(row, ledger, arm=arm, model=cell_model, effort=cell_effort)
+    except PriceUnknown as exc:
+        ledger.note_unpriced_call(str(exc))
+        raise
     row["pass"] = "cold"
     rows.append(row)
 
@@ -282,6 +293,7 @@ async def execute_openai_probe(
     cells = sweep_cells() if request["sweep"] else ({"model": request["model"], "effort": request["effort"]},)
     tasks = _tasks(split, one_task=request["one_task"])
     ledger = OpenAISpendLedger.read(spend_path or default_openai_spend_path())
+    opening_allowance = ledger.cover_unrecorded_call()
     if not ledger.allows_project():
         raise ProbeRefused(
             f"OpenAI project total ${ledger.running_total_usd:.2f} has reached "
@@ -293,11 +305,13 @@ async def execute_openai_probe(
     destination = runs_dir or RUNS_DIR
     destination.mkdir(parents=True, exist_ok=True)
     rows: list[dict] = []
-    sweep_spent = 0.0
+    sweep_spent = opening_allowance
     sweep_cap = OPENAI_SWEEP_BUDGET_USD if request["sweep"] else None
+    carried_allowance = opening_allowance
 
     for cell in cells:
-        cell_spent = 0.0
+        cell_spent = carried_allowance
+        carried_allowance = 0.0
         for task in tasks:
             for arm in arms:
                 if cell_spent >= OPENAI_RUN_BUDGET_USD:

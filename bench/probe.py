@@ -848,12 +848,16 @@ async def run_claude_arm(
                 result.total_input_tokens,
                 result.total_output_tokens,
                 result.total_cached_tokens,
+                result.total_cache_write_30m_tokens,
+                result.total_cache_write_12h_tokens,
             )
             row["claude"] = False
             row["provider"] = "openai"
             row["model"] = openai_model
             row["effort"] = openai_effort
             row["cached_tokens"] = result.total_cached_tokens
+            row["cache_write_30m_tokens"] = result.total_cache_write_30m_tokens
+            row["cache_write_12h_tokens"] = result.total_cache_write_12h_tokens
         return row
     finally:
         await harness.teardown()

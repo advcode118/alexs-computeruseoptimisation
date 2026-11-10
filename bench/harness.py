@@ -156,6 +156,9 @@ class TaskResult:
     script_steps: int = 0
     # OpenAI cached input tokens. Claude stays at 0; those reads use the recorded rate.
     total_cached_tokens: int = 0
+    # Cache writes are a slice of input tokens. Claude stays at 0.
+    total_cache_write_30m_tokens: int = 0
+    total_cache_write_12h_tokens: int = 0
 
 
 def estimate_tokens(text: str) -> int:
@@ -920,6 +923,8 @@ class BenchmarkHarness:
             "input_tokens": 0,
             "output_tokens": 0,
             "cached_tokens": 0,
+            "cache_write_30m_tokens": 0,
+            "cache_write_12h_tokens": 0,
             "model_calls": 0,
             "script_steps": 0,
         }
@@ -998,6 +1003,8 @@ class BenchmarkHarness:
         outcome["input_tokens"] += input_tokens
         outcome["output_tokens"] += output_tokens
         outcome["cached_tokens"] += int(usage.get("cached_tokens") or 0)
+        outcome["cache_write_30m_tokens"] += int(usage.get("cache_write_30m_tokens") or 0)
+        outcome["cache_write_12h_tokens"] += int(usage.get("cache_write_12h_tokens") or 0)
         patch = next(
             (
                 block.get("input")
@@ -1108,6 +1115,8 @@ class BenchmarkHarness:
         total_input_tokens = 0
         total_output_tokens = 0
         total_cached_tokens = 0
+        total_cache_write_30m_tokens = 0
+        total_cache_write_12h_tokens = 0
         total_snapshot_tokens = 0
         ignores = IgnoreCounter()
         replay_hits = 0
@@ -1177,6 +1186,8 @@ class BenchmarkHarness:
                 total_input_tokens += cached["input_tokens"]
                 total_output_tokens += cached["output_tokens"]
                 total_cached_tokens += int(cached.get("cached_tokens") or 0)
+                total_cache_write_30m_tokens += int(cached.get("cache_write_30m_tokens") or 0)
+                total_cache_write_12h_tokens += int(cached.get("cache_write_12h_tokens") or 0)
                 model_calls += cached["model_calls"]
                 if cached["tier"]:
                     tier = cached["tier"]
@@ -1206,6 +1217,8 @@ class BenchmarkHarness:
                 total_input_tokens += input_tokens
                 total_output_tokens += output_tokens
                 total_cached_tokens += int(usage.get("cached_tokens") or 0)
+                total_cache_write_30m_tokens += int(usage.get("cache_write_30m_tokens") or 0)
+                total_cache_write_12h_tokens += int(usage.get("cache_write_12h_tokens") or 0)
 
                 content = response.get("content", [])
                 stop_reason = response.get("stop_reason", "")
@@ -1540,6 +1553,8 @@ class BenchmarkHarness:
             model_calls=model_calls,
             script_steps=script_steps,
             total_cached_tokens=total_cached_tokens,
+            total_cache_write_30m_tokens=total_cache_write_30m_tokens,
+            total_cache_write_12h_tokens=total_cache_write_12h_tokens,
         )
 
     def _empty_result(
@@ -1656,14 +1671,18 @@ async def execute_benchmark_tasks(
             judge_prompt=task.get("judge_prompt"),
         )
         results.append(result)
+        from bench.openai_spend import OpenAISpendLedger
+
         cached = int(getattr(result, "total_cached_tokens", 0) or 0)
-        if cached:
+        if isinstance(ledger, OpenAISpendLedger):
             ledger.record_task(
                 run_id=run_id,
                 task_id=result.task_id,
                 input_tokens=result.total_input_tokens,
                 output_tokens=result.total_output_tokens,
                 cached_tokens=cached,
+                cache_write_30m_tokens=int(getattr(result, "total_cache_write_30m_tokens", 0) or 0),
+                cache_write_12h_tokens=int(getattr(result, "total_cache_write_12h_tokens", 0) or 0),
             )
         else:
             ledger.record_task(
@@ -1711,7 +1730,10 @@ async def run_benchmark(
         ledger = OpenAISpendLedger.read(spend_path or default_openai_spend_path())
         ledger.model = chosen
         ledger.effort = name
-        ledger.run_ceiling_usd = round(ledger.running_total_usd + OPENAI_RUN_BUDGET_USD, 6)
+        # The allowance sits inside this run's $5, not on top of it.
+        baseline = ledger.running_total_usd
+        ledger.cover_unrecorded_call()
+        ledger.run_ceiling_usd = round(baseline + OPENAI_RUN_BUDGET_USD, 6)
         if run_id is None:
             run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         if not ledger.allows_another_task():

@@ -6,10 +6,13 @@ with no entry in that table is refused. This file does not read or write the
 Claude spend.json.
 
 Standard short context is at most 272,000 input tokens. Above that, the
-published long-context rates apply to the whole request: 2x input and cached
-input, 1.5x output. This client does not request Fast, Batch, Flex, Ultrafast,
-or regional processing, so those prices are not used. Cache-retention writes
-(30m / 12h) are not requested. An unrecognized usage field fails closed.
+published long-context rates apply to the whole request: 2x input, cached
+input, and cache writes, 1.5x output. This client does not request Fast,
+Batch, Flex, Ultrafast, or regional processing, so those prices are not used.
+Cache writes are a slice of input_tokens, not an extra fee. The default
+lifetime is 30 minutes at 1.25x input. A reported 12-hour split is 2.5x.
+This client does not request 12-hour retention. An unrecognized usage field
+fails closed.
 """
 
 from __future__ import annotations
@@ -41,14 +44,22 @@ _STANDARD_PRICES = {
     "gpt-6.1-sol": {
         "input_usd_per_mtok": "2",
         "cached_input_usd_per_mtok": "0.1",
+        "cache_write_30m_usd_per_mtok": "2.5",
+        "cache_write_12h_usd_per_mtok": "5",
         "output_usd_per_mtok": "10",
     },
     "gpt-6-luna": {
         "input_usd_per_mtok": "0.1",
         "cached_input_usd_per_mtok": "0.01",
+        "cache_write_30m_usd_per_mtok": "0.125",
+        "cache_write_12h_usd_per_mtok": "0.25",
         "output_usd_per_mtok": "0.5",
     },
 }
+# The billed call that died before this file existed. Saved once, on the first run.
+UNRECORDED_CALL_ALLOWANCE_USD = 0.05
+# A later call whose usage cannot be priced. Saved before the process aborts.
+UNPRICED_CALL_RESERVE_USD = 1.0
 LONG_CONTEXT_INPUT_TOKENS = 272_000
 OPENAI_PROJECT_BUDGET_USD = 20.0
 OPENAI_RUN_BUDGET_USD = 5.0
@@ -142,26 +153,52 @@ def price_usd(
     input_tokens: int,
     output_tokens: int,
     cached_tokens: int = 0,
+    cache_write_30m_tokens: int = 0,
+    cache_write_12h_tokens: int = 0,
 ) -> float:
-    """Dollars at the published Standard rates for this usage. No estimated usage."""
+    """Dollars at the published Standard rates for this usage. No estimated usage.
+
+    cached_tokens, 30-minute writes, and 12-hour writes are slices of
+    input_tokens. They are not added on top of it.
+    """
     rates = published_rates(model)
     try:
         incoming = int(input_tokens)
         outgoing = int(output_tokens)
         cached = int(cached_tokens)
+        write_30m = int(cache_write_30m_tokens)
+        write_12h = int(cache_write_12h_tokens)
     except (TypeError, ValueError) as exc:
         raise PriceUnknown("Token counts are not integers. Refusing to price.") from exc
-    if incoming < 0 or outgoing < 0 or cached < 0 or cached > incoming:
+    writes = write_30m + write_12h
+    if (
+        incoming < 0
+        or outgoing < 0
+        or cached < 0
+        or write_30m < 0
+        or write_12h < 0
+        or cached + writes > incoming
+    ):
         raise PriceUnknown("Token counts are inconsistent. Refusing to price.")
-    uncached = incoming - cached
+    ordinary = incoming - cached - writes
     in_rate = rates["input_usd_per_mtok"]
     cached_rate = rates["cached_input_usd_per_mtok"]
+    write_30m_rate = rates["cache_write_30m_usd_per_mtok"]
+    write_12h_rate = rates["cache_write_12h_usd_per_mtok"]
     out_rate = rates["output_usd_per_mtok"]
     if incoming > LONG_CONTEXT_INPUT_TOKENS:
         in_rate *= 2
         cached_rate *= 2
+        write_30m_rate *= 2
+        write_12h_rate *= 2
         out_rate *= Decimal("1.5")
-    amount = (uncached * in_rate + cached * cached_rate + outgoing * out_rate) / Decimal(1_000_000)
+    amount = (
+        ordinary * in_rate
+        + cached * cached_rate
+        + write_30m * write_30m_rate
+        + write_12h * write_12h_rate
+        + outgoing * out_rate
+    ) / Decimal(1_000_000)
     return float(amount.quantize(_QUANTUM, rounding=ROUND_HALF_UP))
 
 
@@ -303,12 +340,21 @@ class OpenAISpendLedger:
         input_tokens: int,
         output_tokens: int,
         cached_tokens: int = 0,
+        cache_write_30m_tokens: int = 0,
+        cache_write_12h_tokens: int = 0,
         model: str | None = None,
         effort: str | None = None,
     ) -> float:
         chosen = assert_openai_model(model or self.model)
         name = assert_effort(chosen, effort or self.effort)
-        usd = price_usd(chosen, input_tokens, output_tokens, cached_tokens)
+        usd = price_usd(
+            chosen,
+            input_tokens,
+            output_tokens,
+            cached_tokens,
+            cache_write_30m_tokens,
+            cache_write_12h_tokens,
+        )
         self.tasks.append(
             {
                 "run_id": run_id,
@@ -319,11 +365,43 @@ class OpenAISpendLedger:
                 "input_tokens": int(input_tokens),
                 "output_tokens": int(output_tokens),
                 "cached_tokens": int(cached_tokens),
+                "cache_write_30m_tokens": int(cache_write_30m_tokens),
+                "cache_write_12h_tokens": int(cache_write_12h_tokens),
                 "usd": usd,
             }
         )
         self.recompute()
         return usd
+
+    def cover_unrecorded_call(self) -> float:
+        """Save the one billed call that never reached a ledger. Once, before the next request.
+
+        A missing file is still $0 until this runs. Later reads keep the allowance.
+        """
+        if self.created:
+            return 0.0
+        allowance = Decimal(str(UNRECORDED_CALL_ALLOWANCE_USD))
+        self.recorded_extra_usd = float(
+            (Decimal(str(self.recorded_extra_usd)) + allowance).quantize(_QUANTUM, rounding=ROUND_HALF_UP)
+        )
+        self.recompute()
+        self.save()
+        return float(allowance)
+
+    def note_unpriced_call(self, reason: str) -> float:
+        """Count a call that cannot be priced, then leave the ledger aborted.
+
+        The reserve is a fixed dollar amount, not an invented token price.
+        The caller still raises. The caps see the reserve because it is saved first.
+        """
+        reserve = Decimal(str(UNPRICED_CALL_RESERVE_USD))
+        self.recorded_extra_usd = float(
+            (Decimal(str(self.recorded_extra_usd)) + reserve).quantize(_QUANTUM, rounding=ROUND_HALF_UP)
+        )
+        self.recompute()
+        self.mark_aborted(reason)
+        self.save()
+        return float(reserve)
 
     def mark_aborted(self, reason: str | None = None) -> None:
         self.aborted = True

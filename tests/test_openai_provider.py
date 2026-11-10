@@ -17,6 +17,8 @@ from bench.openai_spend import (
     OPENAI_PROJECT_BUDGET_USD,
     OPENAI_RUN_BUDGET_USD,
     OPENAI_SWEEP_BUDGET_USD,
+    UNPRICED_CALL_RESERVE_USD,
+    UNRECORDED_CALL_ALLOWANCE_USD,
     EffortNotAllowed,
     OpenAIModelNotAllowed,
     OpenAISpendLedger,
@@ -81,7 +83,67 @@ def test_prices_are_the_published_standard_rates():
     assert OPENAI_SWEEP_BUDGET_USD == 15
 
 
-def test_unrecognized_usage_is_not_priced():
+def _priced(model: str, usage: dict) -> float:
+    return price_usd(
+        model,
+        usage["input_tokens"],
+        usage["output_tokens"],
+        usage["cached_tokens"],
+        usage["cache_write_30m_tokens"],
+        usage["cache_write_12h_tokens"],
+    )
+
+
+def test_cache_write_tokens_in_a_real_usage_report_are_priced():
+    """The shape that stopped the sweep, plus the published lifetime split.
+
+    Writes are a slice of input_tokens. 30-minute writes are 1.25x input.
+    A 12-hour split is 2.5x. An unknown field is still refused.
+    """
+    reported = {
+        "output": [{"type": "message", "content": [{"type": "output_text", "text": "TASK_COMPLETE"}]}],
+        "usage": {
+            "input_tokens": 12000,
+            "output_tokens": 100,
+            "total_tokens": 12100,
+            "input_tokens_details": {
+                "cached_tokens": 4000,
+                "cache_write_tokens": 7000,
+            },
+            "output_tokens_details": {"reasoning_tokens": 20},
+        },
+    }
+    usage = anthropic_shaped(reported)["usage"]
+    assert usage["cache_write_30m_tokens"] == 7000
+    assert usage["cache_write_12h_tokens"] == 0
+    # ordinary 1000 at $2, cached 4000 at $0.10, writes 7000 at $2.50, output 100 at $10.
+    assert f"{_priced('gpt-6.1-sol', usage):.6f}" == "0.020900"
+    # ordinary 1000 at $0.10, cached 4000 at $0.01, writes 7000 at $0.125, output 100 at $0.50.
+    assert f"{_priced('gpt-6-luna', usage):.6f}" == "0.001065"
+
+    split = {
+        "output": [{"type": "message", "content": [{"type": "output_text", "text": "done"}]}],
+        "usage": {
+            "input_tokens": 12000,
+            "output_tokens": 100,
+            "total_tokens": 12100,
+            "input_tokens_details": {
+                "cached_tokens": 4000,
+                "cache_write_tokens": 7000,
+                "cache_write_tokens_details": {"ttl_30m_tokens": 3000, "ttl_12h_tokens": 4000},
+            },
+            "output_tokens_details": {"reasoning_tokens": 20},
+        },
+    }
+    detailed = anthropic_shaped(split)["usage"]
+    assert detailed["cache_write_30m_tokens"] == 3000
+    assert detailed["cache_write_12h_tokens"] == 4000
+    # 1000*$2 + 4000*$0.10 + 3000*$2.50 + 4000*$5 + 100*$10, per million.
+    assert f"{_priced('gpt-6.1-sol', detailed):.6f}" == "0.030900"
+    assert f"{_priced('gpt-6-luna', detailed):.6f}" == "0.001565"
+    long_write = price_usd("gpt-6-luna", LONG_CONTEXT_INPUT_TOKENS + 1, 0, 0, 1000, 0)
+    assert f"{long_write:.6f}" == "0.054450"
+
     with pytest.raises(PriceUnknown):
         anthropic_shaped(
             {
@@ -89,10 +151,12 @@ def test_unrecognized_usage_is_not_priced():
                 "usage": {
                     "input_tokens": 10,
                     "output_tokens": 2,
-                    "input_tokens_details": {"cached_tokens": 1, "cache_write_tokens": 4},
+                    "input_tokens_details": {"cached_tokens": 1, "cache_write_tokens": 4, "audio_tokens": 3},
                 },
             }
         )
+    with pytest.raises(OpenAIModelNotAllowed):
+        price_usd("gpt-6-sol", 10, 2, 0, 4, 0)
 
 
 def test_client_sends_function_tools_and_effort_without_a_socket(monkeypatch):
@@ -146,7 +210,13 @@ def test_client_sends_function_tools_and_effort_without_a_socket(monkeypatch):
     ]
     assert "computer_use" not in json.dumps(seen["payload"])
     assert seen["headers"]["Authorization"] == "Bearer local-test-not-sent"
-    assert response["usage"] == {"input_tokens": 20, "output_tokens": 5, "cached_tokens": 4}
+    assert response["usage"] == {
+        "input_tokens": 20,
+        "output_tokens": 5,
+        "cached_tokens": 4,
+        "cache_write_30m_tokens": 0,
+        "cache_write_12h_tokens": 0,
+    }
     assert response["content"][0]["type"] == "tool_use"
     assert response["content"][0]["input"] == {"code": "page.goto(\"https://example.test\")"}
     with pytest.raises(OpenAIModelNotAllowed):
@@ -255,11 +325,132 @@ def test_one_run_uses_one_model_and_stops_at_five(monkeypatch, tmp_path, isolate
     # 300_000 output tokens at $10 / MTok is $3. The next arm waits until the run has reached $5.
     assert len(calls) == 2
     ledger = OpenAISpendLedger.read()
-    assert ledger.running_total_usd == 6.0
+    assert ledger.running_total_usd == round(6.0 + UNRECORDED_CALL_ALLOWANCE_USD, 6)
     assert ledger.path.name == "openai-spend.json"
     saved = json.loads(ledger.path.read_text(encoding="utf-8"))
     assert saved["provider"] == "openai"
     assert "claude-sonnet-5-5" not in ledger.path.read_text(encoding="utf-8")
+
+
+def test_opening_allowance_counts_against_the_run_and_sweep_caps(
+    monkeypatch, isolated_spend_ledger, isolated_openai_spend_ledger
+):
+    """The unrecorded call sits inside the $5 cell and the $15 sweep, not beside them."""
+    before = isolated_spend_ledger.read_bytes()
+    monkeypatch.setenv("OPENAI_API_KEY", "local-test-not-sent")
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("socket")),
+    )
+    calls = []
+
+    async def arm(name, task, **kwargs):
+        del task, kwargs
+        calls.append(name)
+        return {
+            "arm": name,
+            "task_id": "wv_wikipedia_search",
+            "success": False,
+            "success_reason": "mocked",
+            "skipped": False,
+            "wall_ms": 1,
+            "steps": 1,
+            "input_tokens": 0,
+            "output_tokens": 496_000,
+            "usd": 0,
+            "claude": False,
+        }
+
+    monkeypatch.setattr("bench.probe.run_claude_arm", arm)
+    assert (
+        main(
+            [
+                "--execute",
+                "--provider",
+                "openai",
+                "--model",
+                "gpt-6.1-sol",
+                "--effort",
+                "low",
+                "--sweep-task",
+                "--arms",
+                "script_first,playwright_mcp",
+            ]
+        )
+        == 0
+    )
+    # $4.96 of output plus the $0.05 allowance reaches the $5 cell, so the second arm does not start.
+    assert calls == ["script_first"]
+    assert isolated_spend_ledger.read_bytes() == before
+
+    calls.clear()
+    monkeypatch.setattr("bench.openai_run.OPENAI_SWEEP_BUDGET_USD", UNRECORDED_CALL_ALLOWANCE_USD)
+    fresh = isolated_openai_spend_ledger.parent / "sweep-spend.json"
+    monkeypatch.setenv("CU_OPENAI_SPEND_LEDGER", str(fresh))
+    assert (
+        main(
+            [
+                "--execute",
+                "--provider",
+                "openai",
+                "--sweep-effort",
+                "--arms",
+                "script_first",
+            ]
+        )
+        == 0
+    )
+    assert calls == []
+    assert OpenAISpendLedger.read().running_total_usd == UNRECORDED_CALL_ALLOWANCE_USD
+
+
+def test_unpriced_call_is_saved_before_the_abort(monkeypatch, isolated_spend_ledger, isolated_openai_spend_ledger):
+    """A pricing refusal still exits 2, and the ledger exists before that exit.
+
+    The first run also keeps the one call that died before any file was written.
+    Both amounts sit in the project total the $20 cap reads.
+    """
+    before = isolated_spend_ledger.read_bytes()
+    monkeypatch.setenv("OPENAI_API_KEY", "local-test-not-sent")
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("socket")),
+    )
+
+    async def refuse(*args, **kwargs):
+        del args, kwargs
+        raise PriceUnknown("Input usage has unrecognized fields ['audio_tokens']. Refusing to price.")
+
+    monkeypatch.setattr("bench.probe.run_claude_arm", refuse)
+    assert (
+        main(
+            [
+                "--execute",
+                "--provider",
+                "openai",
+                "--model",
+                "gpt-6-luna",
+                "--effort",
+                "low",
+                "--sweep-task",
+                "--arms",
+                "script_first",
+            ]
+        )
+        == 2
+    )
+    assert isolated_spend_ledger.read_bytes() == before
+    assert isolated_openai_spend_ledger.is_file()
+    ledger = OpenAISpendLedger.read()
+    assert ledger.aborted is True
+    assert "audio_tokens" in (ledger.abort_reason or "")
+    assert ledger.running_total_usd == round(UNRECORDED_CALL_ALLOWANCE_USD + UNPRICED_CALL_RESERVE_USD, 6)
+    assert ledger.running_total_usd < OPENAI_RUN_BUDGET_USD
+    assert ledger.running_total_usd < OPENAI_SWEEP_BUDGET_USD
+    assert ledger.running_total_usd < OPENAI_PROJECT_BUDGET_USD
+    again = OpenAISpendLedger.read()
+    assert again.cover_unrecorded_call() == 0.0
+    assert again.running_total_usd == ledger.running_total_usd
 
 
 def test_report_prints_effort_and_claude_rows_stay_the_same():

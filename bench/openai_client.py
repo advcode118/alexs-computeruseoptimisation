@@ -18,7 +18,8 @@ OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 _USAGE_TOP = frozenset(
     {"input_tokens", "output_tokens", "total_tokens", "input_tokens_details", "output_tokens_details"}
 )
-_INPUT_DETAILS = frozenset({"cached_tokens"})
+_INPUT_DETAILS = frozenset({"cached_tokens", "cache_write_tokens", "cache_write_tokens_details"})
+_WRITE_DETAILS = frozenset({"ttl_30m_tokens", "ttl_12h_tokens"})
 _OUTPUT_DETAILS = frozenset({"reasoning_tokens"})
 _OUTPUT_ITEMS = frozenset({"message", "function_call", "reasoning"})
 
@@ -156,18 +157,42 @@ def normalize_usage(usage: dict) -> dict:
             f"Output usage has unrecognized fields {sorted(set(details_out) - _OUTPUT_DETAILS)}. "
             "Refusing to price."
         )
+    write_details = details_in.get("cache_write_tokens_details") or {}
+    if "cache_write_tokens_details" in details_in and not isinstance(write_details, dict):
+        raise PriceUnknown("Cache-write usage is not an object. Refusing to price.")
+    if set(write_details) - _WRITE_DETAILS:
+        raise PriceUnknown(
+            f"Cache-write usage has unrecognized fields {sorted(set(write_details) - _WRITE_DETAILS)}. "
+            "Refusing to price."
+        )
     try:
         incoming = int(usage.get("input_tokens") or 0)
         outgoing = int(usage.get("output_tokens") or 0)
         cached = int(details_in.get("cached_tokens") or 0)
+        cache_write = int(details_in.get("cache_write_tokens") or 0)
+        write_30m = int(write_details.get("ttl_30m_tokens") or 0)
+        write_12h = int(write_details.get("ttl_12h_tokens") or 0)
     except (TypeError, ValueError) as exc:
         raise PriceUnknown("Usage token counts are not integers. Refusing to price.") from exc
-    if incoming < 0 or outgoing < 0 or cached < 0 or cached > incoming:
+    if "cache_write_tokens_details" in details_in:
+        if write_30m + write_12h != cache_write:
+            raise PriceUnknown(
+                "Cache-write details do not add up to cache_write_tokens. Refusing to price."
+            )
+    else:
+        # No lifetime split. This client does not request 12-hour retention.
+        write_30m = cache_write
+        write_12h = 0
+    if incoming < 0 or outgoing < 0 or cached < 0 or cache_write < 0 or write_30m < 0 or write_12h < 0:
+        raise PriceUnknown("Usage token counts are inconsistent. Refusing to price.")
+    if cached + cache_write > incoming:
         raise PriceUnknown("Usage token counts are inconsistent. Refusing to price.")
     return {
         "input_tokens": incoming,
         "output_tokens": outgoing,
         "cached_tokens": cached,
+        "cache_write_30m_tokens": write_30m,
+        "cache_write_12h_tokens": write_12h,
     }
 
 
