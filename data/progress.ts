@@ -149,7 +149,7 @@ export const progress = {
   project: "Alex's browser tool",
   links: [
     { label: "GitHub", href: "https://github.com/advcode118/alexs-computeruseoptimisation" },
-    { label: "Cursor Origin", href: "https://cursor.com/codebase/tom-wei-de-vrieze/alexs-computeruseoptimisation" },
+    { label: "Cursor Origin", href: "https://github.com/advcode118/alexs-computeruseoptimisation" },
   ],
   asOf: "6 November 2026",
   sourceFile: "data/progress.ts",

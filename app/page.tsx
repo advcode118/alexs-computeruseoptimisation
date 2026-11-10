@@ -133,7 +133,7 @@ function RepoLinks({ className }: { className: string }) {
   return (
     <ul aria-label="Source code" className={className}>
       {progress.links.map((link) => (
-        <li key={link.href}>
+        <li key={link.label}>
           <a
             href={link.href}
             target="_blank"
