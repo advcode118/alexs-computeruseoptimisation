@@ -1,0 +1,224 @@
+[
+  {
+    "id": "ho_mdn_array_map",
+    "description": "Open the MDN documentation page for Array.prototype.map",
+    "start_url": "https://developer.mozilla.org/en-US/",
+    "expected_answer": "On the Array.prototype.map documentation",
+    "check_url_contains": "Array/map",
+    "end_markers": {
+      "url_contains": "Array/map",
+      "host": "developer.mozilla.org",
+      "deny": [
+        "/search"
+      ]
+    }
+  },
+  {
+    "id": "ho_github_rust",
+    "description": "Open the rust-lang/rust repository page on GitHub",
+    "start_url": "https://github.com/",
+    "expected_answer": "On the rust-lang/rust repository",
+    "check_url_contains": "rust-lang/rust",
+    "end_markers": {
+      "url_contains": "rust-lang/rust",
+      "host": "github.com",
+      "deny": [
+        "/search"
+      ]
+    }
+  },
+  {
+    "id": "ho_arxiv_attention",
+    "description": "Open the arXiv abstract for the 2017 paper that introduced the Transformer, and report the paper title.",
+    "start_url": "https://arxiv.org/",
+    "expected_answer": "Attention Is All You Need",
+    "check_url_contains": "1706.03762",
+    "end_markers": {
+      "url_contains": "1706.03762",
+      "host": "arxiv.org",
+      "deny": [
+        "/search"
+      ],
+      "answer_in_text": "Attention Is All You Need"
+    }
+  },
+  {
+    "id": "ho_wiki_eiffel_city",
+    "description": "Open the Wikipedia article for the Eiffel Tower and report the city it stands in",
+    "start_url": "https://en.wikipedia.org/wiki/Main_Page",
+    "expected_answer": "Paris",
+    "check_text": "Paris",
+    "end_markers": {
+      "url_contains": "Eiffel_Tower",
+      "host": "en.wikipedia.org",
+      "deny": [
+        "Special:Search",
+        "Main_Page"
+      ],
+      "answer_in_text": "Paris"
+    }
+  },
+  {
+    "id": "ho_nodejs_fs_docs",
+    "description": "Open the Node.js documentation for the fs module",
+    "start_url": "https://nodejs.org/api/",
+    "expected_answer": "On the Node.js fs module documentation",
+    "check_url_contains": "/fs.html",
+    "end_markers": {
+      "url_contains": "fs.html",
+      "host": "nodejs.org",
+      "path_suffix": "/fs.html",
+      "deny": [
+        "/search"
+      ]
+    }
+  },
+  {
+    "id": "ho_httpbin_customer_form",
+    "description": "Open the httpbin HTML form, submit it, and report the customer-name field's name exactly as the response body echoes it.",
+    "start_url": "https://httpbin.org/",
+    "expected_answer": "custname",
+    "check_url_contains": "httpbin.org/post",
+    "end_markers": {
+      "host": "httpbin.org",
+      "path_suffix": "/post",
+      "deny": [
+        "/forms/"
+      ],
+      "answer_in_text": "custname"
+    }
+  },
+  {
+    "id": "ho_pypi_requests",
+    "description": "Search PyPI for the requests library and open its project page. Do not stop on the search results.",
+    "start_url": "https://pypi.org/",
+    "expected_answer": "On the requests project page",
+    "check_url_contains": "/project/requests/",
+    "end_markers": {
+      "host": "pypi.org",
+      "url_contains": "/project/requests/",
+      "deny": [
+        "/search"
+      ]
+    }
+  },
+  {
+    "id": "ho_rust_book_borrowing",
+    "description": "Starting from the Rust book table of contents, open the section on references and borrowing.",
+    "start_url": "https://doc.rust-lang.org/book/",
+    "expected_answer": "On the references and borrowing section",
+    "check_url_contains": "ch04-02-references-and-borrowing.html",
+    "end_markers": {
+      "host": "doc.rust-lang.org",
+      "path_suffix": "/ch04-02-references-and-borrowing.html",
+      "deny": [
+        "/search"
+      ]
+    }
+  },
+  {
+    "id": "ho_w3c_selectors_4",
+    "description": "Starting from the W3C technical reports index, open the CSS Selectors Level 4 specification.",
+    "start_url": "https://www.w3.org/TR/",
+    "expected_answer": "On the CSS Selectors Level 4 specification",
+    "check_url_contains": "/TR/selectors-4/",
+    "end_markers": {
+      "host": "www.w3.org",
+      "url_contains": "/TR/selectors-4/",
+      "deny": [
+        "/search",
+        "search="
+      ]
+    }
+  },
+  {
+    "id": "ho_iana_status_451",
+    "description": "Open the IANA HTTP status code registry and report the description listed for status code 451.",
+    "start_url": "https://www.iana.org/",
+    "expected_answer": "Unavailable For Legal Reasons",
+    "check_url_contains": "http-status-codes",
+    "end_markers": {
+      "host": "iana.org",
+      "url_contains": "http-status-codes",
+      "deny": [
+        "/search"
+      ],
+      "answer_in_text": "Unavailable For Legal Reasons"
+    }
+  },
+  {
+    "id": "ho_rfc9110_get_section",
+    "description": "Open RFC 9110 and report the section number of the section that defines the GET method.",
+    "start_url": "https://www.rfc-editor.org/",
+    "expected_answer": "9.3.1",
+    "check_url_contains": "rfc9110",
+    "end_markers": {
+      "host": "rfc-editor.org",
+      "url_contains": "rfc9110",
+      "deny": [
+        "/search"
+      ],
+      "answer_in_text": "9.3.1"
+    }
+  },
+  {
+    "id": "ho_schema_person",
+    "description": "Open the Schema.org type page for Person.",
+    "start_url": "https://schema.org/",
+    "expected_answer": "On the Schema.org Person type",
+    "check_url_contains": "/Person",
+    "end_markers": {
+      "host": "schema.org",
+      "path_suffix": "/Person",
+      "deny": [
+        "/search",
+        "search_docs",
+        "search="
+      ]
+    }
+  },
+  {
+    "id": "ho_cppreference_vector",
+    "description": "Search cppreference for std::vector and open its reference page. Do not stop on the search results.",
+    "start_url": "https://en.cppreference.com/w/cpp",
+    "expected_answer": "On the std::vector reference page",
+    "check_url_contains": "/cpp/container/vector",
+    "end_markers": {
+      "host": "en.cppreference.com",
+      "path_suffix": "/cpp/container/vector",
+      "deny": [
+        "Special:Search",
+        "action=search",
+        "search="
+      ]
+    }
+  },
+  {
+    "id": "ho_sqlite_vacuum",
+    "description": "From the SQLite documentation index, open the page for the VACUUM statement.",
+    "start_url": "https://www.sqlite.org/docs.html",
+    "expected_answer": "On the SQLite VACUUM statement page",
+    "check_url_contains": "lang_vacuum.html",
+    "end_markers": {
+      "host": "sqlite.org",
+      "path_suffix": "/lang_vacuum.html",
+      "deny": [
+        "/search"
+      ]
+    }
+  },
+  {
+    "id": "ho_k8s_pod",
+    "description": "From the Kubernetes documentation home, open the concepts page for Pods.",
+    "start_url": "https://kubernetes.io/docs/home/",
+    "expected_answer": "On the Kubernetes Pods concepts page",
+    "check_url_contains": "/docs/concepts/workloads/pods/",
+    "end_markers": {
+      "host": "kubernetes.io",
+      "path_suffix": "/workloads/pods/",
+      "deny": [
+        "/search"
+      ]
+    }
+  }
+]
