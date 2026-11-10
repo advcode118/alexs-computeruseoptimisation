@@ -1,0 +1,4 @@
+{"sketch": true, "arm": "script_first", "task_id": "wv_wikipedia_search", "pass": "cold", "wall_ms": 1111, "steps": 7, "tier": "sketch", "usd": 0.001}
+{"sketch": true, "arm": "script_first", "task_id": "wv_python_docs", "pass": "cold", "wall_ms": 2222, "steps": 4, "tier": "fresh", "usd": 0.002}
+{"sketch": true, "arm": "stagehand", "task_id": "wv_wikipedia_search", "pass": "cold", "wall_ms": 3333, "steps": 5, "tier": "", "usd": 0.004}
+{"kind": "warm_summary", "warm": {"script_first": {"wall_ms": 99999}}}
