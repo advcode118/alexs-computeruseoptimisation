@@ -298,6 +298,8 @@ def test_unknown_does_not_repair_or_count_as_success(tmp_path):
     )
     seen = json.dumps(model.seen)
     assert client.calls == 1
+    assert len(model.seen) == 1
+    assert result.model_calls == 1
     assert result.success is False
     assert result.end_state == UNKNOWN
     assert result.success_reason.startswith("UNKNOWN")
