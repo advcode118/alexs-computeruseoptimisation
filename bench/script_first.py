@@ -25,7 +25,9 @@ _NAV_TIMEOUT_MS = 10000
 _ACTION_TIMEOUT_MS = 5000
 _EVALUATE_TIMEOUT_S = 5
 _LAND_TIMEOUT_S = 0.8
-_PAGE_TEXT_CAP = 4000
+# Headings are kept in front of the body. A 4000-character body prefix
+# dropped RFC section headings that sit further down the same page.
+_PAGE_TEXT_CAP = 8000
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -100,6 +102,9 @@ _PAGE_EVIDENCE_JS = r"""() => {
     canonical: link ? (link.getAttribute("href") || "") : "",
     h1: h1 ? (h1.innerText || h1.textContent || "") : "",
     text: raw.slice(0, 8000),
+    headings: Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6")).slice(0, 400).map((node) => {
+      return (node.innerText || node.textContent || "").replace(/\s+/g, " ").trim().slice(0, 160);
+    }).filter(Boolean),
     controls
   };
 }"""
@@ -896,6 +901,29 @@ async def _evaluate_value(page, source: str):
     return value
 
 
+def page_text_from_evidence(data: dict | None) -> str:
+    """The page the script left: headings, then the body, capped.
+
+    The evidence judge and the shared check both read this string. A heading
+    that is on the page stays in the text when the body prefix is only the
+    abstract. The judge's rules are unchanged.
+    """
+    raw = data if isinstance(data, dict) else {}
+    lines = []
+    headings = raw.get("headings") if isinstance(raw.get("headings"), list) else []
+    for item in headings:
+        if isinstance(item, str) and item.strip():
+            lines.append(" ".join(item.split()))
+    body = raw.get("text") if isinstance(raw.get("text"), str) else ""
+    if lines:
+        text = "\n".join(lines)
+        if body.strip():
+            text = f"{text}\n{body}"
+    else:
+        text = body
+    return text[:_PAGE_TEXT_CAP]
+
+
 def mcp_evaluate_value(result_text: str):
     """JSON value from a browser_evaluate response. None when it is not JSON."""
     text = result_text or ""
@@ -1007,7 +1035,7 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
         found = await _evaluate_value(page, source)
         if isinstance(found, str):
             selector_text = found.strip()
-    text = data.get("text") if isinstance(data.get("text"), str) else ""
+    text = page_text_from_evidence(data)
     canonical = data.get("canonical") if isinstance(data.get("canonical"), str) else ""
     h1 = data.get("h1") if isinstance(data.get("h1"), str) else ""
     pairs: list[str] = []
@@ -1027,7 +1055,7 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
         title=title,
         canonical=canonical.strip(),
         h1=h1.strip(),
-        text=text[:_PAGE_TEXT_CAP],
+        text=text,
         selector_text=selector_text,
         controls=tuple(pairs),
     )

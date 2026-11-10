@@ -443,6 +443,34 @@ def shared_end_state(
     return False, verdict.reason
 
 
+def shared_check_passes(
+    task_id: str,
+    url: str,
+    text: str,
+    *,
+    selector: str = "",
+    answer: str = "",
+) -> bool:
+    """True only when this task's shared check passes on the page the script left.
+
+    None and False are not a pass. The evidence judge is a separate signal.
+    """
+    from bench.tasks import task_by_id
+
+    task = task_by_id(task_id)
+    if task is None:
+        return False
+    ok, _reason = shared_end_state(
+        task,
+        url,
+        text or "",
+        selector_text=selector,
+        answer=answer,
+        page_text=text or "",
+    )
+    return ok is True
+
+
 def grade_arm(
     task: dict,
     url: str,
@@ -625,6 +653,9 @@ async def run_claude_arm(
         selector_text = last.selector_text if last else ""
         claimed_answer = last.claimed_answer if last else ""
         page_text = last.page_text if last else ""
+        # script_first's tool result is not a snapshot. The page body the
+        # runner read is the end state. An empty snapshot is not that page.
+        graded_text = page_text if arm == ARM_SCRIPT_FIRST and page_text else final_text
         end_state = result.end_state or ""
         if arm == ARM_SCRIPT_FIRST:
             # This arm always has an evidence judge. A missing verdict is not a pass.
@@ -632,7 +663,7 @@ async def run_claude_arm(
             success, reason, substring_ok, substring_reason = grade_arm(
                 task,
                 final_url,
-                final_text,
+                graded_text,
                 evidence=evidence,
                 evidence_reason=result.success_reason,
                 selector_text=selector_text,

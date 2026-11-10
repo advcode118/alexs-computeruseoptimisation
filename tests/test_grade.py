@@ -242,10 +242,32 @@ def test_probe_grade_uses_the_same_rule_for_both_arms(monkeypatch, tmp_path):
     row = asyncio.run(
         run_claude_arm("script_first", eiffel, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
     )
-    assert row["success"] is False
-    assert row["success_reason"] == "Missing text: ['Paris']"
-    assert row["substring_success"] is False
+    assert row["success"] is True
+    assert "Paris" in row["success_reason"]
+    assert row["substring_success"] is True
     assert row["end_state"] == "PASS"
+
+    async def script_without_paris(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=True,
+            reason="the page evidence matches the markers",
+            end_state="PASS",
+            url=EIFFEL,
+            snapshot="The Eiffel Tower is a wrought-iron lattice tower.",
+            answer="Paris",
+            page_text="The Eiffel Tower is a wrought-iron lattice tower.",
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", script_without_paris)
+    missing = asyncio.run(
+        run_claude_arm("script_first", eiffel, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+    )
+    assert missing["success"] is False
+    assert missing["success_reason"] == "Missing text: ['Paris']"
+    assert missing["substring_success"] is False
+    assert missing["end_state"] == "PASS"
 
     async def script_hn(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
         del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
@@ -549,3 +571,124 @@ def test_playwright_and_stagehand_record_the_same_claim(monkeypatch, tmp_path):
     )
     assert bare["success"] is False
     assert bare["success_reason"] == "empty answer"
+
+
+def test_rfc_heading_stays_in_the_page_text_and_the_judge_does_not_soften():
+    """The RFC body prefix has no section number. The heading on that page does.
+
+    A wrong section still fails with the same reason. The answer is not a prompt.
+    """
+    from bench.script_first import (
+        FAIL,
+        PASS,
+        ClaimedEvidence,
+        PageEvidence,
+        _PAGE_EVIDENCE_JS,
+        evidence_verdict,
+        page_text_from_evidence,
+    )
+    from bench.tasks import markers_for_task
+
+    assert "h1, h2, h3, h4, h5, h6" in _PAGE_EVIDENCE_JS
+    body = "Abstract " * 900
+    assert "9.3.1" not in body[:4000]
+    text = page_text_from_evidence(
+        {
+            "headings": [
+                "9.2.3. Methods and Caching",
+                "9.3. Method Definitions",
+                "9.3.1. GET",
+                "9.3.2. HEAD",
+            ],
+            "text": body,
+        }
+    )
+    assert text.index("9.3.1") < 4000
+    assert "9.3.1" in text
+    markers = markers_for_task("ho_rfc9110_get_section")
+    url = "https://www.rfc-editor.org/rfc/rfc9110.html"
+    passed = evidence_verdict(markers, PageEvidence(url=url, text=text), ClaimedEvidence(answer="9.3.1"))
+    assert passed.verdict == PASS
+    wrong = evidence_verdict(markers, PageEvidence(url=url, text=text), ClaimedEvidence(answer="9.3.2"))
+    assert wrong.verdict == FAIL
+    assert wrong.reason == "answer does not satisfy the marker"
+    prefix = evidence_verdict(
+        markers,
+        PageEvidence(url=url, text=body[:4000]),
+        ClaimedEvidence(answer="9.3.1"),
+    )
+    assert prefix.verdict == FAIL
+    assert prefix.reason == "answer is not in the page text"
+
+
+def test_eiffel_script_is_cached_only_when_the_page_contains_paris(tmp_path, monkeypatch):
+    from bench.script_cache import ScriptCache
+    from bench.script_first import PASS, format_run_result
+    from tests.test_script_first import _script_harness, _tool_reply
+
+    url = "https://en.wikipedia.org/wiki/Eiffel_Tower"
+    description = "Open the Wikipedia article for the Eiffel Tower and report the city it stands in"
+    start = "https://en.wikipedia.org/wiki/Main_Page"
+
+    def _run(directory, text: str, replies: list):
+        async def call_tool(name, arguments, nth):
+            del name, arguments, nth
+            return (
+                format_run_result(
+                    ok=True,
+                    url=url,
+                    step_count=1,
+                    title="Eiffel Tower",
+                    text=text,
+                    claimed={"answer": "Paris"},
+                ),
+                1.0,
+            )
+
+        harness, _model, _client = _script_harness(directory, replies, call_tool, max_steps=4)
+        harness.script_cache = ScriptCache(directory / "scripts.json")
+        result = asyncio.run(
+            harness.run_task(
+                task_id="ho_wiki_eiffel_city",
+                task_description=description,
+                start_url=start,
+            )
+        )
+        return harness, result
+
+    kept_code = "await page.evaluate(() => document.title);"
+    kept, result = _run(
+        tmp_path / "keep",
+        "The Eiffel Tower stands in Paris, France.",
+        [_tool_reply(kept_code)],
+    )
+    assert result.end_state == PASS
+    assert result.success is True
+    assert len(kept.script_cache) == 1
+    stored = kept.script_cache.lookup(description, start)
+    assert stored is not None
+    assert stored.script == "page.evaluate(() => document.title)"
+    assert "Paris" not in stored.script
+    assert "Eiffel_Tower" not in stored.script
+
+    import bench.probe as probe
+
+    real_check = probe.shared_check_passes
+    monkeypatch.setattr(probe, "shared_check_passes", lambda *args, **kwargs: False)
+    denied, denied_result = _run(
+        tmp_path / "deny",
+        "The Eiffel Tower stands in Paris, France.",
+        [_tool_reply("open")],
+    )
+    assert denied_result.end_state == PASS
+    assert len(denied.script_cache) == 0
+
+    monkeypatch.setattr(probe, "shared_check_passes", real_check)
+    missed, missed_result = _run(
+        tmp_path / "miss",
+        "The Eiffel Tower is a wrought-iron lattice tower.",
+        [_tool_reply("open"), _tool_reply("repair")],
+    )
+    assert missed_result.end_state == "FAIL"
+    assert missed_result.success is False
+    assert len(missed.script_cache) == 0
