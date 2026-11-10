@@ -104,6 +104,7 @@ _PAGE_EVIDENCE_JS = r"""() => {
   };
 }"""
 
+from bench.script_helpers import HelperCall, is_helper_call, parse_helper_call, run_helper, wrap_evaluate
 from bench.stagehand_local import _locator, context_browser
 from proxy.script import MAX_SCRIPT_CHARS, MAX_SCRIPT_LINES, ScriptAction, ScriptError, parse_script
 
@@ -133,6 +134,7 @@ class TaskStep:
     source: str
     function: str = ""
     action: ScriptAction | None = None
+    helper: HelperCall | None = None
 
 
 def _strip_fence(source: str) -> str:
@@ -330,6 +332,11 @@ def parse_task_script(source: str) -> list[TaskStep]:
             continue
         if body.casefold().startswith("page.evaluate"):
             steps.append(_parse_evaluate(body, index))
+            continue
+        if is_helper_call(body):
+            steps.append(
+                TaskStep(kind="helper", line=index, source=body, helper=parse_helper_call(body, index))
+            )
             continue
         body = " ".join(body.split())
         actions = parse_script(body, allow_goto=True, max_lines=1)
@@ -816,7 +823,8 @@ def repair_request(url: str, reason: str) -> str:
         "Send one corrected script that finishes the task. "
         "The end URL must be the finished page the task asked for. "
         "Wikipedia must leave Main_Page. "
-        "Return any title or answer with page.evaluate in that same script. "
+        "cu.click, cu.fill, and cu.press take a visible name. "
+        "Return any title or answer with page.evaluate in that same script. cu.claim may build that object. "
         "Do not repeat the same script."
     )
 
@@ -1138,7 +1146,10 @@ def _page_url(page) -> str:
 
 async def _run_step_on_page(page, step: TaskStep):
     if step.kind == "evaluate":
-        return await asyncio.wait_for(page.evaluate(step.function), timeout=_EVALUATE_TIMEOUT_S)
+        return await asyncio.wait_for(page.evaluate(wrap_evaluate(step.function)), timeout=_EVALUATE_TIMEOUT_S)
+    if step.kind == "helper":
+        await run_helper(page, step.helper, timeout_ms=_ACTION_TIMEOUT_MS)
+        return None
     action = step.action
     if action is None:
         raise ScriptError(f"line {step.line}: missing action")
@@ -1234,7 +1245,7 @@ async def run_on_mcp(call_tool, source: str) -> str:
     There is no snapshot and no settle.
     """
     steps = parse_task_script(source)
-    if any(step.kind == "locator" for step in steps):
+    if any(step.kind in {"locator", "helper"} for step in steps):
         raise ScriptError("the MCP evaluate runner accepts page.goto and page.evaluate only")
     url = ""
     done = 0
@@ -1249,7 +1260,11 @@ async def run_on_mcp(call_tool, source: str) -> str:
                 if found:
                     url = found
             else:
-                await _mcp_text(call_tool, "browser_evaluate", {"function": step.function})
+                await _mcp_text(
+                    call_tool,
+                    "browser_evaluate",
+                    {"function": wrap_evaluate(step.function)},
+                )
             done += 1
         href = await _mcp_text(call_tool, "browser_evaluate", {"function": "() => location.href"})
         found = _href_from_text(href)
@@ -1283,14 +1298,16 @@ class ScriptFirstClient:
                 "description": (
                     "Run one Playwright script that finishes the whole task in this call. "
                     "The end URL must already be the finished page, not a search-results URL. "
-                    "End by returning page.evaluate(() => ({url: location.href, title: document.title, "
-                    "h1: document.querySelector('h1')?.innerText, key_text: '', values: [], answer: ''})). "
+                    "End by returning page.evaluate(() => cu.claim({answer: '', key_text: '', values: []})). "
+                    "cu.claim reads the live url, title, and h1. "
                     "Put a visible phrase in key_text, asked-for values in values, and the requested value in answer. "
                     "The runner checks that object against the live page. "
                     "Do not call page.waitForTimeout, page.waitForLoadState, or networkidle. "
                     "Allowed lines are page.goto, page.getByRole, page.getByLabel, "
-                    "page.getByText, page.getByPlaceholder, and page.evaluate with a "
-                    "page-context function. The runner does not settle or snapshot "
+                    "page.getByText, page.getByPlaceholder, cu.click, cu.fill, cu.press, "
+                    "and page.evaluate with a page-context function. "
+                    "cu.click, cu.fill, and cu.press take the accessible name of the one control. "
+                    "The runner does not settle or snapshot "
                     "between actions and drops wait lines. "
                     "browser_run_code_unsafe is not available. "
                     "The runner reads the live page itself after the script. "
