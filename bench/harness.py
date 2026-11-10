@@ -136,6 +136,11 @@ class TaskResult:
     replay_hits: int = 0
     # script_first end-state: PASS, FAIL, UNKNOWN, or empty for other arms.
     end_state: str = ""
+    # script_first tier that answered: cache_hit, patched, or fresh.
+    tier: str = ""
+    model_calls: int = 0
+    # Actions the last script ran.
+    script_steps: int = 0
 
 
 def estimate_tokens(text: str) -> int:
@@ -610,6 +615,7 @@ class BenchmarkHarness:
         runs_dir: Path | None = None,
         snapshot_dir: Path | None = None,
         arm: str = "playwright_mcp",
+        script_cache=None,
     ):
         from bench.arms import prompt_for
 
@@ -622,6 +628,8 @@ class BenchmarkHarness:
         self.runs_dir = runs_dir or Path(__file__).parent / "runs"
         self.runs_dir.mkdir(parents=True, exist_ok=True)
         self.snapshot_dir = snapshot_dir
+        # script_first only. None keeps every run on the fresh path.
+        self.script_cache = script_cache
 
         self.mcp_client: PlaywrightMCPClient | None = None
         self.anthropic: AnthropicClient | None = None
@@ -677,6 +685,123 @@ class BenchmarkHarness:
         }
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         return path
+
+    async def _cached_script_tier(
+        self,
+        *,
+        task_description: str,
+        start_url: str,
+        markers: dict,
+        steps: list[StepMetrics],
+    ) -> dict:
+        """Replay a cached script, then one patch turn. Every run is judged again.
+
+        tier stays empty when neither passed. The entry is then dropped and
+        the caller runs the fresh path.
+        """
+        from bench.script_cache import (
+            PATCH_PROMPT,
+            PATCH_TOOL,
+            TIER_CACHE_HIT,
+            TIER_PATCHED,
+            apply_patch,
+            patch_request,
+        )
+        from bench.script_first import PASS, script_verdict
+        from proxy.script import ScriptError
+
+        outcome = {
+            "tier": "",
+            "verdict": None,
+            "page_url": "",
+            "model_ms": 0.0,
+            "tool_ms": 0.0,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "model_calls": 0,
+            "script_steps": 0,
+        }
+        cache = self.script_cache
+        entry = cache.lookup(task_description, start_url)
+        if entry is None:
+            return outcome
+
+        async def run(code: str, model_ms: float = 0.0, input_tokens: int = 0, output_tokens: int = 0):
+            result_text, tool_ms = await self.mcp_client.call_tool("run_script", {"code": code})
+            outcome["tool_ms"] += tool_ms
+            page_url = page_url_from_result(result_text)
+            verdict, payload = script_verdict(markers, result_text, page_url)
+            steps.append(
+                StepMetrics(
+                    step_number=len(steps) + 1,
+                    tool_name="run_script",
+                    tool_args={"code": code},
+                    tool_result_size=len(result_text),
+                    snapshot_tokens=0,
+                    model_time_ms=model_ms,
+                    tool_time_ms=tool_ms,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    page_url=page_url,
+                    page_title=page_field(result_text, "Title"),
+                )
+            )
+            outcome["verdict"] = verdict
+            outcome["page_url"] = page_url
+            outcome["script_steps"] = int(payload.get("steps") or 0)
+            passed = verdict.verdict == PASS and page_url.startswith(("http://", "https://"))
+            return passed, verdict, payload
+
+        passed, verdict, payload = await run(entry.script)
+        if passed:
+            outcome["tier"] = TIER_CACHE_HIT
+            return outcome
+
+        response, model_ms = await self.anthropic.create_message(
+            [
+                {
+                    "role": "user",
+                    "content": patch_request(
+                        description=task_description,
+                        start_url=start_url,
+                        script=entry.script,
+                        payload=payload,
+                        verdict=verdict,
+                    ),
+                }
+            ],
+            [PATCH_TOOL],
+            system=PATCH_PROMPT,
+        )
+        usage = response.get("usage", {})
+        input_tokens = usage.get("input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0)
+        outcome["model_calls"] += 1
+        outcome["model_ms"] += model_ms
+        outcome["input_tokens"] += input_tokens
+        outcome["output_tokens"] += output_tokens
+        patch = next(
+            (
+                block.get("input")
+                for block in response.get("content", [])
+                if block.get("type") == "tool_use" and block.get("name") == PATCH_TOOL["name"]
+            ),
+            None,
+        )
+        patched = ""
+        if isinstance(patch, dict):
+            try:
+                patched = apply_patch(entry.script, int(patch.get("step")), str(patch.get("code") or ""))
+            except (ScriptError, TypeError, ValueError):
+                patched = ""
+        if patched:
+            passed, verdict, _payload = await run(patched, model_ms, input_tokens, output_tokens)
+            if passed:
+                cache.save(task_description, start_url, patched, verdict)
+                outcome["tier"] = TIER_PATCHED
+                return outcome
+        cache.drop(task_description, start_url)
+        return outcome
 
     async def run_task(
         self,
@@ -735,19 +860,22 @@ class BenchmarkHarness:
         end_state = ""
         last_verdict = None
         markers: dict = {}
+        tier = ""
+        model_calls = 0
+        script_steps = 0
+        passing_code = ""
+        passing_verdict = None
+        cache = self.script_cache if self.arm == "script_first" else None
         if self.arm == "script_first":
             from bench.arms import SCRIPT_FIRST_HARD_CAP, SCRIPT_FIRST_MAX_SCRIPTS
             from bench.script_first import (
                 FAIL,
                 PASS,
                 UNKNOWN,
-                claimed_from_payload,
-                evidence_verdict,
                 next_script_first_limit,
                 repair_request,
                 script_made_progress,
-                script_result_payload,
-                trusted_from_payload,
+                script_verdict,
             )
             from bench.tasks import markers_for_task
 
@@ -757,7 +885,29 @@ class BenchmarkHarness:
                 self.mcp_client.end_markers = markers
 
         try:
-            while step_num < turn_limit:
+            if cache is not None:
+                cached = await self._cached_script_tier(
+                    task_description=task_description,
+                    start_url=start_url,
+                    markers=markers,
+                    steps=steps,
+                )
+                total_model_ms += cached["model_ms"]
+                total_tool_ms += cached["tool_ms"]
+                total_input_tokens += cached["input_tokens"]
+                total_output_tokens += cached["output_tokens"]
+                model_calls += cached["model_calls"]
+                if cached["tier"]:
+                    tier = cached["tier"]
+                    last_verdict = cached["verdict"]
+                    end_state = PASS
+                    success = True
+                    success_reason = "Task completed successfully"
+                    script_steps = cached["script_steps"]
+                    last_url = cached["page_url"]
+            step_base = len(steps)
+
+            while not tier and step_num < turn_limit:
                 step_num += 1
 
                 response, model_ms = await self.anthropic.create_message(
@@ -765,6 +915,7 @@ class BenchmarkHarness:
                     tools,
                     system=self.system_prompt,
                 )
+                model_calls += 1
                 total_model_ms += model_ms
 
                 usage = response.get("usage", {})
@@ -917,18 +1068,15 @@ class BenchmarkHarness:
                                 refusal_extended = True
                         else:
                             script_calls += 1
-                            payload = script_result_payload(result_text)
+                            # page_url stays the live URL. Markers never rewrite it.
+                            verdict, payload = script_verdict(markers, result_text, page_url)
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
-                            landed_title = page_field(result_text, "Title")
-                            if not landed_title and isinstance(payload.get("title"), str):
-                                landed_title = payload["title"]
-                            # page_url stays the live URL. Markers never rewrite it.
-                            verdict = evidence_verdict(
-                                markers,
-                                trusted_from_payload(payload, url=page_url, title=landed_title),
-                                claimed_from_payload(payload),
-                            )
+                            script_steps = int(payload.get("steps") or 0)
+                            if verdict.verdict == PASS:
+                                args = tool_args if isinstance(tool_args, dict) else {}
+                                passing_code = args.get("code") or args.get("script") or ""
+                                passing_verdict = verdict
                             last_verdict = verdict
                             end_state = verdict.verdict
                             failure = verdict.reason if verdict.verdict == FAIL else ""
@@ -983,7 +1131,7 @@ class BenchmarkHarness:
 
                     steps.append(
                         StepMetrics(
-                            step_number=step_num,
+                            step_number=step_base + step_num,
                             tool_name=tool_name,
                             tool_args=tool_args,
                             tool_result_size=len(result_text),
@@ -1037,6 +1185,12 @@ class BenchmarkHarness:
             success = False
             if last_verdict is not None:
                 success_reason = last_verdict.reason
+        if self.arm == "script_first" and not tier:
+            from bench.script_cache import TIER_FRESH
+
+            tier = TIER_FRESH
+            if cache is not None and success and end_state == PASS and passing_code:
+                cache.save(task_description, start_url, passing_code, passing_verdict)
 
         total_wall_ms = (time.perf_counter() - wall_start) * 1000
         total_other_ms = total_wall_ms - total_model_ms - total_tool_ms
@@ -1059,6 +1213,9 @@ class BenchmarkHarness:
             model_ignores_tools=ignores.count,
             replay_hits=replay_hits,
             end_state=end_state,
+            tier=tier,
+            model_calls=model_calls,
+            script_steps=script_steps,
         )
 
     def _empty_result(
@@ -1104,6 +1261,9 @@ class BenchmarkHarness:
                 "model_ignores_tools": result.model_ignores_tools,
                 "replay_hits": result.replay_hits,
                 "end_state": result.end_state,
+                "tier": result.tier,
+                "model_calls": result.model_calls,
+                "script_steps": result.script_steps,
                 "error": result.error,
                 "steps": [
                     {

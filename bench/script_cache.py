@@ -174,11 +174,15 @@ class ScriptCache:
         entries = data.get("entries") if isinstance(data, dict) else None
         return entries if isinstance(entries, dict) else {}
 
-    def _write(self, entries: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
-        tmp.write_text(json.dumps({"version": 1, "entries": entries}, indent=2) + "\n", encoding="utf-8")
-        os.replace(tmp, self.path)
+    def _write(self, entries: dict) -> bool:
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+            tmp.write_text(json.dumps({"version": 1, "entries": entries}, indent=2) + "\n", encoding="utf-8")
+            os.replace(tmp, self.path)
+        except OSError:
+            return False
+        return True
 
     def lookup(self, description: str, start_url: str) -> CachedScript | None:
         key = cache_key(description, start_url)
@@ -222,8 +226,7 @@ class ScriptCache:
             "step_count": len(script_steps(text)),
             "saved_at": time.time(),
         }
-        self._write(entries)
-        return True
+        return self._write(entries)
 
     def drop(self, description: str, start_url: str) -> None:
         entries = self._load()
