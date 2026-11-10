@@ -49,6 +49,10 @@ CLICK_SCRIPT = "\n".join(
     ]
 )
 
+# The live article URL. The fixture also records the percent-encoded form.
+# The shared check reads this URL, which contains the catalog token.
+_ARTICLE_URL = "https://en.wikipedia.org/wiki/Ada_Lovelace"
+
 _STATES = {
     "main": {
         "url": START,
@@ -57,7 +61,7 @@ _STATES = {
         "h1": "Main Page",
         "text": "Welcome to Wikipedia. From today's featured article: {link}",
     },
-    "article": dict(FIXTURE["page"]),
+    "article": {**FIXTURE["page"], "url": _ARTICLE_URL},
     "babbage": {
         "url": "https://en.wikipedia.org/wiki/Charles_Babbage",
         "title": "Charles Babbage - Wikipedia",
@@ -108,6 +112,9 @@ class _WikiPage:
     async def goto(self, url, **kwargs):
         del kwargs
         self.log.append(("goto", url))
+        if url in {FIXTURE["page"]["url"], _ARTICLE_URL}:
+            self.state = "article"
+            return
         for key, state in _STATES.items():
             if state["url"] == url:
                 self.state = key
@@ -235,7 +242,7 @@ def test_cache_hit_passes_with_zero_model_calls(tmp_path):
     assert result.tier == TIER_CACHE_HIT
     assert result.total_steps == 1
     assert result.script_steps == 3
-    assert result.steps[-1].page_url == FIXTURE["page"]["url"]
+    assert result.steps[-1].page_url == _ARTICLE_URL
     assert page.log == [("goto", START), ("click", LINK)]
 
     saved = BenchmarkHarness(api_key="local-test", runs_dir=tmp_path, arm="script_first").save_result(result, "warm")

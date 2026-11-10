@@ -434,6 +434,14 @@ def get_all_tasks() -> list[dict]:
     return BENCHMARK_TASKS
 
 
+def task_by_id(task_id: str) -> dict | None:
+    """The catalog task, or None. Judge fields stay on this dict."""
+    for task in BENCHMARK_TASKS:
+        if task.get("id") == task_id:
+            return task
+    return None
+
+
 def markers_for_task(task_id: str) -> dict:
     """Judge-only markers for one task. Empty when the task has none.
 

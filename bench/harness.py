@@ -719,9 +719,24 @@ class BenchmarkHarness:
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         return path
 
+    def _page_passes_shared(self, task_id: str, step: StepMetrics | None) -> bool:
+        """The shared check on the page the script left. An evidence PASS is not enough."""
+        from bench.probe import shared_check_passes
+
+        if step is None:
+            return False
+        return shared_check_passes(
+            task_id,
+            step.page_url,
+            step.page_text,
+            selector=step.selector_text,
+            answer=step.claimed_answer,
+        )
+
     async def _cached_script_tier(
         self,
         *,
+        task_id: str,
         task_description: str,
         start_url: str,
         markers: dict,
@@ -793,7 +808,10 @@ class BenchmarkHarness:
         passed, verdict, payload = await run(entry.script)
         live_fp = fingerprint_from_payload(payload, start_url)
         if passed and live_fp == entry.fingerprint:
-            outcome["tier"] = TIER_CACHE_HIT
+            if self._page_passes_shared(task_id, steps[-1] if steps else None):
+                outcome["tier"] = TIER_CACHE_HIT
+                return outcome
+            cache.drop(task_description, start_url)
             return outcome
         if passed and live_fp != entry.fingerprint:
             verdict = EvidenceVerdict(
@@ -841,7 +859,7 @@ class BenchmarkHarness:
                 patched = ""
         if patched:
             passed, verdict, patched_payload = await run(patched, model_ms, input_tokens, output_tokens)
-            if passed:
+            if passed and self._page_passes_shared(task_id, steps[-1] if steps else None):
                 cache.save(
                     task_description,
                     start_url,
@@ -983,6 +1001,7 @@ class BenchmarkHarness:
         try:
             if cache is not None:
                 cached = await self._cached_script_tier(
+                    task_id=task_id,
                     task_description=task_description,
                     start_url=start_url,
                     markers=markers,
@@ -1298,7 +1317,13 @@ class BenchmarkHarness:
             from bench.script_cache import TIER_FRESH
 
             tier = TIER_FRESH
-            if cache is not None and success and end_state == PASS and passing_code:
+            if (
+                cache is not None
+                and success
+                and end_state == PASS
+                and passing_code
+                and self._page_passes_shared(task_id, steps[-1] if steps else None)
+            ):
                 landed = ""
                 controls = None
                 if isinstance(previous_payload, dict):
