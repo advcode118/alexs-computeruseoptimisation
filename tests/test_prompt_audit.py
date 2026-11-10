@@ -59,6 +59,12 @@ def _model_texts() -> list[tuple[str, str]]:
             text="The start page is open.",
             selector_text=".titleline a",
             claimed={"answer": "not the finished page"},
+            controls=[
+                {"role": "link", "name": "Ada_Lovelace"},
+                {"role": "link", "name": "heapq.html"},
+                {"role": "link", "name": "/library/heapq.html"},
+                {"role": "link", "name": ".titleline"},
+            ],
         )
         verdict, payload = script_verdict(task["end_markers"], raw, url)
         assert verdict.verdict == "FAIL", task["id"]

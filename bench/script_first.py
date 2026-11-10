@@ -31,17 +31,75 @@ PASS = "PASS"
 FAIL = "FAIL"
 UNKNOWN = "UNKNOWN"
 
-_PAGE_EVIDENCE_JS = """() => {
+# controls is the fingerprint's role/name list. model_visible_script_result strips it.
+_PAGE_EVIDENCE_JS = r"""() => {
   const link = document.querySelector('link[rel="canonical"]');
   const h1 = document.querySelector("h1");
   const root = document.querySelector("main") || document.body;
   const raw = root ? (root.innerText || root.textContent || "") : "";
+  const selector = [
+    "a[href]",
+    "button",
+    "input:not([type='hidden'])",
+    "textarea",
+    "select",
+    "[role='button']",
+    "[role='link']",
+    "[role='textbox']",
+    "[role='checkbox']",
+    "[role='radio']",
+    "[role='combobox']",
+    "[role='tab']",
+    "[contenteditable='true']"
+  ].join(",");
+  const controls = [];
+  const seen = new Set();
+  for (const node of document.querySelectorAll(selector)) {
+    if (controls.length >= 40) break;
+    if (node.getAttribute("aria-hidden") === "true") continue;
+    const tag = node.tagName.toLowerCase();
+    let role = node.getAttribute("role") || "";
+    if (!role) {
+      if (tag === "a") role = "link";
+      else if (tag === "button") role = "button";
+      else if (tag === "textarea") role = "textbox";
+      else if (tag === "select") role = "combobox";
+      else if (tag === "input") {
+        const type = (node.getAttribute("type") || "text").toLowerCase();
+        if (type === "checkbox") role = "checkbox";
+        else if (type === "radio") role = "radio";
+        else if (type === "button" || type === "submit" || type === "reset") role = "button";
+        else role = "textbox";
+      } else role = tag;
+    }
+    let name = node.getAttribute("aria-label") || "";
+    if (!name && node.getAttribute("aria-labelledby")) {
+      name = node.getAttribute("aria-labelledby").split(/\s+/).map((id) => {
+        const label = document.getElementById(id);
+        return label ? (label.innerText || label.textContent || "").trim() : "";
+      }).filter(Boolean).join(" ");
+    }
+    if (!name && node.labels && node.labels.length) {
+      name = Array.from(node.labels).map((label) => (label.innerText || label.textContent || "").trim()).filter(Boolean).join(" ");
+    }
+    if (!name) {
+      name = (node.innerText || node.textContent || node.getAttribute("placeholder") || node.getAttribute("title") || "").trim();
+    }
+    name = name.replace(/\s+/g, " ").replace(/\t/g, " ").slice(0, 80);
+    role = role.replace(/\s+/g, " ").slice(0, 40);
+    if (!name) continue;
+    const pair = role + "\n" + name;
+    if (seen.has(pair)) continue;
+    seen.add(pair);
+    controls.push({ role, name });
+  }
   return {
     url: location.href,
     title: document.title || "",
     canonical: link ? (link.href || "") : "",
     h1: h1 ? (h1.innerText || h1.textContent || "") : "",
-    text: raw.slice(0, 8000)
+    text: raw.slice(0, 8000),
+    controls
   };
 }"""
 
@@ -761,11 +819,15 @@ def format_run_result(
     return "\n".join(lines)
 
 
+_HIDDEN_RESULT_KEYS = ("selector_text", "controls")
+
+
 def model_visible_script_result(result_text: str) -> str:
     """The run_script result the model may see.
 
-    selector_text is the judge's own read of answer_equals_selector. The
-    evidence judge and the run log keep it. A model message must not.
+    selector_text is the judge's own read of answer_equals_selector. controls
+    is the role/name list the cache fingerprint hashes. A model message
+    must not include either.
     """
     lines = (result_text or "").splitlines()
     if not lines:
@@ -777,9 +839,10 @@ def model_visible_script_result(result_text: str) -> str:
         payload = json.loads(first)
     except json.JSONDecodeError:
         return result_text
-    if not isinstance(payload, dict) or "selector_text" not in payload:
+    if not isinstance(payload, dict) or not any(key in payload for key in _HIDDEN_RESULT_KEYS):
         return result_text
-    payload.pop("selector_text", None)
+    for key in _HIDDEN_RESULT_KEYS:
+        payload.pop(key, None)
     lines[0] = json.dumps(payload)
     return "\n".join(lines)
 
