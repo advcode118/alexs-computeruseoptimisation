@@ -110,6 +110,8 @@ class StepMetrics:
     snapshot_file: str = ""
     page_url: str = ""
     page_title: str = ""
+    # Judge read of answer_equals_selector. Logged, never sent to the model.
+    selector_text: str = ""
 
 
 @dataclass
@@ -744,6 +746,7 @@ class BenchmarkHarness:
                     output_tokens=output_tokens,
                     page_url=page_url,
                     page_title=page_field(result_text, "Title"),
+                    selector_text=payload.get("selector_text") if isinstance(payload.get("selector_text"), str) else "",
                 )
             )
             outcome["verdict"] = verdict
@@ -872,6 +875,7 @@ class BenchmarkHarness:
                 FAIL,
                 PASS,
                 UNKNOWN,
+                model_visible_script_result,
                 next_script_first_limit,
                 repair_request,
                 script_made_progress,
@@ -1039,6 +1043,7 @@ class BenchmarkHarness:
                         tool_ms = 0.0
                     else:
                         result_text, tool_ms = await self.mcp_client.call_tool(tool_name, tool_args)
+                    logged_selector = ""
                     total_tool_ms += tool_ms
                     ignores.note_call(tool_name, tool_args if isinstance(tool_args, dict) else {})
                     ignores.note_result(tool_name, result_text)
@@ -1080,6 +1085,11 @@ class BenchmarkHarness:
                             last_verdict = verdict
                             end_state = verdict.verdict
                             failure = verdict.reason if verdict.verdict == FAIL else ""
+                            logged_selector = (
+                                payload.get("selector_text") if isinstance(payload.get("selector_text"), str) else ""
+                            )
+                            # The judge already read selector_text. The model must not.
+                            result_text = model_visible_script_result(result_text)
                             repair_pending = False
                             if verdict.verdict == FAIL and repairs_sent < 1:
                                 result_text += "\n" + repair_request(page_url, failure)
@@ -1144,6 +1154,7 @@ class BenchmarkHarness:
                             snapshot_file=str(snapshot_path) if snapshot_path else "",
                             page_url=page_url,
                             page_title=page_title,
+                            selector_text=logged_selector,
                         )
                     )
 
@@ -1280,6 +1291,7 @@ class BenchmarkHarness:
                         "snapshot_file": step.snapshot_file,
                         "page_url": step.page_url,
                         "page_title": step.page_title,
+                        "selector_text": step.selector_text,
                     }
                     for step in result.steps
                 ],

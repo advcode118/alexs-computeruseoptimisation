@@ -749,6 +749,29 @@ def format_run_result(
     return "\n".join(lines)
 
 
+def model_visible_script_result(result_text: str) -> str:
+    """The run_script result the model may see.
+
+    selector_text is the judge's own read of answer_equals_selector. The
+    evidence judge and the run log keep it. A model message must not.
+    """
+    lines = (result_text or "").splitlines()
+    if not lines:
+        return result_text or ""
+    first = lines[0].strip()
+    if not first.startswith("{"):
+        return result_text
+    try:
+        payload = json.loads(first)
+    except json.JSONDecodeError:
+        return result_text
+    if not isinstance(payload, dict) or "selector_text" not in payload:
+        return result_text
+    payload.pop("selector_text", None)
+    lines[0] = json.dumps(payload)
+    return "\n".join(lines)
+
+
 async def _read_title(page) -> str:
     title = getattr(page, "title", None)
     if not callable(title):

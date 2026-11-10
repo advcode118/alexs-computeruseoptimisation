@@ -108,4 +108,4 @@ Code: `bench/script_cache.py`, plus `BenchmarkHarness._cached_script_tier` and t
 - **Results.** Results carry `tier` (cache_hit / patched / fresh), `model_calls` and `script_steps`. The probe's warm summary adds tier counts for script_first.
 - **Probe.** The probe makes a new cache file per run, `bench/runs/script_cache_<stamp>.json`. The cold pass stays cold. Command (not run): `ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms script_first --warm-replay`.
 
-Open issue from step 2, not changed here: in the fresh loop, the `run_script` tool result includes `selector_text`, the judge's own read of `answer_equals_selector`. On a FAIL that result goes back to the model with the repair request, so for HN the model can see the marked top title.
+The fresh-loop leak is closed. On a FAIL the judge still reads `selector_text`, and the run log still records it, but the tool result sent back with the repair request does not. The same holds for the patch turn. A model message must not gain `answer_equals_selector`, the selector, or any other marker value that is not already the live page, the task text, or the standing system prompt.
