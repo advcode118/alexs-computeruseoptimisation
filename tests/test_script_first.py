@@ -358,6 +358,7 @@ def test_run_claude_arm_caps_script_first_calls_and_keeps_the_url(monkeypatch, t
             task_description="search",
             success=True,
             success_reason="done",
+            end_state="PASS",
             total_steps=1,
             total_wall_ms=12.0,
             total_model_ms=10.0,

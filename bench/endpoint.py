@@ -169,12 +169,26 @@ def judge_page(task: dict, page: dict) -> tuple:
     allowed = {item for item in (evidence.url, evidence.canonical) if item}
     if verdict.scored_url and verdict.scored_url not in allowed:
         raise EndpointError("the scored URL is not the live URL or the canonical href")
-    hit = verdict.verdict == PASS and raw.startswith(("http://", "https://"))
+    from bench.probe import grade_arm
+
+    graded, grade_reason, _shared_ok, _shared_reason = grade_arm(
+        task,
+        raw,
+        evidence.text,
+        evidence=verdict.verdict,
+        evidence_reason=verdict.reason,
+        selector_text=evidence.selector_text,
+        answer=claimed.answer,
+        page_text=evidence.text,
+    )
+    hit = graded and raw.startswith(("http://", "https://"))
+    if verdict.verdict != PASS:
+        grade_reason = verdict.reason
     row = {
         "arm": "endpoint",
         "task_id": task.get("id") or "",
         "success": hit,
-        "success_reason": verdict.reason,
+        "success_reason": grade_reason,
         "end_state": verdict.verdict,
         "page_url": raw,
         "scored_url": verdict.scored_url,

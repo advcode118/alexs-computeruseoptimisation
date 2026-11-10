@@ -130,6 +130,7 @@ WEBVOYAGER_TASKS = [
         "start_url": "https://news.ycombinator.com/",
         "expected_answer": "The title of the first story on the page",
         "judge_prompt": "The agent should report the title of the top story. Check that they identified a story title from the page.",
+        # No fixed title. The shared check reads the live first title link.
         "end_markers": {
             "host": "news.ycombinator.com",
             "answer_equals_selector": ".titleline a",

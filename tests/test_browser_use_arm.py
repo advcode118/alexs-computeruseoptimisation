@@ -58,6 +58,7 @@ class _World:
         self.calls = []
         self.page_url = page_url
         self.page_text = page_text
+        self.page_selector_text = ""
         self.claim = claim
         self.stopped = 0
 
@@ -70,6 +71,7 @@ class _World:
                 self.kind = kind
                 self.page_url = world.page_url
                 self.page_text = world.page_text
+                self.page_selector_text = world.page_selector_text
                 self.stopped = False
 
             async def stop(self):
@@ -307,14 +309,70 @@ def test_landed_page_comes_from_the_local_tab(monkeypatch):
         def __init__(self):
             self.name = "local-daemon"
 
-    url, text = asyncio.run(read_page(Browser()))
+    url, text, marked = asyncio.run(read_page(Browser()))
     assert url == "https://example.test/finished-page"
     assert text == "milk on the page"
+    assert marked == ""
     assert calls[0] == ("request", "local-daemon", {"meta": "current_tab"}, 5)
     assert calls[1][2] == "Target.attachToTarget"
     assert calls[2][2] == "Runtime.evaluate"
     assert calls[2][4]["expression"] == PAGE_TEXT_EXPRESSION
     assert "selector_text" not in json.dumps(calls)
+
+    def marked_cdp(name, method, session_id=None, **params):
+        calls.append(("cdp", name, method, session_id, params))
+        if method == "Target.attachToTarget":
+            return {"sessionId": "sid-1"}
+        expression = params.get("expression")
+        if expression == PAGE_TEXT_EXPRESSION:
+            return {"result": {"value": "Fixture Story"}}
+        return {"result": {"value": "Fixture Story"}}
+
+    monkeypatch.setattr("bench.browser_use_arm._daemon_cdp_fn", lambda: marked_cdp)
+    calls.clear()
+    url, text, marked = asyncio.run(read_page(Browser(), selector="a.top"))
+    assert url == "https://example.test/finished-page"
+    assert text == "Fixture Story"
+    assert marked == "Fixture Story"
+    expressions = [item[4].get("expression") for item in calls if item[0] == "cdp" and item[2] == "Runtime.evaluate"]
+    assert expressions[0] == PAGE_TEXT_EXPRESSION
+    assert "a.top" in expressions[1]
+    assert "selector_text" not in expressions[1]
+
+
+def test_hacker_news_passes_only_when_the_live_title_matches():
+    from bench.browser_use_arm import selector_expression
+
+    task = next(item for item in BENCHMARK_TASKS if item["id"] == "wv_hackernews_top")
+    landed = _World(
+        page_url="https://news.ycombinator.com/",
+        page_text="Fixture Story\nSecond Story",
+        claim="Fixture Story",
+    )
+    landed.page_selector_text = "Fixture Story"
+    row = asyncio.run(run_browser_use_task(task, api_key="local-test-not-sent", loader=landed.loader))
+    assert row["success"] is True
+    assert ".titleline" not in landed.calls[2][1]
+    assert "selector_text" not in landed.calls[2][1]
+    assert ".titleline" not in PAGE_TEXT_EXPRESSION
+    assert "selector_text" not in selector_expression(task["end_markers"]["answer_equals_selector"])
+
+    second = _World(
+        page_url="https://news.ycombinator.com/",
+        page_text="Fixture Story\nSecond Story",
+        claim="Second Story",
+    )
+    second.page_selector_text = "Fixture Story"
+    missed = asyncio.run(run_browser_use_task(task, api_key="local-test-not-sent", loader=second.loader))
+    assert missed["success"] is False
+
+    bare = _World(
+        page_url="https://news.ycombinator.com/",
+        page_text="Fixture Story",
+        claim="Fixture Story",
+    )
+    unread = asyncio.run(run_browser_use_task(task, api_key="local-test-not-sent", loader=bare.loader))
+    assert unread["success"] is False
 
 
 def test_probe_selects_the_arm_without_a_live_run(monkeypatch, capsys):
