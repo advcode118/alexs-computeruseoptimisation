@@ -96,3 +96,16 @@ Who does what:
 - Implementation, tests, and fixing the ledger/gitignore/anyio test failures: Cursor Grok 4.7 (high, fast off).
 
 Then re-probe (~$2, with Tom's go) and report per-task wall time and step count for all three arms, plus the held-out tasks.
+
+## Step 3: cached-script tier (offline only, no probe run)
+
+Code: `bench/script_cache.py`, plus `BenchmarkHarness._cached_script_tier` and the `--warm-replay` pass in `bench/probe.py`.
+
+- **Saving.** A script is saved only when the evidence judge said PASS on that exact script. The key is the task intent (the description, normalized) plus the site (the start URL's host). The entry also records the start URL pattern `scheme://host/*`. An entry holds the intent, site, pattern, the model's script (one step per line), the step count and a timestamp. It never holds markers or answers.
+- **Replay.** A matching task runs the cached script first with no model call. The result goes through the same `script_verdict` → `evidence_verdict` path as the fresh loop. Only PASS on a live URL counts as `cache_hit`.
+- **Patch.** A FAIL, UNKNOWN, or a thrown step triggers one model turn with the `patch_step` tool. The model sees the numbered cached script, the failure (which step threw, or the verdict reason) and the live page's URL, title, h1 and text. It never sees `selector_text`, claimed values or markers. The patched script is re-judged; a PASS is `patched` and replaces the entry.
+- **Fresh.** Otherwise the entry is dropped and the normal fresh loop runs unchanged. Its PASS script is saved.
+- **Results.** Results carry `tier` (cache_hit / patched / fresh), `model_calls` and `script_steps`. The probe's warm summary adds tier counts for script_first.
+- **Probe.** The probe makes a new cache file per run, `bench/runs/script_cache_<stamp>.json`. The cold pass stays cold. Command (not run): `ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms script_first --warm-replay`.
+
+Open issue from step 2, not changed here: in the fresh loop, the `run_script` tool result includes `selector_text`, the judge's own read of `answer_equals_selector`. On a FAIL that result goes back to the model with the repair request, so for HN the model can see the marked top title.
