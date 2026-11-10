@@ -1,0 +1,324 @@
+"""Cached-script tier for script_first. No browser, no network, no model call."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from pathlib import Path
+
+from bench.arms import SCRIPT_FIRST_MAX_CALLS, prompt_for
+from bench.harness import BenchmarkHarness
+from bench.script_cache import (
+    PATCH_PROMPT,
+    PATCH_TOOL,
+    TIER_CACHE_HIT,
+    TIER_FRESH,
+    TIER_PATCHED,
+    ScriptCache,
+    apply_patch,
+)
+from bench.script_first import _PAGE_EVIDENCE_JS, FAIL, PASS, UNKNOWN, EvidenceVerdict, ScriptFirstClient
+from bench.tasks import markers_for_task
+
+FIXTURE = json.loads(
+    (Path(__file__).parent / "fixtures" / "evidence" / "wikipedia_encoded.json").read_text(encoding="utf-8")
+)
+TASK_ID = "wv_wikipedia_search"
+DESCRIPTION = FIXTURE["description"]
+START = FIXTURE["start_url"]
+LINK = "Ada Lovelace"
+RENAMED = "Ada Lovelace (mathematician)"
+EVIDENCE = 'page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector("h1")?.innerText, answer: ""}))'
+CLICK_SCRIPT = "\n".join(
+    [
+        f"await page.goto({json.dumps(START)});",
+        f'await page.getByRole("link", {{ name: "{LINK}" }}).click();',
+        f"await {EVIDENCE};",
+    ]
+)
+
+_STATES = {
+    "main": {
+        "url": START,
+        "title": "Wikipedia, the free encyclopedia",
+        "canonical": START,
+        "h1": "Main Page",
+        "text": "Welcome to Wikipedia. From today's featured article: {link}",
+    },
+    "article": dict(FIXTURE["page"]),
+    "babbage": {
+        "url": "https://en.wikipedia.org/wiki/Charles_Babbage",
+        "title": "Charles Babbage - Wikipedia",
+        "canonical": "https://en.wikipedia.org/wiki/Charles_Babbage",
+        "h1": "Charles Babbage",
+        "text": "Charles Babbage was an English polymath.",
+    },
+}
+
+
+class _Link:
+    def __init__(self, page, name):
+        self.page = page
+        self.name = name
+
+    async def click(self, **kwargs):
+        self.page.log.append(("click", self.name))
+        target = self.page.links.get(self.name) if self.page.state == "main" else None
+        if target is None:
+            raise TimeoutError(f'Timeout {kwargs.get("timeout")}ms exceeded waiting for link "{self.name}"')
+        self.page.state = target
+
+
+class _WikiPage:
+    """Main_Page with links by visible name. Today's names can differ from the cached ones."""
+
+    def __init__(self, links: dict):
+        self.links = links
+        self.state = ""
+        self.log: list = []
+
+    @property
+    def url(self):
+        return _STATES[self.state]["url"] if self.state else "about:blank"
+
+    def _view(self) -> dict:
+        view = dict(_STATES[self.state])
+        view["text"] = view["text"].format(link=" | ".join(self.links))
+        return view
+
+    def get_by_role(self, role, name=None):
+        del role
+        return _Link(self, name or "")
+
+    async def goto(self, url, **kwargs):
+        del kwargs
+        self.log.append(("goto", url))
+        for key, state in _STATES.items():
+            if state["url"] == url:
+                self.state = key
+                return
+        raise AssertionError(f"unexpected goto {url}")
+
+    async def title(self):
+        return self._view()["title"] if self.state else ""
+
+    async def evaluate(self, source):
+        view = self._view()
+        if source == _PAGE_EVIDENCE_JS:
+            return view
+        return {"url": view["url"], "title": view["title"], "h1": view["h1"], "answer": view["h1"]}
+
+
+class _Model:
+    def __init__(self, replies):
+        self.replies = list(replies)
+        self.calls: list[dict] = []
+
+    async def create_message(self, messages, tools, system=None, max_tokens=4096):
+        del max_tokens
+        self.calls.append({"messages": messages, "tools": tools, "system": system})
+        if not self.replies:
+            raise AssertionError("unexpected model call")
+        return self.replies.pop(0), 1.0
+
+
+def _usage() -> dict:
+    return {"input_tokens": 3, "output_tokens": 2}
+
+
+def _script_reply(code: str) -> dict:
+    return {
+        "content": [{"type": "tool_use", "id": "s", "name": "run_script", "input": {"code": code}}],
+        "stop_reason": "tool_use",
+        "usage": _usage(),
+    }
+
+
+def _patch_reply(step: int, code: str) -> dict:
+    return {
+        "content": [{"type": "tool_use", "id": "p", "name": "patch_step", "input": {"step": step, "code": code}}],
+        "stop_reason": "tool_use",
+        "usage": _usage(),
+    }
+
+
+def _text_reply(text: str) -> dict:
+    return {"content": [{"type": "text", "text": text}], "stop_reason": "end_turn", "usage": _usage()}
+
+
+def _run(tmp_path, page, replies, *, task_id=TASK_ID):
+    harness = BenchmarkHarness(
+        api_key="local-test",
+        runs_dir=tmp_path,
+        arm="script_first",
+        max_steps=SCRIPT_FIRST_MAX_CALLS,
+        script_cache=ScriptCache(tmp_path / "script_cache.json"),
+    )
+    model = _Model(replies)
+    harness.anthropic = model
+    harness.mcp_client = ScriptFirstClient(page=page)
+    result = asyncio.run(
+        harness.run_task(task_id=task_id, task_description=DESCRIPTION, start_url=START)
+    )
+    return result, model, harness.script_cache
+
+
+def _seed(tmp_path) -> ScriptCache:
+    result, model, cache = _run(tmp_path, _WikiPage({LINK: "article"}), [_script_reply(CLICK_SCRIPT)])
+    assert result.success is True
+    assert result.end_state == PASS
+    assert result.tier == TIER_FRESH
+    assert result.model_calls == 1
+    assert len(model.calls) == 1
+    assert len(cache) == 1
+    return cache
+
+
+def test_cache_hit_passes_with_zero_model_calls(tmp_path):
+    cache = _seed(tmp_path)
+    stored = json.loads(cache.path.read_text(encoding="utf-8"))["entries"]
+    entry = next(iter(stored.values()))
+    assert set(entry) == {"intent", "site", "url_pattern", "script", "step_count", "saved_at"}
+    assert entry["site"] == "en.wikipedia.org"
+    assert entry["url_pattern"] == "https://en.wikipedia.org/*"
+    assert entry["step_count"] == 3
+    markers = markers_for_task(TASK_ID)
+    assert markers["url_contains"] not in json.dumps(entry)
+    assert "Special:Search" not in json.dumps(entry)
+
+    page = _WikiPage({LINK: "article"})
+    result, model, _cache = _run(tmp_path, page, [])
+    assert model.calls == []
+    assert result.model_calls == 0
+    assert result.total_input_tokens == 0 and result.total_output_tokens == 0
+    assert result.success is True
+    assert result.end_state == PASS
+    assert result.tier == TIER_CACHE_HIT
+    assert result.total_steps == 1
+    assert result.script_steps == 3
+    assert result.steps[-1].page_url == FIXTURE["page"]["url"]
+    assert page.log == [("goto", START), ("click", LINK)]
+
+    saved = BenchmarkHarness(api_key="local-test", runs_dir=tmp_path, arm="script_first").save_result(result, "warm")
+    line = json.loads(saved.read_text(encoding="utf-8").splitlines()[-1])
+    assert line["tier"] == TIER_CACHE_HIT
+    assert line["model_calls"] == 0
+    assert line["script_steps"] == 3
+
+
+def test_stale_selector_triggers_exactly_one_patch_call(tmp_path):
+    _seed(tmp_path)
+    fix = f'page.getByRole("link", {{ name: "{RENAMED}" }}).click()'
+    result, model, cache = _run(tmp_path, _WikiPage({RENAMED: "article"}), [_patch_reply(2, fix)])
+
+    assert len(model.calls) == 1
+    call = model.calls[0]
+    assert call["tools"] == [PATCH_TOOL]
+    assert call["system"] == PATCH_PROMPT
+    prompt = call["messages"][0]["content"]
+    assert f'2. page.getByRole("link", {{ name: "{LINK}" }}).click()' in prompt
+    assert "Step 2 threw" in prompt
+    assert RENAMED in prompt
+    markers = markers_for_task(TASK_ID)
+    assert markers["url_contains"] not in prompt
+    assert all(token not in prompt for token in markers["deny"] if token != "Main_Page")
+
+    assert result.success is True
+    assert result.end_state == PASS
+    assert result.tier == TIER_PATCHED
+    assert result.model_calls == 1
+    assert result.total_steps == 2
+    assert result.script_steps == 3
+    assert RENAMED in cache.lookup(DESCRIPTION, START).script
+
+    again, model, _cache = _run(tmp_path, _WikiPage({RENAMED: "article"}), [])
+    assert model.calls == []
+    assert again.tier == TIER_CACHE_HIT
+    assert again.success is True
+
+
+def test_failed_patch_falls_back_to_fresh(tmp_path):
+    _seed(tmp_path)
+    still_wrong = 'page.getByRole("link", { name: "Ada Lovelace (writer)" }).click()'
+    fresh = f'await page.goto({json.dumps(FIXTURE["page"]["url"])});\nawait {EVIDENCE};'
+    result, model, cache = _run(
+        tmp_path,
+        _WikiPage({RENAMED: "article"}),
+        [_patch_reply(2, still_wrong), _script_reply(fresh)],
+    )
+
+    assert len(model.calls) == 2
+    assert model.calls[0]["tools"] == [PATCH_TOOL]
+    assert model.calls[1]["system"] == prompt_for("script_first")
+    assert model.calls[1]["messages"] == [{"role": "user", "content": f"Task: {DESCRIPTION}\n\nStart URL: {START}"}]
+    assert result.success is True
+    assert result.end_state == PASS
+    assert result.tier == TIER_FRESH
+    assert result.model_calls == 2
+    assert result.total_steps == 3
+    assert result.script_steps == 2
+    assert [step.step_number for step in result.steps] == [1, 2, 3]
+    assert cache.lookup(DESCRIPTION, START).script.startswith(f'page.goto({json.dumps(FIXTURE["page"]["url"])})')
+
+
+def test_replay_is_judged_again_and_a_wrong_page_is_not_a_hit(tmp_path):
+    _seed(tmp_path)
+    result, model, cache = _run(
+        tmp_path,
+        _WikiPage({LINK: "babbage"}),
+        [_text_reply("TASK_FAILED"), _script_reply(CLICK_SCRIPT), _script_reply(CLICK_SCRIPT), _text_reply("TASK_FAILED")],
+    )
+    assert model.calls[0]["tools"] == [PATCH_TOOL]
+    assert "All 3 steps ran. END_STATE_FAILED" in model.calls[0]["messages"][0]["content"]
+    assert result.tier == TIER_FRESH
+    assert result.success is False
+    assert result.end_state == FAIL
+    assert len(cache) == 0
+
+
+def test_unknown_or_fail_scripts_are_never_cached(tmp_path):
+    fail_dir = tmp_path / "fail"
+    fail_dir.mkdir()
+    stay = f"await page.goto({json.dumps(START)});\nawait {EVIDENCE};"
+    result, _model, cache = _run(
+        fail_dir,
+        _WikiPage({LINK: "article"}),
+        [_script_reply(stay), _script_reply(stay), _text_reply("TASK_COMPLETE")],
+    )
+    assert result.end_state == FAIL
+    assert result.success is False
+    assert len(cache) == 0
+    assert not cache.path.exists()
+
+    unknown_dir = tmp_path / "unknown"
+    unknown_dir.mkdir()
+    result, _model, cache = _run(
+        unknown_dir,
+        _WikiPage({LINK: "article"}),
+        [_script_reply(CLICK_SCRIPT), _text_reply("TASK_COMPLETE")],
+        task_id="not-a-catalog-task",
+    )
+    assert result.end_state == UNKNOWN
+    assert result.success is False
+    assert len(cache) == 0
+    assert not cache.path.exists()
+
+    direct = ScriptCache(tmp_path / "direct.json")
+    for verdict in (EvidenceVerdict(FAIL, "x", START), EvidenceVerdict(UNKNOWN, "x", START), None):
+        assert direct.save(DESCRIPTION, START, CLICK_SCRIPT, verdict) is False
+    assert len(direct) == 0
+    assert direct.save(DESCRIPTION, START, CLICK_SCRIPT, EvidenceVerdict(PASS, "ok", START)) is True
+    assert direct.lookup(DESCRIPTION, "https://de.wikipedia.org/wiki/Main_Page") is None
+
+
+def test_patch_replaces_only_the_named_step():
+    script = "\n".join(['page.goto("https://a.example/")', 'page.getByText("Old").click()', EVIDENCE])
+    patched = apply_patch(script, 2, 'page.getByText("New").click()')
+    assert patched.splitlines() == ['page.goto("https://a.example/")', 'page.getByText("New").click()', EVIDENCE]
+    for step, code in ((0, "page.goto('https://a.example/')"), (4, EVIDENCE), (2, "fetch('x')")):
+        try:
+            apply_patch(script, step, code)
+        except Exception as exc:
+            assert type(exc).__name__ == "ScriptError"
+        else:
+            raise AssertionError(f"patch {step} should be refused")
