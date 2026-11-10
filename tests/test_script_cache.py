@@ -311,6 +311,45 @@ def test_unknown_or_fail_scripts_are_never_cached(tmp_path):
     assert direct.lookup(DESCRIPTION, "https://de.wikipedia.org/wiki/Main_Page") is None
 
 
+def test_warm_probe_reuses_one_new_cache_and_reports_tiers(monkeypatch, tmp_path):
+    from bench.budget import SpendLedger
+    from bench.probe import BOX_COMMANDS, empty_row, execute_probe, plan_probe, warm_summary
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "local-test-not-sent")
+    caches: list = []
+
+    async def fake_claude(arm, task, **kwargs):
+        caches.append(kwargs.get("script_cache"))
+        row = empty_row(arm, task["id"], reason="stub", skipped=False)
+        row.update(claude=True, success=True, tier=TIER_FRESH if len(caches) <= 3 else TIER_CACHE_HIT)
+        row.update(model_calls=1 if row["tier"] == TIER_FRESH else 0, steps=1, wall_ms=5.0)
+        row["replay_hit"] = row["tier"] == TIER_CACHE_HIT
+        return row
+
+    monkeypatch.setattr("bench.probe.run_claude_arm", fake_claude)
+    SpendLedger.seed(tmp_path / "spend.json").save()
+    rows = asyncio.run(
+        execute_probe(
+            spend_path=tmp_path / "spend.json",
+            runs_dir=tmp_path / "runs",
+            warm_replay=True,
+            arms=("script_first",),
+        )
+    )
+    assert [(row["arm"], row["pass"]) for row in rows] == [("script_first", "cold")] * 3 + [
+        ("script_first", "warm")
+    ] * 3
+    assert len(caches) == 6 and all(cache is caches[0] for cache in caches)
+    assert isinstance(caches[0], ScriptCache)
+    assert caches[0].path.parent == tmp_path / "runs"
+    warm = warm_summary(rows)["script_first"]
+    assert warm["tiers"] == {"cache_hit": 3, "patched": 0, "fresh": 0}
+    assert warm["model_calls"] == 0
+    assert warm["replay_hit_rate"] == 1
+    assert "--arms script_first --warm-replay" in BOX_COMMANDS[-1]
+    assert plan_probe(arms="script_first", warm_replay=True)["warm_arms"][-1] == "script_first"
+
+
 def test_patch_replaces_only_the_named_step():
     script = "\n".join(['page.goto("https://a.example/")', 'page.getByText("Old").click()', EVIDENCE])
     patched = apply_patch(script, 2, 'page.getByText("New").click()')
