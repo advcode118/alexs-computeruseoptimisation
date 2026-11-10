@@ -936,6 +936,7 @@ def test_script_first_cache_breakpoint_is_sent_and_the_api_is_not_called(monkeyp
         return None
 
     monkeypatch.setattr(ScriptFirstClient, "start", no_browser)
+    monkeypatch.setattr(ScriptFirstClient, "_open_browser", no_browser)
     monkeypatch.setattr(PlaywrightMCPClient, "start", no_browser)
     script_harness = BenchmarkHarness(
         api_key="local-test-not-sent",
@@ -953,3 +954,102 @@ def test_script_first_cache_breakpoint_is_sent_and_the_api_is_not_called(monkeyp
     assert other.anthropic.cache_prefix is False
     asyncio.run(script_harness.teardown())
     asyncio.run(other.teardown())
+
+
+def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
+    """The launch begins before the model returns and finishes before run_script."""
+    order: list[str] = []
+    prose = format_run_result(
+        ok=True,
+        url="https://en.wikipedia.org/wiki/Ada_Lovelace",
+        step_count=1,
+    )
+
+    class Client:
+        def __init__(self):
+            self.launch = None
+
+        def begin_launch(self):
+            order.append("launch")
+            self.launch = asyncio.get_running_loop().create_future()
+            return self.launch
+
+        def tools_for_claude(self):
+            return [{"name": "run_script", "description": "run", "input_schema": {"type": "object"}}]
+
+        async def call_tool(self, name, arguments):
+            del name, arguments
+            order.append("tool")
+            assert self.launch.done()
+            return prose, 1.0
+
+    class Model:
+        def __init__(self, client):
+            self.client = client
+            self.calls = 0
+
+        async def create_message(self, messages, tools, system=None, max_tokens=4096):
+            del messages, tools, system, max_tokens
+            self.calls += 1
+            order.append("model")
+            assert order[0] == "launch"
+            assert not self.client.launch.done()
+            self.client.launch.set_result(None)
+            return _tool_reply('page.goto("https://en.wikipedia.org/wiki/Ada_Lovelace")'), 1.0
+
+    client = Client()
+    harness = BenchmarkHarness(api_key="local-test", runs_dir=tmp_path, arm="script_first", max_steps=2)
+    harness.anthropic = Model(client)
+    harness.mcp_client = client
+    result = asyncio.run(
+        harness.run_task(
+            task_id="wv_wikipedia_search",
+            task_description="Search Wikipedia",
+            start_url="https://en.wikipedia.org/wiki/Main_Page",
+        )
+    )
+    assert order == ["launch", "model", "tool"]
+    assert result.success is True
+
+
+def test_script_first_setup_returns_before_chrome_is_open(tmp_path, monkeypatch):
+    hold = asyncio.Event()
+    order: list[str] = []
+
+    async def open_browser(self):
+        order.append("open-start")
+        await hold.wait()
+        order.append("open-done")
+
+    async def playwright_start(self):
+        order.append("playwright-start")
+
+    monkeypatch.setattr(ScriptFirstClient, "_open_browser", open_browser)
+    monkeypatch.setattr(PlaywrightMCPClient, "start", playwright_start)
+
+    async def run():
+        script = BenchmarkHarness(
+            api_key="local-test",
+            arm="script_first",
+            runs_dir=tmp_path / "script",
+        )
+        await script.setup()
+        await asyncio.sleep(0)
+        assert order == ["open-start"]
+        assert script._browser_launch is not None
+        assert not script._browser_launch.done()
+        assert script.anthropic.cache_prefix is True
+        hold.set()
+        await script.teardown()
+        assert order == ["open-start", "open-done"]
+        other = BenchmarkHarness(
+            api_key="local-test",
+            arm="playwright_mcp",
+            runs_dir=tmp_path / "playwright",
+        )
+        await other.setup()
+        assert order[-1] == "playwright-start"
+        assert other.anthropic.cache_prefix is False
+        await other.teardown()
+
+    asyncio.run(run())

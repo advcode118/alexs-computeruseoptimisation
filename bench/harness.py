@@ -711,13 +711,39 @@ class BenchmarkHarness:
         self.anthropic: AnthropicClient | None = None
         self._capture_index = 0
         self._pending_snapshot_path: Path | None = None
+        # In flight while the model writes. None for arms that start first.
+        self._browser_launch: asyncio.Future | None = None
 
     def has_api_key(self) -> bool:
         """Check if we have an API key configured."""
         return bool(self.api_key)
 
+    def _begin_browser_launch(self) -> None:
+        """Start script_first's Chrome if it is not already launching.
+
+        The launch does not open the task URL. Other arms have no begin_launch,
+        so this leaves them on the browser setup already started.
+        """
+        if self.arm != "script_first" or self._browser_launch is not None:
+            return
+        client = self.mcp_client
+        begin = getattr(client, "begin_launch", None)
+        if not callable(begin):
+            return
+        self._browser_launch = begin()
+
+    async def _wait_for_browser(self) -> None:
+        """Block until script_first's Chrome launch has finished."""
+        launch = self._browser_launch
+        if launch is not None:
+            await launch
+
     async def setup(self) -> None:
-        """Set up clients."""
+        """Set up clients.
+
+        script_first returns while Chrome is still launching, so the model
+        can write during that launch. The launch does not open the task URL.
+        """
         if self.api_key:
             self.anthropic = AnthropicClient(self.api_key, self.model)
             # The stable script_first prompt and the patch prompt. Other arms stay uncached.
@@ -726,10 +752,20 @@ class BenchmarkHarness:
         from bench.arms import build_client
 
         self.mcp_client = build_client(self.arm, headless=self.headless)
+        if self.arm == "script_first":
+            self._begin_browser_launch()
+            return
         await self.mcp_client.start()
 
     async def teardown(self) -> None:
-        """Clean up clients."""
+        """Close the browser after an in-flight launch has finished."""
+        launch = self._browser_launch
+        self._browser_launch = None
+        if launch is not None:
+            try:
+                await launch
+            except (asyncio.CancelledError, Exception):
+                pass
         if self.mcp_client:
             await self.mcp_client.stop()
             self.mcp_client = None
@@ -1048,6 +1084,11 @@ class BenchmarkHarness:
 
         try:
             if cache is not None:
+                # A cached script runs before any model write, so Chrome has to
+                # be up first. A miss leaves the launch for the fresh model call.
+                if cache.lookup(task_description, start_url) is not None:
+                    self._begin_browser_launch()
+                    await self._wait_for_browser()
                 cached = await self._cached_script_tier(
                     task_id=task_id,
                     task_description=task_description,
@@ -1073,6 +1114,7 @@ class BenchmarkHarness:
             while not tier and step_num < turn_limit:
                 step_num += 1
 
+                self._begin_browser_launch()
                 response, model_ms = await self.anthropic.create_message(
                     cap_messages_for_model(messages),
                     tools,
@@ -1202,6 +1244,7 @@ class BenchmarkHarness:
                             )
                         tool_ms = 0.0
                     else:
+                        await self._wait_for_browser()
                         result_text, tool_ms = await self.mcp_client.call_tool(tool_name, tool_args)
                     logged_selector = ""
                     logged_answer = ""
