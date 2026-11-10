@@ -46,16 +46,17 @@ abort stays $40. The operator envelope is $50. Do not pass --execute from
 this VM. script_first writes one Playwright script for the whole task and
 runs it with no per-click settle or snapshot.
 
---split held-out selects the held-out tasks instead of the three tuned
-probe tasks. The default split stays probe. Do not run the held-out command
-from this checkout. It is a live Claude probe.
+--split probe is the three tuned tasks and the default. --split dev is the
+wider tune set. --split held-out is the scored set. Dev and held-out are
+disjoint, so the tasks we tune are not the tasks we score. Do not run the
+held-out command from this checkout. It is a live Claude probe.
 
---honest is the first live comparison. It selects playwright_mcp,
-script_first, stagehand, and browser_use, the three tuned tasks plus the
-fifteen held-out tasks, and a warm replay of script_first only. The cold
-pass leaves the script cache empty. The per-run ceiling is $8, held under
-the $50 lifetime cap and the $40 project abort. A task is not started unless
-the reserve still fits under all three. Dry run:
+--honest is the live comparison. It selects playwright_mcp, script_first,
+stagehand, and browser_use on the held-out scored set, and a warm replay of
+script_first only. The dev tasks are not scored. The cold pass leaves the
+script cache empty. The per-run ceiling is $8, held under the $50 lifetime
+cap and the $40 project abort. A task is not started unless the reserve
+still fits under all three. Dry run:
 
     python -m bench.probe --honest
 
@@ -120,6 +121,7 @@ from bench.budget import (
 )
 from bench.judge import check_text_present, check_url_contains
 from bench.tasks import (
+    DEV_TASK_IDS,
     HELD_OUT_TASK_IDS,
     SPLIT_HONEST,
     SPLIT_PROBE,
@@ -347,6 +349,7 @@ def plan_probe(
         plan["network"] = "refused"
         plan["measurements"] = None
         plan["report_fields"] = list(REPORT_FIELDS)
+        plan["dev_tasks"] = list(DEV_TASK_IDS)
         plan["tuned_tasks"] = list(TUNED_PROBE_TASK_IDS)
         plan["held_out_tasks"] = list(HELD_OUT_TASK_IDS)
     return plan
@@ -1251,7 +1254,8 @@ def main(argv: list[str] | None = None) -> int:
         default=SPLIT_PROBE,
         help=(
             "Task split. probe is the three tuned tasks and the default. "
-            "held-out is the separate overfitting set. Printing the plan does not run it."
+            "dev is the wider tune set. held-out is the scored set. "
+            "Printing the plan does not run it."
         ),
     )
     parser.add_argument(
@@ -1268,7 +1272,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "The live comparison: playwright_mcp, script_first cold then warm, "
-            "stagehand, and browser_use, on the three tuned tasks plus the held-out set. "
+            "stagehand, and browser_use, on the held-out scored set. "
+            "The dev tasks are not scored. "
             "Stops before a task can cross the $8 ceiling, the $40 abort, or the $50 cap. "
             "Without --execute, prints the plan and does not use the network."
         ),

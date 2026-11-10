@@ -25,7 +25,7 @@ from bench.probe import (
     main,
     row_took_repair,
 )
-from bench.tasks import HELD_OUT_TASK_IDS, HONEST_TASK_IDS, TUNED_PROBE_TASK_IDS
+from bench.tasks import DEV_TASK_IDS, HELD_OUT_TASK_IDS, HONEST_TASK_IDS, TUNED_PROBE_TASK_IDS
 
 LIVE_COMMAND = (
     'CU_SPEND_LEDGER="$CU_SPEND_LEDGER" '
@@ -89,8 +89,11 @@ def test_dry_run_prints_the_plan_and_does_not_measure(monkeypatch, capsys, isola
     assert printed["warm_replay"] is True
     assert printed["warm_arms"] == ["script_first"]
     assert printed["tasks"] == list(HONEST_TASK_IDS)
+    assert printed["dev_tasks"] == list(DEV_TASK_IDS)
     assert printed["tuned_tasks"] == list(TUNED_PROBE_TASK_IDS)
     assert printed["held_out_tasks"] == list(HELD_OUT_TASK_IDS)
+    assert set(printed["tasks"]).isdisjoint(DEV_TASK_IDS)
+    assert printed["tasks"] == list(HELD_OUT_TASK_IDS)
     assert printed["claude_budget_usd"] == 8.0
     assert printed["project_budget_usd"] == 40.0
     assert printed["lifetime_cap_usd"] == 50.0
