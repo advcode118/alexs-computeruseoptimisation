@@ -440,6 +440,79 @@ def test_opus_and_retired_sonnet_are_refused_before_http(monkeypatch: pytest.Mon
     assert not (tmp_path / "spend.json").exists()
 
 
+def test_create_message_caches_the_standing_system_prefix(monkeypatch: pytest.MonkeyPatch):
+    """The stable system text is the cached prefix. The task stays in messages."""
+    from bench.arms import prompt_for
+
+    captured: list[dict] = []
+
+    class _Response:
+        def read(self):
+            return json.dumps(
+                {
+                    "content": [],
+                    "stop_reason": "end_turn",
+                    "usage": {"input_tokens": 3, "output_tokens": 1},
+                }
+            ).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    def urlopen(req, timeout=120):
+        del timeout
+        captured.append(json.loads(req.data.decode()))
+        return _Response()
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    standing = prompt_for("script_first")
+    tools = [{"name": "run_script", "description": "run", "input_schema": {"type": "object"}}]
+    client = AnthropicClient("local-test-not-sent")
+    response, _elapsed = asyncio.run(
+        client.create_message(
+            [{"role": "user", "content": "Task: open the start page\n\nStart URL: https://example.com/"}],
+            tools,
+            system=standing,
+        )
+    )
+    assert response["usage"]["input_tokens"] == 3
+    assert len(captured) == 1
+    body = captured[0]
+    assert body["system"] == [
+        {
+            "type": "text",
+            "text": standing,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
+    assert body["tools"] == tools
+    assert "cache_control" not in json.dumps(body["messages"])
+    for banned in ("Ada_Lovelace", "heapq.html", ".titleline", "selector_text", "answer_equals_selector"):
+        assert banned not in body["system"][0]["text"]
+    assert "local-test-not-sent" not in json.dumps(body)
+
+
+def test_playwright_setup_still_starts_the_browser_before_returning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    calls: list[str] = []
+
+    async def start(self):
+        del self
+        calls.append("start")
+
+    monkeypatch.setattr(PlaywrightMCPClient, "start", start)
+    harness = BenchmarkHarness(api_key="local-test", runs_dir=tmp_path)
+
+    async def run():
+        await harness.setup()
+        await harness.teardown()
+
+    asyncio.run(run())
+    assert calls == ["start"]
+
+
 def test_default_model_is_claude_sonnet_5_5():
     assert DEFAULT_MODEL == "claude-sonnet-5-5"
     assert build_parser().get_default("model") == "claude-sonnet-5-5"
