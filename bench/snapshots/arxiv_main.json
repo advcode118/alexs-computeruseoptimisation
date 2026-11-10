@@ -1,0 +1,9 @@
+{
+  "task_id": "wv_arxiv_search",
+  "step_number": 1,
+  "url": "https://arxiv.org/",
+  "title": "arXiv.org e-Print archive",
+  "snapshot_text": "- banner \"arXiv\"\n  - link \"arXiv.org\" [ref=S1E1]\n  - link \"About\" [ref=S1E2]\n  - link \"Help\" [ref=S1E3]\n- main\n  - heading \"arXiv.org e-Print archive\" [ref=S1E4]\n  - search\n    - searchbox \"Search or Article ID\" [ref=S1E5]\n    - button \"Search\" [ref=S1E6]\n    - combobox \"All fields\" [ref=S1E7]\n  - heading \"Subject areas\" [ref=S1E8]\n  - link \"Physics\" [ref=S1E9]\n  - link \"Mathematics\" [ref=S1E10]\n  - link \"Computer Science\" [ref=S1E11]\n  - link \"Quantitative Biology\" [ref=S1E12]\n  - link \"Quantitative Finance\" [ref=S1E13]\n  - link \"Statistics\" [ref=S1E14]\n  - link \"Electrical Engineering and Systems Science\" [ref=S1E15]\n  - link \"Economics\" [ref=S1E16]\n- contentinfo\n  - link \"Privacy Policy\" [ref=S1E17]\n  - link \"Contact\" [ref=S1E18]",
+  "model_tool_name": "browser_type",
+  "model_tool_args": {"target": "S1E5", "text": "attention is all you need"}
+}

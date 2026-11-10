@@ -1,0 +1,9 @@
+{
+  "task_id": "wv_wikipedia_search",
+  "step_number": 2,
+  "url": "https://en.wikipedia.org/w/index.php?search=Ada+Lovelace",
+  "title": "Search results - Wikipedia",
+  "snapshot_text": "- banner \"Wikipedia\"\n  - link \"Wikipedia\" [ref=S2E1]\n  - searchbox \"Search Wikipedia\" [ref=S2E2]\n  - button \"Search\" [ref=S2E3]\n- main \"Search results\"\n  - heading \"Search results\" [ref=S2E4]\n  - list \"Results\"\n    - listitem\n      - link \"Ada Lovelace\" [ref=S2E5]\n      - paragraph \"Augusta Ada King, Countess of Lovelace was an English mathematician...\" [ref=S2E6]\n    - listitem\n      - link \"Ada Lovelace Award\" [ref=S2E7]\n      - paragraph \"The Ada Lovelace Award is a technical achievement award...\" [ref=S2E8]\n    - listitem\n      - link \"Ada (programming language)\" [ref=S2E9]\n      - paragraph \"Ada is a structured, statically typed programming language...\" [ref=S2E10]\n- navigation \"Tools\"\n  - link \"What links here\" [ref=S2E11]\n  - link \"Related changes\" [ref=S2E12]",
+  "model_tool_name": "browser_click",
+  "model_tool_args": {"target": "S2E5"}
+}

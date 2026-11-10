@@ -1,0 +1,31 @@
+name: Offline tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - "t3/**"
+      - "cursor/**"
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies and Playwright browsers
+        run: bash scripts/setup.sh
+      - name: Install Chrome for the attached-browser test
+        run: |
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            sudo apt-get update
+            sudo apt-get install -y /tmp/chrome.deb
+          fi
+      - name: Offline suite
+        run: .venv/bin/python -m pytest -q bench/test_harness.py tests

@@ -1,0 +1,4 @@
+{
+  "name": "computer-use optimisation",
+  "install": "bash scripts/setup.sh"
+}
