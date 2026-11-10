@@ -67,4 +67,4 @@ python -m loop demo
 # or: ANTHROPIC_API_KEY=… python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand
 ```
 
-Cursor Origin remains the day-to-day forge for open stack PRs; this GitHub repo mirrors the progress site plus the current tip tree for visibility and Vercel.
+Since 9 Nov 2026 this GitHub repo is the home for the code, and new work runs in T3 Code. The Cursor Origin PRs (#6–#20) are kept as read-only history. See `docs/HISTORY.md`.
