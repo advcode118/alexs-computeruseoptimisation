@@ -56,7 +56,12 @@ stagehand, and browser_use on the held-out scored set, and a warm replay of
 script_first only. The dev tasks are not scored. The cold pass leaves the
 script cache empty. The per-run ceiling is $8, held under the $50 lifetime
 cap and the $40 project abort. A task is not started unless the reserve
-still fits under all three. Dry run:
+still fits under all three. --repeats N runs each cold task N times and
+reports the mean, median, p90, and a 95% confidence interval of the mean
+wall time. The default is 1. Later cold repeats do not read the script
+cache. The warm pass still reads the cache the first cold pass filled.
+At the published PR #18 per-task rate, one cold pass of the scored set is
+about $6, which is above $3–$5. Dry run:
 
     python -m bench.probe --honest
 
@@ -136,10 +141,54 @@ SCRIPT_FIRST_CLAUDE_BUDGET_USD = 2.0
 # Hard ceiling for --honest. The run is meant to land around $5–$8.
 HONEST_PROBE_BUDGET_USD = 8.0
 HONEST_ARMS = (ARM_PLAYWRIGHT, ARM_SCRIPT_FIRST, ARM_STAGEHAND, ARM_BROWSER_USE)
+# One cold pass. A second pass would double the scored-set bill.
+DEFAULT_REPEATS = 1
+# Published dollars from the PR #18 probe, three tasks, at the ledger rate.
+# browser_use was not in that probe. This is not a new measurement.
+PUBLISHED_TASK_USD = {
+    ARM_PLAYWRIGHT: 0.165 / 3,
+    ARM_SCRIPT_FIRST: 0.047 / 3,
+    ARM_STAGEHAND: 0.074 / 3,
+}
+# Two-sided 95% Student t critical values, df = n - 1. df above 30 uses 1.96.
+_T_95 = {
+    1: 12.706,
+    2: 4.303,
+    3: 3.182,
+    4: 2.776,
+    5: 2.571,
+    6: 2.447,
+    7: 2.365,
+    8: 2.306,
+    9: 2.262,
+    10: 2.228,
+    11: 2.201,
+    12: 2.179,
+    13: 2.160,
+    14: 2.145,
+    15: 2.131,
+    16: 2.120,
+    17: 2.110,
+    18: 2.101,
+    19: 2.093,
+    20: 2.086,
+    21: 2.080,
+    22: 2.074,
+    23: 2.069,
+    24: 2.064,
+    25: 2.060,
+    26: 2.056,
+    27: 2.052,
+    28: 2.048,
+    29: 2.045,
+    30: 2.042,
+}
 REPORT_FIELDS = (
     "success_count",
     "mean_wall_ms_per_success",
     "median_wall_ms_per_success",
+    "p90_wall_ms_per_success",
+    "mean_wall_ms_ci95",
     "steps_one_shot",
     "steps_repair",
     "warm_replay_wall_ms",
@@ -269,6 +318,36 @@ def claude_budget_for(arms: tuple[str, ...]) -> float:
     return PROBE_CLAUDE_BUDGET_USD
 
 
+def published_arm_usd(arm: str) -> float:
+    """Per-task dollars from the PR #18 probe.
+
+    An arm that probe did not measure uses the median of the three that it did.
+    """
+    if arm in PUBLISHED_TASK_USD:
+        return PUBLISHED_TASK_USD[arm]
+    ordered = sorted(PUBLISHED_TASK_USD.values())
+    return ordered[len(ordered) // 2]
+
+
+def expected_honest_usd(n_tasks: int, repeats: int = DEFAULT_REPEATS) -> float:
+    """Ledger-rate dollars for the cold honest matrix.
+
+    Warm replay is not included. A cache hit does not call the model.
+    This multiplies the published PR #18 rates. It is not a new measurement.
+    """
+    per_task = sum(published_arm_usd(arm) for arm in HONEST_ARMS)
+    return round(per_task * int(n_tasks) * int(repeats), 6)
+
+
+def resolve_repeats(spec: int | None) -> int:
+    """Default is one cold pass. Zero and negative values are refused."""
+    if spec is None:
+        return DEFAULT_REPEATS
+    if isinstance(spec, bool) or not isinstance(spec, int) or spec < 1:
+        raise ValueError(f"repeats must be an integer >= 1, got {spec!r}")
+    return spec
+
+
 def plan_probe(
     *,
     no_model_only: bool = False,
@@ -276,8 +355,10 @@ def plan_probe(
     arms: str | tuple[str, ...] | list[str] | None = None,
     split: str | None = None,
     honest: bool = False,
+    repeats: int | None = None,
 ) -> dict:
     """What --execute would run. This does not start a browser or a model."""
+    chosen_repeats = resolve_repeats(repeats)
     if honest:
         chosen = HONEST_ARMS
         chosen_split = SPLIT_HONEST
@@ -315,6 +396,7 @@ def plan_probe(
         "huge_snapshot_uses_body_length_only": True,
         "warm_replay": warm_replay,
         "warm_arms": list(warm_arms_for(chosen, honest=honest)),
+        "repeats": chosen_repeats,
         "browser_isolation": {
             "playwright_mcp": "--isolated only (0.0.84 rejects --user-data-dir with --isolated)",
             "diff_fast_act": "proxy child --isolated only",
@@ -352,6 +434,12 @@ def plan_probe(
         plan["dev_tasks"] = list(DEV_TASK_IDS)
         plan["tuned_tasks"] = list(TUNED_PROBE_TASK_IDS)
         plan["held_out_tasks"] = list(HELD_OUT_TASK_IDS)
+        plan["expected_usd"] = expected_honest_usd(len(plan["tasks"]), chosen_repeats)
+        plan["expected_usd_basis"] = (
+            "PR #18 published per-task ledger rate; browser_use uses the median "
+            "of the three measured arms; warm replay is not included"
+        )
+        plan["expected_within_3_to_5"] = 3.0 <= plan["expected_usd"] <= 5.0
     return plan
 
 
@@ -1007,6 +1095,35 @@ def _median(values: list[float]) -> float | None:
     return (float(ordered[mid - 1]) + float(ordered[mid])) / 2
 
 
+def _percentile(values: list[float], pct: float) -> float | None:
+    """Linear percentile. pct is 0-100. An empty sample is None."""
+    if not values:
+        return None
+    ordered = sorted(float(item) for item in values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (len(ordered) - 1) * (pct / 100.0)
+    low = int(rank)
+    high = min(low + 1, len(ordered) - 1)
+    weight = rank - low
+    return ordered[low] * (1.0 - weight) + ordered[high] * weight
+
+
+def _p90(values: list[float]) -> float | None:
+    return _percentile(values, 90)
+
+
+def _mean_ci95(values: list[float]) -> list[float] | None:
+    """95% Student-t interval of the mean. None when the sample has one point."""
+    n = len(values)
+    if n < 2:
+        return None
+    mean = sum(values) / n
+    var = sum((item - mean) ** 2 for item in values) / (n - 1)
+    margin = _T_95.get(n - 1, 1.96) * ((var ** 0.5) / (n ** 0.5))
+    return [round(mean - margin, 6), round(mean + margin, 6)]
+
+
 def _wall_ms(row: dict) -> float | None:
     value = row.get("wall_ms")
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -1104,6 +1221,8 @@ def arm_report(rows: list[dict], arms: tuple[str, ...] | list[str]) -> dict:
             "attempted": len(attempted),
             "mean_wall_ms_per_success": _mean(walls) if attempted else None,
             "median_wall_ms_per_success": _median(walls) if attempted else None,
+            "p90_wall_ms_per_success": _p90(walls) if attempted else None,
+            "mean_wall_ms_ci95": _mean_ci95(walls) if attempted else None,
             "steps": steps,
             "warm_replay": warm_report,
         }
@@ -1121,6 +1240,7 @@ async def execute_probe(
     endpoint_opener=None,
     split: str | None = None,
     honest: bool = False,
+    repeats: int = DEFAULT_REPEATS,
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -1170,7 +1290,7 @@ async def execute_probe(
         started = datetime.now().strftime("%Y%m%d_%H%M%S")
         script_cache = ScriptCache(destination / f"script_cache_{started}.json")
 
-    async def take(arm: str, task: dict, phase: str) -> None:
+    async def take(arm: str, task: dict, phase: str, cache, repeat_index: int) -> None:
         nonlocal probe_spent
         row, probe_spent = await _run_one(
             arm,
@@ -1182,24 +1302,29 @@ async def execute_probe(
             ledger=ledger,
             destination=destination,
             budget_usd=budget_usd,
-            script_cache=script_cache,
+            script_cache=cache,
             endpoint_opener=endpoint_opener,
             task_reserve_usd=task_reserve,
             lifetime_cap_usd=lifetime_cap,
         )
         row["pass"] = phase
+        row["repeat"] = repeat_index
         rows.append(row)
 
-    for task in tasks:
-        for arm in chosen:
-            await take(arm, task, "cold")
+    for repeat_index in range(repeats):
+        # Only the first cold pass may fill the cache the warm pass reads.
+        # A later repeat is a fresh model run.
+        cache = script_cache if repeat_index == 0 else None
+        for task in tasks:
+            for arm in chosen:
+                await take(arm, task, "cold", cache, repeat_index)
     if warm_replay:
-        # Same cache file as the cold pass. Do not delete it between passes.
+        # Same cache file as the first cold pass. Do not delete it between passes.
         for task in tasks:
             for arm in warm_arms_for(chosen, honest=honest):
                 if arm not in chosen:
                     continue
-                await take(arm, task, "warm")
+                await take(arm, task, "warm", script_cache, 0)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out = destination / f"probe_{stamp}.jsonl"
     with out.open("w", encoding="utf-8") as handle:
@@ -1259,6 +1384,16 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--repeats",
+        type=int,
+        default=DEFAULT_REPEATS,
+        help=(
+            "Cold repeats per task. The default is 1. "
+            "The report adds the mean, median, p90, and a 95% confidence interval. "
+            "Not a live run by itself."
+        ),
+    )
+    parser.add_argument(
         "--warm-replay",
         action="store_true",
         help=(
@@ -1280,6 +1415,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
+        chosen_repeats = resolve_repeats(args.repeats)
         if args.honest:
             chosen = HONEST_ARMS
             chosen_split = SPLIT_HONEST
@@ -1301,6 +1437,7 @@ def main(argv: list[str] | None = None) -> int:
                         arms=chosen,
                         split=chosen_split,
                         honest=args.honest,
+                        repeats=chosen_repeats,
                     ),
                     indent=2,
                 )
@@ -1314,6 +1451,7 @@ def main(argv: list[str] | None = None) -> int:
                 arms=chosen,
                 split=chosen_split,
                 honest=args.honest,
+                repeats=chosen_repeats,
             )
         )
     except (LedgerMissing, LedgerBelowRecorded, ProbeRefused) as exc:
