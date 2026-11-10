@@ -182,3 +182,15 @@ bench/
   ```
 
   The first prints the plan. The second is the competitive 3 tasks times `playwright_mcp`, `diff_fast_act`, `macro_replay`, and `stagehand`, all on the outer Claude loop. Hard Claude stop is $5. The project total still stops at $40. The fifth command is the script_first comparison and stops Claude at $2. Do not pass `--execute` from a checkout that is not supposed to spend. A first snapshot over 40,000 characters is skipped only when the returned body is longer than that. `full_snapshot_chars` inside a compact diff does not skip the task. The third command is the same cold 3x4, then the same 3 tasks again on `macro_replay` and `diff_fast_act`. It records replay hit rate and wall for that warm pass and keeps the replay cache between the two passes. The fourth command is optional. It runs the two proxy arms through `decide()` with no outer model. That path cannot close the Stagehand gap. It is not the competitive measurement. Do not pass `--execute` where the key is unset if you expected the Claude arms to move. This tree does not call Claude.
+
+- OpenAI is a computer-use model under test, selected with `--provider openai`. It is not the coding model. The only ids are `gpt-6.1-sol` and `gpt-6-luna`. One run uses that same model on every arm and the same checks as Claude. The Claude path, including `claude-sonnet-5-5`, is unchanged. Spend goes to `~/.cu-optimisation/openai-spend.json` (`CU_OPENAI_SPEND_LEDGER`), never the Claude `spend.json`. Caps are $5 per run and $20 on that ledger. A sweep of both models at every accepted effort uses one tuned task and stops at $15. A run's dollar cost is the priced token counts and is not known before the API returns them. At the published standard short-context rates, $5 buys 2,500,000 uncached input tokens or 500,000 output tokens of `gpt-6.1-sol`, and 50,000,000 uncached input tokens or 10,000,000 output tokens of `gpt-6-luna`.
+
+  ```bash
+  python -m bench.probe --provider openai --model gpt-6.1-sol --effort medium --arms script_first,playwright_mcp,stagehand,browser_use
+  OPENAI_API_KEY="$OPENAI_API_KEY" python -m bench.probe --execute --provider openai --model gpt-6.1-sol --effort medium --arms script_first,playwright_mcp,stagehand,browser_use
+  OPENAI_API_KEY="$OPENAI_API_KEY" python -m bench.probe --execute --provider openai --model gpt-6-luna --effort medium --arms script_first,playwright_mcp,stagehand,browser_use
+  python -m bench.probe --provider openai --sweep-effort --arms script_first,playwright_mcp,stagehand,browser_use
+  OPENAI_API_KEY="$OPENAI_API_KEY" python -m bench.probe --execute --provider openai --sweep-effort --arms script_first,playwright_mcp,stagehand,browser_use
+  ```
+
+  `--effort` accepts `low`, `medium`, and `high`. `xhigh` is accepted because both model pages list it. `minimal` is rejected. Any other effort is rejected. The sweep command is the one that keeps the full sweep inside $15. Do not pass `--execute` from this checkout. This tree does not call OpenAI.

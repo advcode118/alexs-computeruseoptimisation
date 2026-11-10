@@ -14,3 +14,10 @@ def isolated_spend_ledger(tmp_path, monkeypatch):
     ledger.save()
     monkeypatch.setenv("CU_SPEND_LEDGER", str(path))
     return path
+
+
+@pytest.fixture(autouse=True)
+def isolated_openai_spend_ledger(tmp_path, monkeypatch):
+    path = tmp_path / "openai-spend.json"
+    monkeypatch.setenv("CU_OPENAI_SPEND_LEDGER", str(path))
+    return path

@@ -147,6 +147,8 @@ class TaskResult:
     model_calls: int = 0
     # Actions the last script ran.
     script_steps: int = 0
+    # OpenAI cached input tokens. Claude stays at 0; those reads use the recorded rate.
+    total_cached_tokens: int = 0
 
 
 def estimate_tokens(text: str) -> int:
@@ -692,13 +694,30 @@ class BenchmarkHarness:
         snapshot_dir: Path | None = None,
         arm: str = "playwright_mcp",
         script_cache=None,
+        provider: str = "anthropic",
+        effort: str | None = None,
     ):
         from bench.arms import prompt_for
 
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        self.provider = provider
         self.arm = arm
         self.system_prompt = prompt_for(arm)
-        self.model = assert_allowed_model(model)
+        if provider == "openai":
+            from bench.openai_spend import EffortNotAllowed, assert_effort, assert_openai_model
+
+            self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
+            self.model = assert_openai_model(model)
+            self.effort = assert_effort(self.model, effort or "")
+        elif provider == "anthropic":
+            if effort not in (None, ""):
+                from bench.openai_spend import EffortNotAllowed
+
+                raise EffortNotAllowed("Claude does not take --effort.")
+            self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+            self.model = assert_allowed_model(model)
+            self.effort = None
+        else:
+            raise ValueError(f"unknown provider {provider!r}")
         self.headless = headless
         self.max_steps = max_steps
         self.runs_dir = runs_dir or Path(__file__).parent / "runs"
@@ -745,9 +764,14 @@ class BenchmarkHarness:
         can write during that launch. The launch does not open the task URL.
         """
         if self.api_key:
-            self.anthropic = AnthropicClient(self.api_key, self.model)
-            # The stable script_first prompt and the patch prompt. Other arms stay uncached.
-            self.anthropic.cache_prefix = self.arm == "script_first"
+            if self.provider == "openai":
+                from bench.openai_client import OpenAIClient
+
+                self.anthropic = OpenAIClient(self.api_key, self.model, self.effort or "")
+            else:
+                self.anthropic = AnthropicClient(self.api_key, self.model)
+                # The stable script_first prompt and the patch prompt. Other arms stay uncached.
+                self.anthropic.cache_prefix = self.arm == "script_first"
 
         from bench.arms import build_client
 
@@ -848,6 +872,7 @@ class BenchmarkHarness:
             "tool_ms": 0.0,
             "input_tokens": 0,
             "output_tokens": 0,
+            "cached_tokens": 0,
             "model_calls": 0,
             "script_steps": 0,
         }
@@ -924,6 +949,7 @@ class BenchmarkHarness:
         outcome["model_ms"] += model_ms
         outcome["input_tokens"] += input_tokens
         outcome["output_tokens"] += output_tokens
+        outcome["cached_tokens"] += int(usage.get("cached_tokens") or 0)
         patch = next(
             (
                 block.get("input")
@@ -1011,11 +1037,12 @@ class BenchmarkHarness:
         """Run a single task and collect metrics."""
         del expected_answer, judge_prompt
         if not self.anthropic:
+            missing = "OPENAI_API_KEY not set" if self.provider == "openai" else "ANTHROPIC_API_KEY not set"
             return self._empty_result(
                 task_id,
                 task_description,
                 "No API key configured",
-                "ANTHROPIC_API_KEY not set",
+                missing,
             )
 
         if not self.mcp_client:
@@ -1032,6 +1059,7 @@ class BenchmarkHarness:
         total_tool_ms = 0.0
         total_input_tokens = 0
         total_output_tokens = 0
+        total_cached_tokens = 0
         total_snapshot_tokens = 0
         ignores = IgnoreCounter()
         replay_hits = 0
@@ -1100,6 +1128,7 @@ class BenchmarkHarness:
                 total_tool_ms += cached["tool_ms"]
                 total_input_tokens += cached["input_tokens"]
                 total_output_tokens += cached["output_tokens"]
+                total_cached_tokens += int(cached.get("cached_tokens") or 0)
                 model_calls += cached["model_calls"]
                 if cached["tier"]:
                     tier = cached["tier"]
@@ -1128,6 +1157,7 @@ class BenchmarkHarness:
                 output_tokens = usage.get("output_tokens", 0)
                 total_input_tokens += input_tokens
                 total_output_tokens += output_tokens
+                total_cached_tokens += int(usage.get("cached_tokens") or 0)
 
                 content = response.get("content", [])
                 stop_reason = response.get("stop_reason", "")
@@ -1389,6 +1419,10 @@ class BenchmarkHarness:
                     break
 
         except Exception as exc:
+            from bench.openai_spend import PriceUnknown
+
+            if isinstance(exc, PriceUnknown):
+                raise
             error = str(exc)
             success = False
             success_reason = f"Error: {error}"
@@ -1455,6 +1489,7 @@ class BenchmarkHarness:
             tier=tier,
             model_calls=model_calls,
             script_steps=script_steps,
+            total_cached_tokens=total_cached_tokens,
         )
 
     def _empty_result(
@@ -1528,6 +1563,11 @@ class BenchmarkHarness:
                     for step in result.steps
                 ],
             }
+            if self.provider == "openai":
+                data["provider"] = "openai"
+                data["model"] = self.model
+                data["effort"] = self.effort
+                data["cached_tokens"] = result.total_cached_tokens
             handle.write(json.dumps(data) + "\n")
         return run_file
 
@@ -1560,12 +1600,22 @@ async def execute_benchmark_tasks(
             judge_prompt=task.get("judge_prompt"),
         )
         results.append(result)
-        ledger.record_task(
-            run_id=run_id,
-            task_id=result.task_id,
-            input_tokens=result.total_input_tokens,
-            output_tokens=result.total_output_tokens,
-        )
+        cached = int(getattr(result, "total_cached_tokens", 0) or 0)
+        if cached:
+            ledger.record_task(
+                run_id=run_id,
+                task_id=result.task_id,
+                input_tokens=result.total_input_tokens,
+                output_tokens=result.total_output_tokens,
+                cached_tokens=cached,
+            )
+        else:
+            ledger.record_task(
+                run_id=run_id,
+                task_id=result.task_id,
+                input_tokens=result.total_input_tokens,
+                output_tokens=result.total_output_tokens,
+            )
         over_budget = not ledger.allows_another_task()
         if over_budget:
             ledger.mark_aborted()
@@ -1587,8 +1637,50 @@ async def run_benchmark(
     spend_path: Path | None = None,
     runs_dir: Path | None = None,
     arm: str = "playwright_mcp",
+    provider: str = "anthropic",
+    effort: str | None = None,
 ) -> list[TaskResult]:
     """Run a benchmark suite and return results."""
+    if provider == "openai":
+        from bench.openai_spend import (
+            OPENAI_RUN_BUDGET_USD,
+            OpenAISpendLedger,
+            assert_effort,
+            assert_openai_model,
+            default_openai_spend_path,
+        )
+
+        chosen = assert_openai_model(model)
+        name = assert_effort(chosen, effort or "")
+        ledger = OpenAISpendLedger.read(spend_path or default_openai_spend_path())
+        ledger.model = chosen
+        ledger.effort = name
+        ledger.run_ceiling_usd = round(ledger.running_total_usd + OPENAI_RUN_BUDGET_USD, 6)
+        if run_id is None:
+            run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not ledger.allows_another_task():
+            ledger.mark_aborted()
+            ledger.save()
+            raise BudgetExceeded(ledger.running_total_usd, [], ledger.run_ceiling_usd or OPENAI_RUN_BUDGET_USD)
+        harness = BenchmarkHarness(
+            api_key=api_key,
+            model=chosen,
+            headless=headless,
+            runs_dir=runs_dir,
+            arm=arm,
+            provider="openai",
+            effort=name,
+        )
+        harness.snapshot_dir = harness.runs_dir / run_id / "snapshots"
+        try:
+            await harness.setup()
+            return await execute_benchmark_tasks(harness, tasks, ledger, run_id)
+        finally:
+            await harness.teardown()
+    if effort not in (None, ""):
+        from bench.openai_spend import EffortNotAllowed
+
+        raise EffortNotAllowed("Claude does not take --effort.")
     assert_allowed_model(model)
     ledger = SpendLedger.load(spend_path)
     if run_id is None:

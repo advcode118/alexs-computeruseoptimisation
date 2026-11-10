@@ -658,8 +658,11 @@ async def run_claude_arm(
     headless: bool,
     runs_dir: Path,
     script_cache=None,
+    provider: str = "anthropic",
+    model: str | None = None,
+    effort: str | None = None,
 ) -> dict:
-    """Outer claude-sonnet-5-5. Caller has already checked both budgets."""
+    """Outer model for one arm. The default is claude-sonnet-5-5."""
     from bench.harness import BenchmarkHarness
 
     started = time.perf_counter()
@@ -667,14 +670,33 @@ async def run_claude_arm(
     # adds a turn only for a repair or a refused extra script, stops at
     # SCRIPT_FIRST_HARD_CAP, and runs at most one repair script.
     max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
-    harness = BenchmarkHarness(
-        api_key=api_key,
-        headless=headless,
-        runs_dir=runs_dir,
-        arm=arm,
-        max_steps=max_steps,
-        script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
-    )
+    openai_model = None
+    openai_effort = None
+    if provider == "openai":
+        from bench.openai_spend import assert_effort, assert_openai_model
+
+        openai_model = assert_openai_model(model or "")
+        openai_effort = assert_effort(openai_model, effort or "")
+        harness = BenchmarkHarness(
+            api_key=api_key,
+            model=openai_model,
+            headless=headless,
+            runs_dir=runs_dir,
+            arm=arm,
+            max_steps=max_steps,
+            script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
+            provider="openai",
+            effort=openai_effort,
+        )
+    else:
+        harness = BenchmarkHarness(
+            api_key=api_key,
+            headless=headless,
+            runs_dir=runs_dir,
+            arm=arm,
+            max_steps=max_steps,
+            script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
+        )
     await harness.setup()
     try:
         peeked, _elapsed = await _peek_snapshot(harness.mcp_client, arm, task["start_url"])
@@ -712,7 +734,7 @@ async def run_claude_arm(
             completion_reason=result.success_reason,
         )
         usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
-        return {
+        row = {
             "arm": arm,
             "task_id": task["id"],
             "success": success,
@@ -736,6 +758,21 @@ async def run_claude_arm(
             "claimed_answer": claimed_answer,
             "expected_value": selector_text,
         }
+        if provider == "openai":
+            from bench.openai_spend import price_usd
+
+            row["usd"] = price_usd(
+                openai_model or "",
+                result.total_input_tokens,
+                result.total_output_tokens,
+                result.total_cached_tokens,
+            )
+            row["claude"] = False
+            row["provider"] = "openai"
+            row["model"] = openai_model
+            row["effort"] = openai_effort
+            row["cached_tokens"] = result.total_cached_tokens
+        return row
     finally:
         await harness.teardown()
 
@@ -1104,6 +1141,13 @@ def arm_report(rows: list[dict], arms: tuple[str, ...] | list[str]) -> dict:
             "steps": steps,
             "warm_replay": warm_report,
         }
+        efforts = []
+        for row in cold + warm:
+            name = row.get("effort")
+            if isinstance(name, str) and name and name not in efforts:
+                efforts.append(name)
+        if efforts:
+            report[arm]["effort"] = efforts
     return report
 
 
@@ -1118,6 +1162,11 @@ async def execute_probe(
     endpoint_opener=None,
     split: str | None = None,
     honest: bool = False,
+    provider: str = "anthropic",
+    model: str | None = None,
+    effort: str | None = None,
+    sweep: bool = False,
+    one_task: bool = False,
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -1128,6 +1177,29 @@ async def execute_probe(
     recorded total, the key is unset, or the reserve no longer fits under
     the run ceiling, the $40 abort, or the $50 lifetime cap.
     """
+    if provider == "openai":
+        from bench.openai_run import execute_openai_probe
+
+        if honest:
+            chosen = HONEST_ARMS
+            chosen_split = SPLIT_HONEST
+        else:
+            chosen = resolve_arms(arms)
+            chosen_split = resolve_task_split(split)
+        return await execute_openai_probe(
+            arms=chosen,
+            split=chosen_split,
+            sweep=sweep,
+            model=model,
+            effort=effort,
+            one_task=one_task,
+            headless=headless,
+            spend_path=spend_path,
+            runs_dir=runs_dir,
+            no_model_only=no_model_only,
+            warm_replay=warm_replay,
+            honest=honest,
+        )
     if honest:
         chosen = HONEST_ARMS
         chosen_split = SPLIT_HONEST
@@ -1273,8 +1345,43 @@ def main(argv: list[str] | None = None) -> int:
             "Without --execute, prints the plan and does not use the network."
         ),
     )
+    parser.add_argument(
+        "--provider",
+        default="anthropic",
+        help="anthropic is the Claude path. openai runs the computer-use model under test.",
+    )
+    parser.add_argument(
+        "--model",
+        default="",
+        help="OpenAI model. gpt-6.1-sol or gpt-6-luna. The Claude path stays claude-sonnet-5-5.",
+    )
+    parser.add_argument(
+        "--effort",
+        default="",
+        help="OpenAI reasoning effort: low, medium, or high. xhigh only when that model accepts it.",
+    )
+    parser.add_argument(
+        "--sweep-effort",
+        action="store_true",
+        help="Run gpt-6-luna and gpt-6.1-sol at every accepted effort. One task. Caps at $5 and $15.",
+    )
+    parser.add_argument(
+        "--sweep-task",
+        action="store_true",
+        help="With one OpenAI model, use the one-task sweep subset instead of the full Claude split.",
+    )
     args = parser.parse_args(argv)
+    from bench.openai_run import plan_openai_probe, resolve_openai_request
+    from bench.openai_spend import EffortNotAllowed, OpenAIModelNotAllowed, PriceUnknown
+
     try:
+        request = resolve_openai_request(
+            provider=args.provider,
+            model=args.model,
+            effort=args.effort,
+            sweep=args.sweep_effort,
+            one_task=args.sweep_task,
+        )
         if args.honest:
             chosen = HONEST_ARMS
             chosen_split = SPLIT_HONEST
@@ -1283,11 +1390,45 @@ def main(argv: list[str] | None = None) -> int:
             chosen = resolve_arms(args.arms)
             chosen_split = resolve_task_split(args.split)
             warm = args.warm_replay
-    except ValueError as exc:
+    except (ValueError, OpenAIModelNotAllowed, EffortNotAllowed, PriceUnknown) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     try:
-        if not args.execute:
+        if request["provider"] == "openai":
+            if not args.execute:
+                print(
+                    json.dumps(
+                        plan_openai_probe(
+                            arms=chosen,
+                            split=chosen_split,
+                            sweep=request["sweep"],
+                            model=request.get("model") or "",
+                            effort=request.get("effort") or "",
+                            one_task=request["one_task"],
+                            no_model_only=args.no_model_only,
+                            warm_replay=warm,
+                            honest=args.honest,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            rows = asyncio.run(
+                execute_probe(
+                    headless=not args.no_headless,
+                    no_model_only=args.no_model_only,
+                    warm_replay=warm,
+                    arms=chosen,
+                    split=chosen_split,
+                    honest=args.honest,
+                    provider="openai",
+                    model=request.get("model"),
+                    effort=request.get("effort"),
+                    sweep=request["sweep"],
+                    one_task=request["one_task"],
+                )
+            )
+        elif not args.execute:
             print(
                 json.dumps(
                     plan_probe(
@@ -1301,22 +1442,24 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 0
-        rows = asyncio.run(
-            execute_probe(
-                headless=not args.no_headless,
-                no_model_only=args.no_model_only,
-                warm_replay=warm,
-                arms=chosen,
-                split=chosen_split,
-                honest=args.honest,
+        else:
+            rows = asyncio.run(
+                execute_probe(
+                    headless=not args.no_headless,
+                    no_model_only=args.no_model_only,
+                    warm_replay=warm,
+                    arms=chosen,
+                    split=chosen_split,
+                    honest=args.honest,
+                )
             )
-        )
-    except (LedgerMissing, LedgerBelowRecorded, ProbeRefused) as exc:
+    except (LedgerMissing, LedgerBelowRecorded, ProbeRefused, OpenAIModelNotAllowed, EffortNotAllowed, PriceUnknown) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     spent = sum(row["usd"] for row in rows)
     print(f"probe rows: {len(rows)}")
-    print(f"probe claude usd: {spent:.4f}")
+    label = "probe openai usd" if request["provider"] == "openai" else "probe claude usd"
+    print(f"{label}: {spent:.4f}")
     if warm:
         print(json.dumps({"cold": cold_summary(rows), "warm": warm_summary(rows)}, indent=2))
     print(json.dumps({"report": arm_report(rows, chosen)}, indent=2))
