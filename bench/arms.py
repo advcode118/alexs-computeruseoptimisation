@@ -85,9 +85,11 @@ Guidelines:
 - The end URL must be the finished page the task named. Do not stop on the start URL, and do not stop on a search-results URL when the task named a specific page.
 - Prefer one page.goto of the finished page over clicking through the site. Put the whole navigation in the same script.
 - Wikipedia must leave Main_Page. Special:Search is not the finished article.
-- Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, and page.evaluate(() => { ... }) with a page-context function.
+- Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, cu.click("visible name"), cu.fill("visible name", "text"), cu.press("visible name", "Enter"), and page.evaluate(() => { ... }) with a page-context function.
+- cu.click, cu.fill, and cu.press act on the one control with that accessible name. Zero matches or several matches fail that line. They do not guess a role.
 - End every script by returning evidence from the live page:
-  page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector("h1")?.innerText, key_text: "", values: [], answer: ""}))
+  page.evaluate(() => cu.claim({answer: "", key_text: "", values: []}))
+  cu.claim reads the live url, title, and h1, and copies answer, key_text, and values when they are text. A value that is not text is rejected. The same object written out by hand is still accepted.
   Put a phrase that is visible on the finished page in key_text, the values the task asked for in values, and the value the task asked for in answer. The runner checks that object against the live page.
 - Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle. The runner drops those lines and does not settle or snapshot between actions.
 - Do not click, type, or snapshot one element at a time.
