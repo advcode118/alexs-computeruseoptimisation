@@ -17,7 +17,15 @@ from bench.arms import (
     prompt_for,
 )
 from bench.budget import ALLOWED_MODEL, PROJECT_BUDGET_USD, SpendLedger, default_spend_path
-from bench.harness import BenchmarkHarness, StepMetrics, TaskResult, page_url_from_result
+from bench.harness import (
+    AnthropicClient,
+    BenchmarkHarness,
+    PlaywrightMCPClient,
+    StepMetrics,
+    TaskResult,
+    message_payload,
+    page_url_from_result,
+)
 from bench.judge import check_url_contains
 from bench.probe import (
     PROBE_CLAUDE_BUDGET_USD,
@@ -846,3 +854,102 @@ def test_visible_answer_is_not_invented_by_the_harness():
     assert [item[0] for item in page.log] == ["goto", "evaluate"]
     assert "titleline" not in page.log[-1][1]
     assert "canonical" in page.log[-1][1]
+
+
+def test_script_first_cache_breakpoint_is_sent_and_the_api_is_not_called(monkeypatch, tmp_path):
+    """The stable prompt and tool schema carry the breakpoint. The request is not sent."""
+    from bench.script_cache import PATCH_PROMPT, PATCH_TOOL
+
+    task = "Task: finish the page"
+    tools = ScriptFirstClient().tools_for_claude()
+    prompt = prompt_for("script_first")
+    body = message_payload(
+        "claude-sonnet-5-5",
+        [{"role": "user", "content": task}],
+        tools,
+        prompt,
+        4096,
+        cache_prefix=True,
+    )
+    assert body["system"][0]["text"] == prompt
+    assert body["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert body["tools"][-1]["name"] == "run_script"
+    assert body["tools"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in tools[0]
+    assert task not in body["system"][0]["text"]
+    assert "selector_text" not in json.dumps(body["system"])
+    assert "cache_control" not in json.dumps(body["messages"])
+    assert task in body["messages"][0]["content"]
+
+    patch = message_payload(
+        "claude-sonnet-5-5",
+        [{"role": "user", "content": task}],
+        [PATCH_TOOL],
+        PATCH_PROMPT,
+        4096,
+        cache_prefix=True,
+    )
+    assert patch["system"][0]["text"] == PATCH_PROMPT
+    assert patch["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert patch["tools"][0]["name"] == "patch_step"
+    assert patch["tools"][0]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in PATCH_TOOL
+    assert task not in patch["system"][0]["text"]
+    assert "cache_control" not in json.dumps(patch["messages"])
+
+    plain = message_payload(
+        "claude-sonnet-5-5",
+        [{"role": "user", "content": task}],
+        tools,
+        prompt_for("playwright_mcp"),
+        4096,
+        cache_prefix=False,
+    )
+    assert isinstance(plain["system"], str)
+    assert "cache_control" not in json.dumps(plain)
+
+    sent = {}
+
+    def urlopen(req, timeout=120):
+        del timeout
+        sent["body"] = json.loads(req.data.decode())
+        sent["url"] = req.full_url
+        raise RuntimeError("refusing the live API")
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    client = AnthropicClient("local-test-not-sent")
+    client.cache_prefix = True
+    try:
+        asyncio.run(client.create_message([{"role": "user", "content": task}], tools, system=prompt))
+    except RuntimeError as exc:
+        assert str(exc) == "refusing the live API"
+    else:
+        raise AssertionError("the request was not built")
+    assert sent["url"] == "https://api.anthropic.com/v1/messages"
+    assert sent["body"]["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert sent["body"]["tools"][-1]["name"] == "run_script"
+    assert sent["body"]["tools"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert sent["body"]["system"][0]["text"] == prompt
+    assert task not in sent["body"]["system"][0]["text"]
+
+    async def no_browser(self):
+        return None
+
+    monkeypatch.setattr(ScriptFirstClient, "start", no_browser)
+    monkeypatch.setattr(PlaywrightMCPClient, "start", no_browser)
+    script_harness = BenchmarkHarness(
+        api_key="local-test-not-sent",
+        arm="script_first",
+        runs_dir=tmp_path / "script",
+    )
+    other = BenchmarkHarness(
+        api_key="local-test-not-sent",
+        arm="playwright_mcp",
+        runs_dir=tmp_path / "playwright",
+    )
+    asyncio.run(script_harness.setup())
+    asyncio.run(other.setup())
+    assert script_harness.anthropic.cache_prefix is True
+    assert other.anthropic.cache_prefix is False
+    asyncio.run(script_harness.teardown())
+    asyncio.run(other.teardown())
