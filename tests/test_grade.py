@@ -560,7 +560,8 @@ def test_playwright_and_stagehand_record_the_same_claim(monkeypatch, tmp_path):
     sentence = asyncio.run(
         run_claude_arm("playwright_mcp", hn, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
     )
-    assert sentence["success"] is True
+    assert sentence["success"] is False
+    assert sentence["success_reason"] == "answer is not the marked value"
     assert sentence["claimed_answer"] == "The top story is Fixture Story."
     assert sentence["expected_value"] == "Fixture Story"
     assert ".titleline" not in json.dumps(model.seen)
@@ -631,30 +632,44 @@ def test_rfc_heading_stays_in_the_page_text_and_the_judge_does_not_soften():
     assert prefix.reason == "answer is not in the page text"
 
 
-def test_a_title_inside_a_sentence_matches_and_a_wrong_title_does_not():
-    """The live title may sit in the sentence an arm said. A wrong title still fails."""
+def test_padded_hacker_news_sentence_fails():
+    """The claim is the live title. Case and spacing may differ. A sentence does not."""
     task = _hn_task()
-    page = "Fixture Story\nSecond Story"
+    title = "Fixture Story"
+    page = f"{title}\nSecond Story"
+    padded = f'The top story on Hacker News is "{title}".'
     ok, why = shared_end_state(
         task,
         HN,
         page,
-        selector_text="Fixture Story",
-        answer="The top story is Fixture Story.",
+        selector_text=title,
+        answer=padded,
         page_text=page,
     )
-    assert ok is True
-    assert why == "the page evidence matches the markers"
+    assert ok is False
+    assert why == "answer is not the marked value"
 
-    quoted, _quoted_why = shared_end_state(
+    spaced, spaced_why = shared_end_state(
         task,
         HN,
         page,
-        selector_text="Fixture Story",
-        answer='"Fixture Story"',
+        selector_text=title,
+        answer="  fixture   story  ",
         page_text=page,
     )
-    assert quoted is True
+    assert spaced is True
+    assert spaced_why == "the page evidence matches the markers"
+
+    quoted, quoted_why = shared_end_state(
+        task,
+        HN,
+        page,
+        selector_text=title,
+        answer=f'"{title}"',
+        page_text=page,
+    )
+    assert quoted is False
+    assert quoted_why == "answer is not the marked value"
 
     wrong, wrong_why = shared_end_state(
         task,
@@ -777,7 +792,7 @@ def test_every_arm_grades_the_same_page_text_and_logs_the_live_value(monkeypatch
             end_state="",
             url=HN,
             snapshot="not the page",
-            answer="The top story is Fixture Story.",
+            answer="Fixture Story",
             page_text="Fixture Story\nSecond Story",
             selector="Fixture Story",
         )
@@ -788,7 +803,7 @@ def test_every_arm_grades_the_same_page_text_and_logs_the_live_value(monkeypatch
             run_claude_arm(arm, hn, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
         )
         assert hit["success"] is True, arm
-        assert hit["claimed_answer"] == "The top story is Fixture Story."
+        assert hit["claimed_answer"] == "Fixture Story"
         assert hit["expected_value"] == "Fixture Story"
 
     async def empty_claim(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):

@@ -377,12 +377,13 @@ def test_hacker_news_passes_only_when_the_live_title_matches():
     sentence = _World(
         page_url="https://news.ycombinator.com/",
         page_text="Fixture Story\nSecond Story",
-        claim="The top story is Fixture Story.",
+        claim='The top story on Hacker News is "Fixture Story".',
     )
     sentence.page_selector_text = "Fixture Story"
     said = asyncio.run(run_browser_use_task(task, api_key="local-test-not-sent", loader=sentence.loader))
-    assert said["success"] is True
-    assert said["claimed_answer"] == "The top story is Fixture Story."
+    assert said["success"] is False
+    assert said["success_reason"] == "answer is not the marked value"
+    assert said["claimed_answer"] == 'The top story on Hacker News is "Fixture Story".'
     assert said["expected_value"] == "Fixture Story"
 
     denied = _World(
