@@ -209,6 +209,7 @@ async def _one(
     destination: Path,
     ledger: OpenAISpendLedger,
     rows: list[dict],
+    sink=None,
 ) -> None:
     from bench.probe import empty_row, run_claude_arm
 
@@ -249,16 +250,23 @@ async def _one(
         ledger.note_unpriced_call(str(exc))
         raise
     row["pass"] = "cold"
+    _keep(rows, row, sink)
+
+
+def _keep(rows: list[dict], row: dict, sink) -> None:
+    """Remember the row and write it now. An abort later still has this line."""
     rows.append(row)
+    if sink is not None:
+        sink(row)
 
 
-def _skip(rows: list[dict], arm: str, task: dict, cell: dict, reason: str) -> None:
+def _skip(rows: list[dict], arm: str, task: dict, cell: dict, reason: str, sink=None) -> None:
     from bench.probe import empty_row
 
     row = empty_row(arm, task["id"], reason=reason)
     _stamp(row, model=cell["model"], effort=cell["effort"])
     row["pass"] = "cold"
-    rows.append(row)
+    _keep(rows, row, sink)
 
 
 async def execute_openai_probe(
@@ -304,67 +312,74 @@ async def execute_openai_probe(
         raise ProbeRefused("OPENAI_API_KEY unset. Refusing before any browser or model call.")
     destination = runs_dir or RUNS_DIR
     destination.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out = destination / f"probe_{stamp}.jsonl"
+    handle = out.open("w", encoding="utf-8")
+
+    def sink(row: dict) -> None:
+        handle.write(json.dumps(row) + "\n")
+        handle.flush()
+
     rows: list[dict] = []
     sweep_spent = opening_allowance
     sweep_cap = OPENAI_SWEEP_BUDGET_USD if request["sweep"] else None
     carried_allowance = opening_allowance
 
-    for cell in cells:
-        cell_spent = carried_allowance
-        carried_allowance = 0.0
-        for task in tasks:
-            for arm in arms:
-                if cell_spent >= OPENAI_RUN_BUDGET_USD:
-                    _skip(
-                        rows,
+    try:
+        for cell in cells:
+            cell_spent = carried_allowance
+            carried_allowance = 0.0
+            for task in tasks:
+                for arm in arms:
+                    if cell_spent >= OPENAI_RUN_BUDGET_USD:
+                        _skip(
+                            rows,
+                            arm,
+                            task,
+                            cell,
+                            f"OpenAI run spend ${cell_spent:.2f} has reached ${OPENAI_RUN_BUDGET_USD:.0f}",
+                            sink,
+                        )
+                        continue
+                    if sweep_cap is not None and sweep_spent >= sweep_cap:
+                        _skip(
+                            rows,
+                            arm,
+                            task,
+                            cell,
+                            f"sweep spend ${sweep_spent:.2f} has reached ${sweep_cap:.0f}",
+                            sink,
+                        )
+                        continue
+                    if not ledger.allows_project():
+                        _skip(
+                            rows,
+                            arm,
+                            task,
+                            cell,
+                            (
+                                f"OpenAI project total ${ledger.running_total_usd:.2f} "
+                                f"has reached ${OPENAI_PROJECT_BUDGET_USD:.0f}"
+                            ),
+                            sink,
+                        )
+                        continue
+                    before = len(rows)
+                    await _one(
                         arm,
                         task,
                         cell,
-                        f"OpenAI run spend ${cell_spent:.2f} has reached ${OPENAI_RUN_BUDGET_USD:.0f}",
+                        api_key=api_key,
+                        headless=headless,
+                        destination=destination,
+                        ledger=ledger,
+                        rows=rows,
+                        sink=sink,
                     )
-                    continue
-                if sweep_cap is not None and sweep_spent >= sweep_cap:
-                    _skip(
-                        rows,
-                        arm,
-                        task,
-                        cell,
-                        f"sweep spend ${sweep_spent:.2f} has reached ${sweep_cap:.0f}",
-                    )
-                    continue
-                if not ledger.allows_project():
-                    _skip(
-                        rows,
-                        arm,
-                        task,
-                        cell,
-                        (
-                            f"OpenAI project total ${ledger.running_total_usd:.2f} "
-                            f"has reached ${OPENAI_PROJECT_BUDGET_USD:.0f}"
-                        ),
-                    )
-                    continue
-                before = len(rows)
-                await _one(
-                    arm,
-                    task,
-                    cell,
-                    api_key=api_key,
-                    headless=headless,
-                    destination=destination,
-                    ledger=ledger,
-                    rows=rows,
-                )
-                for row in rows[before:]:
-                    spent = float(row.get("usd") or 0)
-                    cell_spent = round(cell_spent + spent, 6)
-                    sweep_spent = round(sweep_spent + spent, 6)
-
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out = destination / f"probe_{stamp}.jsonl"
-    with out.open("w", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(json.dumps(row) + "\n")
+                    for row in rows[before:]:
+                        spent = float(row.get("usd") or 0)
+                        cell_spent = round(cell_spent + spent, 6)
+                        sweep_spent = round(sweep_spent + spent, 6)
         handle.write(
             json.dumps(
                 {
@@ -381,4 +396,7 @@ async def execute_openai_probe(
             )
             + "\n"
         )
+        handle.flush()
+    finally:
+        handle.close()
     return rows

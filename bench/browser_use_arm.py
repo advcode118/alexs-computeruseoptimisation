@@ -271,13 +271,35 @@ def _chat_model(llm_cls, model: str, api_key: str, effort: str | None):
     )
 
 
-def _priced_usage(model: str, usage: dict) -> tuple[int, int, int, float]:
-    """browser-use usage at the published OpenAI rates. Unknown fields fail closed."""
+def _token(usage: dict, key: str) -> int | None:
+    """One count, or None when the key is absent. A bad value fails closed."""
+    from bench.openai_spend import PriceUnknown
+
+    if key not in usage:
+        return None
+    try:
+        value = int(usage[key] or 0)
+    except (TypeError, ValueError) as exc:
+        raise PriceUnknown("browser-use token counts are not integers. Refusing to price.") from exc
+    if value < 0:
+        raise PriceUnknown("browser-use token counts are inconsistent. Refusing to price.")
+    return value
+
+
+def _priced_usage(model: str, usage: dict) -> tuple[int, int, int, int, float]:
+    """browser-use usage at the published OpenAI rates. Unknown fields fail closed.
+
+    The 1.0 result is input, output, cache_read, cache_write, and requests.
+    cache_read is cached input. cache_write is a 30-minute write: this object
+    does not split a 12-hour lifetime. Both are slices of input. script_first,
+    stagehand, and playwright_mcp do not see this object. They price the
+    Responses usage in bench.openai_client.
+    """
     from bench.openai_spend import PriceUnknown, price_usd
 
     if not isinstance(usage, dict):
         raise PriceUnknown("browser-use usage is missing. Refusing to price.")
-    allowed = {"input", "output", "requests", "cached", "cached_tokens"}
+    allowed = {"input", "output", "requests", "cached", "cached_tokens", "cache_read", "cache_write"}
     extra = set(usage) - allowed
     if extra:
         raise PriceUnknown(
@@ -286,10 +308,18 @@ def _priced_usage(model: str, usage: dict) -> tuple[int, int, int, float]:
     try:
         incoming = int(usage.get("input") or 0)
         outgoing = int(usage.get("output") or 0)
-        cached = int(usage.get("cached_tokens") if "cached_tokens" in usage else usage.get("cached") or 0)
     except (TypeError, ValueError) as exc:
         raise PriceUnknown("browser-use token counts are not integers. Refusing to price.") from exc
-    return incoming, outgoing, cached, price_usd(model, incoming, outgoing, cached)
+    reads = []
+    for key in ("cache_read", "cached_tokens", "cached"):
+        count = _token(usage, key)
+        if count is not None:
+            reads.append(count)
+    if any(count != reads[0] for count in reads):
+        raise PriceUnknown("browser-use cache reads disagree. Refusing to price.")
+    cached = reads[0] if reads else 0
+    written = _token(usage, "cache_write") or 0
+    return incoming, outgoing, cached, written, price_usd(model, incoming, outgoing, cached, written, 0)
 
 
 async def run_browser_use_task(
@@ -355,8 +385,11 @@ async def run_browser_use_task(
         incoming, outgoing, steps = _usage(result)
         cached = 0
         usd = estimate_usd(incoming, outgoing)
+        written = 0
         if provider == "openai":
-            incoming, outgoing, cached, usd = _priced_usage(chosen, getattr(result, "usage", {}) or {})
+            incoming, outgoing, cached, written, usd = _priced_usage(
+                chosen, getattr(result, "usage", {}) or {}
+            )
         row.update(
             {
                 "success": success,
@@ -378,6 +411,8 @@ async def run_browser_use_task(
             row["provider"] = "openai"
             row["effort"] = chosen_effort
             row["cached_tokens"] = cached
+            row["cache_write_30m_tokens"] = written
+            row["cache_write_12h_tokens"] = 0
         return row
     except ImportError:
         row["skipped"] = True

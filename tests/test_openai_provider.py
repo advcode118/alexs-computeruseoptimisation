@@ -8,8 +8,10 @@ from pathlib import Path
 
 import pytest
 
+from bench.browser_use_arm import _priced_usage
 from bench.budget import ALLOWED_MODEL, SpendLedger
 from bench.openai_client import OpenAIClient, anthropic_shaped, responses_payload
+from bench.openai_run import execute_openai_probe
 from bench.openai_spend import (
     ALLOWED_OPENAI_MODELS,
     DEFAULT_EFFORT,
@@ -330,6 +332,87 @@ def test_one_run_uses_one_model_and_stops_at_five(monkeypatch, tmp_path, isolate
     saved = json.loads(ledger.path.read_text(encoding="utf-8"))
     assert saved["provider"] == "openai"
     assert "claude-sonnet-5-5" not in ledger.path.read_text(encoding="utf-8")
+
+
+def test_browser_use_prices_a_real_cache_usage_report():
+    """browser-use 1.0 reports input, output, cache_read, cache_write, and requests.
+
+    cache_read is cached input. cache_write is the 30-minute write rate.
+    script_first, stagehand, and playwright_mcp do not use this object.
+    """
+    usage = {"input": 12000, "output": 100, "cache_read": 4000, "cache_write": 3000, "requests": 4}
+    incoming, outgoing, cached, written, luna = _priced_usage("gpt-6-luna", usage)
+    assert (incoming, outgoing, cached, written) == (12000, 100, 4000, 3000)
+    # ordinary 5000 at $0.10, reads 4000 at $0.01, writes 3000 at $0.125, output 100 at $0.50.
+    assert f"{luna:.6f}" == "0.000965"
+    assert f"{_priced_usage('gpt-6.1-sol', usage)[4]:.6f}" == "0.018900"
+    with pytest.raises(PriceUnknown, match="audio_tokens"):
+        _priced_usage("gpt-6-luna", {**usage, "audio_tokens": 9})
+    with pytest.raises(PriceUnknown, match="disagree"):
+        _priced_usage("gpt-6-luna", {**usage, "cached_tokens": 1})
+
+    root = Path(__file__).resolve().parents[1] / "bench"
+    for name in ("script_first.py", "stagehand_local.py", "harness.py"):
+        assert "unrecognized fields" not in (root / name).read_text(encoding="utf-8")
+
+
+def test_an_abort_keeps_the_rows_already_written(monkeypatch, tmp_path, isolated_spend_ledger, isolated_openai_spend_ledger):
+    del isolated_spend_ledger, isolated_openai_spend_ledger
+    monkeypatch.setenv("OPENAI_API_KEY", "local-test-not-sent")
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("socket")),
+    )
+    seen = []
+
+    async def first(name, task, **kwargs):
+        del kwargs
+        seen.append(name)
+        return {
+            "arm": name,
+            "task_id": task["id"],
+            "success": False,
+            "success_reason": "mocked",
+            "skipped": False,
+            "wall_ms": 1,
+            "steps": 1,
+            "input_tokens": 1000,
+            "output_tokens": 10,
+            "usd": 0,
+            "claude": False,
+        }
+
+    async def later(*args, **kwargs):
+        del args, kwargs
+        seen.append("browser_use")
+        raise PriceUnknown("browser-use usage has unrecognized fields ['audio_tokens']. Refusing to price.")
+
+    monkeypatch.setattr("bench.probe.run_claude_arm", first)
+    monkeypatch.setattr("bench.browser_use_arm.run_browser_use_task", later)
+    runs = tmp_path / "runs"
+    with pytest.raises(PriceUnknown):
+        asyncio.run(
+            execute_openai_probe(
+                arms=("script_first", "browser_use"),
+                split="probe",
+                sweep=False,
+                model="gpt-6-luna",
+                effort="low",
+                one_task=True,
+                headless=True,
+                spend_path=tmp_path / "openai-spend.json",
+                runs_dir=runs,
+                no_model_only=False,
+                warm_replay=False,
+                honest=False,
+            )
+        )
+    saved = list(runs.glob("probe_*.jsonl"))
+    assert len(saved) == 1
+    lines = [json.loads(line) for line in saved[0].read_text(encoding="utf-8").splitlines() if line]
+    assert [line["arm"] for line in lines] == ["script_first"]
+    assert lines[0]["pass"] == "cold"
+    assert seen == ["script_first", "browser_use"]
 
 
 def test_opening_allowance_counts_against_the_run_and_sweep_caps(
