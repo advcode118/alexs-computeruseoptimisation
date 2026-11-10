@@ -49,7 +49,8 @@ PATCH_PROMPT = """You are a browser automation agent. A cached Playwright script
 
 Guidelines:
 - Call patch_step once. Replace only the step that broke. Do not rewrite the other steps.
-- Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, and page.evaluate(() => { ... }) with a page-context function.
+- Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, cu.click("visible name"), cu.fill("visible name", "text"), cu.press("visible name", "Enter"), and page.evaluate(() => { ... }) with a page-context function.
+- cu.claim belongs inside page.evaluate.
 - Use the current page to pick a locator or URL that exists now.
 - Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle.
 - If no single step can be fixed, reply with TASK_FAILED."""

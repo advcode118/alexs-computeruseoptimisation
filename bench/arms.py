@@ -85,10 +85,11 @@ Guidelines:
 - The end URL must be the finished page the task named. Do not stop on the start URL, and do not stop on a search-results URL when the task named a specific page.
 - Prefer one page.goto of the finished page over clicking through the site. Put the whole navigation in the same script.
 - Wikipedia must leave Main_Page. Special:Search is not the finished article.
-- Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, and page.evaluate(() => { ... }) with a page-context function.
+- Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, cu.click("visible name"), cu.fill("visible name", "text"), cu.press("visible name", "Enter"), and page.evaluate(() => { ... }) with a page-context function.
+- cu.click, cu.fill, and cu.press act on the one control with that visible name.
 - End every script with one page.evaluate that returns evidence from the live page:
-  page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector("h1")?.innerText, answer: ""}))
-  Put the value the task asked for in answer.
+  page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector("h1")?.innerText, key_text: "", values: [], answer: ""}))
+  Put a phrase that is on the page in key_text and the value the task asked for in answer. cu.claim inside page.evaluate returns that object.
 - Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle. The runner drops those lines and does not settle or snapshot between actions.
 - Do not click, type, or snapshot one element at a time.
 - browser_run_code_unsafe is not a tool. Do not ask for it.
