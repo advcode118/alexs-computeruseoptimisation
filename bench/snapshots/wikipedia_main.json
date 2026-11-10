@@ -1,0 +1,9 @@
+{
+  "task_id": "wv_wikipedia_search",
+  "step_number": 1,
+  "url": "https://en.wikipedia.org/wiki/Main_Page",
+  "title": "Wikipedia, the free encyclopedia",
+  "snapshot_text": "- banner \"Wikipedia\"\n  - link \"Wikipedia\" [ref=S1E1]\n  - link \"The Free Encyclopedia\" [ref=S1E2]\n- navigation \"Site\"\n  - searchbox \"Search Wikipedia\" [ref=S1E3]\n  - button \"Search\" [ref=S1E4]\n- main \"Main content\"\n  - heading \"Welcome to Wikipedia\" [ref=S1E5]\n  - link \"English\" [ref=S1E6]\n  - link \"Español\" [ref=S1E7]\n  - link \"Deutsch\" [ref=S1E8]\n  - paragraph \"the free encyclopedia that anyone can edit\" [ref=S1E9]\n  - link \"6,897,000+ articles in English\" [ref=S1E10]\n- complementary \"Today's featured article\"\n  - heading \"From today's featured article\" [ref=S1E11]\n  - link \"Read more...\" [ref=S1E12]\n- contentinfo \"Footer\"\n  - link \"Privacy policy\" [ref=S1E13]\n  - link \"About Wikipedia\" [ref=S1E14]",
+  "model_tool_name": "browser_type",
+  "model_tool_args": {"target": "S1E3", "text": "Ada Lovelace"}
+}
