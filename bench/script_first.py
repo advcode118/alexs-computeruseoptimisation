@@ -302,6 +302,7 @@ class PageEvidence:
     h1: str = ""
     text: str = ""
     selector_text: str = ""
+    controls: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -705,6 +706,7 @@ def format_run_result(
     text: str = "",
     selector_text: str = "",
     claimed: dict | None = None,
+    controls: list | tuple | None = None,
 ) -> str:
     """JSON for the live page plus Stagehand-style goto prose.
 
@@ -726,6 +728,16 @@ def format_run_result(
         payload["text"] = text[:_PAGE_TEXT_CAP]
     if selector_text:
         payload["selector_text"] = selector_text
+    shown_controls = []
+    for item in controls or ():
+        if isinstance(item, str) and "\t" in item:
+            role, name = item.split("\t", 1)
+            if name.strip():
+                shown_controls.append({"role": role, "name": name})
+        elif isinstance(item, dict) and str(item.get("name") or "").strip():
+            shown_controls.append({"role": str(item.get("role") or ""), "name": str(item.get("name") or "")})
+    if shown_controls:
+        payload["controls"] = shown_controls
     if claimed:
         kept = {}
         for key in ("url", "title", "h1", "answer"):
@@ -847,6 +859,18 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
     text = data.get("text") if isinstance(data.get("text"), str) else ""
     canonical = data.get("canonical") if isinstance(data.get("canonical"), str) else ""
     h1 = data.get("h1") if isinstance(data.get("h1"), str) else ""
+    pairs: list[str] = []
+    raw_controls = data.get("controls") if isinstance(data.get("controls"), list) else []
+    for item in raw_controls:
+        if isinstance(item, dict):
+            role = str(item.get("role") or "")
+            name = str(item.get("name") or "")
+        elif isinstance(item, str) and "\t" in item:
+            role, name = item.split("\t", 1)
+        else:
+            continue
+        if name.strip():
+            pairs.append(f"{role}\t{name}")
     return PageEvidence(
         url=url,
         title=title,
@@ -854,6 +878,7 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
         h1=h1.strip(),
         text=text[:_PAGE_TEXT_CAP],
         selector_text=selector_text,
+        controls=tuple(pairs),
     )
 
 
@@ -904,6 +929,7 @@ async def _finish_page(
         text=evidence.text,
         selector_text=evidence.selector_text,
         claimed=claimed,
+        controls=evidence.controls,
     )
 
 

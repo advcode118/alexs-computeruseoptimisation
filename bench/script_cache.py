@@ -76,6 +76,44 @@ def cache_key(description: str, start_url: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
+def _control_pairs(controls) -> list[str]:
+    pairs: list[str] = []
+    if not controls:
+        return pairs
+    for item in controls:
+        role = ""
+        name = ""
+        if isinstance(item, str):
+            role, sep, name = item.partition("\t")
+            if not sep:
+                continue
+        elif isinstance(item, dict):
+            role = str(item.get("role") or "")
+            name = str(item.get("name") or "")
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            role, name = str(item[0]), str(item[1])
+        else:
+            continue
+        role = " ".join(role.split()).casefold()
+        name = " ".join(name.split()).casefold()
+        if name:
+            pairs.append(f"{role}\t{name}")
+    return sorted(set(pairs))
+
+
+def page_fingerprint(host: str, controls) -> str:
+    """Host plus a stable hash of roles and names. Order and blank names are ignored."""
+    body = "\n".join(_control_pairs(controls))
+    digest = hashlib.sha256(body.encode("utf-8")).hexdigest()[:16]
+    return f"{(host or '').casefold()}|{digest}"
+
+
+def fingerprint_from_payload(payload: dict | None, start_url: str) -> str:
+    data = payload if isinstance(payload, dict) else {}
+    url = data.get("url") if isinstance(data.get("url"), str) else ""
+    return page_fingerprint(site_of(url) or site_of(start_url), data.get("controls"))
+
+
 def script_steps(source: str) -> list[str]:
     """One source line per runnable step. Wait lines are already dropped."""
     return [step.source for step in parse_task_script(source)]
@@ -161,6 +199,7 @@ class CachedScript:
     script: str
     step_count: int
     saved_at: float
+    fingerprint: str = ""
 
 
 class ScriptCache:
@@ -206,9 +245,19 @@ class ScriptCache:
             script=script,
             step_count=int(raw.get("step_count") or 0),
             saved_at=float(raw.get("saved_at") or 0.0),
+            fingerprint=raw.get("fingerprint") if isinstance(raw.get("fingerprint"), str) else "",
         )
 
-    def save(self, description: str, start_url: str, script: str, verdict: EvidenceVerdict) -> bool:
+    def save(
+        self,
+        description: str,
+        start_url: str,
+        script: str,
+        verdict: EvidenceVerdict,
+        *,
+        controls=None,
+        landed_url: str = "",
+    ) -> bool:
         """Store a script that the evidence judge passed. Anything else is refused."""
         if verdict is None or verdict.verdict != PASS:
             return False
@@ -221,6 +270,7 @@ class ScriptCache:
             return False
         entries = self._load()
         key = cache_key(description, start_url)
+        host = site_of(landed_url) or site_of(start_url)
         entries[key] = {
             "intent": task_intent(description),
             "site": site_of(start_url),
@@ -228,6 +278,7 @@ class ScriptCache:
             "script": text,
             "step_count": len(script_steps(text)),
             "saved_at": time.time(),
+            "fingerprint": page_fingerprint(host, controls),
         }
         return self._write(entries)
 

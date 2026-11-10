@@ -87,6 +87,7 @@ class _WikiPage:
         self.links = links
         self.state = ""
         self.log: list = []
+        self.controls = None
 
     @property
     def url(self):
@@ -95,6 +96,8 @@ class _WikiPage:
     def _view(self) -> dict:
         view = dict(_STATES[self.state])
         view["text"] = view["text"].format(link=" | ".join(self.links))
+        if self.controls is not None:
+            view["controls"] = list(self.controls)
         return view
 
     def get_by_role(self, role, name=None):
@@ -189,7 +192,8 @@ def test_cache_hit_passes_with_zero_model_calls(tmp_path):
     cache = _seed(tmp_path)
     stored = json.loads(cache.path.read_text(encoding="utf-8"))["entries"]
     entry = next(iter(stored.values()))
-    assert set(entry) == {"intent", "site", "url_pattern", "script", "step_count", "saved_at"}
+    assert set(entry) == {"intent", "site", "url_pattern", "script", "step_count", "saved_at", "fingerprint"}
+    assert entry["fingerprint"].startswith("en.wikipedia.org|")
     assert entry["site"] == "en.wikipedia.org"
     assert entry["url_pattern"] == "https://en.wikipedia.org/*"
     assert entry["step_count"] == 3
@@ -215,6 +219,38 @@ def test_cache_hit_passes_with_zero_model_calls(tmp_path):
     assert line["tier"] == TIER_CACHE_HIT
     assert line["model_calls"] == 0
     assert line["script_steps"] == 3
+
+
+def test_fingerprint_mismatch_is_one_patch_and_not_a_hit(tmp_path):
+    """The judge can pass and the replay is still a miss when the page shape changed."""
+    original = [{"role": "link", "name": LINK}, {"role": "link", "name": "About"}]
+    changed = [{"role": "link", "name": LINK}, {"role": "link", "name": "Contact"}]
+    first = _WikiPage({LINK: "article"})
+    first.controls = original
+    seeded, _model, cache = _run(tmp_path, first, [_script_reply(CLICK_SCRIPT)])
+    assert seeded.tier == TIER_FRESH
+    stored = cache.lookup(DESCRIPTION, START)
+    assert stored is not None and stored.fingerprint.startswith("en.wikipedia.org|")
+
+    second = _WikiPage({LINK: "article"})
+    second.controls = changed
+    fix = f'page.getByRole("link", {{ name: "{LINK}" }}).click()'
+    result, model, cache = _run(tmp_path, second, [_patch_reply(2, fix)])
+    assert len(model.calls) == 1
+    assert model.calls[0]["tools"] == [PATCH_TOOL]
+    assert "live page fingerprint does not match the cached page" in model.calls[0]["messages"][0]["content"]
+    assert result.success is True
+    assert result.tier == TIER_PATCHED
+    assert result.model_calls == 1
+    assert cache.lookup(DESCRIPTION, START).fingerprint != stored.fingerprint
+
+    third = _WikiPage({LINK: "article"})
+    third.controls = changed
+    again, model, _cache = _run(tmp_path, third, [])
+    assert model.calls == []
+    assert again.model_calls == 0
+    assert again.tier == TIER_CACHE_HIT
+    assert again.success is True
 
 
 def test_stale_selector_triggers_exactly_one_patch_call(tmp_path):
