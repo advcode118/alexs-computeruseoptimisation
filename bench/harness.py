@@ -584,6 +584,46 @@ class PlaywrightMCPClient:
             shutil.rmtree(profile, ignore_errors=True)
 
 
+def cached_prompt_prefix(system: str, tools: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Anthropic cache breakpoint on a stable system prompt and its tool schema.
+
+    The last tool and the system block are marked. Messages are not. The task,
+    the page, and judge markers stay outside this prefix. Cache reads are still
+    input tokens at the recorded ledger rate.
+    """
+    marked = []
+    for index, tool in enumerate(tools):
+        item = dict(tool)
+        if index == len(tools) - 1:
+            item["cache_control"] = {"type": "ephemeral"}
+        marked.append(item)
+    return [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}], marked
+
+
+def message_payload(
+    model: str,
+    messages: list[dict],
+    tools: list[dict],
+    system: str | None,
+    max_tokens: int,
+    *,
+    cache_prefix: bool,
+) -> dict:
+    """The JSON body of one Messages request. This does not open a connection."""
+    system_text = system or SYSTEM_PROMPT
+    sent_system: str | list = system_text
+    sent_tools: list = list(tools)
+    if cache_prefix:
+        sent_system, sent_tools = cached_prompt_prefix(system_text, sent_tools)
+    return {
+        "model": model,
+        "max_tokens": max_tokens,
+        "system": sent_system,
+        "messages": messages,
+        "tools": sent_tools,
+    }
+
+
 class AnthropicClient:
     """Simple Anthropic API client for tool use. claude-sonnet-5-5 only."""
 
@@ -591,6 +631,8 @@ class AnthropicClient:
         self.api_key = api_key
         self.model = assert_allowed_model(model)
         self.base_url = "https://api.anthropic.com/v1/messages"
+        # script_first sets this. Other arms send the system prompt as a string.
+        self.cache_prefix = False
 
     async def create_message(
         self,
@@ -603,13 +645,14 @@ class AnthropicClient:
         assert_allowed_model(self.model)
         import urllib.request
 
-        payload = {
-            "model": self.model,
-            "max_tokens": max_tokens,
-            "system": system or SYSTEM_PROMPT,
-            "messages": messages,
-            "tools": tools,
-        }
+        payload = message_payload(
+            self.model,
+            messages,
+            tools,
+            system,
+            max_tokens,
+            cache_prefix=self.cache_prefix,
+        )
 
         headers = {
             "x-api-key": self.api_key,
@@ -677,6 +720,8 @@ class BenchmarkHarness:
         """Set up clients."""
         if self.api_key:
             self.anthropic = AnthropicClient(self.api_key, self.model)
+            # The stable script_first prompt and the patch prompt. Other arms stay uncached.
+            self.anthropic.cache_prefix = self.arm == "script_first"
 
         from bench.arms import build_client
 
