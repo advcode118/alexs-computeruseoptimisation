@@ -30,6 +30,7 @@ tree does not call Claude. Box commands, from the repo root:
     ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay
     python -m bench.probe --execute --no-model-only
     ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand
+    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand --split held-out
 
 The first prints the plan and exits. The second is the competitive 3x4.
 The third is that 3x4 plus the warm second pass. Do not run it from this
@@ -38,6 +39,10 @@ The fifth is the script_first comparison. Its Claude stop is $2. The project
 abort stays $40. The operator envelope is $50. Do not pass --execute from
 this VM. script_first writes one Playwright script for the whole task and
 runs it with no per-click settle or snapshot.
+
+--split held-out selects the held-out tasks instead of the three tuned
+probe tasks. The default split stays probe. Do not run the held-out command
+from this checkout. It is a live Claude probe.
 
 Environment variables it reads, by name only:
 
@@ -78,9 +83,9 @@ from bench.arms import (
 )
 from bench.budget import ALLOWED_MODEL, PROJECT_BUDGET_USD, LedgerMissing, SpendLedger, estimate_usd
 from bench.judge import check_text_present, check_url_contains
-from bench.tasks import get_webvoyager_tasks
+from bench.tasks import SPLIT_PROBE, TUNED_PROBE_TASK_IDS, resolve_task_split, tasks_for_split
 
-PROBE_TASK_IDS = ("wv_wikipedia_search", "wv_python_docs", "wv_hackernews_top")
+PROBE_TASK_IDS = TUNED_PROBE_TASK_IDS
 PROBE_CLAUDE_BUDGET_USD = 5.0
 SCRIPT_FIRST_CLAUDE_BUDGET_USD = 2.0
 HUGE_SNAPSHOT_CHARS = 40_000
@@ -94,18 +99,13 @@ BOX_COMMANDS = (
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay',
     "python -m bench.probe --execute --no-model-only",
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand',
+    'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand --split held-out',
 )
 
 
-def probe_tasks() -> list[dict]:
-    """The three modest tasks, in the same shape as the rest of the suite."""
-    wanted = set(PROBE_TASK_IDS)
-    found = [task for task in get_webvoyager_tasks() if task["id"] in wanted]
-    missing = wanted.difference(task["id"] for task in found)
-    if missing:
-        raise RuntimeError(f"probe tasks missing from the suite: {sorted(missing)}")
-    order = {task_id: index for index, task_id in enumerate(PROBE_TASK_IDS)}
-    return sorted(found, key=lambda task: order[task["id"]])
+def probe_tasks(split: str | None = None) -> list[dict]:
+    """Tasks for this split. The default is the three tuned probe tasks."""
+    return tasks_for_split(split)
 
 
 def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
@@ -140,14 +140,17 @@ def plan_probe(
     no_model_only: bool = False,
     warm_replay: bool = False,
     arms: str | tuple[str, ...] | list[str] | None = None,
+    split: str | None = None,
 ) -> dict:
     """What --execute would run. This does not start a browser or a model."""
     chosen = resolve_arms(arms)
+    chosen_split = resolve_task_split(split)
     spent = SpendLedger.load().running_total_usd
     return {
         "execute": False,
         "mode": "no_model_only" if no_model_only else "outer_claude",
-        "tasks": [task["id"] for task in probe_tasks()],
+        "split": chosen_split,
+        "tasks": [task["id"] for task in probe_tasks(chosen_split)],
         "arms": list(chosen),
         "available_arms": list(SELECTABLE_ARMS),
         "claude_arms": [arm for arm in chosen if arm_needs_claude(arm, no_model_only=no_model_only)],
@@ -459,6 +462,7 @@ async def execute_probe(
     no_model_only: bool = False,
     warm_replay: bool = False,
     arms: tuple[str, ...] | None = None,
+    split: str | None = None,
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -467,6 +471,7 @@ async def execute_probe(
     playwright_mcp and stagehand through Claude when a key is set.
     """
     chosen = resolve_arms(arms)
+    chosen_split = resolve_task_split(split)
     budget_usd = claude_budget_for(chosen)
     ledger = SpendLedger.load(spend_path)
     destination = runs_dir or RUNS_DIR
@@ -474,7 +479,7 @@ async def execute_probe(
     probe_spent = 0.0
     rows: list[dict] = []
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    tasks = probe_tasks()
+    tasks = probe_tasks(chosen_split)
 
     async def take(arm: str, task: dict, phase: str) -> None:
         nonlocal probe_spent
@@ -540,6 +545,14 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--split",
+        default=SPLIT_PROBE,
+        help=(
+            "Task split. probe is the three tuned tasks and the default. "
+            "held-out is the separate overfitting set. Printing the plan does not run it."
+        ),
+    )
+    parser.add_argument(
         "--warm-replay",
         action="store_true",
         help=(
@@ -550,6 +563,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         chosen = resolve_arms(args.arms)
+        chosen_split = resolve_task_split(args.split)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -561,6 +575,7 @@ def main(argv: list[str] | None = None) -> int:
                         no_model_only=args.no_model_only,
                         warm_replay=args.warm_replay,
                         arms=chosen,
+                        split=chosen_split,
                     ),
                     indent=2,
                 )
@@ -572,6 +587,7 @@ def main(argv: list[str] | None = None) -> int:
                 no_model_only=args.no_model_only,
                 warm_replay=args.warm_replay,
                 arms=chosen,
+                split=chosen_split,
             )
         )
     except LedgerMissing as exc:

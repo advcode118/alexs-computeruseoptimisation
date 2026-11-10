@@ -257,6 +257,13 @@ def test_prompt_has_no_probe_answers_and_held_out_tasks_stay_judge_only():
         "1706.03762",
         "rust-lang/rust",
         "answer_equals_selector",
+        "custname",
+        "Unavailable For Legal Reasons",
+        "9.3.1",
+        "ch04-02-references-and-borrowing",
+        "selectors-4",
+        "lang_vacuum.html",
+        "http-status-codes",
     )
     for secret in leaked:
         assert secret not in prompt
