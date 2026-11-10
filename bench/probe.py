@@ -80,9 +80,11 @@ from datetime import datetime
 from pathlib import Path
 
 from bench.arms import (
+    ARM_BROWSER_USE,
     ARM_ENDPOINT,
     ARM_SCRIPT_FIRST,
     ARMS,
+    BASELINE_ARMS,
     NO_MODEL_CAPABLE,
     SCRIPT_FIRST_MAX_CALLS,
     SELECTABLE_ARMS,
@@ -168,6 +170,7 @@ def plan_probe(
         "tasks": [task["id"] for task in probe_tasks(chosen_split)],
         "arms": list(chosen),
         "available_arms": list(SELECTABLE_ARMS),
+        "baseline_arms": list(BASELINE_ARMS),
         "claude_arms": [arm for arm in chosen if arm_needs_claude(arm, no_model_only=no_model_only)],
         "no_model_arms": [arm for arm in chosen if not arm_needs_claude(arm, no_model_only=no_model_only)],
         "no_model_only_arms": [arm for arm in chosen if arm in NO_MODEL_CAPABLE],
@@ -187,6 +190,10 @@ def plan_probe(
             "stagehand": "a unique --user-data-dir via launch_persistent_context",
             "script_first": "local Chrome via the Playwright Python API, own user-data-dir, no per-click settle",
             "endpoint": "direct fetch of the task start URL; no browser; the fetch URL is not rewritten",
+            "browser_use": (
+                "browser-use 1.0.0 local Chrome over CDP via Browser('chromium'); "
+                "model claude-sonnet-5-5"
+            ),
         },
         "box_commands": list(BOX_COMMANDS),
         "records": [
@@ -525,6 +532,41 @@ async def _run_endpoint(
     return row, probe_spent
 
 
+async def _run_browser_use(
+    task: dict,
+    *,
+    headless: bool,
+    api_key: str,
+    probe_spent: float,
+    ledger: SpendLedger,
+    budget_usd: float,
+) -> tuple[dict, float]:
+    """browser-use 1.0 on local Chrome. The outer Playwright loop is not used."""
+    if not api_key:
+        return (
+            empty_row(ARM_BROWSER_USE, task["id"], reason="ANTHROPIC_API_KEY unset"),
+            probe_spent,
+        )
+    blocked = claude_block_reason(probe_spent, ledger.running_total_usd, budget_usd=budget_usd)
+    if blocked:
+        return empty_row(ARM_BROWSER_USE, task["id"], reason=blocked), probe_spent
+    from bench.browser_use_arm import run_browser_use_task
+
+    row = await run_browser_use_task(task, api_key=api_key, headless=headless)
+    if row.get("claude") and (row.get("input_tokens") or row.get("output_tokens")):
+        ledger.record_task(
+            run_id="probe",
+            task_id=f"{ARM_BROWSER_USE}:{row['task_id']}",
+            input_tokens=row["input_tokens"],
+            output_tokens=row["output_tokens"],
+        )
+        probe_spent += float(row.get("usd") or 0)
+        if ledger.running_total_usd >= PROJECT_BUDGET_USD:
+            ledger.mark_aborted()
+        ledger.save()
+    return row, probe_spent
+
+
 async def _run_one(
     arm: str,
     task: dict,
@@ -550,6 +592,15 @@ async def _run_one(
             destination=destination,
             budget_usd=budget_usd,
             opener=endpoint_opener,
+        )
+    if arm == ARM_BROWSER_USE:
+        return await _run_browser_use(
+            task,
+            headless=headless,
+            api_key=api_key,
+            probe_spent=probe_spent,
+            ledger=ledger,
+            budget_usd=budget_usd,
         )
     if not arm_needs_claude(arm, no_model_only=no_model_only):
         return await run_no_model_arm(arm, task, headless=headless), probe_spent
@@ -695,7 +746,9 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Comma-separated arms. Default is the four-arm probe. "
             "script_first is the whole-task script arm. "
-            "A selection that includes it stops Claude at $2."
+            "A selection that includes it stops Claude at $2. "
+            "browser_use is the browser-use 1.0 local Chrome baseline "
+            "beside playwright_mcp and stagehand."
         ),
     )
     parser.add_argument(

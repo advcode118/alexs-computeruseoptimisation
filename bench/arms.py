@@ -2,9 +2,12 @@
 
 The competitive probe drives every arm with that outer model. plain Playwright
 MCP is the weak comparison. Stagehand's snapshot/run/screenshot tools are the
-one that matters. diff_fast_act and macro_replay expose the proxy: settle,
-a compact diff, fast_act with a script, and do_task_segment. Those tools do
-not call Claude. The outer loop does.
+one that matters. browser_use is the browser-use 1.0 baseline beside those
+two: the model writes Python in one REPL on local Chrome over CDP, with the
+same model string. It is selected with --arms. The default four stay put.
+diff_fast_act and macro_replay expose the proxy: settle, a compact diff,
+fast_act with a script, and do_task_segment. Those tools do not call Claude.
+The outer loop does.
 
 no_model_only is optional. It runs the two proxy arms through decide() with
 no outer model. That path is not the competitive measurement. It cannot
@@ -22,10 +25,14 @@ ARM_REPLAY = "macro_replay"
 ARM_STAGEHAND = "stagehand"
 ARM_SCRIPT_FIRST = "script_first"
 ARM_ENDPOINT = "endpoint"
+ARM_BROWSER_USE = "browser_use"
 
-# The default probe stays these four. script_first and endpoint are selected with --arms.
+# The default probe stays these four. script_first, endpoint, and browser_use
+# are selected with --arms. browser_use is a baseline beside plain Playwright
+# MCP and Stagehand, not one of the four.
 ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
-SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST, ARM_ENDPOINT)
+BASELINE_ARMS = (ARM_PLAYWRIGHT, ARM_STAGEHAND, ARM_BROWSER_USE)
+SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST, ARM_ENDPOINT, ARM_BROWSER_USE)
 # One script and a completion turn. A repair may use the spare calls.
 # Moving the page does not add a turn. The harness will not run a third script.
 SCRIPT_FIRST_MAX_CALLS = 4
@@ -94,6 +101,16 @@ _ENDPOINT_PROMPT = """A direct read of the task start URL uses no model.
 
 A miss falls through to the script_first arm. This arm does not launch a browser."""
 
+_BROWSER_USE_PROMPT = """You are a browser automation agent. You write Python in one persistent REPL. The REPL drives the local Chrome already attached, over the Chrome DevTools Protocol.
+
+Guidelines:
+- Stay on that local browser.
+- Finish the task that was given, then stop.
+- When the task is complete, finish with the value it asked for.
+- If it cannot be done, finish and say the task failed.
+
+Be efficient - write the steps in the REPL, then stop."""
+
 
 def arm_needs_claude(arm: str, *, no_model_only: bool = False) -> bool:
     """True when this arm is driven by the outer Claude model.
@@ -126,6 +143,8 @@ def prompt_for(arm: str) -> str:
         return _SCRIPT_FIRST_PROMPT
     if arm == ARM_ENDPOINT:
         return _ENDPOINT_PROMPT
+    if arm == ARM_BROWSER_USE:
+        return _BROWSER_USE_PROMPT
     raise ValueError(f"unknown arm {arm!r}")
 
 
@@ -145,6 +164,10 @@ def build_client(arm: str, *, headless: bool = True):
         from bench.stagehand_local import StagehandLocalClient
 
         return StagehandLocalClient(headless=headless)
+    if arm == ARM_BROWSER_USE:
+        from bench.browser_use_arm import BrowserUseClient
+
+        return BrowserUseClient(headless=headless)
     from bench.harness import PlaywrightMCPClient
 
     if arm == ARM_PLAYWRIGHT:
