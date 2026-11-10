@@ -109,3 +109,19 @@ Code: `bench/script_cache.py`, plus `BenchmarkHarness._cached_script_tier` and t
 - **Probe.** The probe makes a new cache file per run, `bench/runs/script_cache_<stamp>.json`. The cold pass stays cold. Command (not run): `ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms script_first --warm-replay`.
 
 The fresh-loop leak is closed. On a FAIL the judge still reads `selector_text`, and the run log still records it, but the tool result sent back with the repair request does not. The same holds for the patch turn. A model message must not gain `answer_equals_selector`, the selector, or any other marker value that is not already the live page, the task text, or the standing system prompt.
+
+## Offline queue, 2026-11-10
+
+No live probe was run. A live probe of the evidence judge, and a live probe of the cached-script warm pass, are still waiting and were not run. `python -m bench.probe --execute` was not run. The spend ledger was not rewritten. The last recorded total is still $16.639436.
+
+Held-out rows were already on `t3/step3-grok-review` at `1b26808` (CUO-64). MDN (`ho_mdn_array_map`), arXiv (`ho_arxiv_attention`), GitHub (`ho_github_rust`), and the wikipedia-link style task (`wv_wikipedia_link`, plus `ho_wiki_eiffel_city`) already have end markers. The offline verdict cases already fail a wrong host, a search URL that merely contains the token, the right title on the wrong article, a claimed URL that differs from the live URL, an answer absent from innerText, and empty evidence. That slice was not repeated.
+
+What the later slices changed:
+
+- Fresh worktree (CUO-62, draft PR #6, `cursor/fresh-worktree-suite-ce57`). Tests that read `bench/snapshots` or `bench/runs` skip when those gitignored files are absent, and keep the same assertions when the files are present. Spend checks already use a temp ledger through `CU_SPEND_LEDGER`. The Chrome case was already skipped when no local Chrome is on `PATH`.
+- Prompt audit (CUO-63, draft PR #7, `cursor/prompt-audit-ce57`). `tests/test_prompt_audit.py` walks every arm system prompt, the repair request, and the patch-turn payload. It fails if one of them contains a probe answer, an `Ada_Lovelace` or `heapq.html` destination path, a Hacker News selector, or `selector_text`. The prompts already omitted those strings, so none were rewritten.
+- Endpoint arm (CUO-65, draft PR #9, `cursor/endpoint-arm-offline-ce57`). `endpoint` is its own arm. A fixture fetch of the task start URL is judged with the same evidence judge. The transport URL is the URL the judge sees, byte for byte. A miss falls through to `script_first`. Without an opener the probe refuses the network and does not launch a browser. Not run live.
+- Cache fingerprint (CUO-66, draft PR #10, `cursor/cache-fingerprint-ce57`). A cached script stores the landed host plus a stable hash of roles and names. A live mismatch is a miss. One patch turn is the only model call on the way down from the cache. An exact match is still a hit with zero model calls. A failed patch still falls through to a fresh script. A FAIL is still not written.
+- Saved-log report (CUO-67, draft PR #11, `cursor/probe-log-report-ce57`). `python -m bench.report` reads `bench/runs/probe_*.jsonl` or a path. It prints each task's saved wall time, step count, tier, and dollars, and the sum of the `usd` fields in that file per arm. It refuses `--execute`. The test file `tests/fixtures/probe_sketch.jsonl` is a sketch, not a probe, and it adds no measurements.
+
+`python -m pytest -q bench/test_harness.py tests` on the report slice: 203 passed. No live probe.
