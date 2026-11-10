@@ -322,6 +322,10 @@ def parse_task_script(source: str) -> list[TaskStep]:
     steps: list[TaskStep] = []
     for index, stmt in enumerate(_statements(text), 1):
         body = _normalize_stmt(stmt)
+        if body.casefold().startswith("return "):
+            returned = _normalize_stmt(body[len("return ") :])
+            if returned.casefold().startswith("page.evaluate"):
+                body = returned
         if _is_wait_statement(body):
             continue
         if body.casefold().startswith("page.evaluate"):
@@ -366,12 +370,15 @@ class PageEvidence:
 
 @dataclass(frozen=True)
 class ClaimedEvidence:
-    """Values the script said it found. Hints only."""
+    """Values the script returned. Checked against the live page, never trusted alone."""
 
     url: str = ""
     title: str = ""
     h1: str = ""
     answer: str = ""
+    key_text: str = ""
+    values: tuple[str, ...] = ()
+    rejected: bool = False
 
 
 @dataclass(frozen=True)
@@ -509,6 +516,50 @@ def _scored_url(live: str, canonical: str, markers: dict) -> str:
     return ""
 
 
+def _coerce_values(raw) -> tuple[tuple[str, ...], bool]:
+    """String values from a script return. The bool is True when a value is not text."""
+    if raw is None or raw == "" or raw == [] or raw == ():
+        return (), False
+    if isinstance(raw, bool):
+        return (), True
+    if isinstance(raw, (str, int, float)):
+        raw = [raw]
+    elif isinstance(raw, dict):
+        raw = list(raw.values())
+    if not isinstance(raw, (list, tuple)):
+        return (), True
+    kept: list[str] = []
+    for item in raw:
+        if isinstance(item, bool) or item is None:
+            return (), True
+        if isinstance(item, str):
+            text = " ".join(item.split())
+        elif isinstance(item, (int, float)):
+            text = str(item)
+        else:
+            return (), True
+        if not text:
+            continue
+        if len(text) > 400:
+            text = text[:400]
+        kept.append(text)
+        if len(kept) > 20:
+            return (), True
+    return tuple(kept), False
+
+
+def _text_field(value) -> tuple[str, bool]:
+    if value is None or value == "":
+        return "", False
+    if isinstance(value, bool):
+        return "", True
+    if isinstance(value, str):
+        return value.strip(), False
+    if isinstance(value, (int, float)):
+        return str(value), False
+    return "", True
+
+
 def _claim_from_value(value) -> dict:
     if isinstance(value, dict):
         data = value
@@ -529,10 +580,20 @@ def _claim_from_value(value) -> dict:
     else:
         return {}
     picked = {}
-    for key in ("url", "title", "h1", "answer"):
-        item = data.get(key)
-        if isinstance(item, str) and item.strip():
-            picked[key] = item.strip()
+    rejected = bool(data.get("rejected"))
+    for key in ("url", "title", "h1", "answer", "key_text"):
+        text, bad = _text_field(data.get(key))
+        if bad:
+            rejected = True
+        elif text:
+            picked[key] = text
+    values, bad_values = _coerce_values(data.get("values"))
+    if bad_values:
+        rejected = True
+    elif values:
+        picked["values"] = list(values)
+    if rejected:
+        picked["rejected"] = True
     return picked
 
 
@@ -545,6 +606,8 @@ def evidence_verdict(
 
     Only FAIL is concrete enough to ask for a repair. UNKNOWN is not a pass.
     The scored URL is the live URL or the canonical href, unchanged.
+    key_text and values are the script's own return. They have to appear in
+    the live page text. They never turn a miss into a pass.
     """
     markers = dict(markers or {})
     claimed = claimed or ClaimedEvidence()
@@ -584,20 +647,26 @@ def evidence_verdict(
     selector = markers.get("answer_equals_selector") or ""
     answer = (claimed.answer or "").strip()
 
+    def gate(result: EvidenceVerdict) -> EvidenceVerdict:
+        if result.verdict == FAIL:
+            return result
+        problem = _returned_problem(claimed, page_text, result.scored_url)
+        return problem if problem is not None else result
+
     if selector or answer_in_text:
         if not answer:
             return EvidenceVerdict(FAIL, "empty answer", scored)
         if selector:
             truth = (trusted.selector_text or "").strip()
             if not truth or not page_text.strip():
-                return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
+                return gate(EvidenceVerdict(UNKNOWN, "page text was not read", scored))
             if _norm_answer(answer) != _norm_answer(truth):
                 return EvidenceVerdict(FAIL, "answer is not the marked value", scored)
             if _norm_answer(answer) not in _norm_answer(page_text):
                 return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
         if answer_in_text:
             if not page_text.strip():
-                return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
+                return gate(EvidenceVerdict(UNKNOWN, "page text was not read", scored))
             if _norm_answer(answer) not in _norm_answer(page_text):
                 return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
             if _norm_answer(str(answer_in_text)) not in _norm_answer(answer) and _norm_answer(
@@ -611,15 +680,70 @@ def evidence_verdict(
         if (not needs_url) or url_ok:
             if host and not any(_host_ok(item, host) for item in (live, canonical) if _http(item)):
                 return EvidenceVerdict(FAIL, "the page is on the wrong host", scored)
-            return EvidenceVerdict(PASS, "the page evidence matches the markers", scored)
+            return gate(EvidenceVerdict(PASS, "the page evidence matches the markers", scored))
 
     if needs_url and url_ok:
-        return EvidenceVerdict(PASS, "the URL marker matches the live page", scored)
+        return gate(EvidenceVerdict(PASS, "the URL marker matches the live page", scored))
     if needs_url and not has_page:
         return EvidenceVerdict(FAIL, "empty evidence", "")
     if has_page or has_body:
-        return EvidenceVerdict(UNKNOWN, "the markers are not decisive", scored)
+        return gate(EvidenceVerdict(UNKNOWN, "the markers are not decisive", scored))
     return EvidenceVerdict(FAIL, "empty evidence", "")
+
+
+def _returned_problem(claimed: ClaimedEvidence, page_text: str, scored: str) -> EvidenceVerdict | None:
+    """FAIL or UNKNOWN when the script's own return disagrees with the live page.
+
+    A return that matches, or a script that returned none of these fields,
+    leaves the marker verdict alone. This does not call a model.
+    """
+    if claimed.rejected:
+        return EvidenceVerdict(FAIL, "returned value is not text", scored)
+    needed = []
+    key = (claimed.key_text or "").strip()
+    if key:
+        needed.append(key)
+    needed.extend(item for item in claimed.values if item.strip())
+    if not needed:
+        return None
+    if not (page_text or "").strip():
+        return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
+    folded = _norm_answer(page_text)
+    for item in needed:
+        if _norm_answer(item) not in folded:
+            return EvidenceVerdict(FAIL, "returned evidence is not on the page", scored)
+    return None
+
+
+def _evidence_from_claim(claimed: dict) -> ClaimedEvidence:
+    values, bad_values = _coerce_values(claimed.get("values"))
+    key_text, bad_key = _text_field(claimed.get("key_text"))
+    return ClaimedEvidence(
+        url=claimed.get("url") or "",
+        title=claimed.get("title") or "",
+        h1=claimed.get("h1") or "",
+        answer=claimed.get("answer") or "",
+        key_text=key_text,
+        values=values,
+        rejected=bool(claimed.get("rejected")) or bad_values or bad_key,
+    )
+
+
+def check_returned_evidence(
+    markers: dict | None,
+    trusted: PageEvidence,
+    returned,
+) -> EvidenceVerdict:
+    """Check the evidence object a script returned. No model call.
+
+    `trusted` is the live page. `returned` is the script's object. UNKNOWN
+    is not a pass. Text the script returned has to be on that page.
+    """
+    if isinstance(returned, ClaimedEvidence):
+        claimed = returned
+    else:
+        claimed = _evidence_from_claim(_claim_from_value(returned))
+    return evidence_verdict(markers, trusted, claimed)
 
 
 def trusted_from_payload(payload: dict | None, *, url: str = "", title: str = "") -> PageEvidence:
@@ -635,14 +759,20 @@ def trusted_from_payload(payload: dict | None, *, url: str = "", title: str = ""
     )
 
 
+def _merge_claim(claimed: dict, parsed: dict) -> None:
+    for key in ("url", "title", "h1", "answer", "key_text"):
+        if parsed.get(key) and not claimed.get(key):
+            claimed[key] = parsed[key]
+    if parsed.get("values") and not claimed.get("values"):
+        claimed["values"] = list(parsed["values"])
+    if parsed.get("rejected"):
+        claimed["rejected"] = True
+
+
 def claimed_from_payload(payload: dict | None) -> ClaimedEvidence:
     data = payload if isinstance(payload, dict) else {}
     raw = data.get("claimed") if isinstance(data.get("claimed"), dict) else {}
-    claimed = {
-        key: raw.get(key).strip()
-        for key in ("url", "title", "h1", "answer")
-        if isinstance(raw.get(key), str) and raw.get(key).strip()
-    }
+    claimed = _claim_from_value(raw)
     extracted = data.get("extracted")
     texts: list[str] = []
     if isinstance(extracted, str) and extracted.strip():
@@ -651,21 +781,14 @@ def claimed_from_payload(payload: dict | None) -> ClaimedEvidence:
         texts = [str(item).strip() for item in extracted if str(item).strip()]
     for text in reversed(texts):
         parsed = _claim_from_value(text)
-        for key in ("url", "title", "h1", "answer"):
-            if parsed.get(key) and not claimed.get(key):
-                claimed[key] = parsed[key]
-        if claimed.get("answer") or claimed.get("url"):
+        _merge_claim(claimed, parsed)
+        if claimed.get("answer") or claimed.get("url") or claimed.get("key_text") or claimed.get("values"):
             break
     if not claimed.get("answer") and texts:
         last = texts[-1]
         if not last.startswith("{"):
             claimed["answer"] = last
-    return ClaimedEvidence(
-        url=claimed.get("url") or "",
-        title=claimed.get("title") or "",
-        h1=claimed.get("h1") or "",
-        answer=claimed.get("answer") or "",
-    )
+    return _evidence_from_claim(claimed)
 
 
 def script_verdict(markers: dict | None, result_text: str, page_url: str) -> tuple[EvidenceVerdict, dict]:
@@ -799,10 +922,23 @@ def format_run_result(
         payload["controls"] = shown_controls
     if claimed:
         kept = {}
-        for key in ("url", "title", "h1", "answer"):
+        for key in ("url", "title", "h1", "answer", "key_text"):
             item = claimed.get(key)
             if isinstance(item, str) and item.strip():
                 kept[key] = item.strip()
+        values = claimed.get("values")
+        if isinstance(values, (list, tuple)):
+            shown_values = []
+            for item in values:
+                if isinstance(item, bool) or not isinstance(item, (str, int, float)):
+                    continue
+                text = str(item).strip()
+                if text:
+                    shown_values.append(text)
+            if shown_values:
+                kept["values"] = shown_values
+        if claimed.get("rejected"):
+            kept["rejected"] = True
         if kept:
             payload["claimed"] = kept
     lines = [json.dumps(payload)]
@@ -949,9 +1085,7 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
 def _note_extract(extracted: list[str], claimed: dict, value) -> dict:
     parsed = _claim_from_value(value)
     if parsed:
-        for key, item in parsed.items():
-            if item and not claimed.get(key):
-                claimed[key] = item
+        _merge_claim(claimed, parsed)
         if parsed.get("answer"):
             extracted.append(parsed["answer"])
         return claimed
@@ -1148,9 +1282,10 @@ class ScriptFirstClient:
                 "description": (
                     "Run one Playwright script that finishes the whole task in this call. "
                     "The end URL must already be the finished page, not a search-results URL. "
-                    "End with page.evaluate(() => ({url: location.href, title: document.title, "
-                    "h1: document.querySelector('h1')?.innerText, answer: ''})) and put the "
-                    "requested value in answer. "
+                    "End by returning page.evaluate(() => ({url: location.href, title: document.title, "
+                    "h1: document.querySelector('h1')?.innerText, key_text: '', values: [], answer: ''})). "
+                    "Put a visible phrase in key_text, asked-for values in values, and the requested value in answer. "
+                    "The runner checks that object against the live page. "
                     "Do not call page.waitForTimeout, page.waitForLoadState, or networkidle. "
                     "Allowed lines are page.goto, page.getByRole, page.getByLabel, "
                     "page.getByText, page.getByPlaceholder, and page.evaluate with a "

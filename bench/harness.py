@@ -1118,12 +1118,17 @@ class BenchmarkHarness:
                                 repair_pending=repair_pending,
                                 refused_extra_script=False,
                             )
-                            # A PASS ends the task. UNKNOWN does not, and it does not repair.
+                            # A PASS ends the task. UNKNOWN ends it too: the check already
+                            # ran, it is not a success, and it does not ask the model.
                             if verdict.verdict == PASS and isinstance(page_url, str) and page_url.startswith(
                                 ("http://", "https://")
                             ):
                                 success = True
                                 success_reason = "Task completed successfully"
+                                stop_after_tools = True
+                            elif verdict.verdict == UNKNOWN:
+                                success = False
+                                success_reason = f"UNKNOWN: {verdict.reason}"
                                 stop_after_tools = True
                             elif (
                                 verdict.verdict == FAIL

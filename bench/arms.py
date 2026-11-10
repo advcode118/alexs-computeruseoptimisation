@@ -86,9 +86,9 @@ Guidelines:
 - Prefer one page.goto of the finished page over clicking through the site. Put the whole navigation in the same script.
 - Wikipedia must leave Main_Page. Special:Search is not the finished article.
 - Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, and page.evaluate(() => { ... }) with a page-context function.
-- End every script with one page.evaluate that returns evidence from the live page:
-  page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector("h1")?.innerText, answer: ""}))
-  Put the value the task asked for in answer.
+- End every script by returning evidence from the live page:
+  page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector("h1")?.innerText, key_text: "", values: [], answer: ""}))
+  Put a phrase that is visible on the finished page in key_text, the values the task asked for in values, and the value the task asked for in answer. The runner checks that object against the live page.
 - Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle. The runner drops those lines and does not settle or snapshot between actions.
 - Do not click, type, or snapshot one element at a time.
 - browser_run_code_unsafe is not a tool. Do not ask for it.
