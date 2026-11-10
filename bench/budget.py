@@ -29,6 +29,11 @@ INPUT_USD_PER_MTOK = 3.0
 OUTPUT_USD_PER_MTOK = 15.0
 # Abort. The operator envelope is $50; the run stops at $40.
 PROJECT_BUDGET_USD = 40.0
+# Lifetime cap. A probe may not plan past this, and the $40 abort stays.
+LIFETIME_CAP_USD = 50.0
+# running_total_usd after the PR #18 probe. This is not a seed and is never
+# written by this file. A ledger below it is a lower starting total.
+LAST_RECORDED_TOTAL_USD = 16.639436
 
 # Recorded M0 totals. "3.2M" and "3k" are the figures from that measurement.
 PRIOR_INPUT_TOKENS = 3_200_000
@@ -49,6 +54,19 @@ def default_spend_path() -> Path:
 
 class ModelNotAllowed(ValueError):
     """The bench calls claude-sonnet-5-5 and nothing else."""
+
+
+class LedgerBelowRecorded(RuntimeError):
+    """The ledger total is under the last recorded spend. Do not rewrite it."""
+
+    def __init__(self, found: float, recorded: float = LAST_RECORDED_TOTAL_USD):
+        self.found = found
+        self.recorded = recorded
+        super().__init__(
+            f"Spend ledger total ${found:.6f} is below the last recorded "
+            f"${recorded:.6f}. Refusing to run. This process will not write "
+            "a lower starting total."
+        )
 
 
 class LedgerMissing(FileNotFoundError):

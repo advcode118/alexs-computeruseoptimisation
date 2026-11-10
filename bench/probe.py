@@ -50,6 +50,22 @@ runs it with no per-click settle or snapshot.
 probe tasks. The default split stays probe. Do not run the held-out command
 from this checkout. It is a live Claude probe.
 
+--honest is the first live comparison. It selects playwright_mcp,
+script_first, stagehand, and browser_use, the three tuned tasks plus the
+fifteen held-out tasks, and a warm replay of script_first only. The cold
+pass leaves the script cache empty. The per-run ceiling is $8, held under
+the $50 lifetime cap and the $40 project abort. A task is not started unless
+the reserve still fits under all three. Dry run:
+
+    python -m bench.probe --honest
+
+That prints the plan and does not open a network connection. Live, on a
+machine that already has the key and the shared ledger:
+
+    CU_SPEND_LEDGER="$CU_SPEND_LEDGER" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --honest
+
+A ledger below $16.639436 is refused. This file does not write that number.
+
 Environment variables it reads, by name only:
 
     ANTHROPIC_API_KEY     outer model for every competitive arm
@@ -82,7 +98,9 @@ from pathlib import Path
 from bench.arms import (
     ARM_BROWSER_USE,
     ARM_ENDPOINT,
+    ARM_PLAYWRIGHT,
     ARM_SCRIPT_FIRST,
+    ARM_STAGEHAND,
     ARMS,
     BASELINE_ARMS,
     NO_MODEL_CAPABLE,
@@ -90,13 +108,40 @@ from bench.arms import (
     SELECTABLE_ARMS,
     arm_needs_claude,
 )
-from bench.budget import ALLOWED_MODEL, PROJECT_BUDGET_USD, LedgerMissing, SpendLedger, estimate_usd
+from bench.budget import (
+    ALLOWED_MODEL,
+    LAST_RECORDED_TOTAL_USD,
+    LIFETIME_CAP_USD,
+    PROJECT_BUDGET_USD,
+    LedgerBelowRecorded,
+    LedgerMissing,
+    SpendLedger,
+    estimate_usd,
+)
 from bench.judge import check_text_present, check_url_contains
-from bench.tasks import SPLIT_PROBE, TUNED_PROBE_TASK_IDS, resolve_task_split, tasks_for_split
+from bench.tasks import (
+    HELD_OUT_TASK_IDS,
+    SPLIT_HONEST,
+    SPLIT_PROBE,
+    TUNED_PROBE_TASK_IDS,
+    resolve_task_split,
+    tasks_for_split,
+)
 
 PROBE_TASK_IDS = TUNED_PROBE_TASK_IDS
 PROBE_CLAUDE_BUDGET_USD = 5.0
 SCRIPT_FIRST_CLAUDE_BUDGET_USD = 2.0
+# Hard ceiling for --honest. The run is meant to land around $5–$8.
+HONEST_PROBE_BUDGET_USD = 8.0
+HONEST_ARMS = (ARM_PLAYWRIGHT, ARM_SCRIPT_FIRST, ARM_STAGEHAND, ARM_BROWSER_USE)
+REPORT_FIELDS = (
+    "success_count",
+    "mean_wall_ms_per_success",
+    "median_wall_ms_per_success",
+    "steps_one_shot",
+    "steps_repair",
+    "warm_replay_wall_ms",
+)
 HUGE_SNAPSHOT_CHARS = 40_000
 WARM_ARMS = ("macro_replay", "diff_fast_act")
 RUNS_DIR = Path(__file__).resolve().parent / "runs"
@@ -110,6 +155,8 @@ BOX_COMMANDS = (
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand',
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand --split held-out',
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms script_first --warm-replay',
+    "python -m bench.probe --honest",
+    'CU_SPEND_LEDGER="$CU_SPEND_LEDGER" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --honest',
 )
 
 
@@ -138,11 +185,79 @@ def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, .
     return names
 
 
-def warm_arms_for(arms: tuple[str, ...]) -> tuple[str, ...]:
-    """The proxy replay arms, plus script_first when it was selected."""
+def warm_arms_for(arms: tuple[str, ...], *, honest: bool = False) -> tuple[str, ...]:
+    """The proxy replay arms, plus script_first when it was selected.
+
+    The honest probe warms script_first only. The cached-script tier is the
+    warm pass. The other honest arms stay cold.
+    """
+    if honest:
+        return (ARM_SCRIPT_FIRST,)
     if ARM_SCRIPT_FIRST in arms:
         return WARM_ARMS + (ARM_SCRIPT_FIRST,)
     return WARM_ARMS
+
+
+def honest_task_reserve_usd() -> float:
+    """Dollars that must still fit before another Claude task starts.
+
+    The figure is a ceiling from the harness caps, not a measured cost.
+    One call may carry the last MAX_HISTORY_PAIRS tool results, each capped
+    at MAX_SNAPSHOT_CHARS, and max_tokens of output. The call count is the
+    wider of the harness default and the browser-use step cap. The price is
+    the recorded ledger rate. browser-use does not use the snapshot cap, so
+    a task already started can still cost more than this; the next one does
+    not start.
+    """
+    import inspect
+
+    from bench.browser_use_arm import BROWSER_USE_MAX_STEPS
+    from bench.harness import MAX_HISTORY_PAIRS, MAX_SNAPSHOT_CHARS, AnthropicClient, BenchmarkHarness
+
+    widest = max(
+        int(inspect.signature(BenchmarkHarness.__init__).parameters["max_steps"].default),
+        int(BROWSER_USE_MAX_STEPS),
+    )
+    per_call_in = max(1, (MAX_SNAPSHOT_CHARS * MAX_HISTORY_PAIRS) // 4)
+    per_call_out = int(inspect.signature(AnthropicClient.create_message).parameters["max_tokens"].default)
+    return round(estimate_usd(widest * per_call_in, widest * per_call_out), 6)
+
+
+def honest_run_budget(project_spent: float) -> float | None:
+    """Per-run ceiling that cannot be planned past $50 or $40.
+
+    None when the ledger is below the last recorded total, or when the
+    room left under either cap is inside the per-task reserve. None means
+    do not start a task. This does not write the ledger.
+    """
+    spent = round(float(project_spent), 6)
+    if spent < LAST_RECORDED_TOTAL_USD:
+        return None
+    room = min(
+        HONEST_PROBE_BUDGET_USD,
+        round(LIFETIME_CAP_USD - spent, 6),
+        round(PROJECT_BUDGET_USD - spent, 6),
+    )
+    if room <= honest_task_reserve_usd():
+        return None
+    return room
+
+
+def honest_refusal(project_spent: float) -> str | None:
+    """Why --execute --honest must stop before any task. None when it may start."""
+    spent = round(float(project_spent), 6)
+    if spent < LAST_RECORDED_TOTAL_USD:
+        return (
+            f"ledger total ${spent:.6f} is below the last recorded "
+            f"${LAST_RECORDED_TOTAL_USD:.6f}; live execute refuses and does not "
+            "write a new total"
+        )
+    if honest_run_budget(spent) is None:
+        return (
+            "remaining room under the $50 lifetime cap or the $40 project abort "
+            "is inside the per-task reserve; live execute refuses before any task"
+        )
+    return None
 
 
 def claude_budget_for(arms: tuple[str, ...]) -> float:
@@ -158,12 +273,24 @@ def plan_probe(
     warm_replay: bool = False,
     arms: str | tuple[str, ...] | list[str] | None = None,
     split: str | None = None,
+    honest: bool = False,
 ) -> dict:
     """What --execute would run. This does not start a browser or a model."""
-    chosen = resolve_arms(arms)
-    chosen_split = resolve_task_split(split)
+    if honest:
+        chosen = HONEST_ARMS
+        chosen_split = SPLIT_HONEST
+        warm_replay = True
+    else:
+        chosen = resolve_arms(arms)
+        chosen_split = resolve_task_split(split)
     spent = SpendLedger.load().running_total_usd
-    return {
+    reserve = honest_task_reserve_usd() if honest else 0.0
+    room = honest_run_budget(spent) if honest else None
+    if honest:
+        budget = room
+    else:
+        budget = claude_budget_for(chosen)
+    plan = {
         "execute": False,
         "mode": "no_model_only" if no_model_only else "outer_claude",
         "split": chosen_split,
@@ -175,14 +302,17 @@ def plan_probe(
         "no_model_arms": [arm for arm in chosen if not arm_needs_claude(arm, no_model_only=no_model_only)],
         "no_model_only_arms": [arm for arm in chosen if arm in NO_MODEL_CAPABLE],
         "outer_model": ALLOWED_MODEL,
-        "claude_budget_usd": claude_budget_for(chosen),
+        "honest": honest,
+        "claude_budget_usd": budget,
         "script_first_claude_budget_usd": SCRIPT_FIRST_CLAUDE_BUDGET_USD,
         "project_budget_usd": PROJECT_BUDGET_USD,
         "project_spent_usd": spent,
+        "lifetime_cap_usd": LIFETIME_CAP_USD,
+        "last_recorded_total_usd": LAST_RECORDED_TOTAL_USD,
         "huge_snapshot_chars": HUGE_SNAPSHOT_CHARS,
         "huge_snapshot_uses_body_length_only": True,
         "warm_replay": warm_replay,
-        "warm_arms": list(warm_arms_for(chosen)),
+        "warm_arms": list(warm_arms_for(chosen, honest=honest)),
         "browser_isolation": {
             "playwright_mcp": "--isolated only (0.0.84 rejects --user-data-dir with --isolated)",
             "diff_fast_act": "proxy child --isolated only",
@@ -209,6 +339,17 @@ def plan_probe(
             "pass",
         ],
     }
+    if honest:
+        plan["per_run_budget_usd"] = room
+        plan["task_reserve_usd"] = reserve
+        plan["execute_allowed"] = honest_refusal(spent) is None
+        plan["execute_refused"] = honest_refusal(spent)
+        plan["network"] = "refused"
+        plan["measurements"] = None
+        plan["report_fields"] = list(REPORT_FIELDS)
+        plan["tuned_tasks"] = list(TUNED_PROBE_TASK_IDS)
+        plan["held_out_tasks"] = list(HELD_OUT_TASK_IDS)
+    return plan
 
 
 def snapshot_is_huge(text: str, limit: int = HUGE_SNAPSHOT_CHARS) -> bool:
@@ -225,12 +366,36 @@ def claude_block_reason(
     project_spent_usd: float,
     *,
     budget_usd: float = PROBE_CLAUDE_BUDGET_USD,
+    task_reserve_usd: float = 0.0,
+    lifetime_cap_usd: float | None = None,
 ) -> str | None:
-    """Why the next Claude task must not start. None when it may."""
-    if probe_spent_usd >= budget_usd:
+    """Why the next Claude task must not start. None when it may.
+
+    task_reserve_usd is headroom that must still fit. The default 0 keeps
+    the old stop, which fires once spend has reached the budget. A reserve
+    above 0 refuses the task before that headroom would cross the budget,
+    the $40 abort, or the lifetime cap.
+    """
+    reserve = float(task_reserve_usd or 0.0)
+    if probe_spent_usd + reserve >= budget_usd:
+        if reserve and probe_spent_usd < budget_usd:
+            return (
+                f"probe Claude spend ${probe_spent_usd:.2f} plus ${reserve:.2f} "
+                f"reserve would reach ${budget_usd:.2f}"
+            )
         return f"probe Claude spend ${probe_spent_usd:.2f} has reached ${budget_usd:.0f}"
-    if project_spent_usd >= PROJECT_BUDGET_USD:
+    if project_spent_usd + reserve >= PROJECT_BUDGET_USD:
+        if reserve and project_spent_usd < PROJECT_BUDGET_USD:
+            return (
+                f"project total ${project_spent_usd:.2f} plus ${reserve:.2f} "
+                f"reserve would pass ${PROJECT_BUDGET_USD:.0f}"
+            )
         return f"project total ${project_spent_usd:.2f} has reached ${PROJECT_BUDGET_USD:.0f}"
+    if lifetime_cap_usd is not None and project_spent_usd + reserve >= lifetime_cap_usd:
+        return (
+            f"project total ${project_spent_usd:.2f} plus ${reserve:.2f} "
+            f"reserve would pass the ${lifetime_cap_usd:.0f} lifetime cap"
+        )
     return None
 
 
@@ -482,6 +647,8 @@ async def _run_endpoint(
     destination: Path,
     budget_usd: float,
     opener,
+    task_reserve_usd: float = 0.0,
+    lifetime_cap_usd: float | None = None,
 ) -> tuple[dict, float]:
     """Fetch the start URL. A miss runs script_first. No browser on the fetch."""
     del headless
@@ -506,7 +673,13 @@ async def _run_endpoint(
     async def fallback(missed: dict) -> dict:
         if not api_key:
             return empty_row(ARM_SCRIPT_FIRST, missed["id"], reason="ANTHROPIC_API_KEY unset", skipped=False)
-        blocked = claude_block_reason(probe_spent, ledger.running_total_usd, budget_usd=budget_usd)
+        blocked = claude_block_reason(
+            probe_spent,
+            ledger.running_total_usd,
+            budget_usd=budget_usd,
+            task_reserve_usd=task_reserve_usd,
+            lifetime_cap_usd=lifetime_cap_usd,
+        )
         if blocked:
             return empty_row(ARM_SCRIPT_FIRST, missed["id"], reason=blocked, skipped=False)
         return await run_claude_arm(
@@ -540,6 +713,8 @@ async def _run_browser_use(
     probe_spent: float,
     ledger: SpendLedger,
     budget_usd: float,
+    task_reserve_usd: float = 0.0,
+    lifetime_cap_usd: float | None = None,
 ) -> tuple[dict, float]:
     """browser-use 1.0 on local Chrome. The outer Playwright loop is not used."""
     if not api_key:
@@ -547,7 +722,13 @@ async def _run_browser_use(
             empty_row(ARM_BROWSER_USE, task["id"], reason="ANTHROPIC_API_KEY unset"),
             probe_spent,
         )
-    blocked = claude_block_reason(probe_spent, ledger.running_total_usd, budget_usd=budget_usd)
+    blocked = claude_block_reason(
+        probe_spent,
+        ledger.running_total_usd,
+        budget_usd=budget_usd,
+        task_reserve_usd=task_reserve_usd,
+        lifetime_cap_usd=lifetime_cap_usd,
+    )
     if blocked:
         return empty_row(ARM_BROWSER_USE, task["id"], reason=blocked), probe_spent
     from bench.browser_use_arm import run_browser_use_task
@@ -580,6 +761,8 @@ async def _run_one(
     budget_usd: float,
     script_cache=None,
     endpoint_opener=None,
+    task_reserve_usd: float = 0.0,
+    lifetime_cap_usd: float | None = None,
 ) -> tuple[dict, float]:
     """One task on one arm. Returns the row and the probe's Claude spend so far."""
     if arm == ARM_ENDPOINT:
@@ -592,6 +775,8 @@ async def _run_one(
             destination=destination,
             budget_usd=budget_usd,
             opener=endpoint_opener,
+            task_reserve_usd=task_reserve_usd,
+            lifetime_cap_usd=lifetime_cap_usd,
         )
     if arm == ARM_BROWSER_USE:
         return await _run_browser_use(
@@ -601,6 +786,8 @@ async def _run_one(
             probe_spent=probe_spent,
             ledger=ledger,
             budget_usd=budget_usd,
+            task_reserve_usd=task_reserve_usd,
+            lifetime_cap_usd=lifetime_cap_usd,
         )
     if not arm_needs_claude(arm, no_model_only=no_model_only):
         return await run_no_model_arm(arm, task, headless=headless), probe_spent
@@ -614,7 +801,13 @@ async def _run_one(
             ),
             probe_spent,
         )
-    blocked = claude_block_reason(probe_spent, ledger.running_total_usd, budget_usd=budget_usd)
+    blocked = claude_block_reason(
+        probe_spent,
+        ledger.running_total_usd,
+        budget_usd=budget_usd,
+        task_reserve_usd=task_reserve_usd,
+        lifetime_cap_usd=lifetime_cap_usd,
+    )
     if blocked:
         return empty_row(arm, task["id"], reason=blocked, no_model_only=no_model_only), probe_spent
     extra = {"script_cache": script_cache} if script_cache is not None and arm == ARM_SCRIPT_FIRST else {}
@@ -640,6 +833,129 @@ async def _run_one(
     return row, probe_spent
 
 
+class ProbeRefused(RuntimeError):
+    """The honest probe stops before a browser or a model call."""
+
+
+def _mean(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _median(values: list[float]) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return float(ordered[mid])
+    return (float(ordered[mid - 1]) + float(ordered[mid])) / 2
+
+
+def _wall_ms(row: dict) -> float | None:
+    value = row.get("wall_ms")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _as_int(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def row_took_repair(row: dict) -> bool:
+    """A second script, a cache patch, or any step after the first."""
+    if row.get("tier") == "patched":
+        return True
+    if _as_int(row.get("repairs")) > 0:
+        return True
+    if _as_int(row.get("model_calls")) >= 2:
+        return True
+    return _as_int(row.get("steps")) >= 2
+
+
+def _attempted(rows: list[dict]) -> list[dict]:
+    return [row for row in rows if not row.get("skipped")]
+
+
+def _walls(rows: list[dict], *, successes_only: bool) -> list[float]:
+    found = []
+    for row in rows:
+        if successes_only and not row.get("success"):
+            continue
+        wall = _wall_ms(row)
+        if wall is not None:
+            found.append(wall)
+    return found
+
+
+def arm_report(rows: list[dict], arms: tuple[str, ...] | list[str]) -> dict:
+    """Per-arm figures from rows already recorded. Missing runs stay null.
+
+    Nothing here is filled in from a previous probe. An arm with no attempted
+    task has null success and wall fields. Warm times are null when that arm
+    had no warm pass.
+    """
+    report = {}
+    for arm in arms:
+        cold = [row for row in rows if row.get("arm") == arm and row.get("pass", "cold") == "cold"]
+        attempted = _attempted(cold)
+        successes = [row for row in attempted if row.get("success")]
+        walls = _walls(successes, successes_only=False)
+        if attempted:
+            one_shot = [row for row in attempted if not row_took_repair(row)]
+            repair = [row for row in attempted if row_took_repair(row)]
+            steps = {
+                "one_shot": [_as_int(row.get("steps")) for row in one_shot],
+                "repair": [_as_int(row.get("steps")) for row in repair],
+            }
+            success_count: int | None = len(successes)
+        else:
+            steps = {"one_shot": None, "repair": None}
+            success_count = None
+        warm = [row for row in rows if row.get("arm") == arm and row.get("pass") == "warm"]
+        warm_attempted = _attempted(warm)
+        if not warm:
+            warm_report = {
+                "ran": False,
+                "success_count": None,
+                "wall_ms": None,
+                "mean_wall_ms_per_success": None,
+                "median_wall_ms_per_success": None,
+            }
+        elif not warm_attempted:
+            warm_report = {
+                "ran": True,
+                "success_count": None,
+                "wall_ms": None,
+                "mean_wall_ms_per_success": None,
+                "median_wall_ms_per_success": None,
+            }
+        else:
+            warm_walls = _walls(warm_attempted, successes_only=False)
+            warm_ok = _walls(warm_attempted, successes_only=True)
+            warm_report = {
+                "ran": True,
+                "success_count": sum(1 for row in warm_attempted if row.get("success")),
+                "wall_ms": warm_walls,
+                "mean_wall_ms_per_success": _mean(warm_ok),
+                "median_wall_ms_per_success": _median(warm_ok),
+            }
+        report[arm] = {
+            "success_count": success_count,
+            "attempted": len(attempted),
+            "mean_wall_ms_per_success": _mean(walls) if attempted else None,
+            "median_wall_ms_per_success": _median(walls) if attempted else None,
+            "steps": steps,
+            "warm_replay": warm_report,
+        }
+    return report
+
+
 async def execute_probe(
     *,
     headless: bool = True,
@@ -650,22 +966,47 @@ async def execute_probe(
     arms: tuple[str, ...] | None = None,
     endpoint_opener=None,
     split: str | None = None,
+    honest: bool = False,
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
     The default is the competitive outer-Claude matrix, including the two
     proxy arms. no_model_only keeps those two on decide() and still sends
     playwright_mcp and stagehand through Claude when a key is set.
+    --honest refuses before any task when the ledger is below the last
+    recorded total, the key is unset, or the reserve no longer fits under
+    the run ceiling, the $40 abort, or the $50 lifetime cap.
     """
-    chosen = resolve_arms(arms)
-    chosen_split = resolve_task_split(split)
-    budget_usd = claude_budget_for(chosen)
+    if honest:
+        chosen = HONEST_ARMS
+        chosen_split = SPLIT_HONEST
+        warm_replay = True
+        no_model_only = False
+    else:
+        chosen = resolve_arms(arms)
+        chosen_split = resolve_task_split(split)
     ledger = SpendLedger.load(spend_path)
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    task_reserve = 0.0
+    lifetime_cap = None
+    if honest:
+        if round(ledger.running_total_usd, 6) < LAST_RECORDED_TOTAL_USD:
+            raise LedgerBelowRecorded(ledger.running_total_usd)
+        if not api_key:
+            raise ProbeRefused("ANTHROPIC_API_KEY unset. Refusing before any browser or model call.")
+        room = honest_run_budget(ledger.running_total_usd)
+        refusal = honest_refusal(ledger.running_total_usd)
+        if room is None or refusal is not None:
+            raise ProbeRefused(refusal or "Refusing before any task.")
+        budget_usd = room
+        task_reserve = honest_task_reserve_usd()
+        lifetime_cap = LIFETIME_CAP_USD
+    else:
+        budget_usd = claude_budget_for(chosen)
     destination = runs_dir or RUNS_DIR
     destination.mkdir(parents=True, exist_ok=True)
     probe_spent = 0.0
     rows: list[dict] = []
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     tasks = probe_tasks(chosen_split)
     script_cache = None
     if warm_replay and ARM_SCRIPT_FIRST in chosen:
@@ -689,6 +1030,8 @@ async def execute_probe(
             budget_usd=budget_usd,
             script_cache=script_cache,
             endpoint_opener=endpoint_opener,
+            task_reserve_usd=task_reserve,
+            lifetime_cap_usd=lifetime_cap,
         )
         row["pass"] = phase
         rows.append(row)
@@ -699,7 +1042,7 @@ async def execute_probe(
     if warm_replay:
         # Same cache file as the cold pass. Do not delete it between passes.
         for task in tasks:
-            for arm in warm_arms_for(chosen):
+            for arm in warm_arms_for(chosen, honest=honest):
                 if arm not in chosen:
                     continue
                 await take(arm, task, "warm")
@@ -719,6 +1062,7 @@ async def execute_probe(
                 )
                 + "\n"
             )
+        handle.write(json.dumps({"kind": "arm_report", "report": arm_report(rows, chosen)}) + "\n")
     if not any(row.get("claude") for row in rows):
         ledger.save()
     return rows
@@ -768,10 +1112,26 @@ def main(argv: list[str] | None = None) -> int:
             "script_first's tier. Uses the same caches. Not run from this checkout."
         ),
     )
+    parser.add_argument(
+        "--honest",
+        action="store_true",
+        help=(
+            "The live comparison: playwright_mcp, script_first cold then warm, "
+            "stagehand, and browser_use, on the three tuned tasks plus the held-out set. "
+            "Stops before a task can cross the $8 ceiling, the $40 abort, or the $50 cap. "
+            "Without --execute, prints the plan and does not use the network."
+        ),
+    )
     args = parser.parse_args(argv)
     try:
-        chosen = resolve_arms(args.arms)
-        chosen_split = resolve_task_split(args.split)
+        if args.honest:
+            chosen = HONEST_ARMS
+            chosen_split = SPLIT_HONEST
+            warm = True
+        else:
+            chosen = resolve_arms(args.arms)
+            chosen_split = resolve_task_split(args.split)
+            warm = args.warm_replay
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -781,9 +1141,10 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(
                     plan_probe(
                         no_model_only=args.no_model_only,
-                        warm_replay=args.warm_replay,
+                        warm_replay=warm,
                         arms=chosen,
                         split=chosen_split,
+                        honest=args.honest,
                     ),
                     indent=2,
                 )
@@ -793,19 +1154,21 @@ def main(argv: list[str] | None = None) -> int:
             execute_probe(
                 headless=not args.no_headless,
                 no_model_only=args.no_model_only,
-                warm_replay=args.warm_replay,
+                warm_replay=warm,
                 arms=chosen,
                 split=chosen_split,
+                honest=args.honest,
             )
         )
-    except LedgerMissing as exc:
+    except (LedgerMissing, LedgerBelowRecorded, ProbeRefused) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     spent = sum(row["usd"] for row in rows)
     print(f"probe rows: {len(rows)}")
     print(f"probe claude usd: {spent:.4f}")
-    if args.warm_replay:
+    if warm:
         print(json.dumps({"cold": cold_summary(rows), "warm": warm_summary(rows)}, indent=2))
+    print(json.dumps({"report": arm_report(rows, chosen)}, indent=2))
     return 0
 
 

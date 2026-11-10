@@ -411,6 +411,9 @@ HELD_OUT_TASK_IDS = (
 
 SPLIT_PROBE = "probe"
 SPLIT_HELD_OUT = "held-out"
+SPLIT_HONEST = "honest"
+# The tuned trio, then the PR #15 held-out set. The two sets stay disjoint.
+HONEST_TASK_IDS = TUNED_PROBE_TASK_IDS + HELD_OUT_TASK_IDS
 
 BENCHMARK_TASKS = FIXTURE_TASKS + WEBVOYAGER_TASKS
 
@@ -453,12 +456,18 @@ def _tasks_in_order(task_ids: tuple[str, ...]) -> list[dict]:
 
 
 def resolve_task_split(spec: str | None) -> str:
-    """probe is the tuned trio. held-out is the overfitting split."""
+    """probe is the tuned trio. held-out is the overfitting split.
+
+    honest is the tuned trio followed by the held-out set. The default
+    stays probe.
+    """
     key = (spec or SPLIT_PROBE).strip().casefold().replace("_", "-")
     if key in ("", "probe", "tuned", "default"):
         return SPLIT_PROBE
     if key in ("held-out", "heldout"):
         return SPLIT_HELD_OUT
+    if key == "honest":
+        return SPLIT_HONEST
     raise ValueError(f"unknown split {spec!r}")
 
 
@@ -467,6 +476,8 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
     name = resolve_task_split(spec)
     if name == SPLIT_HELD_OUT:
         return _tasks_in_order(HELD_OUT_TASK_IDS)
+    if name == SPLIT_HONEST:
+        return _tasks_in_order(HONEST_TASK_IDS)
     return _tasks_in_order(TUNED_PROBE_TASK_IDS)
 
 
