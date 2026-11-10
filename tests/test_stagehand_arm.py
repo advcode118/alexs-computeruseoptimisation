@@ -6,7 +6,7 @@ import asyncio
 import json
 
 from bench.arms import ARMS, arm_needs_claude, prompt_for
-from bench.budget import DEFAULT_SPEND_PATH
+from bench.budget import SpendLedger, default_spend_path
 from bench.harness import BenchmarkHarness, page_url_from_result, playwright_mcp_args
 from bench.judge import check_url_contains
 from bench.probe import (
@@ -147,7 +147,7 @@ def test_probe_plan_does_not_execute_and_caps_claude(capsys):
     assert plan["no_model_only_arms"] == ["diff_fast_act", "macro_replay"]
     assert plan["outer_model"] == "claude-sonnet-5-5"
     assert plan["claude_budget_usd"] == PROBE_CLAUDE_BUDGET_USD == 5.0
-    assert plan["project_spent_usd"] == 12.912192
+    assert plan["project_spent_usd"] == SpendLedger.load().running_total_usd
     assert plan["box_commands"] == list(BOX_COMMANDS)
     assert "--warm-replay" in plan["box_commands"][2]
     assert plan["warm_replay"] is False
@@ -223,18 +223,23 @@ def test_competitive_probe_uses_outer_claude_for_the_proxy_arms(monkeypatch, tmp
 
     monkeypatch.setattr("bench.probe.run_claude_arm", fake_claude)
     monkeypatch.setattr("bench.probe.run_no_model_arm", fake_no_model)
+    shared = default_spend_path()
+    before = shared.read_text(encoding="utf-8")
+    probe_ledger = tmp_path / "probe-spend.json"
+    SpendLedger.seed(probe_ledger).save()
     rows = asyncio.run(
-        execute_probe(spend_path=tmp_path / "spend.json", runs_dir=tmp_path / "runs")
+        execute_probe(spend_path=probe_ledger, runs_dir=tmp_path / "runs")
     )
     assert len(rows) == 12
     assert [arm for _kind, arm in seen] == [
         arm for _task in range(3) for arm in ARMS
     ]
     assert all(kind == "claude" for kind, _arm in seen)
-    recorded = json.loads(DEFAULT_SPEND_PATH.read_text(encoding="utf-8"))
-    assert recorded["running_total_usd"] == 12.912192
+    assert shared.read_text(encoding="utf-8") == before
+    recorded = json.loads(probe_ledger.read_text(encoding="utf-8"))
+    assert recorded["running_total_usd"] == json.loads(before)["running_total_usd"]
     assert recorded["prior"]["usd"] == 9.645
-    assert recorded["recorded_extra_usd"] == 3.267192
+    assert recorded["recorded_extra_usd"] == 0
 
 
 def test_no_model_only_is_optional_and_not_the_competitive_path(monkeypatch, tmp_path):
@@ -255,6 +260,7 @@ def test_no_model_only_is_optional_and_not_the_competitive_path(monkeypatch, tmp
 
     monkeypatch.setattr("bench.probe.run_claude_arm", fake_claude)
     monkeypatch.setattr("bench.probe.run_no_model_arm", fake_no_model)
+    SpendLedger.seed(tmp_path / "spend.json").save()
     asyncio.run(
         execute_probe(
             spend_path=tmp_path / "spend.json",
@@ -468,6 +474,7 @@ def test_warm_replay_reruns_the_proxy_arms(monkeypatch, tmp_path):
 
     monkeypatch.setattr("bench.probe.run_claude_arm", fake_claude)
     monkeypatch.setattr("bench.probe.run_no_model_arm", fake_no_model)
+    SpendLedger.seed(tmp_path / "spend.json").save()
     rows = asyncio.run(
         execute_probe(
             spend_path=tmp_path / "spend.json",

@@ -125,6 +125,26 @@ def _child_script() -> str:
 
 
 def _read_response(stdout, wanted_id: int, timeout: float) -> dict:
+    # Windows pipes are not sockets, so select() cannot wait on them.
+    if os.name == "nt":
+        found: list[dict] = []
+
+        def _read() -> None:
+            while True:
+                line = stdout.readline()
+                if not line:
+                    return
+                message = json.loads(line.decode())
+                if message.get("id") == wanted_id:
+                    found.append(message)
+                    return
+
+        reader = threading.Thread(target=_read, daemon=True)
+        reader.start()
+        reader.join(timeout)
+        if not found:
+            raise AssertionError(f"no response for id {wanted_id}")
+        return found[0]
     deadline = time.time() + timeout
     while time.time() < deadline:
         remaining = deadline - time.time()

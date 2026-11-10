@@ -134,6 +134,8 @@ class TaskResult:
     model_ignores_tools: int = 0
     # do_task_segment results whose tier was replay. The outer model still ran.
     replay_hits: int = 0
+    # script_first end-state: PASS, FAIL, UNKNOWN, or empty for other arms.
+    end_state: str = ""
 
 
 def estimate_tokens(text: str) -> int:
@@ -730,21 +732,29 @@ class BenchmarkHarness:
         repairs_sent = 0
         refusal_extended = False
         previous_payload: dict | None = None
+        end_state = ""
+        last_verdict = None
+        markers: dict = {}
         if self.arm == "script_first":
             from bench.arms import SCRIPT_FIRST_HARD_CAP, SCRIPT_FIRST_MAX_SCRIPTS
             from bench.script_first import (
-                end_state_failure,
-                missing_page_text,
+                FAIL,
+                PASS,
+                UNKNOWN,
+                claimed_from_payload,
+                evidence_verdict,
                 next_script_first_limit,
                 repair_request,
-                scored_page_url,
                 script_made_progress,
                 script_result_payload,
+                trusted_from_payload,
             )
+            from bench.tasks import markers_for_task
 
+            markers = markers_for_task(task_id)
             turn_limit = min(self.max_steps, SCRIPT_FIRST_HARD_CAP)
-            if hasattr(self.mcp_client, "expected_url_part"):
-                self.mcp_client.expected_url_part = expect_url
+            if hasattr(self.mcp_client, "end_markers"):
+                self.mcp_client.end_markers = markers
 
         try:
             while step_num < turn_limit:
@@ -799,12 +809,8 @@ class BenchmarkHarness:
                 if not tool_uses:
                     if self.arm == "script_first" and saw_complete:
                         failure = ""
-                        if repairs_sent < 1:
-                            failure = end_state_failure(
-                                last_url,
-                                start_url=start_url,
-                                expect_url_contains=expect_url,
-                            )
+                        if last_verdict is not None and last_verdict.verdict == FAIL and repairs_sent < 1:
+                            failure = last_verdict.reason
                         if failure:
                             messages.append({"role": "assistant", "content": assistant_content})
                             messages.append({"role": "user", "content": repair_request(last_url, failure)})
@@ -818,8 +824,19 @@ class BenchmarkHarness:
                                 refused_extra_script=False,
                             )
                             continue
-                        success = True
-                        success_reason = "Task completed successfully"
+                        if last_verdict is not None and last_verdict.verdict == PASS:
+                            success = True
+                            success_reason = "Task completed successfully"
+                            end_state = PASS
+                        elif last_verdict is not None and last_verdict.verdict == FAIL:
+                            success = False
+                            success_reason = last_verdict.reason
+                            end_state = FAIL
+                        else:
+                            reason = last_verdict.reason if last_verdict is not None else "no page evidence"
+                            success = False
+                            success_reason = f"UNKNOWN: {reason}"
+                            end_state = UNKNOWN
                         messages.append({"role": "assistant", "content": assistant_content})
                         break
                     if self.arm == "script_first" and saw_failed_text:
@@ -857,6 +874,11 @@ class BenchmarkHarness:
                             result_text = (
                                 "No further scripts. One script and one repair already ran. "
                                 "Reply with TASK_COMPLETE or TASK_FAILED. Do not call run_script again."
+                            )
+                        elif last_verdict is not None and last_verdict.verdict == UNKNOWN:
+                            result_text = (
+                                "No further scripts. The end state is UNKNOWN, so there is no repair call. "
+                                "Do not call run_script again."
                             )
                         else:
                             result_text = (
@@ -901,21 +923,17 @@ class BenchmarkHarness:
                             landed_title = page_field(result_text, "Title")
                             if not landed_title and isinstance(payload.get("title"), str):
                                 landed_title = payload["title"]
-                            if expect_url:
-                                scored = scored_page_url(page_url, expect_url, title=landed_title)
-                                if scored:
-                                    page_url = scored
-                                    last_url = scored
-                            failure = end_state_failure(
-                                page_url,
-                                start_url=start_url,
-                                expect_url_contains=expect_url,
-                                title=landed_title,
+                            # page_url stays the live URL. Markers never rewrite it.
+                            verdict = evidence_verdict(
+                                markers,
+                                trusted_from_payload(payload, url=page_url, title=landed_title),
+                                claimed_from_payload(payload),
                             )
-                            if not failure:
-                                failure = missing_page_text(payload, expect_url_contains=expect_url)
+                            last_verdict = verdict
+                            end_state = verdict.verdict
+                            failure = verdict.reason if verdict.verdict == FAIL else ""
                             repair_pending = False
-                            if failure and repairs_sent < 1:
+                            if verdict.verdict == FAIL and repairs_sent < 1:
                                 result_text += "\n" + repair_request(page_url, failure)
                                 repairs_sent += 1
                                 repair_pending = True
@@ -927,23 +945,15 @@ class BenchmarkHarness:
                                 repair_pending=repair_pending,
                                 refused_extra_script=False,
                             )
-                            extracted = payload.get("extracted") if isinstance(payload, dict) else None
-                            has_answer = isinstance(extracted, str) and bool(extracted.strip())
-                            if isinstance(extracted, list):
-                                has_answer = any(str(item).strip() for item in extracted)
-                            # A finished first script ends the task. The completion
-                            # sentence is not another step and does not call the model.
-                            if (
-                                not failure
-                                and isinstance(page_url, str)
-                                and page_url.startswith(("http://", "https://"))
-                                and (bool(expect_url) or has_answer)
+                            # A PASS ends the task. UNKNOWN does not, and it does not repair.
+                            if verdict.verdict == PASS and isinstance(page_url, str) and page_url.startswith(
+                                ("http://", "https://")
                             ):
                                 success = True
                                 success_reason = "Task completed successfully"
                                 stop_after_tools = True
                             elif (
-                                failure
+                                verdict.verdict == FAIL
                                 and not progress
                                 and not repair_pending
                                 and script_calls >= SCRIPT_FIRST_MAX_SCRIPTS
@@ -991,13 +1001,25 @@ class BenchmarkHarness:
 
                 messages.append({"role": "user", "content": tool_results})
                 if self.arm == "script_first" and saw_complete and not stop_after_tools:
-                    if not end_state_failure(
-                        last_url,
-                        start_url=start_url,
-                        expect_url_contains=expect_url,
-                    ):
-                        success = True
-                        success_reason = "Task completed successfully"
+                    repaired = any(
+                        "END_STATE_FAILED" in str(block.get("content") or "")
+                        for block in tool_results
+                        if isinstance(block, dict)
+                    )
+                    if not repaired:
+                        if last_verdict is not None and last_verdict.verdict == PASS:
+                            success = True
+                            success_reason = "Task completed successfully"
+                            end_state = PASS
+                        elif last_verdict is not None and last_verdict.verdict == FAIL:
+                            success = False
+                            success_reason = last_verdict.reason
+                            end_state = FAIL
+                        else:
+                            reason = last_verdict.reason if last_verdict is not None else "no page evidence"
+                            success = False
+                            success_reason = f"UNKNOWN: {reason}"
+                            end_state = UNKNOWN
                         break
                 if stop_after_tools:
                     break
@@ -1006,6 +1028,15 @@ class BenchmarkHarness:
             error = str(exc)
             success = False
             success_reason = f"Error: {error}"
+
+        if self.arm == "script_first" and end_state == UNKNOWN and success_reason == "Max steps reached":
+            reason = last_verdict.reason if last_verdict is not None else "no page evidence"
+            success = False
+            success_reason = f"UNKNOWN: {reason}"
+        if self.arm == "script_first" and end_state == FAIL and success:
+            success = False
+            if last_verdict is not None:
+                success_reason = last_verdict.reason
 
         total_wall_ms = (time.perf_counter() - wall_start) * 1000
         total_other_ms = total_wall_ms - total_model_ms - total_tool_ms
@@ -1027,6 +1058,7 @@ class BenchmarkHarness:
             error=error,
             model_ignores_tools=ignores.count,
             replay_hits=replay_hits,
+            end_state=end_state,
         )
 
     def _empty_result(
@@ -1071,6 +1103,7 @@ class BenchmarkHarness:
                 "total_snapshot_tokens": result.total_snapshot_tokens,
                 "model_ignores_tools": result.model_ignores_tools,
                 "replay_hits": result.replay_hits,
+                "end_state": result.end_state,
                 "error": result.error,
                 "steps": [
                     {

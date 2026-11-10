@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 import time
 import urllib.request
@@ -452,6 +453,14 @@ def test_control_page_can_start_and_stop():
         server.close()
 
 
+def _local_chrome_on_path() -> bool:
+    return any(
+        shutil.which(name)
+        for name in ("google-chrome", "google-chrome-stable", "chrome", "chromium", "chromium-browser")
+    )
+
+
+@pytest.mark.skipif(not _local_chrome_on_path(), reason="needs a local Chrome")
 def test_attached_chrome_keeps_running_after_close():
     import socket
     import tempfile

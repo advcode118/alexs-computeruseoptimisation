@@ -52,7 +52,7 @@ def _child_argv() -> list[str]:
     if override:
         import shlex
 
-        return shlex.split(override)
+        return shlex.split(override, posix=(os.name != "nt"))
     return [
         "npx",
         "@playwright/mcp@0.0.84",

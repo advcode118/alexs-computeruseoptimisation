@@ -75,16 +75,17 @@ _SCRIPT_FIRST_PROMPT = """You are a browser automation agent. You get one tool, 
 Guidelines:
 - The first script must finish the task. Call run_script once. Do not plan a second script.
 - The end URL must be the finished page the task named. Do not stop on the start URL, and do not stop on a search-results URL when the task named a specific page.
-- Prefer one page.goto of that finished page over clicking through the site. Put the whole navigation in the same script.
-- Wikipedia: leave Main_Page. page.goto("https://en.wikipedia.org/wiki/Article_Title") with underscores in the title, such as https://en.wikipedia.org/wiki/Ada_Lovelace. The URL must contain that slug. Main_Page and Special:Search are not done. A search box is optional: the field is getByRole("combobox", { name: "Search Wikipedia" }) or getByPlaceholder("Search Wikipedia"), submit with press("Enter"), then goto the article URL in that same script.
-- A named docs page is the same shape: page.goto the module URL so the URL contains the module name, such as https://docs.python.org/3/library/heapq.html for heapq.
-- Hacker News: one script only. page.goto("https://news.ycombinator.com/") and return the top story with page.evaluate(() => (document.querySelector(".titleline a") || document.querySelector(".titleline")).textContent.trim()). The tool result includes that text. Reply with the title and TASK_COMPLETE. Do not open stories and do not send a second script.
+- Prefer one page.goto of the finished page over clicking through the site. Put the whole navigation in the same script.
+- Wikipedia must leave Main_Page. Special:Search is not the finished article.
 - Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, and page.evaluate(() => { ... }) with a page-context function.
+- End every script with one page.evaluate that returns evidence from the live page:
+  page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector("h1")?.innerText, answer: ""}))
+  Put the value the task asked for in answer.
 - Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle. The runner drops those lines and does not settle or snapshot between actions.
 - Do not click, type, or snapshot one element at a time.
 - browser_run_code_unsafe is not a tool. Do not ask for it.
 - If the tool result says END_STATE_FAILED, send one corrected script that lands on the finished page. Do not send a second repair.
-- If the result is already the finished page, the run stops. Do not call run_script again and do not send a separate completion turn. A matching URL, or the extracted Hacker News title, is the end. If it cannot be done, respond with TASK_FAILED.
+- If the result already satisfies the task, the run stops. Do not call run_script again and do not send a separate completion turn. If it cannot be done, respond with TASK_FAILED.
 
 Be efficient - one script, at most one repair, then stop."""
 

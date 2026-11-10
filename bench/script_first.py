@@ -14,7 +14,9 @@ import shutil
 import tempfile
 import time
 from dataclasses import dataclass
-from urllib.parse import parse_qs, unquote, urlsplit, urlunsplit
+from urllib.parse import unquote, urlsplit
+
+from bench.judge import is_search_results_url
 
 # Navigation waits for DOMContentLoaded, not load or networkidle.
 # A click or Enter returns before the next document is current. This wait
@@ -23,11 +25,24 @@ _NAV_TIMEOUT_MS = 10000
 _ACTION_TIMEOUT_MS = 5000
 _EVALUATE_TIMEOUT_S = 5
 _LAND_TIMEOUT_S = 0.8
+_PAGE_TEXT_CAP = 4000
 
-_VISIBLE_ANSWER_JS = """() => {
-  const el = document.querySelector(".titleline a") || document.querySelector(".titleline");
-  if (!el) return "";
-  return (el.innerText || el.textContent || "").trim();
+PASS = "PASS"
+FAIL = "FAIL"
+UNKNOWN = "UNKNOWN"
+
+_PAGE_EVIDENCE_JS = """() => {
+  const link = document.querySelector('link[rel="canonical"]');
+  const h1 = document.querySelector("h1");
+  const root = document.querySelector("main") || document.body;
+  const raw = root ? (root.innerText || root.textContent || "") : "";
+  return {
+    url: location.href,
+    title: document.title || "",
+    canonical: link ? (link.href || "") : "",
+    h1: h1 ? (h1.innerText || h1.textContent || "") : "",
+    text: raw.slice(0, 8000)
+  };
 }"""
 
 from bench.stagehand_local import _locator, context_browser
@@ -277,113 +292,320 @@ def script_result_payload(text: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _phrase(expect: str) -> str:
-    text = unquote(expect or "").replace("_", " ").replace("+", " ")
+@dataclass(frozen=True)
+class PageEvidence:
+    """What the harness read from the live page. Not the model's claim."""
+
+    url: str = ""
+    title: str = ""
+    canonical: str = ""
+    h1: str = ""
+    text: str = ""
+    selector_text: str = ""
+
+
+@dataclass(frozen=True)
+class ClaimedEvidence:
+    """Values the script said it found. Hints only."""
+
+    url: str = ""
+    title: str = ""
+    h1: str = ""
+    answer: str = ""
+
+
+@dataclass(frozen=True)
+class EvidenceVerdict:
+    """PASS, FAIL, or UNKNOWN. scored_url is the live URL or the canonical href."""
+
+    verdict: str
+    reason: str
+    scored_url: str
+
+
+def _http(url: str) -> bool:
+    return isinstance(url, str) and url.startswith(("http://", "https://"))
+
+
+def _fold_token(value: str) -> str:
+    text = unquote(value or "").replace("_", " ").replace("-", " ").replace("+", " ")
     return " ".join(text.split()).casefold()
 
 
-def _same_phrase(value: str, expect: str) -> bool:
-    phrase = _phrase(expect)
-    if not phrase or not value:
-        return False
-    text = unquote(value).replace("_", " ").replace("+", " ")
-    return " ".join(text.split()).casefold() == phrase
+def _norm_answer(value: str) -> str:
+    return " ".join((value or "").split()).casefold()
 
 
-def _denied_page(url: str) -> bool:
-    """Search results and the Wikipedia front page are not the finished article."""
-    lowered = unquote(url or "").replace("+", " ").casefold()
-    if "main_page" in lowered:
+def _host_name(url: str) -> str:
+    if not _http(url):
+        return ""
+    return urlsplit(url).netloc.casefold()
+
+
+def _host_ok(url: str, host) -> bool:
+    if not host:
         return True
-    if "special:search" in lowered or "special%3asearch" in (url or "").casefold():
+    if not _http(url):
+        return False
+    names = host if isinstance(host, (list, tuple)) else [host]
+    netloc = _host_name(url)
+    for item in names:
+        needle = str(item or "").casefold().strip()
+        if not needle:
+            continue
+        if netloc == needle or netloc.endswith("." + needle):
+            return True
+    return False
+
+
+def _marker_in_url(url: str, token: str) -> bool:
+    if not _http(url) or not token:
+        return False
+    if token.casefold() in url.casefold():
         return True
-    path = urlsplit(url).path.casefold() if url else ""
-    return path.endswith("/search.html") or "/search.html" in path
+    decoded = unquote(url)
+    if token.casefold() in decoded.casefold():
+        return True
+    return _fold_token(token) in _fold_token(decoded)
 
 
-def _title_names_target(title: str, expect: str) -> bool:
-    if not title or not expect:
+def _path_suffix_ok(url: str, suffix: str) -> bool:
+    if not suffix:
+        return True
+    if not _http(url):
         return False
-    if "search" in title.casefold():
-        return False
-    head = title.split("—", 1)[0].split(" - ", 1)[0]
-    return _same_phrase(head, expect)
+    path = unquote(urlsplit(url).path)
+    return path.endswith(suffix)
 
 
-def scored_page_url(url: str, expect: str, title: str = "") -> str:
-    """URL the substring judge accepts when this page is already the target.
-
-    A literal substring is returned unchanged, the same bar as the Stagehand
-    URL judge. Empty for the Wikipedia front page and for a search page that
-    does not already contain the token. A percent-encoded article path or
-    MediaWiki title= parameter is rewritten so the token is literal. The
-    document title is used only when the URL is not already some other article.
-    """
-    if not expect or not isinstance(url, str) or not url.startswith(("http://", "https://")):
+def _deny_hit(url: str, deny) -> str:
+    if not url:
         return ""
-    # Same bar as check_url_contains. A search URL that already contains the
-    # token is done; rewriting one that does not would invent a pass.
-    if expect.casefold() in url.casefold():
-        return url
-    if _denied_page(url):
-        return ""
-    parts = urlsplit(url)
-    segments = unquote(parts.path).split("/")
-    rewritten: list[str] = []
-    matched = False
-    for segment in segments:
-        stem, dot, ext = segment.rpartition(".")
-        leaf = stem if dot else segment
-        if _same_phrase(leaf, expect):
-            rewritten.append(expect + (dot + ext if dot else ""))
-            matched = True
-        else:
-            rewritten.append(segment)
-    if matched:
-        return urlunsplit((parts.scheme, parts.netloc, "/".join(rewritten), parts.query, parts.fragment))
-    title_values = parse_qs(parts.query, keep_blank_values=True).get("title") or []
-    if title_values and _same_phrase(title_values[0], expect) and "wikipedia.org" in parts.netloc.casefold():
-        return f"{parts.scheme}://{parts.netloc}/wiki/{expect}"
-    if not _title_names_target(title, expect):
-        return ""
-    host = parts.netloc.casefold()
-    if "wikipedia.org" in host:
-        path_segs = [segment for segment in unquote(parts.path).split("/") if segment]
-        if len(path_segs) >= 2 and path_segs[0].casefold() == "wiki":
-            return ""
-        return f"{parts.scheme}://{parts.netloc}/wiki/{expect}"
-    if "python.org" in host:
-        path = unquote(parts.path).casefold()
-        if path.rstrip("/").endswith(".html"):
-            return ""
-        return f"{parts.scheme}://{parts.netloc}/3/library/{expect}.html"
+    raw = url.casefold()
+    decoded = unquote(url).casefold()
+    folded = _fold_token(decoded)
+    for token in deny or []:
+        if not token:
+            continue
+        needle = str(token)
+        if needle.casefold() in raw or needle.casefold() in decoded:
+            return needle
+        if _fold_token(needle) and _fold_token(needle) in folded:
+            return needle
     return ""
 
 
-def end_state_failure(
-    url: str,
-    *,
-    start_url: str = "",
-    expect_url_contains: str = "",
-    title: str = "",
-) -> str:
-    """Why this URL is not the finished task. Empty when there is nothing to repair.
+def _same_page(left: str, right: str) -> bool:
+    if not _http(left) or not _http(right):
+        return False
+    if left.strip() == right.strip():
+        return True
+    a = urlsplit(left)
+    b = urlsplit(right)
+    if a.netloc.casefold() != b.netloc.casefold():
+        return False
 
-    Tasks without a URL check, such as Hacker News, are left to the model.
-    Wikipedia fails while the page is still Main_Page. A landed article whose
-    path is percent-encoded, or whose title already names the target, is done.
+    def norm_path(path: str) -> str:
+        text = unquote(path).casefold().replace("_", " ").replace("-", " ")
+        parts = [" ".join(part.split()) for part in text.split("/")]
+        return "/".join(parts).rstrip("/")
+
+    if norm_path(a.path) != norm_path(b.path):
+        return False
+    return unquote(a.query).casefold() == unquote(b.query).casefold()
+
+
+def _url_matches(url: str, markers: dict) -> bool:
+    if not _http(url):
+        return False
+    if is_search_results_url(url) or _deny_hit(url, markers.get("deny") or []):
+        return False
+    if not _host_ok(url, markers.get("host")):
+        return False
+    token = markers.get("url_contains") or ""
+    if token and not _marker_in_url(url, token):
+        return False
+    if not _path_suffix_ok(url, markers.get("path_suffix") or ""):
+        return False
+    return True
+
+
+def _positive_url(markers: dict) -> bool:
+    return bool(markers.get("url_contains") or markers.get("path_suffix"))
+
+
+def _scored_url(live: str, canonical: str, markers: dict) -> str:
+    """The live URL, or the canonical href, byte for byte. Never a rewritten URL."""
+    if _http(live) and _url_matches(live, markers):
+        return live
+    if _http(canonical) and _url_matches(canonical, markers) and not (
+        _http(live) and (is_search_results_url(live) or _deny_hit(live, markers.get("deny") or []))
+    ):
+        return canonical
+    if _http(live):
+        return live
+    if _http(canonical):
+        return canonical
+    return ""
+
+
+def _claim_from_value(value) -> dict:
+    if isinstance(value, dict):
+        data = value
+    elif isinstance(value, str):
+        text = value.strip()
+        data = None
+        if text.startswith("{") and text.endswith("}"):
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, dict):
+                data = parsed
+        if data is None:
+            if text:
+                return {"answer": text}
+            return {}
+    else:
+        return {}
+    picked = {}
+    for key in ("url", "title", "h1", "answer"):
+        item = data.get(key)
+        if isinstance(item, str) and item.strip():
+            picked[key] = item.strip()
+    return picked
+
+
+def evidence_verdict(
+    markers: dict | None,
+    trusted: PageEvidence,
+    claimed: ClaimedEvidence | None = None,
+) -> EvidenceVerdict:
+    """PASS, FAIL, or UNKNOWN from judge markers and the harness's page read.
+
+    Only FAIL is concrete enough to ask for a repair. UNKNOWN is not a pass.
+    The scored URL is the live URL or the canonical href, unchanged.
     """
-    if not expect_url_contains:
-        return ""
-    if scored_page_url(url, expect_url_contains, title=title):
-        return ""
-    if not isinstance(url, str) or not url.startswith(("http://", "https://")):
-        return "the run finished without a page URL"
-    if isinstance(url, str) and "main_page" in unquote(url).casefold() and "main_page" not in expect_url_contains.casefold():
-        return "the page is still Wikipedia Main_Page"
-    if start_url and isinstance(url, str) and url.rstrip("/") == start_url.rstrip("/"):
-        return "the page never left the start URL"
-    return f"the URL does not contain {expect_url_contains}"
+    markers = dict(markers or {})
+    claimed = claimed or ClaimedEvidence()
+    live = (trusted.url or "").strip()
+    canonical = (trusted.canonical or "").strip()
+    if not _http(canonical):
+        canonical = ""
+    scored = _scored_url(live, canonical, markers)
+    page_text = trusted.text or ""
+    has_page = _http(live) or _http(canonical)
+    has_body = bool(page_text.strip() or (trusted.title or "").strip() or (trusted.h1 or "").strip())
+
+    if not has_page and not has_body and not (claimed.answer or claimed.url):
+        return EvidenceVerdict(FAIL, "empty evidence", "")
+
+    if _http(live) and (is_search_results_url(live) or _deny_hit(live, markers.get("deny") or [])):
+        why = _deny_hit(live, markers.get("deny") or []) or "search"
+        return EvidenceVerdict(FAIL, f"the page is denied ({why})", live)
+
+    if _http(claimed.url) and not _same_page(claimed.url, live) and not (
+        canonical and _same_page(claimed.url, canonical)
+    ):
+        return EvidenceVerdict(FAIL, "claimed URL does not match the live page", scored or live)
+
+    host = markers.get("host") or ""
+    if host and has_page:
+        candidates = [item for item in (live, canonical) if _http(item)]
+        if candidates and not any(_host_ok(item, host) for item in candidates):
+            return EvidenceVerdict(FAIL, "the page is on the wrong host", scored)
+
+    needs_url = _positive_url(markers)
+    url_ok = _url_matches(live, markers) or (bool(canonical) and _url_matches(canonical, markers))
+    if needs_url and has_page and not url_ok:
+        return EvidenceVerdict(FAIL, "the URL marker does not match the live page", scored)
+
+    answer_in_text = markers.get("answer_in_text") or ""
+    selector = markers.get("answer_equals_selector") or ""
+    answer = (claimed.answer or "").strip()
+
+    if selector or answer_in_text:
+        if not answer:
+            return EvidenceVerdict(FAIL, "empty answer", scored)
+        if selector:
+            truth = (trusted.selector_text or "").strip()
+            if not truth or not page_text.strip():
+                return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
+            if _norm_answer(answer) != _norm_answer(truth):
+                return EvidenceVerdict(FAIL, "answer is not the marked value", scored)
+            if _norm_answer(answer) not in _norm_answer(page_text):
+                return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
+        if answer_in_text:
+            if not page_text.strip():
+                return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
+            if _norm_answer(answer) not in _norm_answer(page_text):
+                return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
+            if _norm_answer(str(answer_in_text)) not in _norm_answer(answer) and _norm_answer(
+                str(answer_in_text)
+            ) not in _norm_answer(page_text):
+                return EvidenceVerdict(FAIL, "answer does not satisfy the marker", scored)
+            if _norm_answer(str(answer_in_text)) not in _norm_answer(answer):
+                return EvidenceVerdict(FAIL, "answer does not satisfy the marker", scored)
+        if needs_url and not url_ok:
+            return EvidenceVerdict(FAIL, "the URL marker does not match the live page", scored)
+        if (not needs_url) or url_ok:
+            if host and not any(_host_ok(item, host) for item in (live, canonical) if _http(item)):
+                return EvidenceVerdict(FAIL, "the page is on the wrong host", scored)
+            return EvidenceVerdict(PASS, "the page evidence matches the markers", scored)
+
+    if needs_url and url_ok:
+        return EvidenceVerdict(PASS, "the URL marker matches the live page", scored)
+    if needs_url and not has_page:
+        return EvidenceVerdict(FAIL, "empty evidence", "")
+    if has_page or has_body:
+        return EvidenceVerdict(UNKNOWN, "the markers are not decisive", scored)
+    return EvidenceVerdict(FAIL, "empty evidence", "")
+
+
+def trusted_from_payload(payload: dict | None, *, url: str = "", title: str = "") -> PageEvidence:
+    data = payload if isinstance(payload, dict) else {}
+    live = url or (data.get("url") if isinstance(data.get("url"), str) else "")
+    return PageEvidence(
+        url=live or "",
+        title=title or (data.get("title") if isinstance(data.get("title"), str) else ""),
+        canonical=data.get("canonical") if isinstance(data.get("canonical"), str) else "",
+        h1=data.get("h1") if isinstance(data.get("h1"), str) else "",
+        text=data.get("text") if isinstance(data.get("text"), str) else "",
+        selector_text=data.get("selector_text") if isinstance(data.get("selector_text"), str) else "",
+    )
+
+
+def claimed_from_payload(payload: dict | None) -> ClaimedEvidence:
+    data = payload if isinstance(payload, dict) else {}
+    raw = data.get("claimed") if isinstance(data.get("claimed"), dict) else {}
+    claimed = {
+        key: raw.get(key).strip()
+        for key in ("url", "title", "h1", "answer")
+        if isinstance(raw.get(key), str) and raw.get(key).strip()
+    }
+    extracted = data.get("extracted")
+    texts: list[str] = []
+    if isinstance(extracted, str) and extracted.strip():
+        texts = [extracted.strip()]
+    elif isinstance(extracted, list):
+        texts = [str(item).strip() for item in extracted if str(item).strip()]
+    for text in reversed(texts):
+        parsed = _claim_from_value(text)
+        for key in ("url", "title", "h1", "answer"):
+            if parsed.get(key) and not claimed.get(key):
+                claimed[key] = parsed[key]
+        if claimed.get("answer") or claimed.get("url"):
+            break
+    if not claimed.get("answer") and texts:
+        last = texts[-1]
+        if not last.startswith("{"):
+            claimed["answer"] = last
+    return ClaimedEvidence(
+        url=claimed.get("url") or "",
+        title=claimed.get("title") or "",
+        h1=claimed.get("h1") or "",
+        answer=claimed.get("answer") or "",
+    )
 
 
 def repair_request(url: str, reason: str) -> str:
@@ -436,21 +658,6 @@ def next_script_first_limit(
     return limit
 
 
-def missing_page_text(payload: dict, *, expect_url_contains: str = "") -> str:
-    """Why a task with no URL check still needs one repair.
-
-    Empty when the script returned text, or when the URL check is the judge.
-    """
-    if expect_url_contains:
-        return ""
-    extracted = payload.get("extracted") if isinstance(payload, dict) else None
-    if isinstance(extracted, str) and extracted.strip():
-        return ""
-    if isinstance(extracted, list) and any(str(item).strip() for item in extracted):
-        return ""
-    return "the script did not return the text the task asked for"
-
-
 def _coerce_extract(value) -> str:
     if value is None:
         return ""
@@ -477,11 +684,15 @@ def format_run_result(
     error: str = "",
     extracted: list[str] | None = None,
     title: str = "",
+    canonical: str = "",
+    h1: str = "",
+    text: str = "",
+    selector_text: str = "",
+    claimed: dict | None = None,
 ) -> str:
-    """JSON url plus Stagehand-style goto prose, so the existing judge can read it.
+    """JSON for the live page plus Stagehand-style goto prose.
 
-    `- Page URL:` is last. page_url_from_result prefers that line, so a landed
-    article is what the judge scores.
+    `url` is the browser's URL. It is not rewritten. `- Page URL:` is last.
     """
     payload: dict = {"ok": ok, "url": url, "steps": step_count}
     if error:
@@ -491,23 +702,35 @@ def format_run_result(
         payload["extracted"] = shown
     if title:
         payload["title"] = title
+    if canonical:
+        payload["canonical"] = canonical
+    if h1:
+        payload["h1"] = h1
+    if text:
+        payload["text"] = text[:_PAGE_TEXT_CAP]
+    if selector_text:
+        payload["selector_text"] = selector_text
+    if claimed:
+        kept = {}
+        for key in ("url", "title", "h1", "answer"):
+            item = claimed.get(key)
+            if isinstance(item, str) and item.strip():
+                kept[key] = item.strip()
+        if kept:
+            payload["claimed"] = kept
     lines = [json.dumps(payload)]
     if isinstance(url, str) and url.startswith(("http://", "https://")):
         lines.append(f"Ran goto {url}.")
     if shown:
-        text = " | ".join(shown)
-        if len(text) > 500:
-            text = text[:500]
-        lines.append(f"Extracted: {text}")
+        shown_text = " | ".join(shown)
+        if len(shown_text) > 500:
+            shown_text = shown_text[:500]
+        lines.append(f"Extracted: {shown_text}")
     if title:
         lines.append(f"- Page Title: {title}")
     if isinstance(url, str) and url.startswith(("http://", "https://")):
         lines.append(f"- Page URL: {url}")
     return "\n".join(lines)
-
-
-def _answer_present(extracted: list[str]) -> bool:
-    return any(str(item).strip() for item in extracted)
 
 
 async def _read_title(page) -> str:
@@ -523,18 +746,19 @@ async def _read_title(page) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
-async def _wait_for_landed(page, expect: str) -> None:
-    """Block until the current document is the target, or the short budget ends.
+async def _wait_for_landed(page, before: str) -> None:
+    """Wait until a click's navigation is the current document.
 
-    page.goto already waited for DOMContentLoaded. click and press do not.
-    This is one Playwright URL wait. It does not snapshot or quiet the page.
+    The predicate is "the URL changed". It does not rewrite the URL and it
+    does not treat a title as the target page.
     """
     wait = getattr(page, "wait_for_url", None)
-    if not callable(wait) or not expect:
+    if not callable(wait):
         return
 
     def arrived(live: str) -> bool:
-        return bool(scored_page_url(str(live or ""), expect))
+        current = str(live or "")
+        return current.startswith(("http://", "https://")) and current != before
 
     try:
         result = wait(arrived)
@@ -544,52 +768,104 @@ async def _wait_for_landed(page, expect: str) -> None:
         return
 
 
-async def _capture_visible_answer(page) -> str:
+async def _evaluate_value(page, source: str):
     evaluate = getattr(page, "evaluate", None)
     if not callable(evaluate):
-        return ""
+        return None
     try:
-        value = evaluate(_VISIBLE_ANSWER_JS)
+        value = evaluate(source)
         if asyncio.iscoroutine(value):
             value = await asyncio.wait_for(value, timeout=_EVALUATE_TIMEOUT_S)
     except Exception:
-        return ""
-    return _coerce_extract(value)
+        return None
+    return value
+
+
+async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
+    """Read the live page. The script's return value is not used here."""
+    url = _page_url(page)
+    title = await _read_title(page)
+    raw = await _evaluate_value(page, _PAGE_EVIDENCE_JS)
+    data = raw if isinstance(raw, dict) else {}
+    if not _http(url):
+        candidate = data.get("url") if isinstance(data.get("url"), str) else ""
+        if _http(candidate):
+            url = candidate
+    if not title and isinstance(data.get("title"), str):
+        title = data["title"]
+    selector_text = ""
+    if selector:
+        literal = json.dumps(selector)
+        source = (
+            "() => { const selector = "
+            + literal
+            + "; const el = document.querySelector(selector); "
+            'if (!el) return ""; return (el.innerText || el.textContent || "").trim(); }'
+        )
+        found = await _evaluate_value(page, source)
+        if isinstance(found, str):
+            selector_text = found.strip()
+    text = data.get("text") if isinstance(data.get("text"), str) else ""
+    canonical = data.get("canonical") if isinstance(data.get("canonical"), str) else ""
+    h1 = data.get("h1") if isinstance(data.get("h1"), str) else ""
+    return PageEvidence(
+        url=url,
+        title=title,
+        canonical=canonical.strip(),
+        h1=h1.strip(),
+        text=text[:_PAGE_TEXT_CAP],
+        selector_text=selector_text,
+    )
+
+
+def _note_extract(extracted: list[str], claimed: dict, value) -> dict:
+    parsed = _claim_from_value(value)
+    if parsed:
+        for key, item in parsed.items():
+            if item and not claimed.get(key):
+                claimed[key] = item
+        if parsed.get("answer"):
+            extracted.append(parsed["answer"])
+        return claimed
+    text = _coerce_extract(value)
+    if text:
+        extracted.append(text)
+        if not claimed.get("answer"):
+            claimed["answer"] = text
+    return claimed
 
 
 async def _finish_page(
     page,
     *,
-    expect_url_contains: str,
+    ok: bool,
+    step_count: int,
+    error: str,
     extracted: list[str],
-    capture_visible_answer: bool,
+    claimed: dict,
+    end_markers: dict | None,
     wait_for_commit: bool,
-) -> tuple[str, str, list[str]]:
-    """URL, title, and any text read after the script's own lines.
-
-    The URL is the one the substring judge can accept. page.goto already
-    waited for DOMContentLoaded. A click or Enter that has not committed yet
-    gets one short wait. Hacker News text is read locally when the script
-    opened the page and did not return it.
-    """
-    url = _page_url(page)
-    title = await _read_title(page)
-    if (
-        wait_for_commit
-        and expect_url_contains
-        and not scored_page_url(url, expect_url_contains, title=title)
-    ):
-        await _wait_for_landed(page, expect_url_contains)
-        url = _page_url(page)
-        title = await _read_title(page)
-    scored = scored_page_url(url, expect_url_contains, title=title) if expect_url_contains else ""
-    if scored:
-        url = scored
-    if capture_visible_answer and not _answer_present(extracted) and url.startswith(("http://", "https://")):
-        text = await _capture_visible_answer(page)
-        if text:
-            extracted = [*extracted, text]
-    return url, title, extracted
+) -> str:
+    """Read the live page after the script. The URL is not rewritten."""
+    if wait_for_commit:
+        await _wait_for_landed(page, _page_url(page))
+    selector = ""
+    if end_markers:
+        selector = str(end_markers.get("answer_equals_selector") or "")
+    evidence = await collect_page_evidence(page, selector=selector)
+    return format_run_result(
+        ok=ok,
+        url=evidence.url,
+        step_count=step_count,
+        error=error,
+        extracted=extracted,
+        title=evidence.title,
+        canonical=evidence.canonical,
+        h1=evidence.h1,
+        text=evidence.text,
+        selector_text=evidence.selector_text,
+        claimed=claimed,
+    )
 
 
 def _page_url(page) -> str:
@@ -626,53 +902,47 @@ async def run_on_page(
     page,
     source: str,
     *,
-    expect_url_contains: str = "",
-    capture_visible_answer: bool = False,
+    end_markers: dict | None = None,
 ) -> str:
     """Run the whole script on a Playwright page. No settle between actions.
 
     Goto waits for DOMContentLoaded. Wait lines were already dropped. An
-    evaluate return value is kept so the model can answer without a second script.
-    A click's navigation is read once it commits, and that URL is what the
-    judge sees. The task can end on this result.
+    evaluate return value is the script's claim. After the script the harness
+    reads the live URL, canonical link, h1, and main text itself.
     """
     steps = parse_task_script(source)
     done = 0
     extracted: list[str] = []
+    claimed: dict = {}
     try:
         for step in steps:
             value = await _run_step_on_page(page, step)
             done += 1
             if step.kind == "evaluate":
-                text = _coerce_extract(value)
-                if text:
-                    extracted.append(text)
+                claimed = _note_extract(extracted, claimed, value)
     except ScriptError:
         raise
     except Exception as exc:
-        url, title, extracted = await _finish_page(
+        return await _finish_page(
             page,
-            expect_url_contains=expect_url_contains,
-            extracted=extracted,
-            capture_visible_answer=capture_visible_answer,
-            wait_for_commit=True,
-        )
-        return format_run_result(
             ok=False,
-            url=url,
             step_count=done,
             error=str(exc),
             extracted=extracted,
-            title=title,
+            claimed=claimed,
+            end_markers=end_markers,
+            wait_for_commit=True,
         )
-    url, title, extracted = await _finish_page(
+    return await _finish_page(
         page,
-        expect_url_contains=expect_url_contains,
+        ok=True,
+        step_count=len(steps),
+        error="",
         extracted=extracted,
-        capture_visible_answer=capture_visible_answer,
+        claimed=claimed,
+        end_markers=end_markers,
         wait_for_commit=bool(steps) and steps[-1].kind != "goto",
     )
-    return format_run_result(ok=True, url=url, step_count=len(steps), extracted=extracted, title=title)
 
 
 async def _mcp_text(call_tool, name: str, arguments: dict) -> str:
@@ -736,7 +1006,7 @@ class ScriptFirstClient:
         self.headless = headless
         self._page = page
         self._owns_page = page is None
-        self.expected_url_part = ""
+        self.end_markers: dict = {}
         self._playwright = None
         self._browser = None
         self._context = None
@@ -748,21 +1018,17 @@ class ScriptFirstClient:
                 "name": "run_script",
                 "description": (
                     "Run one Playwright script that finishes the whole task in this call. "
-                    "The end URL must already be the finished page. "
-                    "Wikipedia: page.goto(\"https://en.wikipedia.org/wiki/Article_Title\") "
-                    "with underscores, not Main_Page and not Special:Search. "
-                    "Docs: page.goto the module URL. "
-                    "Hacker News: page.goto the site and page.evaluate the top "
-                    ".titleline a text. The result includes that string. "
+                    "The end URL must already be the finished page, not a search-results URL. "
+                    "End with page.evaluate(() => ({url: location.href, title: document.title, "
+                    "h1: document.querySelector('h1')?.innerText, answer: ''})) and put the "
+                    "requested value in answer. "
                     "Do not call page.waitForTimeout, page.waitForLoadState, or networkidle. "
                     "Allowed lines are page.goto, page.getByRole, page.getByLabel, "
                     "page.getByText, page.getByPlaceholder, and page.evaluate with a "
                     "page-context function. The runner does not settle or snapshot "
                     "between actions and drops wait lines. "
                     "browser_run_code_unsafe is not available. "
-                    "The runner reads the page again after a click or Enter, once that "
-                    "navigation is the current document. A matching end URL, or "
-                    "extracted text on a page with no URL check, finishes the task. "
+                    "The runner reads the live page itself after the script. "
                     "Call this once. A second call is only for END_STATE_FAILED."
                 ),
                 "input_schema": {
@@ -841,12 +1107,7 @@ class ScriptFirstClient:
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""
         try:
-            text = await run_on_page(
-                self._page,
-                code,
-                expect_url_contains=self.expected_url_part,
-                capture_visible_answer=not self.expected_url_part,
-            )
+            text = await run_on_page(self._page, code, end_markers=self.end_markers)
         except ScriptError as exc:
             text = format_run_result(ok=False, url=_page_url(self._page), step_count=0, error=str(exc))
         elapsed_ms = (time.perf_counter() - start) * 1000

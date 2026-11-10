@@ -45,7 +45,8 @@ def child_argv() -> list[str]:
     override = os.environ.get(CHILD_ARGV_ENV, "").strip()
     if not override:
         return list(DEFAULT_CHILD_ARGV)
-    argv = shlex.split(override)
+    # POSIX shlex treats backslash as an escape, which deletes Windows paths.
+    argv = shlex.split(override, posix=(os.name != "nt"))
     if not argv:
         raise ChildProtocolError(f"{CHILD_ARGV_ENV} is empty")
     return argv

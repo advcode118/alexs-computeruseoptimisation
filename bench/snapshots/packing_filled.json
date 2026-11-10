@@ -1,0 +1,7 @@
+{
+  "task_id": "fixture_packing_add",
+  "step_number": 2,
+  "url": "https://example.com/packing",
+  "title": "Packing list",
+  "snapshot_text": "- form [ref=S2E2]:\n  - textbox \"Item\" [ref=S2E3]: milk\n  - button \"Add\" [ref=S2E4]\n"
+}

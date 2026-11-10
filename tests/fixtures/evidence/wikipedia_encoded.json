@@ -1,0 +1,16 @@
+{
+  "description": "Search Wikipedia for Ada Lovelace",
+  "start_url": "https://en.wikipedia.org/wiki/Main_Page",
+  "page": {
+    "url": "https://en.wikipedia.org/wiki/Ada%20Lovelace",
+    "title": "Ada Lovelace - Wikipedia",
+    "canonical": "https://en.wikipedia.org/wiki/Ada_Lovelace",
+    "h1": "Ada Lovelace",
+    "text": "Ada Lovelace was an English mathematician and writer."
+  },
+  "claimed": {
+    "url": "https://en.wikipedia.org/wiki/Ada_Lovelace",
+    "title": "Ada Lovelace - Wikipedia",
+    "answer": "Ada Lovelace"
+  }
+}
