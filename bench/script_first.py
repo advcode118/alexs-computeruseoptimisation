@@ -401,6 +401,90 @@ def _norm_answer(value: str) -> str:
     return " ".join((value or "").split()).casefold()
 
 
+# Words a sentence may add around the live title. A second title is not in this set.
+_TITLE_FILLER = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "of",
+        "on",
+        "is",
+        "was",
+        "are",
+        "title",
+        "top",
+        "story",
+        "first",
+        "current",
+        "page",
+        "hacker",
+        "news",
+        "its",
+        "it's",
+        "it",
+        "this",
+        "that",
+        "called",
+        "named",
+        "reads",
+        "says",
+        "headline",
+        "be",
+        "to",
+        "currently",
+    }
+)
+_ANSWER_EDGE = " \t\"'`“”.,:;!?"
+
+
+def _strip_answer_edges(value: str) -> str:
+    return _norm_answer(value).strip(_ANSWER_EDGE)
+
+
+def _phrase_at_boundary(haystack: str, needle: str) -> int:
+    """Index of needle as its own phrase, or -1. A longer token does not count."""
+    if not needle or len(needle) > len(haystack):
+        return -1
+    start = 0
+    while True:
+        index = haystack.find(needle, start)
+        if index < 0:
+            return -1
+        end = index + len(needle)
+        before = haystack[index - 1] if index else ""
+        after = haystack[end] if end < len(haystack) else ""
+        if (not before or not before.isalnum()) and (not after or not after.isalnum()):
+            return index
+        start = index + 1
+
+
+def _marked_title_matches(answer: str, truth: str) -> bool:
+    """True when the claim is the live title, including inside a short sentence.
+
+    The whole title has to be there. A different title, a piece of the title,
+    a negation, or a second title does not match.
+    """
+    left = _strip_answer_edges(answer)
+    right = _strip_answer_edges(truth)
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    index = _phrase_at_boundary(left, right)
+    if index < 0:
+        return False
+    rest = f"{left[:index]} {left[index + len(right):]}"
+    words = []
+    for raw in rest.split():
+        word = raw.strip(_ANSWER_EDGE)
+        if word:
+            words.append(word)
+    if any(word in {"not", "no", "never"} or word.endswith("n't") for word in words):
+        return False
+    return all(word in _TITLE_FILLER for word in words)
+
+
 def _host_name(url: str) -> str:
     if not _http(url):
         return ""
@@ -596,9 +680,11 @@ def evidence_verdict(
             truth = (trusted.selector_text or "").strip()
             if not truth or not page_text.strip():
                 return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
-            if _norm_answer(answer) != _norm_answer(truth):
+            # The live title may sit inside the sentence the arm said. A different
+            # title still fails. The title, not the whole sentence, has to be on the page.
+            if not _marked_title_matches(answer, truth):
                 return EvidenceVerdict(FAIL, "answer is not the marked value", scored)
-            if _norm_answer(answer) not in _norm_answer(page_text):
+            if _norm_answer(truth) not in _norm_answer(page_text):
                 return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
         if answer_in_text:
             if not page_text.strip():
@@ -924,6 +1010,19 @@ def page_text_from_evidence(data: dict | None) -> str:
     return text[:_PAGE_TEXT_CAP]
 
 
+def text_from_page_read(value) -> str:
+    """Page text from the shared read.
+
+    A string is the body. A dict is the evidence object page_text_from_evidence
+    already assembles, headings then body. Every arm uses this after the run.
+    """
+    if isinstance(value, str):
+        return page_text_from_evidence({"text": value})
+    if isinstance(value, dict):
+        return page_text_from_evidence(value)
+    return ""
+
+
 def mcp_evaluate_value(result_text: str):
     """JSON value from a browser_evaluate response. None when it is not JSON."""
     text = result_text or ""
@@ -965,26 +1064,34 @@ def _client_tool_names(client) -> set[str]:
     return names
 
 
-def marked_page_source(selector: str) -> str:
-    """One page read: body text and the live selector. The selector is judge data."""
+def marked_selector_source(selector: str) -> str:
+    """The live value of answer_equals_selector. Judge data, not a model prompt."""
     literal = json.dumps(selector or "")
     return (
         "() => { const selector = "
         + literal
-        + '; const root = document.querySelector("main") || document.body; '
-        + 'const raw = root ? (root.innerText || root.textContent || "") : ""; '
-        + "const el = selector ? document.querySelector(selector) : null; "
-        + 'const marked = el ? (el.innerText || el.textContent || "").trim() : ""; '
-        + "return { text: raw.slice(0, 8000), selector: marked }; }"
+        + "; const el = selector ? document.querySelector(selector) : null; "
+        + 'if (!el) return ""; return (el.innerText || el.textContent || "").trim(); }'
     )
 
 
-async def read_marked_page(client, selector: str) -> tuple[str, str]:
-    """Page text and the live selector, for every arm that can read the page.
+def _marked_from_evaluate(value) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for key in ("selector", "selector_text"):
+            raw = value.get(key)
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+    return ""
 
-    A page object uses the same collector as script_first. Playwright MCP uses
-    browser_evaluate with the same read. An arm that cannot read returns empty
-    strings. This is not a model prompt.
+
+async def read_marked_page(client, selector: str) -> tuple[str, str]:
+    """Page text and the live selector, the same read for every arm.
+
+    A page object uses collect_page_evidence. Playwright MCP evaluates the
+    same page-evidence function, then the same selector read. An arm that
+    cannot read returns empty strings. This is not a model prompt.
     """
     page = getattr(client, "_page", None)
     if page is not None:
@@ -999,16 +1106,19 @@ async def read_marked_page(client, selector: str) -> tuple[str, str]:
     if not callable(call):
         return "", ""
     try:
-        result = await call("browser_evaluate", {"function": marked_page_source(selector)})
+        result = await call("browser_evaluate", {"function": _PAGE_EVIDENCE_JS})
     except Exception:
         return "", ""
-    text = result[0] if isinstance(result, tuple) else result
-    value = mcp_evaluate_value(str(text or ""))
-    if not isinstance(value, dict):
-        return "", ""
-    body = value.get("text") if isinstance(value.get("text"), str) else ""
-    marked = value.get("selector") if isinstance(value.get("selector"), str) else ""
-    return body, marked
+    raw = result[0] if isinstance(result, tuple) else result
+    page_text = text_from_page_read(mcp_evaluate_value(str(raw or "")))
+    if not selector:
+        return page_text, ""
+    try:
+        result = await call("browser_evaluate", {"function": marked_selector_source(selector)})
+    except Exception:
+        return page_text, ""
+    raw = result[0] if isinstance(result, tuple) else result
+    return page_text, _marked_from_evaluate(mcp_evaluate_value(str(raw or "")))
 
 
 async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
@@ -1025,14 +1135,7 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
         title = data["title"]
     selector_text = ""
     if selector:
-        literal = json.dumps(selector)
-        source = (
-            "() => { const selector = "
-            + literal
-            + "; const el = document.querySelector(selector); "
-            'if (!el) return ""; return (el.innerText || el.textContent || "").trim(); }'
-        )
-        found = await _evaluate_value(page, source)
+        found = await _evaluate_value(page, marked_selector_source(selector))
         if isinstance(found, str):
             selector_text = found.strip()
     text = page_text_from_evidence(data)

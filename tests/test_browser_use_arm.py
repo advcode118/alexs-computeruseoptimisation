@@ -374,6 +374,29 @@ def test_hacker_news_passes_only_when_the_live_title_matches():
     unread = asyncio.run(run_browser_use_task(task, api_key="local-test-not-sent", loader=bare.loader))
     assert unread["success"] is False
 
+    sentence = _World(
+        page_url="https://news.ycombinator.com/",
+        page_text="Fixture Story\nSecond Story",
+        claim="The top story is Fixture Story.",
+    )
+    sentence.page_selector_text = "Fixture Story"
+    said = asyncio.run(run_browser_use_task(task, api_key="local-test-not-sent", loader=sentence.loader))
+    assert said["success"] is True
+    assert said["claimed_answer"] == "The top story is Fixture Story."
+    assert said["expected_value"] == "Fixture Story"
+
+    denied = _World(
+        page_url="https://news.ycombinator.com/",
+        page_text="Fixture Story\nSecond Story",
+        claim="The top story is Second Story.",
+    )
+    denied.page_selector_text = "Fixture Story"
+    other = asyncio.run(run_browser_use_task(task, api_key="local-test-not-sent", loader=denied.loader))
+    assert other["success"] is False
+    assert other["success_reason"] == "answer is not the marked value"
+    assert other["claimed_answer"] == "The top story is Second Story."
+    assert other["expected_value"] == "Fixture Story"
+
 
 def test_probe_selects_the_arm_without_a_live_run(monkeypatch, capsys):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

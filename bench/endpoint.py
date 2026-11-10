@@ -206,6 +206,8 @@ def judge_page(task: dict, page: dict) -> tuple:
         "script_steps": 0,
         "claude": False,
         "endpoint_miss": not hit,
+        "claimed_answer": claimed.answer,
+        "expected_value": evidence.selector_text,
     }
     return verdict, evidence, row
 
