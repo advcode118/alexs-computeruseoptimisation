@@ -16,6 +16,7 @@ from bench.script_cache import (
     TIER_PATCHED,
     ScriptCache,
     apply_patch,
+    page_fingerprint,
     patch_request,
 )
 from bench.script_first import (
@@ -123,6 +124,29 @@ class _WikiPage:
         return {"url": view["url"], "title": view["title"], "h1": view["h1"], "answer": view["h1"]}
 
 
+def _evidence_script_collects_controls(source: str) -> bool:
+    """True when the live read builds a controls list and returns it."""
+    marker = "return {"
+    start = source.rfind(marker)
+    if start < 0:
+        return False
+    before, after = source[:start], source[start:]
+    return "querySelectorAll(" in before and "controls.push(" in before and "controls" in after
+
+
+class _EvidencePage(_WikiPage):
+    """Returns control roles and names only when the evidence script actually reads them."""
+
+    async def evaluate(self, source):
+        if source == _PAGE_EVIDENCE_JS:
+            view = self._view()
+            if not _evidence_script_collects_controls(source):
+                view.pop("controls", None)
+            return view
+        view = self._view()
+        return {"url": view["url"], "title": view["title"], "h1": view["h1"], "answer": view["h1"]}
+
+
 class _Model:
     def __init__(self, replies):
         self.replies = list(replies)
@@ -219,6 +243,35 @@ def test_cache_hit_passes_with_zero_model_calls(tmp_path):
     assert line["tier"] == TIER_CACHE_HIT
     assert line["model_calls"] == 0
     assert line["script_steps"] == 3
+
+
+def test_changed_controls_are_a_miss_only_when_the_live_read_returns_them(tmp_path):
+    """A same-host page with different roles and names is not a cache hit.
+
+    The fake page withholds controls unless the evidence script builds and
+    returns that list. A script that never reads them leaves both fingerprints
+    empty, and the replay would stay a hit.
+    """
+    original = [{"role": "link", "name": LINK}, {"role": "link", "name": "About"}]
+    changed = [{"role": "link", "name": LINK}, {"role": "link", "name": "Contact"}]
+    first = _EvidencePage({LINK: "article"})
+    first.controls = original
+    seeded, _model, cache = _run(tmp_path, first, [_script_reply(CLICK_SCRIPT)])
+    assert seeded.tier == TIER_FRESH
+    stored = cache.lookup(DESCRIPTION, START)
+    assert stored is not None
+    assert stored.fingerprint != page_fingerprint("en.wikipedia.org", None)
+
+    second = _EvidencePage({LINK: "article"})
+    second.controls = changed
+    fix = f'page.getByRole("link", {{ name: "{LINK}" }}).click()'
+    result, model, cache = _run(tmp_path, second, [_patch_reply(2, fix)])
+    assert result.tier != TIER_CACHE_HIT
+    prompt = model.calls[0]["messages"][0]["content"]
+    assert "live page fingerprint does not match the cached page" in prompt
+    assert "Contact" not in prompt
+    assert "selector_text" not in prompt
+    assert cache.lookup(DESCRIPTION, START).fingerprint != stored.fingerprint
 
 
 def test_fingerprint_mismatch_is_one_patch_and_not_a_hit(tmp_path):
@@ -470,6 +523,24 @@ def test_fail_repair_hides_selector_text_and_judge_markers(tmp_path):
     stripped = model_visible_script_result(raw)
     assert secret not in stripped
     assert "selector_text" not in stripped
+    named = format_run_result(
+        ok=True,
+        url=start_url,
+        step_count=1,
+        title="Docs",
+        text="documentation",
+        controls=[
+            {"role": "link", "name": "heapq.html"},
+            {"role": "link", "name": "/library/heapq.html"},
+            {"role": "link", "name": ".titleline"},
+        ],
+    )
+    hidden = model_visible_script_result(named)
+    assert "heapq.html" not in hidden
+    assert "/library/heapq.html" not in hidden
+    assert ".titleline" not in hidden
+    assert "controls" not in hidden
+    assert json.loads(named.splitlines()[0])["controls"][0]["name"] == "heapq.html"
     note = patch_request(
         description=description,
         start_url=start_url,
