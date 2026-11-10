@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from bench.replay_shortcuts import parse_aria_snapshot_to_observation
 from loop.decide import decide
 from loop.actions import Fill
@@ -20,8 +22,14 @@ def _by_id(snapshot):
     return {element.id: element for element in snapshot.elements}
 
 
+def _saved_sample_files():
+    if not SAMPLES.is_dir() or not any(SAMPLES.glob("*.json")):
+        pytest.skip("bench/snapshots is gitignored and absent from this worktree")
+    return sorted(SAMPLES.glob("*.json"))
+
+
 def test_saved_samples_keep_every_ref_in_order():
-    files = sorted(SAMPLES.glob("*.json"))
+    files = _saved_sample_files()
     assert len(files) >= 5
     for path in files:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -42,7 +50,9 @@ def test_saved_samples_keep_every_ref_in_order():
 
 
 def test_saved_samples_match_the_replay_converter():
-    for path in sorted(SAMPLES.glob("*.json")):
+    files = _saved_sample_files()
+    assert len(files) >= 5
+    for path in files:
         data = json.loads(path.read_text(encoding="utf-8"))
         observation = parse_aria_snapshot_to_observation(
             data["snapshot_text"],
@@ -57,14 +67,18 @@ def test_saved_samples_match_the_replay_converter():
 
 
 def test_packing_value_and_wikipedia_paths():
-    packing = json.loads((SAMPLES / "packing_filled.json").read_text(encoding="utf-8"))
+    packing_path = SAMPLES / "packing_filled.json"
+    wiki_path = SAMPLES / "wikipedia_search_results.json"
+    if not packing_path.is_file() or not wiki_path.is_file():
+        pytest.skip("bench/snapshots is gitignored and absent from this worktree")
+    packing = json.loads(packing_path.read_text(encoding="utf-8"))
     filled = _by_id(parse_aria_snapshot(packing["snapshot_text"]))
     assert filled["S2E3"].role == "textbox"
     assert filled["S2E3"].name == "Item"
     assert filled["S2E3"].value == "milk"
     assert filled["S2E4"].path == ("form",)
 
-    wiki = json.loads((SAMPLES / "wikipedia_search_results.json").read_text(encoding="utf-8"))
+    wiki = json.loads(wiki_path.read_text(encoding="utf-8"))
     results = _by_id(parse_aria_snapshot(wiki["snapshot_text"]))
     assert results["S2E5"].role == "link"
     assert results["S2E5"].name == "Ada Lovelace"
