@@ -608,6 +608,22 @@ def claimed_from_payload(payload: dict | None) -> ClaimedEvidence:
     )
 
 
+def script_verdict(markers: dict | None, result_text: str, page_url: str) -> tuple[EvidenceVerdict, dict]:
+    """Judge one run_script result. page_url is the live URL the harness read back."""
+    from bench.harness import page_field
+
+    payload = script_result_payload(result_text)
+    title = page_field(result_text, "Title")
+    if not title and isinstance(payload.get("title"), str):
+        title = payload["title"]
+    verdict = evidence_verdict(
+        markers,
+        trusted_from_payload(payload, url=page_url, title=title),
+        claimed_from_payload(payload),
+    )
+    return verdict, payload
+
+
 def repair_request(url: str, reason: str) -> str:
     """One short ask for a corrected script. The harness sends this at most once."""
     shown = url if url else "(empty)"

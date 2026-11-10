@@ -17,6 +17,10 @@ user-data-dir. Sequential arms do not share the workspace Chrome profile.
 --warm-replay runs after the cold 3x4. It re-runs the same 3 tasks on
 macro_replay and diff_fast_act and records replay hit rate and wall. The
 replay cache is the same file, so a sequence stored on the cold pass can hit.
+When script_first is selected it is re-run too. Its cached-script file is new
+for each probe, so the cold pass stays cold and only stores scripts the
+evidence judge passed. The warm pass records the tier that answered
+(cache_hit, patched, fresh) and the model calls.
 
 --no-model-only is optional. It puts diff_fast_act and macro_replay back on
 decide() with no outer model. That path cannot close the Stagehand gap. It
@@ -30,11 +34,13 @@ tree does not call Claude. Box commands, from the repo root:
     ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay
     python -m bench.probe --execute --no-model-only
     ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand
+    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms script_first --warm-replay
 
 The first prints the plan and exits. The second is the competitive 3x4.
 The third is that 3x4 plus the warm second pass. Do not run it from this
 checkout. The fourth is the optional no-model path for the two proxy arms only.
-The fifth is the script_first comparison. Its Claude stop is $2. The project
+The fifth is the script_first comparison. The sixth is script_first cold, then
+warm from its cached scripts. Both stop Claude at $2. The project
 abort stays $40. The operator envelope is $50. Do not pass --execute from
 this VM. script_first writes one Playwright script for the whole task and
 runs it with no per-click settle or snapshot.
@@ -94,6 +100,7 @@ BOX_COMMANDS = (
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay',
     "python -m bench.probe --execute --no-model-only",
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand',
+    'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms script_first --warm-replay',
 )
 
 
@@ -126,6 +133,13 @@ def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, .
     if len(names) != len(set(names)):
         raise ValueError("arms contains a duplicate")
     return names
+
+
+def warm_arms_for(arms: tuple[str, ...]) -> tuple[str, ...]:
+    """The proxy replay arms, plus script_first when it was selected."""
+    if ARM_SCRIPT_FIRST in arms:
+        return WARM_ARMS + (ARM_SCRIPT_FIRST,)
+    return WARM_ARMS
 
 
 def claude_budget_for(arms: tuple[str, ...]) -> float:
@@ -161,7 +175,7 @@ def plan_probe(
         "huge_snapshot_chars": HUGE_SNAPSHOT_CHARS,
         "huge_snapshot_uses_body_length_only": True,
         "warm_replay": warm_replay,
-        "warm_arms": list(WARM_ARMS),
+        "warm_arms": list(warm_arms_for(chosen)),
         "browser_isolation": {
             "playwright_mcp": "--isolated only (0.0.84 rejects --user-data-dir with --isolated)",
             "diff_fast_act": "proxy child --isolated only",
@@ -313,7 +327,15 @@ async def run_no_model_arm(arm: str, task: dict, *, headless: bool = True) -> di
         await client.stop()
 
 
-async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, runs_dir: Path) -> dict:
+async def run_claude_arm(
+    arm: str,
+    task: dict,
+    *,
+    api_key: str,
+    headless: bool,
+    runs_dir: Path,
+    script_cache=None,
+) -> dict:
     """Outer claude-sonnet-5-5. Caller has already checked both budgets."""
     from bench.harness import BenchmarkHarness
 
@@ -328,6 +350,7 @@ async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, 
         runs_dir=runs_dir,
         arm=arm,
         max_steps=max_steps,
+        script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
     )
     await harness.setup()
     try:
@@ -378,8 +401,11 @@ async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, 
             "output_tokens": result.total_output_tokens,
             "usd": usd,
             "model_ignores_tools": result.model_ignores_tools,
-            "no_model": False,
-            "replay_hit": result.replay_hits > 0,
+            "no_model": result.tier == "cache_hit" and result.model_calls == 0,
+            "replay_hit": result.replay_hits > 0 or result.tier == "cache_hit",
+            "tier": result.tier,
+            "model_calls": result.model_calls,
+            "script_steps": result.script_steps,
             "claude": True,
         }
     finally:
@@ -387,9 +413,15 @@ async def run_claude_arm(arm: str, task: dict, *, api_key: str, headless: bool, 
 
 
 def warm_summary(rows: list[dict]) -> dict:
-    """Replay hit rate and wall for the warm second pass, by arm."""
+    """Replay hit rate and wall for the warm second pass, by arm.
+
+    script_first also reports which tier answered and its model calls.
+    """
     summary = {}
-    for arm in WARM_ARMS:
+    arms = WARM_ARMS
+    if any(row.get("pass") == "warm" and row.get("arm") == ARM_SCRIPT_FIRST for row in rows):
+        arms = WARM_ARMS + (ARM_SCRIPT_FIRST,)
+    for arm in arms:
         subset = [row for row in rows if row.get("pass") == "warm" and row.get("arm") == arm]
         hits = sum(1 for row in subset if row.get("replay_hit"))
         wall_ms = sum(float(row.get("wall_ms") or 0) for row in subset)
@@ -399,6 +431,14 @@ def warm_summary(rows: list[dict]) -> dict:
             "replay_hit_rate": (hits / len(subset)) if subset else 0.0,
             "wall_ms": wall_ms,
         }
+        if arm == ARM_SCRIPT_FIRST:
+            summary[arm]["tiers"] = {
+                tier: sum(1 for row in subset if row.get("tier") == tier)
+                for tier in ("cache_hit", "patched", "fresh")
+            }
+            summary[arm]["passed"] = sum(1 for row in subset if row.get("success"))
+            summary[arm]["model_calls"] = sum(int(row.get("model_calls") or 0) for row in subset)
+            summary[arm]["steps"] = sum(int(row.get("steps") or 0) for row in subset)
     return summary
 
 
@@ -413,6 +453,7 @@ async def _run_one(
     ledger: SpendLedger,
     destination: Path,
     budget_usd: float,
+    script_cache=None,
 ) -> tuple[dict, float]:
     """One task on one arm. Returns the row and the probe's Claude spend so far."""
     if not arm_needs_claude(arm, no_model_only=no_model_only):
@@ -430,12 +471,14 @@ async def _run_one(
     blocked = claude_block_reason(probe_spent, ledger.running_total_usd, budget_usd=budget_usd)
     if blocked:
         return empty_row(arm, task["id"], reason=blocked, no_model_only=no_model_only), probe_spent
+    extra = {"script_cache": script_cache} if script_cache is not None and arm == ARM_SCRIPT_FIRST else {}
     row = await run_claude_arm(
         arm,
         task,
         api_key=api_key,
         headless=headless,
         runs_dir=destination,
+        **extra,
     )
     if row.get("claude") and (row["input_tokens"] or row["output_tokens"]):
         ledger.record_task(
@@ -475,6 +518,13 @@ async def execute_probe(
     rows: list[dict] = []
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     tasks = probe_tasks()
+    script_cache = None
+    if warm_replay and ARM_SCRIPT_FIRST in chosen:
+        from bench.script_cache import ScriptCache
+
+        # A new file per probe: the cold pass starts empty and the warm pass reads it.
+        started = datetime.now().strftime("%Y%m%d_%H%M%S")
+        script_cache = ScriptCache(destination / f"script_cache_{started}.json")
 
     async def take(arm: str, task: dict, phase: str) -> None:
         nonlocal probe_spent
@@ -488,6 +538,7 @@ async def execute_probe(
             ledger=ledger,
             destination=destination,
             budget_usd=budget_usd,
+            script_cache=script_cache,
         )
         row["pass"] = phase
         rows.append(row)
@@ -498,7 +549,7 @@ async def execute_probe(
     if warm_replay:
         # Same cache file as the cold pass. Do not delete it between passes.
         for task in tasks:
-            for arm in WARM_ARMS:
+            for arm in warm_arms_for(chosen):
                 if arm not in chosen:
                     continue
                 await take(arm, task, "warm")
@@ -543,8 +594,9 @@ def main(argv: list[str] | None = None) -> int:
         "--warm-replay",
         action="store_true",
         help=(
-            "After the cold 3x4, re-run the same 3 tasks on macro_replay and diff_fast_act. "
-            "Records replay hit rate and wall. Uses the same replay cache. Not run from this checkout."
+            "After the cold 3x4, re-run the same 3 tasks on macro_replay and diff_fast_act, "
+            "and on script_first when it is selected. Records replay hit rate and wall, and "
+            "script_first's tier. Uses the same caches. Not run from this checkout."
         ),
     )
     args = parser.parse_args(argv)
