@@ -197,7 +197,10 @@ WEBVOYAGER_TASKS = [
     },
     {
         "id": "ho_arxiv_attention",
-        "description": "Open the arXiv abstract for Attention Is All You Need and report the paper title",
+        "description": (
+            "Open the arXiv abstract for the 2017 paper that introduced the Transformer, "
+            "and report the paper title."
+        ),
         "start_url": "https://arxiv.org/",
         "expected_answer": "Attention Is All You Need",
         "check_url_contains": "1706.03762",
@@ -234,15 +237,180 @@ WEBVOYAGER_TASKS = [
             "deny": ["/search"],
         },
     },
+    {
+        "id": "ho_httpbin_customer_form",
+        "description": (
+            "Open the httpbin HTML form, submit it, and report the customer-name "
+            "field's name exactly as the response body echoes it."
+        ),
+        "start_url": "https://httpbin.org/",
+        "expected_answer": "custname",
+        "check_url_contains": "httpbin.org/post",
+        "end_markers": {
+            "host": "httpbin.org",
+            "path_suffix": "/post",
+            "deny": ["/forms/"],
+            "answer_in_text": "custname",
+        },
+    },
+    {
+        "id": "ho_pypi_requests",
+        "description": (
+            "Search PyPI for the requests library and open its project page. "
+            "Do not stop on the search results."
+        ),
+        "start_url": "https://pypi.org/",
+        "expected_answer": "On the requests project page",
+        "check_url_contains": "/project/requests/",
+        "end_markers": {
+            "host": "pypi.org",
+            "url_contains": "/project/requests/",
+            "deny": ["/search"],
+        },
+    },
+    {
+        "id": "ho_rust_book_borrowing",
+        "description": (
+            "Starting from the Rust book table of contents, open the section "
+            "on references and borrowing."
+        ),
+        "start_url": "https://doc.rust-lang.org/book/",
+        "expected_answer": "On the references and borrowing section",
+        "check_url_contains": "ch04-02-references-and-borrowing.html",
+        "end_markers": {
+            "host": "doc.rust-lang.org",
+            "path_suffix": "/ch04-02-references-and-borrowing.html",
+            "deny": ["/search"],
+        },
+    },
+    {
+        "id": "ho_w3c_selectors_4",
+        "description": (
+            "Starting from the W3C technical reports index, open the "
+            "CSS Selectors Level 4 specification."
+        ),
+        "start_url": "https://www.w3.org/TR/",
+        "expected_answer": "On the CSS Selectors Level 4 specification",
+        "check_url_contains": "/TR/selectors-4/",
+        "end_markers": {
+            "host": "www.w3.org",
+            "url_contains": "/TR/selectors-4/",
+            "deny": ["/search", "search="],
+        },
+    },
+    {
+        "id": "ho_iana_status_451",
+        "description": (
+            "Open the IANA HTTP status code registry and report the description "
+            "listed for status code 451."
+        ),
+        "start_url": "https://www.iana.org/",
+        "expected_answer": "Unavailable For Legal Reasons",
+        "check_url_contains": "http-status-codes",
+        "end_markers": {
+            "host": "iana.org",
+            "url_contains": "http-status-codes",
+            "deny": ["/search"],
+            "answer_in_text": "Unavailable For Legal Reasons",
+        },
+    },
+    {
+        "id": "ho_rfc9110_get_section",
+        "description": (
+            "Open RFC 9110 and report the section number of the section "
+            "that defines the GET method."
+        ),
+        "start_url": "https://www.rfc-editor.org/",
+        "expected_answer": "9.3.1",
+        "check_url_contains": "rfc9110",
+        "end_markers": {
+            "host": "rfc-editor.org",
+            "url_contains": "rfc9110",
+            "deny": ["/search"],
+            "answer_in_text": "9.3.1",
+        },
+    },
+    {
+        "id": "ho_schema_person",
+        "description": "Open the Schema.org type page for Person.",
+        "start_url": "https://schema.org/",
+        "expected_answer": "On the Schema.org Person type",
+        "check_url_contains": "/Person",
+        "end_markers": {
+            "host": "schema.org",
+            "path_suffix": "/Person",
+            "deny": ["/search", "search_docs", "search="],
+        },
+    },
+    {
+        "id": "ho_cppreference_vector",
+        "description": (
+            "Search cppreference for std::vector and open its reference page. "
+            "Do not stop on the search results."
+        ),
+        "start_url": "https://en.cppreference.com/w/cpp",
+        "expected_answer": "On the std::vector reference page",
+        "check_url_contains": "/cpp/container/vector",
+        "end_markers": {
+            "host": "en.cppreference.com",
+            "path_suffix": "/cpp/container/vector",
+            "deny": ["Special:Search", "action=search", "search="],
+        },
+    },
+    {
+        "id": "ho_sqlite_vacuum",
+        "description": "From the SQLite documentation index, open the page for the VACUUM statement.",
+        "start_url": "https://www.sqlite.org/docs.html",
+        "expected_answer": "On the SQLite VACUUM statement page",
+        "check_url_contains": "lang_vacuum.html",
+        "end_markers": {
+            "host": "sqlite.org",
+            "path_suffix": "/lang_vacuum.html",
+            "deny": ["/search"],
+        },
+    },
+    {
+        "id": "ho_k8s_pod",
+        "description": "From the Kubernetes documentation home, open the concepts page for Pods.",
+        "start_url": "https://kubernetes.io/docs/home/",
+        "expected_answer": "On the Kubernetes Pods concepts page",
+        "check_url_contains": "/docs/concepts/workloads/pods/",
+        "end_markers": {
+            "host": "kubernetes.io",
+            "path_suffix": "/workloads/pods/",
+            "deny": ["/search"],
+        },
+    },
 ]
 
+# The three tasks the arms were tuned on. The held-out split stays disjoint.
+TUNED_PROBE_TASK_IDS = (
+    "wv_wikipedia_search",
+    "wv_python_docs",
+    "wv_hackernews_top",
+)
+
+# Step 2's five public tasks, plus the wider set. Not the tuned probe.
 HELD_OUT_TASK_IDS = (
     "ho_mdn_array_map",
     "ho_github_rust",
     "ho_arxiv_attention",
     "ho_wiki_eiffel_city",
     "ho_nodejs_fs_docs",
+    "ho_httpbin_customer_form",
+    "ho_pypi_requests",
+    "ho_rust_book_borrowing",
+    "ho_w3c_selectors_4",
+    "ho_iana_status_451",
+    "ho_rfc9110_get_section",
+    "ho_schema_person",
+    "ho_cppreference_vector",
+    "ho_sqlite_vacuum",
+    "ho_k8s_pod",
 )
+
+SPLIT_PROBE = "probe"
+SPLIT_HELD_OUT = "held-out"
 
 BENCHMARK_TASKS = FIXTURE_TASKS + WEBVOYAGER_TASKS
 
@@ -274,9 +442,34 @@ def markers_for_task(task_id: str) -> dict:
     return {}
 
 
-def get_held_out_tasks() -> list[dict]:
-    """Public read tasks that are not the three probe tasks."""
-    wanted = set(HELD_OUT_TASK_IDS)
+def _tasks_in_order(task_ids: tuple[str, ...]) -> list[dict]:
+    wanted = set(task_ids)
     found = [task for task in WEBVOYAGER_TASKS if task["id"] in wanted]
-    order = {task_id: index for index, task_id in enumerate(HELD_OUT_TASK_IDS)}
+    missing = wanted.difference(task["id"] for task in found)
+    if missing:
+        raise RuntimeError(f"tasks missing from the suite: {sorted(missing)}")
+    order = {task_id: index for index, task_id in enumerate(task_ids)}
     return sorted(found, key=lambda task: order[task["id"]])
+
+
+def resolve_task_split(spec: str | None) -> str:
+    """probe is the tuned trio. held-out is the overfitting split."""
+    key = (spec or SPLIT_PROBE).strip().casefold().replace("_", "-")
+    if key in ("", "probe", "tuned", "default"):
+        return SPLIT_PROBE
+    if key in ("held-out", "heldout"):
+        return SPLIT_HELD_OUT
+    raise ValueError(f"unknown split {spec!r}")
+
+
+def tasks_for_split(spec: str | None = None) -> list[dict]:
+    """Tasks for one probe split. The default is the tuned trio."""
+    name = resolve_task_split(spec)
+    if name == SPLIT_HELD_OUT:
+        return _tasks_in_order(HELD_OUT_TASK_IDS)
+    return _tasks_in_order(TUNED_PROBE_TASK_IDS)
+
+
+def get_held_out_tasks() -> list[dict]:
+    """Held-out public tasks. Not the three tasks the arms were tuned on."""
+    return tasks_for_split(SPLIT_HELD_OUT)
