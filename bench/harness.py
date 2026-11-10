@@ -112,6 +112,10 @@ class StepMetrics:
     page_title: str = ""
     # Judge read of answer_equals_selector. Logged, never sent to the model.
     selector_text: str = ""
+    # What the script claimed, and the page text the evidence judge read.
+    # The shared URL/text check does not use these. They stay out of the model prompt.
+    claimed_answer: str = ""
+    page_text: str = ""
 
 
 @dataclass
@@ -313,6 +317,19 @@ def _line_spans(text: str) -> list[tuple[int, str]]:
         spans.append((offset, line))
         offset += len(line)
     return spans
+
+
+def logged_evidence(payload: dict | None) -> tuple[str, str, str]:
+    """Selector, claimed answer, and page text the evidence judge already used.
+
+    selector_text stays out of the model message. The caller logs it on the step.
+    """
+    from bench.script_first import claimed_from_payload
+
+    data = payload if isinstance(payload, dict) else {}
+    selector = data.get("selector_text") if isinstance(data.get("selector_text"), str) else ""
+    text = data.get("text") if isinstance(data.get("text"), str) else ""
+    return selector, claimed_from_payload(data).answer, text
 
 
 def extract_page_snapshot(result_text: str) -> str:
@@ -734,6 +751,7 @@ class BenchmarkHarness:
             outcome["tool_ms"] += tool_ms
             page_url = page_url_from_result(result_text)
             verdict, payload = script_verdict(markers, result_text, page_url)
+            selector_text, claimed_answer, page_text = logged_evidence(payload)
             steps.append(
                 StepMetrics(
                     step_number=len(steps) + 1,
@@ -747,7 +765,9 @@ class BenchmarkHarness:
                     output_tokens=output_tokens,
                     page_url=page_url,
                     page_title=page_field(result_text, "Title"),
-                    selector_text=payload.get("selector_text") if isinstance(payload.get("selector_text"), str) else "",
+                    selector_text=selector_text,
+                    claimed_answer=claimed_answer,
+                    page_text=page_text,
                 )
             )
             outcome["verdict"] = verdict
@@ -1059,6 +1079,8 @@ class BenchmarkHarness:
                     else:
                         result_text, tool_ms = await self.mcp_client.call_tool(tool_name, tool_args)
                     logged_selector = ""
+                    logged_answer = ""
+                    logged_page_text = ""
                     total_tool_ms += tool_ms
                     ignores.note_call(tool_name, tool_args if isinstance(tool_args, dict) else {})
                     ignores.note_result(tool_name, result_text)
@@ -1100,9 +1122,7 @@ class BenchmarkHarness:
                             last_verdict = verdict
                             end_state = verdict.verdict
                             failure = verdict.reason if verdict.verdict == FAIL else ""
-                            logged_selector = (
-                                payload.get("selector_text") if isinstance(payload.get("selector_text"), str) else ""
-                            )
+                            logged_selector, logged_answer, logged_page_text = logged_evidence(payload)
                             # The judge already read selector_text. The model must not.
                             result_text = model_visible_script_result(result_text)
                             repair_pending = False
@@ -1170,6 +1190,8 @@ class BenchmarkHarness:
                             page_url=page_url,
                             page_title=page_title,
                             selector_text=logged_selector,
+                            claimed_answer=logged_answer,
+                            page_text=logged_page_text,
                         )
                     )
 
@@ -1320,6 +1342,8 @@ class BenchmarkHarness:
                         "page_url": step.page_url,
                         "page_title": step.page_title,
                         "selector_text": step.selector_text,
+                        "claimed_answer": step.claimed_answer,
+                        "page_text": step.page_text,
                     }
                     for step in result.steps
                 ],

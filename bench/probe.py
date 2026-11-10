@@ -410,6 +410,81 @@ def deterministic_success(task: dict, url: str, text: str) -> tuple[bool | None,
     return None, "no deterministic check; LLM judge was not called"
 
 
+def shared_end_state(
+    task: dict,
+    url: str,
+    text: str,
+    *,
+    selector_text: str = "",
+    answer: str = "",
+    page_text: str = "",
+) -> tuple[bool | None, str]:
+    """The one shared check. A missing check is None, which is not a pass.
+
+    URL and text checks use the same strings they always have. A task whose
+    end state is the live value of answer_equals_selector, and which has no
+    URL or text check, is decided by that read. An empty read is a failure.
+    """
+    checked, reason = deterministic_success(task, url, text)
+    if checked is not None:
+        return checked, reason
+    markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
+    if not (markers or {}).get("answer_equals_selector"):
+        return None, reason
+    from bench.script_first import PASS, ClaimedEvidence, PageEvidence, evidence_verdict
+
+    verdict = evidence_verdict(
+        markers,
+        PageEvidence(url=url, text=page_text or text, selector_text=selector_text),
+        ClaimedEvidence(answer=answer),
+    )
+    if verdict.verdict == PASS:
+        return True, verdict.reason
+    return False, verdict.reason
+
+
+def grade_arm(
+    task: dict,
+    url: str,
+    text: str,
+    *,
+    evidence: str | None = None,
+    evidence_reason: str = "",
+    completed: bool | None = None,
+    completion_reason: str = "",
+    selector_text: str = "",
+    answer: str = "",
+    page_text: str = "",
+) -> tuple[bool, str, bool | None, str]:
+    """One rule for every arm. Pass only when the applicable signals agree.
+
+    The shared check must be True. None and False are failures. When the arm
+    has an evidence verdict, that verdict must be PASS. UNKNOWN is not a pass.
+    `completed` is the harness completion bit for arms that have one. True is
+    not a pass by itself. False blocks a pass. None means the arm has no such bit.
+    """
+    shared_ok, shared_reason = shared_end_state(
+        task,
+        url,
+        text,
+        selector_text=selector_text,
+        answer=answer,
+        page_text=page_text,
+    )
+    if shared_ok is not True:
+        if shared_ok is None:
+            return False, "no shared end-state check", shared_ok, shared_reason
+        return False, shared_reason, shared_ok, shared_reason
+    if evidence is not None and evidence != "PASS":
+        if evidence == "UNKNOWN":
+            reason = evidence_reason if evidence_reason.startswith("UNKNOWN") else "UNKNOWN is not success"
+            return False, reason, shared_ok, shared_reason
+        return False, evidence_reason or "evidence judge did not pass", shared_ok, shared_reason
+    if completed is False:
+        return False, completion_reason or "the run did not finish", shared_ok, shared_reason
+    return True, shared_reason, shared_ok, shared_reason
+
+
 def empty_row(
     arm: str,
     task_id: str,
@@ -479,15 +554,14 @@ async def run_no_model_arm(arm: str, task: dict, *, headless: bool = True) -> di
             payload = {}
         url = str(payload.get("url") or "")
         page = str(payload.get("page") or "") + "\n" + str(payload.get("diff") or "")
-        checked, reason = deterministic_success(task, url, page)
-        success = bool(payload.get("ok")) if checked is None else bool(checked)
+        success, grade_reason, checked, reason = grade_arm(task, url, page)
         if checked is None:
-            success = False
+            grade_reason = payload.get("summary") or reason
         return {
             "arm": arm,
             "task_id": task["id"],
             "success": success,
-            "success_reason": reason if checked is not None else payload.get("summary") or reason,
+            "success_reason": grade_reason,
             "skipped": False,
             "wall_ms": (time.perf_counter() - started) * 1000,
             "steps": int(payload.get("cycles") or 0),
@@ -545,23 +619,37 @@ async def run_claude_arm(
             judge_prompt=task.get("judge_prompt"),
             check_url_contains=task.get("check_url_contains") or "",
         )
-        final_url = result.steps[-1].page_url if result.steps else ""
-        final_text = result.steps[-1].snapshot_text if result.steps else ""
-        substring_ok, substring_reason = deterministic_success(task, final_url, final_text)
+        last = result.steps[-1] if result.steps else None
+        final_url = last.page_url if last else ""
+        final_text = last.snapshot_text if last else ""
+        selector_text = last.selector_text if last else ""
+        claimed_answer = last.claimed_answer if last else ""
+        page_text = last.page_text if last else ""
         end_state = result.end_state or ""
-        if arm == ARM_SCRIPT_FIRST and end_state:
-            # UNKNOWN is its own outcome. It is not a success, and a FAIL
-            # is not rescued by the old substring check.
-            success = end_state == "PASS"
-            reason = result.success_reason or substring_reason
+        if arm == ARM_SCRIPT_FIRST:
+            # This arm always has an evidence judge. A missing verdict is not a pass.
+            evidence = end_state if end_state in {"PASS", "FAIL", "UNKNOWN"} else "UNKNOWN"
+            success, reason, substring_ok, substring_reason = grade_arm(
+                task,
+                final_url,
+                final_text,
+                evidence=evidence,
+                evidence_reason=result.success_reason,
+                selector_text=selector_text,
+                answer=claimed_answer,
+                page_text=page_text,
+            )
         else:
-            success = result.success if substring_ok is None else bool(result.success and substring_ok)
-            if substring_ok is not None and not substring_ok:
-                reason = substring_reason
-            elif result.success_reason:
-                reason = result.success_reason
-            else:
-                reason = substring_reason
+            success, reason, substring_ok, substring_reason = grade_arm(
+                task,
+                final_url,
+                final_text,
+                completed=result.success,
+                completion_reason=result.success_reason,
+                selector_text=selector_text,
+                answer=claimed_answer,
+                page_text=page_text,
+            )
         usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
         return {
             "arm": arm,

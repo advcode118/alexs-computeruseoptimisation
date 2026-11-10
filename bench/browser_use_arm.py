@@ -11,11 +11,12 @@ Playwright MCP is a different arm and stays pinned at 0.0.84.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 
 from bench.arms import ARM_BROWSER_USE, prompt_for
 from bench.budget import ALLOWED_MODEL, assert_allowed_model, estimate_usd
-from bench.probe import deterministic_success
+from bench.probe import grade_arm
 
 BROWSER_USE_VERSION = "1.0.0"
 LOCAL_BROWSER = "chromium"
@@ -66,7 +67,7 @@ def _daemon_cdp_fn():
     return _daemon_cdp
 
 
-def _explicit_page(browser) -> tuple[str, str] | None:
+def _explicit_page(browser) -> tuple[str, str, str] | None:
     data = getattr(browser, "__dict__", None)
     if not isinstance(data, dict):
         return None
@@ -74,7 +75,22 @@ def _explicit_page(browser) -> tuple[str, str] | None:
         return None
     url = data.get("page_url")
     text = data.get("page_text")
-    return (url if isinstance(url, str) else "", text if isinstance(text, str) else "")
+    selector = data.get("page_selector_text")
+    return (
+        url if isinstance(url, str) else "",
+        text if isinstance(text, str) else "",
+        selector if isinstance(selector, str) else "",
+    )
+
+
+def selector_expression(selector: str) -> str:
+    """Judge-only read of one element. The string is not a model prompt."""
+    literal = json.dumps(selector)
+    return (
+        "(function(){ const el = document.querySelector("
+        + literal
+        + '); return el ? (el.innerText || el.textContent || "").trim() : ""; })()'
+    )
 
 
 def _page_text(name: str, target: str) -> str:
@@ -98,7 +114,28 @@ def _page_text(name: str, target: str) -> str:
         return ""
 
 
-def _page_from_daemon(name: str) -> tuple[str, str]:
+def _marked_text(name: str, target: str, selector: str) -> str:
+    try:
+        cdp = _daemon_cdp_fn()
+        attached = cdp(name, "Target.attachToTarget", targetId=target, flatten=True)
+        session = attached.get("sessionId") if isinstance(attached, dict) else None
+        if not isinstance(session, str) or not session:
+            return ""
+        value = cdp(
+            name,
+            "Runtime.evaluate",
+            session,
+            expression=selector_expression(selector),
+            returnByValue=True,
+        )
+        result = value.get("result") if isinstance(value, dict) else None
+        text = result.get("value") if isinstance(result, dict) else ""
+        return text if isinstance(text, str) else ""
+    except Exception:
+        return ""
+
+
+def _page_from_daemon(name: str, selector: str = "") -> tuple[str, str, str]:
     own = _daemon_request_fn()(name, {"meta": "current_tab"}, 5)
     url = ""
     target = None
@@ -107,22 +144,28 @@ def _page_from_daemon(name: str) -> tuple[str, str]:
         url = raw if isinstance(raw, str) else ""
         target = own.get("targetId")
     text = _page_text(name, target) if isinstance(target, str) and target else ""
-    return url, text
+    marked = ""
+    if selector and isinstance(target, str) and target:
+        marked = _marked_text(name, target, selector)
+    return url, text, marked
 
 
-async def read_page(browser) -> tuple[str, str]:
-    """Landed URL and page text. A test double can set page_url and page_text."""
+async def read_page(browser, *, selector: str = "") -> tuple[str, str, str]:
+    """Landed URL, page text, and an optional judge-only element read.
+
+    A test double can set page_url, page_text, and page_selector_text.
+    """
     explicit = _explicit_page(browser)
     if explicit is not None:
         return explicit
     data = getattr(browser, "__dict__", None)
     name = data.get("name") if isinstance(data, dict) else None
     if not isinstance(name, str) or not name:
-        return "", ""
+        return "", "", ""
     try:
-        return await asyncio.to_thread(_page_from_daemon, name)
+        return await asyncio.to_thread(_page_from_daemon, name, selector)
     except Exception:
-        return "", ""
+        return "", "", ""
 
 
 def _base_row(task_id: str) -> dict:
@@ -157,12 +200,37 @@ def _usage(result) -> tuple[int, int, int]:
     return int(usage.get("input") or 0), int(usage.get("output") or 0), int(count or 0)
 
 
-def _judge(task: dict, url: str, text: str) -> tuple[bool, str]:
-    """URL and text checks only. The LLM judge is not called."""
-    ok, reason = deterministic_success(task, url, text)
-    if ok is None:
-        return False, reason
-    return bool(ok), reason
+def _reported_answer(result) -> str:
+    """The agent's final text. It is not a pass by itself."""
+    final = getattr(result, "final_result", None)
+    if callable(final):
+        try:
+            value = final()
+        except Exception:
+            value = None
+        if isinstance(value, str):
+            return value.strip()
+    text = getattr(result, "text", None)
+    return text.strip() if isinstance(text, str) else ""
+
+
+def _task_selector(task: dict) -> str:
+    markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
+    selector = (markers or {}).get("answer_equals_selector")
+    return selector if isinstance(selector, str) else ""
+
+
+def _judge(task: dict, url: str, text: str, *, selector_text: str = "", answer: str = "") -> tuple[bool, str]:
+    """The shared end-state check. The LLM judge is not called."""
+    ok, reason, _shared_ok, _shared_reason = grade_arm(
+        task,
+        url,
+        text,
+        selector_text=selector_text,
+        answer=answer,
+        page_text=text,
+    )
+    return ok, reason
 
 
 async def _stop(browser) -> None:
@@ -206,8 +274,14 @@ async def run_browser_use_task(
             extend_system_message=prompt_for(ARM_BROWSER_USE),
         )
         result = await agent.run(max_steps=BROWSER_USE_MAX_STEPS)
-        url, text = await read_page(browser)
-        success, reason = _judge(task, url, text)
+        url, text, selector_text = await read_page(browser, selector=_task_selector(task))
+        success, reason = _judge(
+            task,
+            url,
+            text,
+            selector_text=selector_text,
+            answer=_reported_answer(result),
+        )
         incoming, outgoing, steps = _usage(result)
         row.update(
             {
