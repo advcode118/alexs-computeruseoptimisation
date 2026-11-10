@@ -1064,6 +1064,10 @@ class BenchmarkHarness:
 
         The shared check uses this text. The snapshot is not a second source.
         The read stays out of the model transcript.
+
+        script_first already ran this read to judge the script. Reading the
+        DOM again is only for a miss: empty page text, or a marked value the
+        task requires and the first read did not find. The judge is unchanged.
         """
         from bench.script_first import read_marked_page
         from bench.tasks import markers_for_task
@@ -1073,8 +1077,11 @@ class BenchmarkHarness:
         markers = markers_for_task(task_id)
         wanted = markers.get("answer_equals_selector")
         selector = wanted if isinstance(wanted, str) else ""
-        page_text, marked = await read_marked_page(self.mcp_client, selector)
         last = steps[-1]
+        if self.arm == "script_first" and (last.page_text or "").strip():
+            if not selector or (last.selector_text or "").strip():
+                return
+        page_text, marked = await read_marked_page(self.mcp_client, selector)
         if page_text:
             last.page_text = page_text
         if marked:
@@ -1398,12 +1405,17 @@ class BenchmarkHarness:
                                 repair_pending=repair_pending,
                                 refused_extra_script=False,
                             )
-                            # A PASS ends the task. UNKNOWN does not, and it does not repair.
+                            # A PASS ends the task. UNKNOWN is not a pass and does not repair.
+                            # A second script is refused, so another model call cannot change it.
                             if verdict.verdict == PASS and isinstance(page_url, str) and page_url.startswith(
                                 ("http://", "https://")
                             ):
                                 success = True
                                 success_reason = "Task completed successfully"
+                                stop_after_tools = True
+                            elif verdict.verdict == UNKNOWN:
+                                success = False
+                                success_reason = f"UNKNOWN: {verdict.reason}"
                                 stop_after_tools = True
                             elif (
                                 verdict.verdict == FAIL
