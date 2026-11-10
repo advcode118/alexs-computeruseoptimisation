@@ -16,13 +16,15 @@ import time
 
 from bench.arms import ARM_BROWSER_USE, prompt_for
 from bench.budget import ALLOWED_MODEL, assert_allowed_model, estimate_usd
-from bench.probe import grade_arm
+from bench.probe import grade_observation
+from bench.script_first import _PAGE_EVIDENCE_JS, text_from_page_read
 
 BROWSER_USE_VERSION = "1.0.0"
 LOCAL_BROWSER = "chromium"
 BROWSER_USE_MAX_STEPS = 30
-# Read the live page. The expression is fixed. It does not carry the task.
-PAGE_TEXT_EXPRESSION = "document.body && document.body.innerText || ''"
+# The same page-evidence read script_first uses, as one CDP expression.
+# It does not carry the task, the answer, or the judge selector.
+PAGE_TEXT_EXPRESSION = f"({_PAGE_EVIDENCE_JS})()"
 
 
 class BrowserUseClient:
@@ -74,11 +76,11 @@ def _explicit_page(browser) -> tuple[str, str, str] | None:
     if "page_url" not in data and "page_text" not in data:
         return None
     url = data.get("page_url")
-    text = data.get("page_text")
+    text = text_from_page_read(data.get("page_text"))
     selector = data.get("page_selector_text")
     return (
         url if isinstance(url, str) else "",
-        text if isinstance(text, str) else "",
+        text,
         selector if isinstance(selector, str) else "",
     )
 
@@ -108,8 +110,8 @@ def _page_text(name: str, target: str) -> str:
             returnByValue=True,
         )
         result = value.get("result") if isinstance(value, dict) else None
-        text = result.get("value") if isinstance(result, dict) else ""
-        return text if isinstance(text, str) else ""
+        raw = result.get("value") if isinstance(result, dict) else ""
+        return text_from_page_read(raw)
     except Exception:
         return ""
 
@@ -221,14 +223,13 @@ def _task_selector(task: dict) -> str:
 
 
 def _judge(task: dict, url: str, text: str, *, selector_text: str = "", answer: str = "") -> tuple[bool, str]:
-    """The shared end-state check. The LLM judge is not called."""
-    ok, reason, _shared_ok, _shared_reason = grade_arm(
+    """The same post-run grade as the other arms. The LLM judge is not called."""
+    ok, reason, _shared_ok, _shared_reason = grade_observation(
         task,
         url,
         text,
         selector_text=selector_text,
         answer=answer,
-        page_text=text,
     )
     return ok, reason
 
@@ -275,12 +276,13 @@ async def run_browser_use_task(
         )
         result = await agent.run(max_steps=BROWSER_USE_MAX_STEPS)
         url, text, selector_text = await read_page(browser, selector=_task_selector(task))
+        answer = _reported_answer(result)
         success, reason = _judge(
             task,
             url,
             text,
             selector_text=selector_text,
-            answer=_reported_answer(result),
+            answer=answer,
         )
         incoming, outgoing, steps = _usage(result)
         row.update(
@@ -295,6 +297,8 @@ async def run_browser_use_task(
                 "usd": estimate_usd(incoming, outgoing),
                 "claude": True,
                 "page_url": url,
+                "claimed_answer": answer,
+                "expected_value": selector_text,
             }
         )
         return row

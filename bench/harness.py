@@ -873,23 +873,12 @@ class BenchmarkHarness:
         cache.drop(task_description, start_url)
         return outcome
 
-    async def _stamp_spoken_claim(self, task_id: str, steps: list[StepMetrics], claim: str) -> None:
-        """Record the completion text as the claimed answer, and the live selector.
+    def _apply_spoken_claim(self, steps: list[StepMetrics], claim: str) -> None:
+        """Record the completion text as the claimed answer.
 
-        script_first already logged its claim. The other arms used to leave
-        the claim empty, so Hacker News failed with an empty answer whatever
-        the model wrote next to TASK_COMPLETE. The selector read is the same
-        live check, and it stays out of the model transcript.
+        script_first already logged its claim from the script. TASK_COMPLETE
+        is not the answer. The page read is separate and runs for every arm.
         """
-        from bench.script_first import read_marked_page
-        from bench.tasks import markers_for_task
-
-        selector = ""
-        page_text = ""
-        markers = markers_for_task(task_id)
-        wanted = markers.get("answer_equals_selector")
-        if isinstance(wanted, str) and wanted and self.mcp_client is not None:
-            page_text, selector = await read_marked_page(self.mcp_client, wanted)
         if not steps:
             steps.append(
                 StepMetrics(
@@ -903,17 +892,31 @@ class BenchmarkHarness:
                     input_tokens=0,
                     output_tokens=0,
                     claimed_answer=claim,
-                    selector_text=selector,
-                    page_text=page_text,
                 )
             )
             return
+        steps[-1].claimed_answer = claim
+
+    async def _read_shared_page(self, task_id: str, steps: list[StepMetrics]) -> None:
+        """Page text and the live marked value, read the same way for every arm.
+
+        The shared check uses this text. The snapshot is not a second source.
+        The read stays out of the model transcript.
+        """
+        from bench.script_first import read_marked_page
+        from bench.tasks import markers_for_task
+
+        if not steps or self.mcp_client is None:
+            return
+        markers = markers_for_task(task_id)
+        wanted = markers.get("answer_equals_selector")
+        selector = wanted if isinstance(wanted, str) else ""
+        page_text, marked = await read_marked_page(self.mcp_client, selector)
         last = steps[-1]
-        last.claimed_answer = claim
-        if selector:
-            last.selector_text = selector
         if page_text:
             last.page_text = page_text
+        if marked:
+            last.selector_text = marked
 
     async def run_task(
         self,
@@ -1303,7 +1306,8 @@ class BenchmarkHarness:
             success_reason = f"Error: {error}"
 
         if spoken_answer and self.arm != "script_first":
-            await self._stamp_spoken_claim(task_id, steps, spoken_answer)
+            self._apply_spoken_claim(steps, spoken_answer)
+        await self._read_shared_page(task_id, steps)
 
         if self.arm == "script_first" and end_state == UNKNOWN and success_reason == "Max steps reached":
             reason = last_verdict.reason if last_verdict is not None else "no page evidence"
@@ -1412,6 +1416,8 @@ class BenchmarkHarness:
                 "model_calls": result.model_calls,
                 "script_steps": result.script_steps,
                 "error": result.error,
+                "claimed_answer": result.steps[-1].claimed_answer if result.steps else "",
+                "expected_value": result.steps[-1].selector_text if result.steps else "",
                 "steps": [
                     {
                         "step_number": step.step_number,

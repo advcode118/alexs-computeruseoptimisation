@@ -513,6 +513,50 @@ def grade_arm(
     return True, shared_reason, shared_ok, shared_reason
 
 
+def grade_observation(
+    task: dict,
+    url: str,
+    text: str,
+    *,
+    selector_text: str = "",
+    answer: str = "",
+    completed: bool | None = None,
+    completion_reason: str = "",
+) -> tuple[bool, str, bool | None, str]:
+    """The one grade for every arm.
+
+    `text` is the page text read after the run. A task with end markers gets
+    one evidence verdict from that read and the claimed answer. A task with
+    no markers gets no evidence gate. UNKNOWN is not a pass. TASK_COMPLETE
+    is not a pass by itself: `completed` False still blocks, and True does not.
+    """
+    markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
+    evidence = None
+    evidence_reason = ""
+    if markers:
+        from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
+
+        verdict = evidence_verdict(
+            markers,
+            PageEvidence(url=url, text=text or "", selector_text=selector_text),
+            ClaimedEvidence(answer=answer),
+        )
+        evidence = verdict.verdict
+        evidence_reason = verdict.reason
+    return grade_arm(
+        task,
+        url,
+        text or "",
+        evidence=evidence,
+        evidence_reason=evidence_reason,
+        completed=completed,
+        completion_reason=completion_reason,
+        selector_text=selector_text,
+        answer=answer,
+        page_text=text or "",
+    )
+
+
 def empty_row(
     arm: str,
     task_id: str,
@@ -649,38 +693,24 @@ async def run_claude_arm(
         )
         last = result.steps[-1] if result.steps else None
         final_url = last.page_url if last else ""
-        final_text = last.snapshot_text if last else ""
         selector_text = last.selector_text if last else ""
         claimed_answer = last.claimed_answer if last else ""
         page_text = last.page_text if last else ""
-        # script_first's tool result is not a snapshot. The page body the
-        # runner read is the end state. An empty snapshot is not that page.
-        graded_text = page_text if arm == ARM_SCRIPT_FIRST and page_text else final_text
+        # The same post-run page text for every arm. The snapshot is not the check.
+        graded_text = page_text
         end_state = result.end_state or ""
-        if arm == ARM_SCRIPT_FIRST:
-            # This arm always has an evidence judge. A missing verdict is not a pass.
-            evidence = end_state if end_state in {"PASS", "FAIL", "UNKNOWN"} else "UNKNOWN"
-            success, reason, substring_ok, substring_reason = grade_arm(
-                task,
-                final_url,
-                graded_text,
-                evidence=evidence,
-                evidence_reason=result.success_reason,
-                selector_text=selector_text,
-                answer=claimed_answer,
-                page_text=page_text,
-            )
-        else:
-            success, reason, substring_ok, substring_reason = grade_arm(
-                task,
-                final_url,
-                final_text,
-                completed=result.success,
-                completion_reason=result.success_reason,
-                selector_text=selector_text,
-                answer=claimed_answer,
-                page_text=page_text,
-            )
+        # script_first has no completion bit. The other arms still cannot pass
+        # on TASK_COMPLETE alone, and a run that did not finish still fails.
+        completed = None if arm == ARM_SCRIPT_FIRST else result.success
+        success, reason, substring_ok, substring_reason = grade_observation(
+            task,
+            final_url,
+            graded_text,
+            selector_text=selector_text,
+            answer=claimed_answer,
+            completed=completed,
+            completion_reason=result.success_reason,
+        )
         usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
         return {
             "arm": arm,
@@ -703,6 +733,8 @@ async def run_claude_arm(
             "model_calls": result.model_calls,
             "script_steps": result.script_steps,
             "claude": True,
+            "claimed_answer": claimed_answer,
+            "expected_value": selector_text,
         }
     finally:
         await harness.teardown()

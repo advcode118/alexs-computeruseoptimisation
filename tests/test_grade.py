@@ -555,6 +555,16 @@ def test_playwright_and_stagehand_record_the_same_claim(monkeypatch, tmp_path):
 
     assert rows["playwright_mcp"] == rows["stagehand"]
 
+    model = Model("browser_navigate", "The top story is Fixture Story.\nTASK_COMPLETE")
+    install(model, Client(page=None))
+    sentence = asyncio.run(
+        run_claude_arm("playwright_mcp", hn, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+    )
+    assert sentence["success"] is True
+    assert sentence["claimed_answer"] == "The top story is Fixture Story."
+    assert sentence["expected_value"] == "Fixture Story"
+    assert ".titleline" not in json.dumps(model.seen)
+
     model = Model("browser_navigate", "Other Story\nTASK_COMPLETE")
     install(model, Client(page=None))
     missed = asyncio.run(
@@ -619,6 +629,189 @@ def test_rfc_heading_stays_in_the_page_text_and_the_judge_does_not_soften():
     )
     assert prefix.verdict == FAIL
     assert prefix.reason == "answer is not in the page text"
+
+
+def test_a_title_inside_a_sentence_matches_and_a_wrong_title_does_not():
+    """The live title may sit in the sentence an arm said. A wrong title still fails."""
+    task = _hn_task()
+    page = "Fixture Story\nSecond Story"
+    ok, why = shared_end_state(
+        task,
+        HN,
+        page,
+        selector_text="Fixture Story",
+        answer="The top story is Fixture Story.",
+        page_text=page,
+    )
+    assert ok is True
+    assert why == "the page evidence matches the markers"
+
+    quoted, _quoted_why = shared_end_state(
+        task,
+        HN,
+        page,
+        selector_text="Fixture Story",
+        answer='"Fixture Story"',
+        page_text=page,
+    )
+    assert quoted is True
+
+    wrong, wrong_why = shared_end_state(
+        task,
+        HN,
+        page,
+        selector_text="Fixture Story",
+        answer="The top story is Second Story.",
+        page_text=page,
+    )
+    assert wrong is False
+    assert wrong_why == "answer is not the marked value"
+
+    negated, negated_why = shared_end_state(
+        task,
+        HN,
+        page,
+        selector_text="Fixture Story",
+        answer="The top story is not Fixture Story.",
+        page_text=page,
+    )
+    assert negated is False
+    assert negated_why == "answer is not the marked value"
+
+    partial, partial_why = shared_end_state(
+        task,
+        HN,
+        page,
+        selector_text="Fixture Story",
+        answer="Fixture",
+        page_text=page,
+    )
+    assert partial is False
+    assert partial_why == "answer is not the marked value"
+
+    extra, extra_why = shared_end_state(
+        task,
+        HN,
+        page,
+        selector_text="Fixture Story",
+        answer="Fixture Story and Second Story",
+        page_text=page,
+    )
+    assert extra is False
+    assert extra_why == "answer is not the marked value"
+
+
+def test_every_arm_grades_the_same_page_text_and_logs_the_live_value(monkeypatch, tmp_path):
+    """The snapshot is not the shared check. Both arms log the claim and the live title."""
+    from bench.probe import run_claude_arm
+
+    class Peek:
+        async def call_tool(self, name, arguments):
+            del name, arguments
+            return "short", 0.0
+
+    async def fake_setup(self):
+        self.mcp_client = Peek()
+
+    async def fake_teardown(self):
+        return None
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.setup", fake_setup)
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.teardown", fake_teardown)
+
+    eiffel = _eiffel_task()
+    hn = _hn_task()
+
+    async def body_has_paris(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=True,
+            reason="Task completed successfully",
+            end_state="PASS",
+            url=EIFFEL,
+            snapshot="The Eiffel Tower is a wrought-iron lattice tower.",
+            answer="Paris",
+            page_text="The Eiffel Tower is in Paris.",
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", body_has_paris)
+    rows = {}
+    for arm in ("script_first", "playwright_mcp", "stagehand"):
+        row = asyncio.run(
+            run_claude_arm(arm, eiffel, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+        )
+        assert row["success"] is True, arm
+        assert "Paris" in row["success_reason"]
+        assert row["claimed_answer"] == "Paris"
+        rows[arm] = row["success"]
+    assert rows["script_first"] is rows["playwright_mcp"] is rows["stagehand"] is True
+
+    async def snapshot_only(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=True,
+            reason="Task completed successfully",
+            end_state="",
+            url=EIFFEL,
+            snapshot="The tower stands in Paris.",
+            answer="Paris",
+            page_text="",
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", snapshot_only)
+    for arm in ("script_first", "playwright_mcp"):
+        missed = asyncio.run(
+            run_claude_arm(arm, eiffel, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+        )
+        assert missed["success"] is False, arm
+        assert missed["success_reason"] == "Missing text: ['Paris']"
+
+    async def spoken_title(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=True,
+            reason="Task completed successfully",
+            end_state="",
+            url=HN,
+            snapshot="not the page",
+            answer="The top story is Fixture Story.",
+            page_text="Fixture Story\nSecond Story",
+            selector="Fixture Story",
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", spoken_title)
+    for arm in ("playwright_mcp", "script_first"):
+        hit = asyncio.run(
+            run_claude_arm(arm, hn, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+        )
+        assert hit["success"] is True, arm
+        assert hit["claimed_answer"] == "The top story is Fixture Story."
+        assert hit["expected_value"] == "Fixture Story"
+
+    async def empty_claim(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=True,
+            reason="Task completed successfully",
+            end_state="PASS",
+            url=EIFFEL,
+            snapshot="The tower stands in Paris.",
+            answer="",
+            page_text="The tower stands in Paris.",
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", empty_claim)
+    for arm in ("script_first", "stagehand"):
+        bare = asyncio.run(
+            run_claude_arm(arm, eiffel, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+        )
+        assert bare["success"] is False, arm
+        assert bare["success_reason"] == "empty answer"
+        assert bare["claimed_answer"] == ""
 
 
 def test_eiffel_script_is_cached_only_when_the_page_contains_paris(tmp_path, monkeypatch):
