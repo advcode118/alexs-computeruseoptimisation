@@ -332,6 +332,20 @@ def logged_evidence(payload: dict | None) -> tuple[str, str, str]:
     return selector, claimed_from_payload(data).answer, text
 
 
+def spoken_claim(text: str) -> str:
+    """What an arm claimed when it said the task was done.
+
+    TASK_COMPLETE is the stop token, not the answer. The remaining text is
+    the same kind of claim browser_use reads from the agent's final result.
+    """
+    pieces = []
+    for line in (text or "").replace("TASK_COMPLETE", "\n").splitlines():
+        cleaned = " ".join(line.split())
+        if cleaned:
+            pieces.append(cleaned)
+    return "\n".join(pieces)
+
+
 def extract_page_snapshot(result_text: str) -> str:
     """Pull the accessibility tree out of a playwright-mcp tool response."""
     if not result_text:
@@ -841,6 +855,48 @@ class BenchmarkHarness:
         cache.drop(task_description, start_url)
         return outcome
 
+    async def _stamp_spoken_claim(self, task_id: str, steps: list[StepMetrics], claim: str) -> None:
+        """Record the completion text as the claimed answer, and the live selector.
+
+        script_first already logged its claim. The other arms used to leave
+        the claim empty, so Hacker News failed with an empty answer whatever
+        the model wrote next to TASK_COMPLETE. The selector read is the same
+        live check, and it stays out of the model transcript.
+        """
+        from bench.script_first import read_marked_page
+        from bench.tasks import markers_for_task
+
+        selector = ""
+        page_text = ""
+        markers = markers_for_task(task_id)
+        wanted = markers.get("answer_equals_selector")
+        if isinstance(wanted, str) and wanted and self.mcp_client is not None:
+            page_text, selector = await read_marked_page(self.mcp_client, wanted)
+        if not steps:
+            steps.append(
+                StepMetrics(
+                    step_number=1,
+                    tool_name="",
+                    tool_args={},
+                    tool_result_size=0,
+                    snapshot_tokens=0,
+                    model_time_ms=0.0,
+                    tool_time_ms=0.0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    claimed_answer=claim,
+                    selector_text=selector,
+                    page_text=page_text,
+                )
+            )
+            return
+        last = steps[-1]
+        last.claimed_answer = claim
+        if selector:
+            last.selector_text = selector
+        if page_text:
+            last.page_text = page_text
+
     async def run_task(
         self,
         task_id: str,
@@ -888,6 +944,7 @@ class BenchmarkHarness:
         step_num = 0
         success = False
         success_reason = "Max steps reached"
+        spoken_answer = ""
         error: str | None = None
         expect_url = check_url_contains or ""
         turn_limit = self.max_steps
@@ -983,6 +1040,7 @@ class BenchmarkHarness:
                         if "TASK_COMPLETE" in text:
                             success = True
                             success_reason = "Task completed successfully"
+                            spoken_answer = spoken_claim(text)
                             break
                         if "TASK_FAILED" in text:
                             success = False
@@ -1224,6 +1282,9 @@ class BenchmarkHarness:
             error = str(exc)
             success = False
             success_reason = f"Error: {error}"
+
+        if spoken_answer and self.arm != "script_first":
+            await self._stamp_spoken_claim(task_id, steps, spoken_answer)
 
         if self.arm == "script_first" and end_state == UNKNOWN and success_reason == "Max steps reached":
             reason = last_verdict.reason if last_verdict is not None else "no page evidence"

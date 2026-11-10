@@ -896,6 +896,93 @@ async def _evaluate_value(page, source: str):
     return value
 
 
+def mcp_evaluate_value(result_text: str):
+    """JSON value from a browser_evaluate response. None when it is not JSON."""
+    text = result_text or ""
+    body: list[str] = []
+    capture = False
+    saw_result = False
+    for line in text.splitlines():
+        if line.startswith("### "):
+            if capture:
+                break
+            capture = line.strip() == "### Result"
+            saw_result = saw_result or capture
+            continue
+        if capture:
+            if not body and line.startswith("```"):
+                continue
+            if line.strip() == "```":
+                break
+            body.append(line)
+    raw = "\n".join(body).strip() if saw_result else text.strip()
+    if raw.startswith("```"):
+        raw = "\n".join(line for line in raw.splitlines() if not line.startswith("```")).strip()
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+
+def _client_tool_names(client) -> set[str]:
+    tools = getattr(client, "tools", None)
+    if not isinstance(tools, list):
+        return set()
+    names = set()
+    for tool in tools:
+        if isinstance(tool, dict) and isinstance(tool.get("name"), str):
+            names.add(tool["name"])
+    return names
+
+
+def marked_page_source(selector: str) -> str:
+    """One page read: body text and the live selector. The selector is judge data."""
+    literal = json.dumps(selector or "")
+    return (
+        "() => { const selector = "
+        + literal
+        + '; const root = document.querySelector("main") || document.body; '
+        + 'const raw = root ? (root.innerText || root.textContent || "") : ""; '
+        + "const el = selector ? document.querySelector(selector) : null; "
+        + 'const marked = el ? (el.innerText || el.textContent || "").trim() : ""; '
+        + "return { text: raw.slice(0, 8000), selector: marked }; }"
+    )
+
+
+async def read_marked_page(client, selector: str) -> tuple[str, str]:
+    """Page text and the live selector, for every arm that can read the page.
+
+    A page object uses the same collector as script_first. Playwright MCP uses
+    browser_evaluate with the same read. An arm that cannot read returns empty
+    strings. This is not a model prompt.
+    """
+    page = getattr(client, "_page", None)
+    if page is not None:
+        try:
+            evidence = await collect_page_evidence(page, selector=selector)
+        except Exception:
+            return "", ""
+        return evidence.text, evidence.selector_text
+    if "browser_evaluate" not in _client_tool_names(client):
+        return "", ""
+    call = getattr(client, "call_tool", None)
+    if not callable(call):
+        return "", ""
+    try:
+        result = await call("browser_evaluate", {"function": marked_page_source(selector)})
+    except Exception:
+        return "", ""
+    text = result[0] if isinstance(result, tuple) else result
+    value = mcp_evaluate_value(str(text or ""))
+    if not isinstance(value, dict):
+        return "", ""
+    body = value.get("text") if isinstance(value.get("text"), str) else ""
+    marked = value.get("selector") if isinstance(value.get("selector"), str) else ""
+    return body, marked
+
+
 async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
     """Read the live page. The script's return value is not used here."""
     url = _page_url(page)
