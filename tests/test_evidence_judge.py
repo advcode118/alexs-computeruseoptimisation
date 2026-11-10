@@ -13,6 +13,7 @@ from bench.judge import check_url_contains
 from bench.probe import main, probe_tasks
 from bench.script_first import (
     PASS,
+    _PAGE_EVIDENCE_JS,
     ClaimedEvidence,
     PageEvidence,
     ScriptFirstClient,
@@ -119,6 +120,35 @@ def test_lenient_pages_fail_and_the_scored_url_is_not_rewritten():
     titled = _verdict(WIKI, CHARLES, title="Ada Lovelace - Wikipedia")
     assert titled.scored_url == CHARLES
     assert "Ada_Lovelace" not in titled.scored_url
+
+
+def test_canonical_href_stays_the_attribute():
+    """The collector must not resolve a relative href into a judge-shaped URL.
+
+    link.href absolutizes /wiki/Ada_Lovelace and //en.wikipedia.org/wiki/Ada_Lovelace.
+    The scored URL is the live URL or the attribute, byte for byte.
+    """
+    source = _PAGE_EVIDENCE_JS
+    assert 'getAttribute("href")' in source
+    assert "link.href" not in source
+    relative = _verdict(
+        WIKI,
+        CHARLES,
+        canonical="/wiki/Ada_Lovelace",
+        title="Charles Babbage - Wikipedia",
+        text="Charles Babbage",
+    )
+    assert relative.verdict == "FAIL"
+    assert relative.scored_url == CHARLES
+    assert "Ada_Lovelace" not in relative.scored_url
+    protocol = _verdict(
+        WIKI,
+        CHARLES,
+        canonical="//en.wikipedia.org/wiki/Ada_Lovelace",
+        text="Charles Babbage",
+    )
+    assert protocol.verdict == "FAIL"
+    assert protocol.scored_url == CHARLES
 
 
 def test_real_pages_pass_without_rewriting_the_url():

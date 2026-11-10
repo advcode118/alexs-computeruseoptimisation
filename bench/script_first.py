@@ -96,7 +96,8 @@ _PAGE_EVIDENCE_JS = r"""() => {
   return {
     url: location.href,
     title: document.title || "",
-    canonical: link ? (link.href || "") : "",
+    // Attribute text. The IDL property resolves relative and protocol-relative hrefs.
+    canonical: link ? (link.getAttribute("href") || "") : "",
     h1: h1 ? (h1.innerText || h1.textContent || "") : "",
     text: raw.slice(0, 8000),
     controls
