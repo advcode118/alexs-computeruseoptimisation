@@ -66,6 +66,8 @@ def render(rows: list[dict]) -> str:
             lines.append(
                 f"  {phase} {row.get('task_id')} wall_ms={_shown(row, 'wall_ms')} "
                 f"steps={_shown(row, 'steps')} tier={_shown(row, 'tier')} usd={_shown(row, 'usd')}"
+                + (f" effort={_shown(row, 'effort')}" if "effort" in row else "")
+                + (f" model={_shown(row, 'model')}" if row.get("provider") == "openai" else "")
             )
             if "usd" in row and row["usd"] not in ("", None):
                 saved += float(row["usd"])

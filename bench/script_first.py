@@ -414,90 +414,6 @@ def _norm_answer(value: str) -> str:
     return " ".join((value or "").split()).casefold()
 
 
-# Words a sentence may add around the live title. A second title is not in this set.
-_TITLE_FILLER = frozenset(
-    {
-        "a",
-        "an",
-        "the",
-        "of",
-        "on",
-        "is",
-        "was",
-        "are",
-        "title",
-        "top",
-        "story",
-        "first",
-        "current",
-        "page",
-        "hacker",
-        "news",
-        "its",
-        "it's",
-        "it",
-        "this",
-        "that",
-        "called",
-        "named",
-        "reads",
-        "says",
-        "headline",
-        "be",
-        "to",
-        "currently",
-    }
-)
-_ANSWER_EDGE = " \t\"'`“”.,:;!?"
-
-
-def _strip_answer_edges(value: str) -> str:
-    return _norm_answer(value).strip(_ANSWER_EDGE)
-
-
-def _phrase_at_boundary(haystack: str, needle: str) -> int:
-    """Index of needle as its own phrase, or -1. A longer token does not count."""
-    if not needle or len(needle) > len(haystack):
-        return -1
-    start = 0
-    while True:
-        index = haystack.find(needle, start)
-        if index < 0:
-            return -1
-        end = index + len(needle)
-        before = haystack[index - 1] if index else ""
-        after = haystack[end] if end < len(haystack) else ""
-        if (not before or not before.isalnum()) and (not after or not after.isalnum()):
-            return index
-        start = index + 1
-
-
-def _marked_title_matches(answer: str, truth: str) -> bool:
-    """True when the claim is the live title, including inside a short sentence.
-
-    The whole title has to be there. A different title, a piece of the title,
-    a negation, or a second title does not match.
-    """
-    left = _strip_answer_edges(answer)
-    right = _strip_answer_edges(truth)
-    if not left or not right:
-        return False
-    if left == right:
-        return True
-    index = _phrase_at_boundary(left, right)
-    if index < 0:
-        return False
-    rest = f"{left[:index]} {left[index + len(right):]}"
-    words = []
-    for raw in rest.split():
-        word = raw.strip(_ANSWER_EDGE)
-        if word:
-            words.append(word)
-    if any(word in {"not", "no", "never"} or word.endswith("n't") for word in words):
-        return False
-    return all(word in _TITLE_FILLER for word in words)
-
-
 def _host_name(url: str) -> str:
     if not _http(url):
         return ""
@@ -755,11 +671,11 @@ def evidence_verdict(
             truth = (trusted.selector_text or "").strip()
             if not truth or not page_text.strip():
                 return gate(EvidenceVerdict(UNKNOWN, "page text was not read", scored))
-            # The live title may sit inside the sentence the arm said. A different
-            # title still fails. The title, not the whole sentence, has to be on the page.
-            if not _marked_title_matches(answer, truth):
+            # Exact title only. Case and spacing are ignored. A sentence around
+            # the title fails, and the title has to be on the live page.
+            if _norm_answer(answer) != _norm_answer(truth):
                 return EvidenceVerdict(FAIL, "answer is not the marked value", scored)
-            if _norm_answer(truth) not in _norm_answer(page_text):
+            if _norm_answer(answer) not in _norm_answer(page_text):
                 return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
         if answer_in_text:
             if not page_text.strip():

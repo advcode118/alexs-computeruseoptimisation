@@ -38,7 +38,7 @@ from bench.tasks import BENCHMARK_TASKS, get_fixture_tasks, get_webvoyager_tasks
 from bench.summarize import generate_markdown_report, TaskSummary
 
 
-def dry_run_output(tasks: list[dict], model: str = DEFAULT_MODEL) -> str:
+def dry_run_output(tasks: list[dict], model: str = DEFAULT_MODEL, provider: str = "anthropic") -> str:
     """Generate dry-run output showing what would be run."""
     lines = [
         "# Benchmark Dry Run",
@@ -61,19 +61,32 @@ def dry_run_output(tasks: list[dict], model: str = DEFAULT_MODEL) -> str:
     lines.extend([
         "## Configuration",
         "",
-        f"- ANTHROPIC_API_KEY: {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'NOT SET'}",
-        f"- Model: {model}",
-        "- Budget: stop when the project total would pass $40 "
-        "(the M0 prior inside a ledger is $9.645; a live run reads the shared "
-        "ledger and does not invent a starting total)",
-        f"- Spend file: {default_spend_path()}",
-        "",
-        "To run the benchmark:",
-        "```bash",
-        "export ANTHROPIC_API_KEY=your-key-here",
-        "python -m bench.run",
-        "```",
     ])
+    if provider == "openai":
+        from bench.openai_spend import OPENAI_PROJECT_BUDGET_USD, OPENAI_RUN_BUDGET_USD, default_openai_spend_path
+
+        lines.extend([
+            f"- OPENAI_API_KEY: {'set' if os.environ.get('OPENAI_API_KEY') else 'NOT SET'}",
+            f"- Model: {model}",
+            f"- Budget: stop this run at ${OPENAI_RUN_BUDGET_USD:.0f} and the OpenAI ledger at "
+            f"${OPENAI_PROJECT_BUDGET_USD:.0f}. The Claude ledger is not used.",
+            f"- Spend file: {default_openai_spend_path()}",
+        ])
+    else:
+        lines.extend([
+            f"- ANTHROPIC_API_KEY: {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'NOT SET'}",
+            f"- Model: {model}",
+            "- Budget: stop when the project total would pass $40 "
+            "(the M0 prior inside a ledger is $9.645; a live run reads the shared "
+            "ledger and does not invent a starting total)",
+            f"- Spend file: {default_spend_path()}",
+            "",
+            "To run the benchmark:",
+            "```bash",
+            "export ANTHROPIC_API_KEY=your-key-here",
+            "python -m bench.run",
+            "```",
+        ])
 
     return "\n".join(lines)
 
@@ -103,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model",
         default=DEFAULT_MODEL,
-        help="Claude model to use (claude-sonnet-5-5 only)",
+        help="claude-sonnet-5-5, or with --provider openai one of gpt-6.1-sol and gpt-6-luna",
     )
     parser.add_argument(
         "--arm",
@@ -126,6 +139,16 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         help="Output file for results (defaults to bench/runs/<timestamp>.jsonl)",
     )
+    parser.add_argument(
+        "--provider",
+        default="anthropic",
+        help="anthropic keeps claude-sonnet-5-5. openai is the computer-use model under test.",
+    )
+    parser.add_argument(
+        "--effort",
+        default="",
+        help="OpenAI reasoning effort: low, medium, or high. xhigh only when that model accepts it.",
+    )
     return parser
 
 
@@ -141,25 +164,47 @@ def main() -> None:
         tasks = BENCHMARK_TASKS
 
     try:
-        model = assert_allowed_model(args.model)
+        if args.provider == "openai":
+            from bench.openai_spend import EffortNotAllowed, OpenAIModelNotAllowed, assert_effort, assert_openai_model
+
+            try:
+                model = assert_openai_model(args.model)
+                assert_effort(model, args.effort or "medium")
+            except (OpenAIModelNotAllowed, EffortNotAllowed) as exc:
+                print(exc)
+                sys.exit(2)
+        else:
+            if args.effort:
+                print("Claude does not take --effort.")
+                sys.exit(2)
+            model = assert_allowed_model(args.model)
     except ModelNotAllowed as exc:
         print(exc)
         sys.exit(2)
 
     if args.dry_run:
-        print(dry_run_output(tasks, model))
+        print(dry_run_output(tasks, model, provider=args.provider))
         return
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        print("Error: ANTHROPIC_API_KEY not set")
-        print()
-        print("To run the benchmark, set your API key:")
-        print("  export ANTHROPIC_API_KEY=your-key-here")
-        print()
-        print("Or run a dry-run to see what would be executed:")
-        print("  python -m bench.run --dry-run")
-        sys.exit(1)
+    if args.provider == "openai":
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            print("Error: OPENAI_API_KEY not set")
+            print()
+            print("Or run a dry-run to see what would be executed:")
+            print("  python -m bench.run --dry-run --provider openai --model gpt-6.1-sol")
+            sys.exit(1)
+    else:
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            print("Error: ANTHROPIC_API_KEY not set")
+            print()
+            print("To run the benchmark, set your API key:")
+            print("  export ANTHROPIC_API_KEY=your-key-here")
+            print()
+            print("Or run a dry-run to see what would be executed:")
+            print("  python -m bench.run --dry-run")
+            sys.exit(1)
 
     run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -179,6 +224,8 @@ def main() -> None:
             headless=not args.no_headless,
             run_id=run_id,
             arm=args.arm,
+            provider=args.provider,
+            effort=args.effort or ("medium" if args.provider == "openai" else None),
         ))
     except BudgetExceeded as exc:
         results = exc.results

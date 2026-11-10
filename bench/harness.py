@@ -116,6 +116,13 @@ class StepMetrics:
     # The shared URL/text check does not use these. They stay out of the model prompt.
     claimed_answer: str = ""
     page_text: str = ""
+    # The script's own return. The shared grade checks these against the live page.
+    claimed_url: str = ""
+    claimed_title: str = ""
+    claimed_h1: str = ""
+    claimed_key_text: str = ""
+    claimed_values: tuple[str, ...] = ()
+    claimed_rejected: bool = False
 
 
 @dataclass
@@ -147,6 +154,11 @@ class TaskResult:
     model_calls: int = 0
     # Actions the last script ran.
     script_steps: int = 0
+    # OpenAI cached input tokens. Claude stays at 0; those reads use the recorded rate.
+    total_cached_tokens: int = 0
+    # Cache writes are a slice of input tokens. Claude stays at 0.
+    total_cache_write_30m_tokens: int = 0
+    total_cache_write_12h_tokens: int = 0
 
 
 def estimate_tokens(text: str) -> int:
@@ -319,17 +331,56 @@ def _line_spans(text: str) -> list[tuple[int, str]]:
     return spans
 
 
-def logged_evidence(payload: dict | None) -> tuple[str, str, str]:
-    """Selector, claimed answer, and page text the evidence judge already used.
+def logged_evidence(payload: dict | None) -> tuple[str, str, str, dict]:
+    """Selector, claimed answer, page text, and the script's full return.
 
     selector_text stays out of the model message. The caller logs it on the step.
+    The return keeps the URL, title, key text, and values the shared grade checks.
     """
     from bench.script_first import claimed_from_payload
 
     data = payload if isinstance(payload, dict) else {}
     selector = data.get("selector_text") if isinstance(data.get("selector_text"), str) else ""
     text = data.get("text") if isinstance(data.get("text"), str) else ""
-    return selector, claimed_from_payload(data).answer, text
+    claim = claimed_from_payload(data)
+    returned = {
+        "url": claim.url,
+        "title": claim.title,
+        "h1": claim.h1,
+        "key_text": claim.key_text,
+        "values": claim.values,
+        "rejected": claim.rejected,
+    }
+    return selector, claim.answer, text, returned
+
+
+def claim_from_step(step) -> "ClaimedEvidence":
+    """The script return stored on a step. The shared grade checks this object."""
+    from bench.script_first import ClaimedEvidence
+
+    return ClaimedEvidence(
+        url=step.claimed_url or "",
+        title=step.claimed_title or "",
+        h1=step.claimed_h1 or "",
+        answer=step.claimed_answer or "",
+        key_text=step.claimed_key_text or "",
+        values=tuple(step.claimed_values or ()),
+        rejected=bool(step.claimed_rejected),
+    )
+
+
+def claim_step_fields(returned: dict | None) -> dict:
+    """Step fields for the script return. Empty when the tool logged none."""
+    data = returned if isinstance(returned, dict) else {}
+    values = data.get("values") or ()
+    return {
+        "claimed_url": data.get("url") or "",
+        "claimed_title": data.get("title") or "",
+        "claimed_h1": data.get("h1") or "",
+        "claimed_key_text": data.get("key_text") or "",
+        "claimed_values": tuple(item for item in values if isinstance(item, str)),
+        "claimed_rejected": bool(data.get("rejected")),
+    }
 
 
 def spoken_claim(text: str) -> str:
@@ -692,13 +743,30 @@ class BenchmarkHarness:
         snapshot_dir: Path | None = None,
         arm: str = "playwright_mcp",
         script_cache=None,
+        provider: str = "anthropic",
+        effort: str | None = None,
     ):
         from bench.arms import prompt_for
 
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        self.provider = provider
         self.arm = arm
         self.system_prompt = prompt_for(arm)
-        self.model = assert_allowed_model(model)
+        if provider == "openai":
+            from bench.openai_spend import EffortNotAllowed, assert_effort, assert_openai_model
+
+            self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
+            self.model = assert_openai_model(model)
+            self.effort = assert_effort(self.model, effort or "")
+        elif provider == "anthropic":
+            if effort not in (None, ""):
+                from bench.openai_spend import EffortNotAllowed
+
+                raise EffortNotAllowed("Claude does not take --effort.")
+            self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+            self.model = assert_allowed_model(model)
+            self.effort = None
+        else:
+            raise ValueError(f"unknown provider {provider!r}")
         self.headless = headless
         self.max_steps = max_steps
         self.runs_dir = runs_dir or Path(__file__).parent / "runs"
@@ -745,9 +813,14 @@ class BenchmarkHarness:
         can write during that launch. The launch does not open the task URL.
         """
         if self.api_key:
-            self.anthropic = AnthropicClient(self.api_key, self.model)
-            # The stable script_first prompt and the patch prompt. Other arms stay uncached.
-            self.anthropic.cache_prefix = self.arm == "script_first"
+            if self.provider == "openai":
+                from bench.openai_client import OpenAIClient
+
+                self.anthropic = OpenAIClient(self.api_key, self.model, self.effort or "")
+            else:
+                self.anthropic = AnthropicClient(self.api_key, self.model)
+                # The stable script_first prompt and the patch prompt. Other arms stay uncached.
+                self.anthropic.cache_prefix = self.arm == "script_first"
 
         from bench.arms import build_client
 
@@ -812,6 +885,7 @@ class BenchmarkHarness:
             step.page_text,
             selector=step.selector_text,
             answer=step.claimed_answer,
+            claimed=claim_from_step(step),
         )
 
     async def _cached_script_tier(
@@ -848,6 +922,9 @@ class BenchmarkHarness:
             "tool_ms": 0.0,
             "input_tokens": 0,
             "output_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_30m_tokens": 0,
+            "cache_write_12h_tokens": 0,
             "model_calls": 0,
             "script_steps": 0,
         }
@@ -861,7 +938,7 @@ class BenchmarkHarness:
             outcome["tool_ms"] += tool_ms
             page_url = page_url_from_result(result_text)
             verdict, payload = script_verdict(markers, result_text, page_url)
-            selector_text, claimed_answer, page_text = logged_evidence(payload)
+            selector_text, claimed_answer, page_text, returned = logged_evidence(payload)
             steps.append(
                 StepMetrics(
                     step_number=len(steps) + 1,
@@ -878,6 +955,7 @@ class BenchmarkHarness:
                     selector_text=selector_text,
                     claimed_answer=claimed_answer,
                     page_text=page_text,
+                    **claim_step_fields(returned),
                 )
             )
             outcome["verdict"] = verdict
@@ -924,6 +1002,9 @@ class BenchmarkHarness:
         outcome["model_ms"] += model_ms
         outcome["input_tokens"] += input_tokens
         outcome["output_tokens"] += output_tokens
+        outcome["cached_tokens"] += int(usage.get("cached_tokens") or 0)
+        outcome["cache_write_30m_tokens"] += int(usage.get("cache_write_30m_tokens") or 0)
+        outcome["cache_write_12h_tokens"] += int(usage.get("cache_write_12h_tokens") or 0)
         patch = next(
             (
                 block.get("input")
@@ -1011,11 +1092,12 @@ class BenchmarkHarness:
         """Run a single task and collect metrics."""
         del expected_answer, judge_prompt
         if not self.anthropic:
+            missing = "OPENAI_API_KEY not set" if self.provider == "openai" else "ANTHROPIC_API_KEY not set"
             return self._empty_result(
                 task_id,
                 task_description,
                 "No API key configured",
-                "ANTHROPIC_API_KEY not set",
+                missing,
             )
 
         if not self.mcp_client:
@@ -1032,6 +1114,9 @@ class BenchmarkHarness:
         total_tool_ms = 0.0
         total_input_tokens = 0
         total_output_tokens = 0
+        total_cached_tokens = 0
+        total_cache_write_30m_tokens = 0
+        total_cache_write_12h_tokens = 0
         total_snapshot_tokens = 0
         ignores = IgnoreCounter()
         replay_hits = 0
@@ -1100,6 +1185,9 @@ class BenchmarkHarness:
                 total_tool_ms += cached["tool_ms"]
                 total_input_tokens += cached["input_tokens"]
                 total_output_tokens += cached["output_tokens"]
+                total_cached_tokens += int(cached.get("cached_tokens") or 0)
+                total_cache_write_30m_tokens += int(cached.get("cache_write_30m_tokens") or 0)
+                total_cache_write_12h_tokens += int(cached.get("cache_write_12h_tokens") or 0)
                 model_calls += cached["model_calls"]
                 if cached["tier"]:
                     tier = cached["tier"]
@@ -1128,6 +1216,9 @@ class BenchmarkHarness:
                 output_tokens = usage.get("output_tokens", 0)
                 total_input_tokens += input_tokens
                 total_output_tokens += output_tokens
+                total_cached_tokens += int(usage.get("cached_tokens") or 0)
+                total_cache_write_30m_tokens += int(usage.get("cache_write_30m_tokens") or 0)
+                total_cache_write_12h_tokens += int(usage.get("cache_write_12h_tokens") or 0)
 
                 content = response.get("content", [])
                 stop_reason = response.get("stop_reason", "")
@@ -1249,6 +1340,7 @@ class BenchmarkHarness:
                     logged_selector = ""
                     logged_answer = ""
                     logged_page_text = ""
+                    logged_return: dict = {}
                     total_tool_ms += tool_ms
                     ignores.note_call(tool_name, tool_args if isinstance(tool_args, dict) else {})
                     ignores.note_result(tool_name, result_text)
@@ -1290,7 +1382,7 @@ class BenchmarkHarness:
                             last_verdict = verdict
                             end_state = verdict.verdict
                             failure = verdict.reason if verdict.verdict == FAIL else ""
-                            logged_selector, logged_answer, logged_page_text = logged_evidence(payload)
+                            logged_selector, logged_answer, logged_page_text, logged_return = logged_evidence(payload)
                             # The judge already read selector_text. The model must not.
                             result_text = model_visible_script_result(result_text)
                             repair_pending = False
@@ -1360,6 +1452,7 @@ class BenchmarkHarness:
                             selector_text=logged_selector,
                             claimed_answer=logged_answer,
                             page_text=logged_page_text,
+                            **claim_step_fields(logged_return),
                         )
                     )
 
@@ -1389,6 +1482,10 @@ class BenchmarkHarness:
                     break
 
         except Exception as exc:
+            from bench.openai_spend import PriceUnknown
+
+            if isinstance(exc, PriceUnknown):
+                raise
             error = str(exc)
             success = False
             success_reason = f"Error: {error}"
@@ -1455,6 +1552,9 @@ class BenchmarkHarness:
             tier=tier,
             model_calls=model_calls,
             script_steps=script_steps,
+            total_cached_tokens=total_cached_tokens,
+            total_cache_write_30m_tokens=total_cache_write_30m_tokens,
+            total_cache_write_12h_tokens=total_cache_write_12h_tokens,
         )
 
     def _empty_result(
@@ -1524,10 +1624,21 @@ class BenchmarkHarness:
                         "selector_text": step.selector_text,
                         "claimed_answer": step.claimed_answer,
                         "page_text": step.page_text,
+                        "claimed_url": step.claimed_url,
+                        "claimed_title": step.claimed_title,
+                        "claimed_h1": step.claimed_h1,
+                        "claimed_key_text": step.claimed_key_text,
+                        "claimed_values": list(step.claimed_values),
+                        "claimed_rejected": step.claimed_rejected,
                     }
                     for step in result.steps
                 ],
             }
+            if self.provider == "openai":
+                data["provider"] = "openai"
+                data["model"] = self.model
+                data["effort"] = self.effort
+                data["cached_tokens"] = result.total_cached_tokens
             handle.write(json.dumps(data) + "\n")
         return run_file
 
@@ -1560,12 +1671,26 @@ async def execute_benchmark_tasks(
             judge_prompt=task.get("judge_prompt"),
         )
         results.append(result)
-        ledger.record_task(
-            run_id=run_id,
-            task_id=result.task_id,
-            input_tokens=result.total_input_tokens,
-            output_tokens=result.total_output_tokens,
-        )
+        from bench.openai_spend import OpenAISpendLedger
+
+        cached = int(getattr(result, "total_cached_tokens", 0) or 0)
+        if isinstance(ledger, OpenAISpendLedger):
+            ledger.record_task(
+                run_id=run_id,
+                task_id=result.task_id,
+                input_tokens=result.total_input_tokens,
+                output_tokens=result.total_output_tokens,
+                cached_tokens=cached,
+                cache_write_30m_tokens=int(getattr(result, "total_cache_write_30m_tokens", 0) or 0),
+                cache_write_12h_tokens=int(getattr(result, "total_cache_write_12h_tokens", 0) or 0),
+            )
+        else:
+            ledger.record_task(
+                run_id=run_id,
+                task_id=result.task_id,
+                input_tokens=result.total_input_tokens,
+                output_tokens=result.total_output_tokens,
+            )
         over_budget = not ledger.allows_another_task()
         if over_budget:
             ledger.mark_aborted()
@@ -1587,8 +1712,53 @@ async def run_benchmark(
     spend_path: Path | None = None,
     runs_dir: Path | None = None,
     arm: str = "playwright_mcp",
+    provider: str = "anthropic",
+    effort: str | None = None,
 ) -> list[TaskResult]:
     """Run a benchmark suite and return results."""
+    if provider == "openai":
+        from bench.openai_spend import (
+            OPENAI_RUN_BUDGET_USD,
+            OpenAISpendLedger,
+            assert_effort,
+            assert_openai_model,
+            default_openai_spend_path,
+        )
+
+        chosen = assert_openai_model(model)
+        name = assert_effort(chosen, effort or "")
+        ledger = OpenAISpendLedger.read(spend_path or default_openai_spend_path())
+        ledger.model = chosen
+        ledger.effort = name
+        # The allowance sits inside this run's $5, not on top of it.
+        baseline = ledger.running_total_usd
+        ledger.cover_unrecorded_call()
+        ledger.run_ceiling_usd = round(baseline + OPENAI_RUN_BUDGET_USD, 6)
+        if run_id is None:
+            run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if not ledger.allows_another_task():
+            ledger.mark_aborted()
+            ledger.save()
+            raise BudgetExceeded(ledger.running_total_usd, [], ledger.run_ceiling_usd or OPENAI_RUN_BUDGET_USD)
+        harness = BenchmarkHarness(
+            api_key=api_key,
+            model=chosen,
+            headless=headless,
+            runs_dir=runs_dir,
+            arm=arm,
+            provider="openai",
+            effort=name,
+        )
+        harness.snapshot_dir = harness.runs_dir / run_id / "snapshots"
+        try:
+            await harness.setup()
+            return await execute_benchmark_tasks(harness, tasks, ledger, run_id)
+        finally:
+            await harness.teardown()
+    if effort not in (None, ""):
+        from bench.openai_spend import EffortNotAllowed
+
+        raise EffortNotAllowed("Claude does not take --effort.")
     assert_allowed_model(model)
     ledger = SpendLedger.load(spend_path)
     if run_id is None:

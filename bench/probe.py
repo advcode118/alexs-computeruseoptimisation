@@ -410,6 +410,50 @@ def deterministic_success(task: dict, url: str, text: str) -> tuple[bool | None,
     return None, "no deterministic check; LLM judge was not called"
 
 
+def _grade_claim(answer: str, claimed):
+    """The claim the shared check sees. A bare answer stays an answer-only claim."""
+    from bench.script_first import ClaimedEvidence
+
+    if claimed is None:
+        return ClaimedEvidence(answer=answer or "")
+    if answer and not claimed.answer:
+        return ClaimedEvidence(
+            url=claimed.url,
+            title=claimed.title,
+            h1=claimed.h1,
+            answer=answer,
+            key_text=claimed.key_text,
+            values=claimed.values,
+            rejected=claimed.rejected,
+        )
+    return claimed
+
+
+def _live_return_failure(url: str, text: str, claimed) -> str:
+    """Why the script's own return is not on the live page. Empty when it is.
+
+    URL, key text, and values are the live-page evidence check. A claim that
+    returned none of them leaves the task's own check alone. Title rides along
+    on the same object. UNKNOWN is not a failure here.
+    """
+    if claimed is None:
+        return ""
+    returned = bool(
+        claimed.rejected
+        or (claimed.key_text or "").strip()
+        or any((item or "").strip() for item in claimed.values)
+        or (claimed.url or "").startswith(("http://", "https://"))
+    )
+    if not returned:
+        return ""
+    from bench.script_first import FAIL, PageEvidence, evidence_verdict
+
+    verdict = evidence_verdict({}, PageEvidence(url=url, text=text), claimed)
+    if verdict.verdict == FAIL:
+        return verdict.reason
+    return ""
+
+
 def shared_end_state(
     task: dict,
     url: str,
@@ -418,25 +462,34 @@ def shared_end_state(
     selector_text: str = "",
     answer: str = "",
     page_text: str = "",
+    claimed=None,
 ) -> tuple[bool | None, str]:
     """The one shared check. A missing check is None, which is not a pass.
 
     URL and text checks use the same strings they always have. A task whose
     end state is the live value of answer_equals_selector, and which has no
     URL or text check, is decided by that read. An empty read is a failure.
+    A script return (URL, title, key text, values) is checked against that
+    same page. Text that is not on the page fails the check.
     """
+    claim = _grade_claim(answer, claimed)
+    body = page_text or text
     checked, reason = deterministic_success(task, url, text)
     if checked is not None:
+        if checked is True:
+            problem = _live_return_failure(url, body, claim)
+            if problem:
+                return False, problem
         return checked, reason
     markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
     if not (markers or {}).get("answer_equals_selector"):
         return None, reason
-    from bench.script_first import PASS, ClaimedEvidence, PageEvidence, evidence_verdict
+    from bench.script_first import PASS, PageEvidence, evidence_verdict
 
     verdict = evidence_verdict(
         markers,
-        PageEvidence(url=url, text=page_text or text, selector_text=selector_text),
-        ClaimedEvidence(answer=answer),
+        PageEvidence(url=url, text=body, selector_text=selector_text),
+        claim,
     )
     if verdict.verdict == PASS:
         return True, verdict.reason
@@ -450,6 +503,7 @@ def shared_check_passes(
     *,
     selector: str = "",
     answer: str = "",
+    claimed=None,
 ) -> bool:
     """True only when this task's shared check passes on the page the script left.
 
@@ -467,6 +521,7 @@ def shared_check_passes(
         selector_text=selector,
         answer=answer,
         page_text=text or "",
+        claimed=claimed,
     )
     return ok is True
 
@@ -483,6 +538,7 @@ def grade_arm(
     selector_text: str = "",
     answer: str = "",
     page_text: str = "",
+    claimed=None,
 ) -> tuple[bool, str, bool | None, str]:
     """One rule for every arm. Pass only when the applicable signals agree.
 
@@ -498,6 +554,7 @@ def grade_arm(
         selector_text=selector_text,
         answer=answer,
         page_text=page_text,
+        claimed=claimed,
     )
     if shared_ok is not True:
         if shared_ok is None:
@@ -522,27 +579,46 @@ def grade_observation(
     answer: str = "",
     completed: bool | None = None,
     completion_reason: str = "",
+    run_verdict: str | None = None,
+    claimed=None,
 ) -> tuple[bool, str, bool | None, str]:
     """The one grade for every arm.
 
     `text` is the page text read after the run. A task with end markers gets
-    one evidence verdict from that read and the claimed answer. A task with
-    no markers gets no evidence gate. UNKNOWN is not a pass. TASK_COMPLETE
-    is not a pass by itself: `completed` False still blocks, and True does not.
+    one evidence verdict from that read and the full claim. A task with no
+    markers gets no marker gate. UNKNOWN is not a pass. TASK_COMPLETE is not
+    a pass by itself: `completed` False still blocks, and True does not.
+    `run_verdict` is script_first's own end state. It has to be PASS, and the
+    shared page check has to pass too. The claim's URL, title, key text, and
+    values are part of that page check.
     """
+    claim = _grade_claim(answer, claimed)
     markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
     evidence = None
     evidence_reason = ""
     if markers:
-        from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
+        from bench.script_first import PageEvidence, evidence_verdict
 
         verdict = evidence_verdict(
             markers,
             PageEvidence(url=url, text=text or "", selector_text=selector_text),
-            ClaimedEvidence(answer=answer),
+            claim,
         )
         evidence = verdict.verdict
         evidence_reason = verdict.reason
+    if run_verdict is not None:
+        own = run_verdict if run_verdict in {"PASS", "FAIL", "UNKNOWN"} else "UNKNOWN"
+        if own != "PASS":
+            evidence = own
+            if own == "UNKNOWN":
+                if completion_reason.startswith("UNKNOWN"):
+                    evidence_reason = completion_reason
+                elif completion_reason:
+                    evidence_reason = f"UNKNOWN: {completion_reason}"
+                else:
+                    evidence_reason = "UNKNOWN is not success"
+            else:
+                evidence_reason = completion_reason or evidence_reason or "evidence judge did not pass"
     return grade_arm(
         task,
         url,
@@ -552,8 +628,9 @@ def grade_observation(
         completed=completed,
         completion_reason=completion_reason,
         selector_text=selector_text,
-        answer=answer,
+        answer=claim.answer,
         page_text=text or "",
+        claimed=claim,
     )
 
 
@@ -658,23 +735,45 @@ async def run_claude_arm(
     headless: bool,
     runs_dir: Path,
     script_cache=None,
+    provider: str = "anthropic",
+    model: str | None = None,
+    effort: str | None = None,
 ) -> dict:
-    """Outer claude-sonnet-5-5. Caller has already checked both budgets."""
-    from bench.harness import BenchmarkHarness
+    """Outer model for one arm. The default is claude-sonnet-5-5."""
+    from bench.harness import BenchmarkHarness, claim_from_step
 
     started = time.perf_counter()
     # script_first starts at one script plus a completion turn. The harness
     # adds a turn only for a repair or a refused extra script, stops at
     # SCRIPT_FIRST_HARD_CAP, and runs at most one repair script.
     max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
-    harness = BenchmarkHarness(
-        api_key=api_key,
-        headless=headless,
-        runs_dir=runs_dir,
-        arm=arm,
-        max_steps=max_steps,
-        script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
-    )
+    openai_model = None
+    openai_effort = None
+    if provider == "openai":
+        from bench.openai_spend import assert_effort, assert_openai_model
+
+        openai_model = assert_openai_model(model or "")
+        openai_effort = assert_effort(openai_model, effort or "")
+        harness = BenchmarkHarness(
+            api_key=api_key,
+            model=openai_model,
+            headless=headless,
+            runs_dir=runs_dir,
+            arm=arm,
+            max_steps=max_steps,
+            script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
+            provider="openai",
+            effort=openai_effort,
+        )
+    else:
+        harness = BenchmarkHarness(
+            api_key=api_key,
+            headless=headless,
+            runs_dir=runs_dir,
+            arm=arm,
+            max_steps=max_steps,
+            script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
+        )
     await harness.setup()
     try:
         peeked, _elapsed = await _peek_snapshot(harness.mcp_client, arm, task["start_url"])
@@ -699,8 +798,11 @@ async def run_claude_arm(
         # The same post-run page text for every arm. The snapshot is not the check.
         graded_text = page_text
         end_state = result.end_state or ""
-        # script_first has no completion bit. The other arms still cannot pass
-        # on TASK_COMPLETE alone, and a run that did not finish still fails.
+        # script_first has to end on its own PASS and pass the shared page
+        # check. Its returned URL, title, key text, and values go into that
+        # check. The other arms still cannot pass on TASK_COMPLETE alone.
+        run_verdict = end_state if arm == ARM_SCRIPT_FIRST else None
+        claimed = claim_from_step(last) if arm == ARM_SCRIPT_FIRST and last is not None else None
         completed = None if arm == ARM_SCRIPT_FIRST else result.success
         success, reason, substring_ok, substring_reason = grade_observation(
             task,
@@ -710,9 +812,11 @@ async def run_claude_arm(
             answer=claimed_answer,
             completed=completed,
             completion_reason=result.success_reason,
+            run_verdict=run_verdict,
+            claimed=claimed,
         )
         usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
-        return {
+        row = {
             "arm": arm,
             "task_id": task["id"],
             "success": success,
@@ -736,6 +840,25 @@ async def run_claude_arm(
             "claimed_answer": claimed_answer,
             "expected_value": selector_text,
         }
+        if provider == "openai":
+            from bench.openai_spend import price_usd
+
+            row["usd"] = price_usd(
+                openai_model or "",
+                result.total_input_tokens,
+                result.total_output_tokens,
+                result.total_cached_tokens,
+                result.total_cache_write_30m_tokens,
+                result.total_cache_write_12h_tokens,
+            )
+            row["claude"] = False
+            row["provider"] = "openai"
+            row["model"] = openai_model
+            row["effort"] = openai_effort
+            row["cached_tokens"] = result.total_cached_tokens
+            row["cache_write_30m_tokens"] = result.total_cache_write_30m_tokens
+            row["cache_write_12h_tokens"] = result.total_cache_write_12h_tokens
+        return row
     finally:
         await harness.teardown()
 
@@ -1104,6 +1227,13 @@ def arm_report(rows: list[dict], arms: tuple[str, ...] | list[str]) -> dict:
             "steps": steps,
             "warm_replay": warm_report,
         }
+        efforts = []
+        for row in cold + warm:
+            name = row.get("effort")
+            if isinstance(name, str) and name and name not in efforts:
+                efforts.append(name)
+        if efforts:
+            report[arm]["effort"] = efforts
     return report
 
 
@@ -1118,6 +1248,11 @@ async def execute_probe(
     endpoint_opener=None,
     split: str | None = None,
     honest: bool = False,
+    provider: str = "anthropic",
+    model: str | None = None,
+    effort: str | None = None,
+    sweep: bool = False,
+    one_task: bool = False,
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -1128,6 +1263,29 @@ async def execute_probe(
     recorded total, the key is unset, or the reserve no longer fits under
     the run ceiling, the $40 abort, or the $50 lifetime cap.
     """
+    if provider == "openai":
+        from bench.openai_run import execute_openai_probe
+
+        if honest:
+            chosen = HONEST_ARMS
+            chosen_split = SPLIT_HONEST
+        else:
+            chosen = resolve_arms(arms)
+            chosen_split = resolve_task_split(split)
+        return await execute_openai_probe(
+            arms=chosen,
+            split=chosen_split,
+            sweep=sweep,
+            model=model,
+            effort=effort,
+            one_task=one_task,
+            headless=headless,
+            spend_path=spend_path,
+            runs_dir=runs_dir,
+            no_model_only=no_model_only,
+            warm_replay=warm_replay,
+            honest=honest,
+        )
     if honest:
         chosen = HONEST_ARMS
         chosen_split = SPLIT_HONEST
@@ -1273,8 +1431,43 @@ def main(argv: list[str] | None = None) -> int:
             "Without --execute, prints the plan and does not use the network."
         ),
     )
+    parser.add_argument(
+        "--provider",
+        default="anthropic",
+        help="anthropic is the Claude path. openai runs the computer-use model under test.",
+    )
+    parser.add_argument(
+        "--model",
+        default="",
+        help="OpenAI model. gpt-6.1-sol or gpt-6-luna. The Claude path stays claude-sonnet-5-5.",
+    )
+    parser.add_argument(
+        "--effort",
+        default="",
+        help="OpenAI reasoning effort: low, medium, or high. xhigh only when that model accepts it.",
+    )
+    parser.add_argument(
+        "--sweep-effort",
+        action="store_true",
+        help="Run gpt-6-luna and gpt-6.1-sol at every accepted effort. One task. Caps at $5 and $15.",
+    )
+    parser.add_argument(
+        "--sweep-task",
+        action="store_true",
+        help="With one OpenAI model, use the one-task sweep subset instead of the full Claude split.",
+    )
     args = parser.parse_args(argv)
+    from bench.openai_run import plan_openai_probe, resolve_openai_request
+    from bench.openai_spend import EffortNotAllowed, OpenAIModelNotAllowed, PriceUnknown
+
     try:
+        request = resolve_openai_request(
+            provider=args.provider,
+            model=args.model,
+            effort=args.effort,
+            sweep=args.sweep_effort,
+            one_task=args.sweep_task,
+        )
         if args.honest:
             chosen = HONEST_ARMS
             chosen_split = SPLIT_HONEST
@@ -1283,11 +1476,45 @@ def main(argv: list[str] | None = None) -> int:
             chosen = resolve_arms(args.arms)
             chosen_split = resolve_task_split(args.split)
             warm = args.warm_replay
-    except ValueError as exc:
+    except (ValueError, OpenAIModelNotAllowed, EffortNotAllowed, PriceUnknown) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     try:
-        if not args.execute:
+        if request["provider"] == "openai":
+            if not args.execute:
+                print(
+                    json.dumps(
+                        plan_openai_probe(
+                            arms=chosen,
+                            split=chosen_split,
+                            sweep=request["sweep"],
+                            model=request.get("model") or "",
+                            effort=request.get("effort") or "",
+                            one_task=request["one_task"],
+                            no_model_only=args.no_model_only,
+                            warm_replay=warm,
+                            honest=args.honest,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            rows = asyncio.run(
+                execute_probe(
+                    headless=not args.no_headless,
+                    no_model_only=args.no_model_only,
+                    warm_replay=warm,
+                    arms=chosen,
+                    split=chosen_split,
+                    honest=args.honest,
+                    provider="openai",
+                    model=request.get("model"),
+                    effort=request.get("effort"),
+                    sweep=request["sweep"],
+                    one_task=request["one_task"],
+                )
+            )
+        elif not args.execute:
             print(
                 json.dumps(
                     plan_probe(
@@ -1301,22 +1528,24 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 0
-        rows = asyncio.run(
-            execute_probe(
-                headless=not args.no_headless,
-                no_model_only=args.no_model_only,
-                warm_replay=warm,
-                arms=chosen,
-                split=chosen_split,
-                honest=args.honest,
+        else:
+            rows = asyncio.run(
+                execute_probe(
+                    headless=not args.no_headless,
+                    no_model_only=args.no_model_only,
+                    warm_replay=warm,
+                    arms=chosen,
+                    split=chosen_split,
+                    honest=args.honest,
+                )
             )
-        )
-    except (LedgerMissing, LedgerBelowRecorded, ProbeRefused) as exc:
+    except (LedgerMissing, LedgerBelowRecorded, ProbeRefused, OpenAIModelNotAllowed, EffortNotAllowed, PriceUnknown) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     spent = sum(row["usd"] for row in rows)
     print(f"probe rows: {len(rows)}")
-    print(f"probe claude usd: {spent:.4f}")
+    label = "probe openai usd" if request["provider"] == "openai" else "probe claude usd"
+    print(f"{label}: {spent:.4f}")
     if warm:
         print(json.dumps({"cold": cold_summary(rows), "warm": warm_summary(rows)}, indent=2))
     print(json.dumps({"report": arm_report(rows, chosen)}, indent=2))

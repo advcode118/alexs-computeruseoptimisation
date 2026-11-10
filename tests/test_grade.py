@@ -169,7 +169,23 @@ def test_signals_must_agree_and_unknown_is_not_success():
     assert absent_reason == "no shared end-state check"
 
 
-def _result(task_id: str, *, success: bool, reason: str, end_state: str, url: str, snapshot: str, answer: str = "", page_text: str = "", selector: str = "") -> TaskResult:
+def _result(
+    task_id: str,
+    *,
+    success: bool,
+    reason: str,
+    end_state: str,
+    url: str,
+    snapshot: str,
+    answer: str = "",
+    page_text: str = "",
+    selector: str = "",
+    key_text: str = "",
+    values: tuple[str, ...] = (),
+    claimed_url: str = "",
+    claimed_title: str = "",
+    rejected: bool = False,
+) -> TaskResult:
     return TaskResult(
         task_id=task_id,
         task_description="task",
@@ -200,6 +216,11 @@ def _result(task_id: str, *, success: bool, reason: str, end_state: str, url: st
                 selector_text=selector,
                 claimed_answer=answer,
                 page_text=page_text,
+                claimed_url=claimed_url,
+                claimed_title=claimed_title,
+                claimed_key_text=key_text,
+                claimed_values=values,
+                claimed_rejected=rejected,
             )
         ],
     )
@@ -560,7 +581,8 @@ def test_playwright_and_stagehand_record_the_same_claim(monkeypatch, tmp_path):
     sentence = asyncio.run(
         run_claude_arm("playwright_mcp", hn, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
     )
-    assert sentence["success"] is True
+    assert sentence["success"] is False
+    assert sentence["success_reason"] == "answer is not the marked value"
     assert sentence["claimed_answer"] == "The top story is Fixture Story."
     assert sentence["expected_value"] == "Fixture Story"
     assert ".titleline" not in json.dumps(model.seen)
@@ -631,30 +653,44 @@ def test_rfc_heading_stays_in_the_page_text_and_the_judge_does_not_soften():
     assert prefix.reason == "answer is not in the page text"
 
 
-def test_a_title_inside_a_sentence_matches_and_a_wrong_title_does_not():
-    """The live title may sit in the sentence an arm said. A wrong title still fails."""
+def test_padded_hacker_news_sentence_fails():
+    """The claim is the live title. Case and spacing may differ. A sentence does not."""
     task = _hn_task()
-    page = "Fixture Story\nSecond Story"
+    title = "Fixture Story"
+    page = f"{title}\nSecond Story"
+    padded = f'The top story on Hacker News is "{title}".'
     ok, why = shared_end_state(
         task,
         HN,
         page,
-        selector_text="Fixture Story",
-        answer="The top story is Fixture Story.",
+        selector_text=title,
+        answer=padded,
         page_text=page,
     )
-    assert ok is True
-    assert why == "the page evidence matches the markers"
+    assert ok is False
+    assert why == "answer is not the marked value"
 
-    quoted, _quoted_why = shared_end_state(
+    spaced, spaced_why = shared_end_state(
         task,
         HN,
         page,
-        selector_text="Fixture Story",
-        answer='"Fixture Story"',
+        selector_text=title,
+        answer="  fixture   story  ",
         page_text=page,
     )
-    assert quoted is True
+    assert spaced is True
+    assert spaced_why == "the page evidence matches the markers"
+
+    quoted, quoted_why = shared_end_state(
+        task,
+        HN,
+        page,
+        selector_text=title,
+        answer=f'"{title}"',
+        page_text=page,
+    )
+    assert quoted is False
+    assert quoted_why == "answer is not the marked value"
 
     wrong, wrong_why = shared_end_state(
         task,
@@ -774,10 +810,10 @@ def test_every_arm_grades_the_same_page_text_and_logs_the_live_value(monkeypatch
             task_id,
             success=True,
             reason="Task completed successfully",
-            end_state="",
+            end_state="PASS",
             url=HN,
             snapshot="not the page",
-            answer="The top story is Fixture Story.",
+            answer="Fixture Story",
             page_text="Fixture Story\nSecond Story",
             selector="Fixture Story",
         )
@@ -788,7 +824,7 @@ def test_every_arm_grades_the_same_page_text_and_logs_the_live_value(monkeypatch
             run_claude_arm(arm, hn, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
         )
         assert hit["success"] is True, arm
-        assert hit["claimed_answer"] == "The top story is Fixture Story."
+        assert hit["claimed_answer"] == "Fixture Story"
         assert hit["expected_value"] == "Fixture Story"
 
     async def empty_claim(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
@@ -812,6 +848,237 @@ def test_every_arm_grades_the_same_page_text_and_logs_the_live_value(monkeypatch
         assert bare["success"] is False, arm
         assert bare["success_reason"] == "empty answer"
         assert bare["claimed_answer"] == ""
+
+
+def _packing_tasks() -> list[dict]:
+    from bench.tasks import FIXTURE_TASKS
+
+    return [dict(task) for task in FIXTURE_TASKS]
+
+
+def test_script_first_fail_or_unknown_fails_a_page_that_would_pass(monkeypatch, tmp_path):
+    """script_first's own FAIL or UNKNOWN is a fail, even when the page check would pass.
+
+    The two packing tasks are decided by the text on the page. That text is
+    present here. The run verdict still has to be PASS. Other arms still use
+    their completion bit.
+    """
+    from bench.probe import run_claude_arm
+
+    class Peek:
+        async def call_tool(self, name, arguments):
+            del name, arguments
+            return "short", 0.0
+
+    async def fake_setup(self):
+        self.mcp_client = Peek()
+
+    async def fake_teardown(self):
+        return None
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.setup", fake_setup)
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.teardown", fake_teardown)
+
+    pages = {
+        "fixture_packing_add": "milk",
+        "fixture_packing_multi": "socks and a toothbrush",
+    }
+    for task in _packing_tasks():
+        async def own_fail(
+            self,
+            task_id,
+            task_description,
+            start_url,
+            expected_answer=None,
+            judge_prompt=None,
+            check_url_contains=None,
+            page=pages[task["id"]],
+            landed=task["start_url"],
+        ):
+            del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+            return _result(
+                task_id,
+                success=True,
+                reason="claimed URL does not match the live page",
+                end_state="FAIL",
+                url=landed,
+                snapshot=page,
+                answer="milk",
+                page_text=page,
+            )
+
+        async def own_unknown(
+            self,
+            task_id,
+            task_description,
+            start_url,
+            expected_answer=None,
+            judge_prompt=None,
+            check_url_contains=None,
+            page=pages[task["id"]],
+            landed=task["start_url"],
+        ):
+            del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+            return _result(
+                task_id,
+                success=True,
+                reason="Max steps reached",
+                end_state="UNKNOWN",
+                url=landed,
+                snapshot=page,
+                answer="milk",
+                page_text=page,
+            )
+
+        monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", own_fail)
+        failed = asyncio.run(
+            run_claude_arm("script_first", task, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+        )
+        assert failed["success"] is False, task["id"]
+        assert failed["success_reason"] == "claimed URL does not match the live page"
+        assert failed["end_state"] == "FAIL"
+
+        monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", own_unknown)
+        unknown = asyncio.run(
+            run_claude_arm("script_first", task, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+        )
+        assert unknown["success"] is False, task["id"]
+        assert unknown["success_reason"] == "UNKNOWN: Max steps reached"
+        assert unknown["end_state"] == "UNKNOWN"
+
+    passed_page = pages["fixture_packing_add"]
+    packing = _packing_tasks()[0]
+
+    async def other_done(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=True,
+            reason="Task completed successfully",
+            end_state="",
+            url=packing["start_url"],
+            snapshot=passed_page,
+            answer="milk",
+            page_text=passed_page,
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", other_done)
+    other = asyncio.run(
+        run_claude_arm("playwright_mcp", packing, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+    )
+    assert other["success"] is True
+
+    async def other_stopped(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=False,
+            reason="Max steps reached",
+            end_state="",
+            url=packing["start_url"],
+            snapshot=passed_page,
+            answer="milk",
+            page_text=passed_page,
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", other_stopped)
+    stopped = asyncio.run(
+        run_claude_arm("stagehand", packing, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+    )
+    assert stopped["success"] is False
+    assert stopped["success_reason"] == "Max steps reached"
+
+
+def test_script_evidence_missing_from_the_page_fails(monkeypatch, tmp_path):
+    """URL, key text, and values have to be on the live page. A PASS verdict does not skip that."""
+    from bench.probe import run_claude_arm
+
+    class Peek:
+        async def call_tool(self, name, arguments):
+            del name, arguments
+            return "short", 0.0
+
+    async def fake_setup(self):
+        self.mcp_client = Peek()
+
+    async def fake_teardown(self):
+        return None
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.setup", fake_setup)
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.teardown", fake_teardown)
+
+    task = _packing_tasks()[0]
+    page = "milk is on the packing list"
+    live = "https://example.test/packing"
+
+    async def missing(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=True,
+            reason="the page evidence matches the markers",
+            end_state="PASS",
+            url=live,
+            snapshot=page,
+            answer="milk",
+            page_text=page,
+            key_text="wool socks",
+            values=("toothbrush",),
+            claimed_title="Packing list",
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", missing)
+    row = asyncio.run(
+        run_claude_arm("script_first", task, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+    )
+    assert row["success"] is False
+    assert row["success_reason"] == "returned evidence is not on the page"
+    assert row["end_state"] == "PASS"
+
+    async def wrong_url(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=True,
+            reason="the page evidence matches the markers",
+            end_state="PASS",
+            url=live,
+            snapshot=page,
+            answer="milk",
+            page_text=page,
+            claimed_url="https://example.test/elsewhere",
+            claimed_title="Packing list",
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", wrong_url)
+    mismatched = asyncio.run(
+        run_claude_arm("script_first", task, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+    )
+    assert mismatched["success"] is False
+    assert mismatched["success_reason"] == "claimed URL does not match the live page"
+
+    async def present(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
+        del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
+        return _result(
+            task_id,
+            success=True,
+            reason="the page evidence matches the markers",
+            end_state="PASS",
+            url=live,
+            snapshot=page,
+            answer="milk",
+            page_text=page,
+            key_text="milk",
+            values=("packing list",),
+            claimed_url=live,
+            claimed_title="Packing list",
+        )
+
+    monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", present)
+    kept = asyncio.run(
+        run_claude_arm("script_first", task, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
+    )
+    assert kept["success"] is True
 
 
 def test_eiffel_script_is_cached_only_when_the_page_contains_paris(tmp_path, monkeypatch):
