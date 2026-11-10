@@ -1274,6 +1274,7 @@ class ScriptFirstClient:
         self._browser = None
         self._context = None
         self._profile_dir: str | None = None
+        self._launch_task: asyncio.Task | None = None
 
     def tools_for_claude(self) -> list[dict]:
         return [
@@ -1308,7 +1309,25 @@ class ScriptFirstClient:
             }
         ]
 
+    def begin_launch(self) -> asyncio.Future:
+        """Launch local Chrome if it is not already up.
+
+        A second call shares the same launch. This does not navigate, so the
+        URL the judge scores is still the page the script leaves open.
+        """
+        if self._launch_task is not None and not self._launch_task.done():
+            return self._launch_task
+        if self._page is not None:
+            done = asyncio.get_running_loop().create_future()
+            done.set_result(None)
+            return done
+        self._launch_task = asyncio.create_task(self._open_browser())
+        return self._launch_task
+
     async def start(self) -> None:
+        await self.begin_launch()
+
+    async def _open_browser(self) -> None:
         if self._page is not None:
             return
         from playwright.async_api import async_playwright

@@ -835,6 +835,143 @@ def test_finished_goto_does_not_wait_again():
     assert page_url_from_result(text) == "https://en.wikipedia.org/wiki/Ada_Lovelace"
 
 
+def test_begin_launch_is_one_open_and_does_not_navigate(monkeypatch):
+    import inspect
+
+    calls = {"n": 0}
+    release = asyncio.Event()
+    opened = inspect.getsource(ScriptFirstClient._open_browser)
+    assert ".goto" not in opened
+    assert "collect_page_evidence" not in opened
+
+    async def open_browser(self):
+        calls["n"] += 1
+        await release.wait()
+        self._page = _Page()
+
+    monkeypatch.setattr(ScriptFirstClient, "_open_browser", open_browser)
+
+    async def run():
+        client = ScriptFirstClient()
+        first = client.begin_launch()
+        second = client.begin_launch()
+        assert first is second
+        await asyncio.sleep(0)
+        assert calls["n"] == 1
+        release.set()
+        await first
+        assert client._page.url == "about:blank"
+        await client.begin_launch()
+        assert calls["n"] == 1
+        assert client._page.url == "about:blank"
+
+    asyncio.run(run())
+
+
+def test_script_first_setup_returns_while_chrome_is_still_launching(tmp_path, monkeypatch):
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def open_browser(self):
+        del self
+        started.set()
+        await release.wait()
+
+    monkeypatch.setattr(ScriptFirstClient, "_open_browser", open_browser)
+
+    async def run():
+        harness = BenchmarkHarness(api_key="local-test", arm="script_first", runs_dir=tmp_path)
+        setup_task = asyncio.create_task(harness.setup())
+        try:
+            await asyncio.wait_for(started.wait(), timeout=2)
+            await asyncio.sleep(0)
+            assert setup_task.done()
+            assert harness._browser_launch is not None
+            assert not harness._browser_launch.done()
+        finally:
+            release.set()
+            await harness.teardown()
+            await setup_task
+
+    asyncio.run(run())
+
+
+def test_browser_launch_overlaps_the_model_write_and_the_judge_keeps_the_url(tmp_path):
+    prose = format_run_result(
+        ok=True,
+        url="https://en.wikipedia.org/wiki/Ada_Lovelace",
+        step_count=1,
+    )
+
+    class SlowLaunch:
+        def __init__(self):
+            self.phase: list[str] = []
+            self.release = asyncio.Event()
+            self._task: asyncio.Task | None = None
+
+        def begin_launch(self):
+            if self._task is None:
+                self._task = asyncio.create_task(self._open())
+            return self._task
+
+        async def _open(self):
+            self.phase.append("launch-start")
+            await self.release.wait()
+            self.phase.append("launch-done")
+
+        def tools_for_claude(self):
+            return [{"name": "run_script", "description": "run", "input_schema": {"type": "object"}}]
+
+        async def call_tool(self, name, arguments):
+            del name, arguments
+            assert self.phase[-1] == "launch-done"
+            self.phase.append("tool")
+            return prose, 1.0
+
+    class WritingModel:
+        def __init__(self, browser: SlowLaunch):
+            self.browser = browser
+            self.systems: list[str] = []
+
+        async def create_message(self, messages, tools, system=None, max_tokens=4096):
+            del messages, tools, max_tokens
+            self.systems.append(system or "")
+            await asyncio.sleep(0)
+            assert self.browser.phase == ["launch-start"]
+            self.browser.release.set()
+            await asyncio.sleep(0)
+            assert "tool" not in self.browser.phase
+            assert "launch-done" in self.browser.phase
+            return _tool_reply("page.goto()"), 5.0
+
+    async def run():
+        browser = SlowLaunch()
+        model = WritingModel(browser)
+        harness = BenchmarkHarness(api_key="local-test", runs_dir=tmp_path, arm="script_first")
+        harness.anthropic = model
+        harness.mcp_client = browser
+        try:
+            result = await harness.run_task(
+                task_id="wv_wikipedia_search",
+                task_description="Search Wikipedia",
+                start_url="https://en.wikipedia.org/wiki/Main_Page",
+            )
+        finally:
+            browser.release.set()
+            if browser._task is not None:
+                await browser._task
+        assert browser.phase == ["launch-start", "launch-done", "tool"]
+        assert model.systems == [prompt_for("script_first")]
+        assert "Ada_Lovelace" not in model.systems[0]
+        assert "selector_text" not in model.systems[0]
+        assert result.success is True
+        assert result.end_state == "PASS"
+        assert result.steps[-1].page_url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
+        return result
+
+    asyncio.run(run())
+
+
 def test_visible_answer_is_not_invented_by_the_harness():
     page = _Page()
     script = 'page.goto("https://news.ycombinator.com/")'
