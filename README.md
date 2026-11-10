@@ -7,7 +7,7 @@
   &nbsp;&nbsp;&nbsp;
   <a href="https://github.com/advcode118/alexs-computeruseoptimisation">GitHub</a>
   &nbsp;&nbsp;&nbsp;
-  <a href="https://cursor.com/codebase/tom-wei-de-vrieze/alexs-computeruseoptimisation">Cursor Origin</a>
+  <a href="https://github.com/advcode118/alexs-computeruseoptimisation">Cursor Origin</a>
 </p>
 
 # Alex's browser tool
