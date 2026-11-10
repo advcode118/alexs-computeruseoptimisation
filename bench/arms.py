@@ -21,10 +21,11 @@ ARM_DIFF = "diff_fast_act"
 ARM_REPLAY = "macro_replay"
 ARM_STAGEHAND = "stagehand"
 ARM_SCRIPT_FIRST = "script_first"
+ARM_ENDPOINT = "endpoint"
 
-# The default probe stays these four. script_first is selected with --arms.
+# The default probe stays these four. script_first and endpoint are selected with --arms.
 ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
-SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST,)
+SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST, ARM_ENDPOINT)
 # One script and a completion turn. A repair may use the spare calls.
 # Moving the page does not add a turn. The harness will not run a third script.
 SCRIPT_FIRST_MAX_CALLS = 4
@@ -89,6 +90,10 @@ Guidelines:
 
 Be efficient - one script, at most one repair, then stop."""
 
+_ENDPOINT_PROMPT = """A direct read of the task start URL uses no model.
+
+A miss falls through to the script_first arm. This arm does not launch a browser."""
+
 
 def arm_needs_claude(arm: str, *, no_model_only: bool = False) -> bool:
     """True when this arm is driven by the outer Claude model.
@@ -98,6 +103,8 @@ def arm_needs_claude(arm: str, *, no_model_only: bool = False) -> bool:
     """
     if arm not in SELECTABLE_ARMS:
         raise ValueError(f"unknown arm {arm!r}")
+    if arm == ARM_ENDPOINT:
+        return False
     if no_model_only and arm in NO_MODEL_CAPABLE:
         return False
     return True
@@ -117,6 +124,8 @@ def prompt_for(arm: str) -> str:
         return _STAGEHAND_PROMPT
     if arm == ARM_SCRIPT_FIRST:
         return _SCRIPT_FIRST_PROMPT
+    if arm == ARM_ENDPOINT:
+        return _ENDPOINT_PROMPT
     raise ValueError(f"unknown arm {arm!r}")
 
 
@@ -124,6 +133,10 @@ def build_client(arm: str, *, headless: bool = True):
     """The tool client for this arm. Stagehand stays on local Playwright."""
     if arm not in SELECTABLE_ARMS:
         raise ValueError(f"unknown arm {arm!r}")
+    if arm == ARM_ENDPOINT:
+        from bench.endpoint import EndpointClient
+
+        return EndpointClient()
     if arm == ARM_SCRIPT_FIRST:
         from bench.script_first import ScriptFirstClient
 

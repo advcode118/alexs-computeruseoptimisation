@@ -75,6 +75,7 @@ from datetime import datetime
 from pathlib import Path
 
 from bench.arms import (
+    ARM_ENDPOINT,
     ARM_SCRIPT_FIRST,
     ARMS,
     NO_MODEL_CAPABLE,
@@ -182,6 +183,7 @@ def plan_probe(
             "macro_replay": "proxy child --isolated only",
             "stagehand": "a unique --user-data-dir via launch_persistent_context",
             "script_first": "local Chrome via the Playwright Python API, own user-data-dir, no per-click settle",
+            "endpoint": "direct fetch of the task start URL; no browser; the fetch URL is not rewritten",
         },
         "box_commands": list(BOX_COMMANDS),
         "records": [
@@ -460,6 +462,66 @@ def cold_summary(rows: list[dict]) -> dict:
     return _summary_for(rows, "cold", tuple(arms))
 
 
+async def _run_endpoint(
+    task: dict,
+    *,
+    headless: bool,
+    api_key: str,
+    probe_spent: float,
+    ledger: SpendLedger,
+    destination: Path,
+    budget_usd: float,
+    opener,
+) -> tuple[dict, float]:
+    """Fetch the start URL. A miss runs script_first. No browser on the fetch."""
+    del headless
+    from bench.endpoint import EndpointError, fetch_start_url, run_endpoint_task
+
+    if opener is None:
+        row = empty_row(
+            ARM_ENDPOINT,
+            task["id"],
+            reason="endpoint live fetch is not run from this checkout; refusing to open a browser",
+        )
+        return row, probe_spent
+    selector = ""
+    markers = task.get("end_markers") or {}
+    if isinstance(markers, dict):
+        selector = str(markers.get("answer_equals_selector") or "")
+    try:
+        page = fetch_start_url(task["start_url"], opener=opener, selector=selector)
+    except EndpointError as exc:
+        return empty_row(ARM_ENDPOINT, task["id"], reason=str(exc)), probe_spent
+
+    async def fallback(missed: dict) -> dict:
+        if not api_key:
+            return empty_row(ARM_SCRIPT_FIRST, missed["id"], reason="ANTHROPIC_API_KEY unset", skipped=False)
+        blocked = claude_block_reason(probe_spent, ledger.running_total_usd, budget_usd=budget_usd)
+        if blocked:
+            return empty_row(ARM_SCRIPT_FIRST, missed["id"], reason=blocked, skipped=False)
+        return await run_claude_arm(
+            ARM_SCRIPT_FIRST,
+            missed,
+            api_key=api_key,
+            headless=True,
+            runs_dir=destination,
+        )
+
+    row = await run_endpoint_task(task, page, fallback=fallback)
+    if row.get("arm") == ARM_SCRIPT_FIRST and row.get("claude") and (row.get("input_tokens") or row.get("output_tokens")):
+        ledger.record_task(
+            run_id="probe",
+            task_id=f"{ARM_SCRIPT_FIRST}:{row['task_id']}",
+            input_tokens=row["input_tokens"],
+            output_tokens=row["output_tokens"],
+        )
+        probe_spent += float(row.get("usd") or 0)
+        if ledger.running_total_usd >= PROJECT_BUDGET_USD:
+            ledger.mark_aborted()
+        ledger.save()
+    return row, probe_spent
+
+
 async def _run_one(
     arm: str,
     task: dict,
@@ -472,8 +534,20 @@ async def _run_one(
     destination: Path,
     budget_usd: float,
     script_cache=None,
+    endpoint_opener=None,
 ) -> tuple[dict, float]:
     """One task on one arm. Returns the row and the probe's Claude spend so far."""
+    if arm == ARM_ENDPOINT:
+        return await _run_endpoint(
+            task,
+            headless=headless,
+            api_key=api_key,
+            probe_spent=probe_spent,
+            ledger=ledger,
+            destination=destination,
+            budget_usd=budget_usd,
+            opener=endpoint_opener,
+        )
     if not arm_needs_claude(arm, no_model_only=no_model_only):
         return await run_no_model_arm(arm, task, headless=headless), probe_spent
     if not api_key:
@@ -520,6 +594,7 @@ async def execute_probe(
     no_model_only: bool = False,
     warm_replay: bool = False,
     arms: tuple[str, ...] | None = None,
+    endpoint_opener=None,
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -557,6 +632,7 @@ async def execute_probe(
             destination=destination,
             budget_usd=budget_usd,
             script_cache=script_cache,
+            endpoint_opener=endpoint_opener,
         )
         row["pass"] = phase
         rows.append(row)
