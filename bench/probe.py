@@ -19,8 +19,8 @@ macro_replay and diff_fast_act and records replay hit rate and wall. The
 replay cache is the same file, so a sequence stored on the cold pass can hit.
 When script_first is selected it is re-run too. Its cached-script file is new
 for each probe, so the cold pass stays cold and only stores scripts the
-evidence judge passed. The warm pass records the tier that answered
-(cache_hit, patched, fresh) and the model calls.
+evidence judge passed. Cold and warm are summarized separately. Each summary
+records the tier that answered (cache_hit, patched, fresh) and the model calls.
 
 --no-model-only is optional. It puts diff_fast_act and macro_replay back on
 decide() with no outer model. That path cannot close the Stagehand gap. It
@@ -412,17 +412,11 @@ async def run_claude_arm(
         await harness.teardown()
 
 
-def warm_summary(rows: list[dict]) -> dict:
-    """Replay hit rate and wall for the warm second pass, by arm.
-
-    script_first also reports which tier answered and its model calls.
-    """
+def _summary_for(rows: list[dict], phase: str, arms: tuple[str, ...]) -> dict:
+    """Hit rate, wall, and script_first tier counts for one probe pass."""
     summary = {}
-    arms = WARM_ARMS
-    if any(row.get("pass") == "warm" and row.get("arm") == ARM_SCRIPT_FIRST for row in rows):
-        arms = WARM_ARMS + (ARM_SCRIPT_FIRST,)
     for arm in arms:
-        subset = [row for row in rows if row.get("pass") == "warm" and row.get("arm") == arm]
+        subset = [row for row in rows if row.get("pass") == phase and row.get("arm") == arm]
         hits = sum(1 for row in subset if row.get("replay_hit"))
         wall_ms = sum(float(row.get("wall_ms") or 0) for row in subset)
         summary[arm] = {
@@ -440,6 +434,30 @@ def warm_summary(rows: list[dict]) -> dict:
             summary[arm]["model_calls"] = sum(int(row.get("model_calls") or 0) for row in subset)
             summary[arm]["steps"] = sum(int(row.get("steps") or 0) for row in subset)
     return summary
+
+
+def warm_summary(rows: list[dict]) -> dict:
+    """Replay hit rate and wall for the warm second pass, by arm.
+
+    script_first also reports which tier answered and its model calls.
+    Cold rows are not included. See cold_summary.
+    """
+    arms = WARM_ARMS
+    if any(row.get("pass") == "warm" and row.get("arm") == ARM_SCRIPT_FIRST for row in rows):
+        arms = WARM_ARMS + (ARM_SCRIPT_FIRST,)
+    return _summary_for(rows, "warm", arms)
+
+
+def cold_summary(rows: list[dict]) -> dict:
+    """The cold pass, in the same shape as warm_summary, with its own tier counts."""
+    arms: list[str] = []
+    for row in rows:
+        if row.get("pass") != "cold":
+            continue
+        arm = row.get("arm")
+        if isinstance(arm, str) and arm and arm not in arms:
+            arms.append(arm)
+    return _summary_for(rows, "cold", tuple(arms))
 
 
 async def _run_one(
@@ -559,7 +577,16 @@ async def execute_probe(
         for row in rows:
             handle.write(json.dumps(row) + "\n")
         if warm_replay:
-            handle.write(json.dumps({"kind": "warm_summary", "warm": warm_summary(rows)}) + "\n")
+            handle.write(
+                json.dumps(
+                    {
+                        "kind": "warm_summary",
+                        "cold": cold_summary(rows),
+                        "warm": warm_summary(rows),
+                    }
+                )
+                + "\n"
+            )
     if not any(row.get("claude") for row in rows):
         ledger.save()
     return rows
@@ -633,7 +660,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"probe rows: {len(rows)}")
     print(f"probe claude usd: {spent:.4f}")
     if args.warm_replay:
-        print(json.dumps({"warm": warm_summary(rows)}, indent=2))
+        print(json.dumps({"cold": cold_summary(rows), "warm": warm_summary(rows)}, indent=2))
     return 0
 
 

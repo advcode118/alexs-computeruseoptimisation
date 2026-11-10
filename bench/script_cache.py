@@ -82,11 +82,14 @@ def script_steps(source: str) -> list[str]:
 
 
 def replayable_script(source: str, start_url: str) -> str:
-    """The script with one step per line, opened at the start URL when it does not navigate first."""
-    steps = parse_task_script(source)
-    lines = [step.source for step in steps]
-    if steps[0].kind != "goto" and url_pattern_for(start_url):
-        lines.insert(0, f"page.goto({json.dumps(start_url)})")
+    """The script that passed, one step per line.
+
+    Wait lines are already dropped, so this is the script the judge saw.
+    A goto is kept only when that script had one. The start URL is not
+    inserted: a step the judge never ran must not be cached as a pass.
+    """
+    del start_url
+    lines = [step.source for step in parse_task_script(source)]
     text = "\n".join(lines)
     parse_task_script(text)
     return text

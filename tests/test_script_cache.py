@@ -16,8 +16,19 @@ from bench.script_cache import (
     TIER_PATCHED,
     ScriptCache,
     apply_patch,
+    patch_request,
 )
-from bench.script_first import _PAGE_EVIDENCE_JS, FAIL, PASS, UNKNOWN, EvidenceVerdict, ScriptFirstClient
+from bench.script_first import (
+    _PAGE_EVIDENCE_JS,
+    FAIL,
+    PASS,
+    UNKNOWN,
+    EvidenceVerdict,
+    ScriptFirstClient,
+    format_run_result,
+    model_visible_script_result,
+    script_verdict,
+)
 from bench.tasks import markers_for_task
 
 FIXTURE = json.loads(
@@ -311,9 +322,21 @@ def test_unknown_or_fail_scripts_are_never_cached(tmp_path):
     assert direct.lookup(DESCRIPTION, "https://de.wikipedia.org/wiki/Main_Page") is None
 
 
+def test_pass_script_is_stored_without_an_added_goto(tmp_path):
+    """A PASS that did not navigate is stored as that script, not a new goto."""
+    cache = ScriptCache(tmp_path / "exact.json")
+    source = f"await {EVIDENCE};"
+    assert cache.save(DESCRIPTION, START, source, EvidenceVerdict(PASS, "ok", START)) is True
+    stored = cache.lookup(DESCRIPTION, START)
+    assert stored is not None
+    assert stored.script == EVIDENCE
+    assert "page.goto" not in stored.script
+    assert stored.step_count == 1
+
+
 def test_warm_probe_reuses_one_new_cache_and_reports_tiers(monkeypatch, tmp_path):
     from bench.budget import SpendLedger
-    from bench.probe import BOX_COMMANDS, empty_row, execute_probe, plan_probe, warm_summary
+    from bench.probe import BOX_COMMANDS, cold_summary, empty_row, execute_probe, plan_probe, warm_summary
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "local-test-not-sent")
     caches: list = []
@@ -342,8 +365,12 @@ def test_warm_probe_reuses_one_new_cache_and_reports_tiers(monkeypatch, tmp_path
     assert len(caches) == 6 and all(cache is caches[0] for cache in caches)
     assert isinstance(caches[0], ScriptCache)
     assert caches[0].path.parent == tmp_path / "runs"
+    cold = cold_summary(rows)["script_first"]
     warm = warm_summary(rows)["script_first"]
+    assert cold["tiers"] == {"cache_hit": 0, "patched": 0, "fresh": 3}
     assert warm["tiers"] == {"cache_hit": 3, "patched": 0, "fresh": 0}
+    assert set(cold_summary(rows)) == {"script_first"}
+    assert "script_first" not in warm_summary([{**row, "pass": "cold"} for row in rows])
     assert warm["model_calls"] == 0
     assert warm["replay_hit_rate"] == 1
     assert "--arms script_first --warm-replay" in BOX_COMMANDS[-1]
@@ -361,3 +388,108 @@ def test_patch_replaces_only_the_named_step():
             assert type(exc).__name__ == "ScriptError"
         else:
             raise AssertionError(f"patch {step} should be refused")
+
+
+def _marker_strings(markers: dict) -> list[str]:
+    found: list[str] = []
+    for key, value in markers.items():
+        found.append(str(key))
+        if isinstance(value, str):
+            found.append(value)
+        elif isinstance(value, (list, tuple)):
+            found.extend(str(item) for item in value if str(item))
+    return found
+
+
+def _model_visible(calls: list[dict]) -> str:
+    chunks = []
+    for call in calls:
+        chunks.append(json.dumps(call.get("messages")))
+        system = call.get("system")
+        if isinstance(system, str):
+            chunks.append(system)
+    return "\n".join(chunks)
+
+
+def test_fail_repair_hides_selector_text_and_judge_markers(tmp_path):
+    """A FAIL repair still uses selector_text, and the model never sees it."""
+    secret = "JUDGE-ONLY-TOP-TITLE-9f3a"
+    description = "Go to Hacker News and identify the title of the top story"
+    start_url = "https://news.ycombinator.com/"
+    page_text = "A different visible story"
+    markers = markers_for_task("wv_hackernews_top")
+    raw = format_run_result(
+        ok=True,
+        url=start_url,
+        step_count=1,
+        title="Hacker News",
+        text=page_text,
+        selector_text=secret,
+        extracted=["wrong story"],
+        claimed={"url": start_url, "answer": "wrong story"},
+    )
+    verdict, payload = script_verdict(markers, raw, start_url)
+    assert verdict.verdict == FAIL
+    assert payload.get("selector_text") == secret
+    stripped = model_visible_script_result(raw)
+    assert secret not in stripped
+    assert "selector_text" not in stripped
+    note = patch_request(
+        description=description,
+        start_url=start_url,
+        script=EVIDENCE,
+        payload=payload,
+        verdict=verdict,
+    )
+    assert secret not in note
+    assert "selector_text" not in note
+    assert markers["answer_equals_selector"] not in note
+    assert "wrong story" not in note
+
+    class Model:
+        def __init__(self):
+            self.seen: list[dict] = []
+            self._replies = [
+                _script_reply('page.goto("https://news.ycombinator.com/")'),
+                _text_reply("TASK_FAILED"),
+            ]
+
+        async def create_message(self, messages, tools, system=None, max_tokens=4096):
+            del tools, max_tokens
+            self.seen.append({"messages": messages, "system": system})
+            return self._replies.pop(0), 1.0
+
+    class Client:
+        def tools_for_claude(self):
+            return [{"name": "run_script", "description": "run", "input_schema": {"type": "object"}}]
+
+        async def call_tool(self, name, arguments):
+            del name, arguments
+            return raw, 1.0
+
+    harness = BenchmarkHarness(
+        api_key="local-test",
+        runs_dir=tmp_path,
+        arm="script_first",
+        max_steps=SCRIPT_FIRST_MAX_CALLS,
+    )
+    model = Model()
+    harness.anthropic = model
+    harness.mcp_client = Client()
+    result = asyncio.run(
+        harness.run_task(task_id="wv_hackernews_top", task_description=description, start_url=start_url)
+    )
+    assert result.end_state == FAIL
+    assert result.success is False
+    assert len(model.seen) == 2
+    visible = _model_visible(model.seen)
+    assert "END_STATE_FAILED" in visible
+    allowed = "\n".join([description, start_url, "Hacker News", page_text, prompt_for("script_first")])
+    for marker in _marker_strings(markers):
+        if marker and marker not in allowed:
+            assert marker not in visible, marker
+    assert secret not in visible
+    assert "selector_text" not in visible
+    assert result.steps[0].selector_text == secret
+    saved = json.loads(harness.save_result(result, "leak").read_text(encoding="utf-8").splitlines()[-1])
+    assert saved["steps"][0]["selector_text"] == secret
