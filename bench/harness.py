@@ -707,9 +707,10 @@ class BenchmarkHarness:
             TIER_CACHE_HIT,
             TIER_PATCHED,
             apply_patch,
+            fingerprint_from_payload,
             patch_request,
         )
-        from bench.script_first import PASS, script_verdict
+        from bench.script_first import PASS, EvidenceVerdict, script_verdict
         from proxy.script import ScriptError
 
         outcome = {
@@ -756,9 +757,16 @@ class BenchmarkHarness:
             return passed, verdict, payload
 
         passed, verdict, payload = await run(entry.script)
-        if passed:
+        live_fp = fingerprint_from_payload(payload, start_url)
+        if passed and live_fp == entry.fingerprint:
             outcome["tier"] = TIER_CACHE_HIT
             return outcome
+        if passed and live_fp != entry.fingerprint:
+            verdict = EvidenceVerdict(
+                "FAIL",
+                "live page fingerprint does not match the cached page",
+                verdict.scored_url,
+            )
 
         response, model_ms = await self.anthropic.create_message(
             [
@@ -798,9 +806,16 @@ class BenchmarkHarness:
             except (ScriptError, TypeError, ValueError):
                 patched = ""
         if patched:
-            passed, verdict, _payload = await run(patched, model_ms, input_tokens, output_tokens)
+            passed, verdict, patched_payload = await run(patched, model_ms, input_tokens, output_tokens)
             if passed:
-                cache.save(task_description, start_url, patched, verdict)
+                cache.save(
+                    task_description,
+                    start_url,
+                    patched,
+                    verdict,
+                    controls=patched_payload.get("controls"),
+                    landed_url=patched_payload.get("url") if isinstance(patched_payload.get("url"), str) else "",
+                )
                 outcome["tier"] = TIER_PATCHED
                 return outcome
         cache.drop(task_description, start_url)
@@ -1201,7 +1216,20 @@ class BenchmarkHarness:
 
             tier = TIER_FRESH
             if cache is not None and success and end_state == PASS and passing_code:
-                cache.save(task_description, start_url, passing_code, passing_verdict)
+                landed = ""
+                controls = None
+                if isinstance(previous_payload, dict):
+                    raw_url = previous_payload.get("url")
+                    landed = raw_url if isinstance(raw_url, str) else ""
+                    controls = previous_payload.get("controls")
+                cache.save(
+                    task_description,
+                    start_url,
+                    passing_code,
+                    passing_verdict,
+                    controls=controls,
+                    landed_url=landed,
+                )
 
         total_wall_ms = (time.perf_counter() - wall_start) * 1000
         total_other_ms = total_wall_ms - total_model_ms - total_tool_ms
