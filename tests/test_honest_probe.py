@@ -110,10 +110,13 @@ def test_dry_run_prints_the_plan_and_does_not_measure(monkeypatch, capsys, isola
         "success_count",
         "mean_wall_ms_per_success",
         "median_wall_ms_per_success",
+        "p90_wall_ms_per_success",
+        "mean_wall_ms_ci95",
         "steps_one_shot",
         "steps_repair",
         "warm_replay_wall_ms",
     }
+    assert printed["repeats"] == 1
 
 
 def test_a_lower_ledger_is_refused_and_not_rewritten(capsys, isolated_spend_ledger):
