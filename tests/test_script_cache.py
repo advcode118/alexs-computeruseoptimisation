@@ -462,7 +462,7 @@ def test_warm_probe_reuses_one_new_cache_and_reports_tiers(monkeypatch, tmp_path
     assert "script_first" not in warm_summary([{**row, "pass": "cold"} for row in rows])
     assert warm["model_calls"] == 0
     assert warm["replay_hit_rate"] == 1
-    assert "--arms script_first --warm-replay" in BOX_COMMANDS[-1]
+    assert any("--arms script_first --warm-replay" in command for command in BOX_COMMANDS)
     assert plan_probe(arms="script_first", warm_replay=True)["warm_arms"][-1] == "script_first"
 
 

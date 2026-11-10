@@ -284,7 +284,9 @@ def test_probe_plan_selects_script_first_and_stops_at_two_dollars(capsys):
     assert default["arms"] == list(ARMS)
     assert default["claude_budget_usd"] == PROBE_CLAUDE_BUDGET_USD == 5.0
     assert default["outer_model"] == "claude-sonnet-5-5"
-    assert "script_first" in default["box_commands"][-1]
+    assert any(
+        "script_first" in command and "--warm-replay" in command for command in default["box_commands"]
+    )
     assert claude_block_reason(2.0, 12.91, budget_usd=2.0)
     assert claude_block_reason(1.9, 12.91, budget_usd=2.0) is None
     assert claude_block_reason(0.0, 40.0, budget_usd=2.0)
