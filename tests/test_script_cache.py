@@ -311,9 +311,21 @@ def test_unknown_or_fail_scripts_are_never_cached(tmp_path):
     assert direct.lookup(DESCRIPTION, "https://de.wikipedia.org/wiki/Main_Page") is None
 
 
+def test_pass_script_is_stored_without_an_added_goto(tmp_path):
+    """A PASS that did not navigate is stored as that script, not a new goto."""
+    cache = ScriptCache(tmp_path / "exact.json")
+    source = f"await {EVIDENCE};"
+    assert cache.save(DESCRIPTION, START, source, EvidenceVerdict(PASS, "ok", START)) is True
+    stored = cache.lookup(DESCRIPTION, START)
+    assert stored is not None
+    assert stored.script == EVIDENCE
+    assert "page.goto" not in stored.script
+    assert stored.step_count == 1
+
+
 def test_warm_probe_reuses_one_new_cache_and_reports_tiers(monkeypatch, tmp_path):
     from bench.budget import SpendLedger
-    from bench.probe import BOX_COMMANDS, empty_row, execute_probe, plan_probe, warm_summary
+    from bench.probe import BOX_COMMANDS, cold_summary, empty_row, execute_probe, plan_probe, warm_summary
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "local-test-not-sent")
     caches: list = []
@@ -342,8 +354,12 @@ def test_warm_probe_reuses_one_new_cache_and_reports_tiers(monkeypatch, tmp_path
     assert len(caches) == 6 and all(cache is caches[0] for cache in caches)
     assert isinstance(caches[0], ScriptCache)
     assert caches[0].path.parent == tmp_path / "runs"
+    cold = cold_summary(rows)["script_first"]
     warm = warm_summary(rows)["script_first"]
+    assert cold["tiers"] == {"cache_hit": 0, "patched": 0, "fresh": 3}
     assert warm["tiers"] == {"cache_hit": 3, "patched": 0, "fresh": 0}
+    assert set(cold_summary(rows)) == {"script_first"}
+    assert "script_first" not in warm_summary([{**row, "pass": "cold"} for row in rows])
     assert warm["model_calls"] == 0
     assert warm["replay_hit_rate"] == 1
     assert "--arms script_first --warm-replay" in BOX_COMMANDS[-1]
