@@ -116,6 +116,13 @@ class StepMetrics:
     # The shared URL/text check does not use these. They stay out of the model prompt.
     claimed_answer: str = ""
     page_text: str = ""
+    # The script's own return. The shared grade checks these against the live page.
+    claimed_url: str = ""
+    claimed_title: str = ""
+    claimed_h1: str = ""
+    claimed_key_text: str = ""
+    claimed_values: tuple[str, ...] = ()
+    claimed_rejected: bool = False
 
 
 @dataclass
@@ -321,17 +328,56 @@ def _line_spans(text: str) -> list[tuple[int, str]]:
     return spans
 
 
-def logged_evidence(payload: dict | None) -> tuple[str, str, str]:
-    """Selector, claimed answer, and page text the evidence judge already used.
+def logged_evidence(payload: dict | None) -> tuple[str, str, str, dict]:
+    """Selector, claimed answer, page text, and the script's full return.
 
     selector_text stays out of the model message. The caller logs it on the step.
+    The return keeps the URL, title, key text, and values the shared grade checks.
     """
     from bench.script_first import claimed_from_payload
 
     data = payload if isinstance(payload, dict) else {}
     selector = data.get("selector_text") if isinstance(data.get("selector_text"), str) else ""
     text = data.get("text") if isinstance(data.get("text"), str) else ""
-    return selector, claimed_from_payload(data).answer, text
+    claim = claimed_from_payload(data)
+    returned = {
+        "url": claim.url,
+        "title": claim.title,
+        "h1": claim.h1,
+        "key_text": claim.key_text,
+        "values": claim.values,
+        "rejected": claim.rejected,
+    }
+    return selector, claim.answer, text, returned
+
+
+def claim_from_step(step) -> "ClaimedEvidence":
+    """The script return stored on a step. The shared grade checks this object."""
+    from bench.script_first import ClaimedEvidence
+
+    return ClaimedEvidence(
+        url=step.claimed_url or "",
+        title=step.claimed_title or "",
+        h1=step.claimed_h1 or "",
+        answer=step.claimed_answer or "",
+        key_text=step.claimed_key_text or "",
+        values=tuple(step.claimed_values or ()),
+        rejected=bool(step.claimed_rejected),
+    )
+
+
+def claim_step_fields(returned: dict | None) -> dict:
+    """Step fields for the script return. Empty when the tool logged none."""
+    data = returned if isinstance(returned, dict) else {}
+    values = data.get("values") or ()
+    return {
+        "claimed_url": data.get("url") or "",
+        "claimed_title": data.get("title") or "",
+        "claimed_h1": data.get("h1") or "",
+        "claimed_key_text": data.get("key_text") or "",
+        "claimed_values": tuple(item for item in values if isinstance(item, str)),
+        "claimed_rejected": bool(data.get("rejected")),
+    }
 
 
 def spoken_claim(text: str) -> str:
@@ -836,6 +882,7 @@ class BenchmarkHarness:
             step.page_text,
             selector=step.selector_text,
             answer=step.claimed_answer,
+            claimed=claim_from_step(step),
         )
 
     async def _cached_script_tier(
@@ -886,7 +933,7 @@ class BenchmarkHarness:
             outcome["tool_ms"] += tool_ms
             page_url = page_url_from_result(result_text)
             verdict, payload = script_verdict(markers, result_text, page_url)
-            selector_text, claimed_answer, page_text = logged_evidence(payload)
+            selector_text, claimed_answer, page_text, returned = logged_evidence(payload)
             steps.append(
                 StepMetrics(
                     step_number=len(steps) + 1,
@@ -903,6 +950,7 @@ class BenchmarkHarness:
                     selector_text=selector_text,
                     claimed_answer=claimed_answer,
                     page_text=page_text,
+                    **claim_step_fields(returned),
                 )
             )
             outcome["verdict"] = verdict
@@ -1279,6 +1327,7 @@ class BenchmarkHarness:
                     logged_selector = ""
                     logged_answer = ""
                     logged_page_text = ""
+                    logged_return: dict = {}
                     total_tool_ms += tool_ms
                     ignores.note_call(tool_name, tool_args if isinstance(tool_args, dict) else {})
                     ignores.note_result(tool_name, result_text)
@@ -1320,7 +1369,7 @@ class BenchmarkHarness:
                             last_verdict = verdict
                             end_state = verdict.verdict
                             failure = verdict.reason if verdict.verdict == FAIL else ""
-                            logged_selector, logged_answer, logged_page_text = logged_evidence(payload)
+                            logged_selector, logged_answer, logged_page_text, logged_return = logged_evidence(payload)
                             # The judge already read selector_text. The model must not.
                             result_text = model_visible_script_result(result_text)
                             repair_pending = False
@@ -1390,6 +1439,7 @@ class BenchmarkHarness:
                             selector_text=logged_selector,
                             claimed_answer=logged_answer,
                             page_text=logged_page_text,
+                            **claim_step_fields(logged_return),
                         )
                     )
 
@@ -1559,6 +1609,12 @@ class BenchmarkHarness:
                         "selector_text": step.selector_text,
                         "claimed_answer": step.claimed_answer,
                         "page_text": step.page_text,
+                        "claimed_url": step.claimed_url,
+                        "claimed_title": step.claimed_title,
+                        "claimed_h1": step.claimed_h1,
+                        "claimed_key_text": step.claimed_key_text,
+                        "claimed_values": list(step.claimed_values),
+                        "claimed_rejected": step.claimed_rejected,
                     }
                     for step in result.steps
                 ],

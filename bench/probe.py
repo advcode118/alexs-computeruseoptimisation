@@ -410,6 +410,50 @@ def deterministic_success(task: dict, url: str, text: str) -> tuple[bool | None,
     return None, "no deterministic check; LLM judge was not called"
 
 
+def _grade_claim(answer: str, claimed):
+    """The claim the shared check sees. A bare answer stays an answer-only claim."""
+    from bench.script_first import ClaimedEvidence
+
+    if claimed is None:
+        return ClaimedEvidence(answer=answer or "")
+    if answer and not claimed.answer:
+        return ClaimedEvidence(
+            url=claimed.url,
+            title=claimed.title,
+            h1=claimed.h1,
+            answer=answer,
+            key_text=claimed.key_text,
+            values=claimed.values,
+            rejected=claimed.rejected,
+        )
+    return claimed
+
+
+def _live_return_failure(url: str, text: str, claimed) -> str:
+    """Why the script's own return is not on the live page. Empty when it is.
+
+    URL, key text, and values are the live-page evidence check. A claim that
+    returned none of them leaves the task's own check alone. Title rides along
+    on the same object. UNKNOWN is not a failure here.
+    """
+    if claimed is None:
+        return ""
+    returned = bool(
+        claimed.rejected
+        or (claimed.key_text or "").strip()
+        or any((item or "").strip() for item in claimed.values)
+        or (claimed.url or "").startswith(("http://", "https://"))
+    )
+    if not returned:
+        return ""
+    from bench.script_first import FAIL, PageEvidence, evidence_verdict
+
+    verdict = evidence_verdict({}, PageEvidence(url=url, text=text), claimed)
+    if verdict.verdict == FAIL:
+        return verdict.reason
+    return ""
+
+
 def shared_end_state(
     task: dict,
     url: str,
@@ -418,25 +462,34 @@ def shared_end_state(
     selector_text: str = "",
     answer: str = "",
     page_text: str = "",
+    claimed=None,
 ) -> tuple[bool | None, str]:
     """The one shared check. A missing check is None, which is not a pass.
 
     URL and text checks use the same strings they always have. A task whose
     end state is the live value of answer_equals_selector, and which has no
     URL or text check, is decided by that read. An empty read is a failure.
+    A script return (URL, title, key text, values) is checked against that
+    same page. Text that is not on the page fails the check.
     """
+    claim = _grade_claim(answer, claimed)
+    body = page_text or text
     checked, reason = deterministic_success(task, url, text)
     if checked is not None:
+        if checked is True:
+            problem = _live_return_failure(url, body, claim)
+            if problem:
+                return False, problem
         return checked, reason
     markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
     if not (markers or {}).get("answer_equals_selector"):
         return None, reason
-    from bench.script_first import PASS, ClaimedEvidence, PageEvidence, evidence_verdict
+    from bench.script_first import PASS, PageEvidence, evidence_verdict
 
     verdict = evidence_verdict(
         markers,
-        PageEvidence(url=url, text=page_text or text, selector_text=selector_text),
-        ClaimedEvidence(answer=answer),
+        PageEvidence(url=url, text=body, selector_text=selector_text),
+        claim,
     )
     if verdict.verdict == PASS:
         return True, verdict.reason
@@ -450,6 +503,7 @@ def shared_check_passes(
     *,
     selector: str = "",
     answer: str = "",
+    claimed=None,
 ) -> bool:
     """True only when this task's shared check passes on the page the script left.
 
@@ -467,6 +521,7 @@ def shared_check_passes(
         selector_text=selector,
         answer=answer,
         page_text=text or "",
+        claimed=claimed,
     )
     return ok is True
 
@@ -483,6 +538,7 @@ def grade_arm(
     selector_text: str = "",
     answer: str = "",
     page_text: str = "",
+    claimed=None,
 ) -> tuple[bool, str, bool | None, str]:
     """One rule for every arm. Pass only when the applicable signals agree.
 
@@ -498,6 +554,7 @@ def grade_arm(
         selector_text=selector_text,
         answer=answer,
         page_text=page_text,
+        claimed=claimed,
     )
     if shared_ok is not True:
         if shared_ok is None:
@@ -522,27 +579,46 @@ def grade_observation(
     answer: str = "",
     completed: bool | None = None,
     completion_reason: str = "",
+    run_verdict: str | None = None,
+    claimed=None,
 ) -> tuple[bool, str, bool | None, str]:
     """The one grade for every arm.
 
     `text` is the page text read after the run. A task with end markers gets
-    one evidence verdict from that read and the claimed answer. A task with
-    no markers gets no evidence gate. UNKNOWN is not a pass. TASK_COMPLETE
-    is not a pass by itself: `completed` False still blocks, and True does not.
+    one evidence verdict from that read and the full claim. A task with no
+    markers gets no marker gate. UNKNOWN is not a pass. TASK_COMPLETE is not
+    a pass by itself: `completed` False still blocks, and True does not.
+    `run_verdict` is script_first's own end state. It has to be PASS, and the
+    shared page check has to pass too. The claim's URL, title, key text, and
+    values are part of that page check.
     """
+    claim = _grade_claim(answer, claimed)
     markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
     evidence = None
     evidence_reason = ""
     if markers:
-        from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
+        from bench.script_first import PageEvidence, evidence_verdict
 
         verdict = evidence_verdict(
             markers,
             PageEvidence(url=url, text=text or "", selector_text=selector_text),
-            ClaimedEvidence(answer=answer),
+            claim,
         )
         evidence = verdict.verdict
         evidence_reason = verdict.reason
+    if run_verdict is not None:
+        own = run_verdict if run_verdict in {"PASS", "FAIL", "UNKNOWN"} else "UNKNOWN"
+        if own != "PASS":
+            evidence = own
+            if own == "UNKNOWN":
+                if completion_reason.startswith("UNKNOWN"):
+                    evidence_reason = completion_reason
+                elif completion_reason:
+                    evidence_reason = f"UNKNOWN: {completion_reason}"
+                else:
+                    evidence_reason = "UNKNOWN is not success"
+            else:
+                evidence_reason = completion_reason or evidence_reason or "evidence judge did not pass"
     return grade_arm(
         task,
         url,
@@ -552,8 +628,9 @@ def grade_observation(
         completed=completed,
         completion_reason=completion_reason,
         selector_text=selector_text,
-        answer=answer,
+        answer=claim.answer,
         page_text=text or "",
+        claimed=claim,
     )
 
 
@@ -663,7 +740,7 @@ async def run_claude_arm(
     effort: str | None = None,
 ) -> dict:
     """Outer model for one arm. The default is claude-sonnet-5-5."""
-    from bench.harness import BenchmarkHarness
+    from bench.harness import BenchmarkHarness, claim_from_step
 
     started = time.perf_counter()
     # script_first starts at one script plus a completion turn. The harness
@@ -721,8 +798,11 @@ async def run_claude_arm(
         # The same post-run page text for every arm. The snapshot is not the check.
         graded_text = page_text
         end_state = result.end_state or ""
-        # script_first has no completion bit. The other arms still cannot pass
-        # on TASK_COMPLETE alone, and a run that did not finish still fails.
+        # script_first has to end on its own PASS and pass the shared page
+        # check. Its returned URL, title, key text, and values go into that
+        # check. The other arms still cannot pass on TASK_COMPLETE alone.
+        run_verdict = end_state if arm == ARM_SCRIPT_FIRST else None
+        claimed = claim_from_step(last) if arm == ARM_SCRIPT_FIRST and last is not None else None
         completed = None if arm == ARM_SCRIPT_FIRST else result.success
         success, reason, substring_ok, substring_reason = grade_observation(
             task,
@@ -732,6 +812,8 @@ async def run_claude_arm(
             answer=claimed_answer,
             completed=completed,
             completion_reason=result.success_reason,
+            run_verdict=run_verdict,
+            claimed=claimed,
         )
         usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
         row = {
