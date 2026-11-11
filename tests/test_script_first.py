@@ -129,7 +129,7 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     assert "does not settle or snapshot" in prompt
     assert "waitForTimeout" in prompt
     assert "The first script must finish" in prompt
-    assert "Special:Search" in prompt
+    assert "Special:Search" not in prompt
     assert "one script" in prompt.casefold()
     assert 3 < SCRIPT_FIRST_MAX_CALLS <= SCRIPT_FIRST_HARD_CAP <= 6
     assert SCRIPT_FIRST_MAX_SCRIPTS == 2
