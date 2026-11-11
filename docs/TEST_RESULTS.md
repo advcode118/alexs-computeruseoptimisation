@@ -20,13 +20,13 @@ The same three JSONL files are attached under `docs/results/2026-11-10/`. They w
 
 ## 1. What the project is
 
-The goal is to make computer use faster than the competition (Stagehand, Playwright MCP, browser-use), without giving up success rate. Tom's own approach is **script_first**, and that is the main metric.
+The goal is to make computer use faster than the competition (Stagehand, Playwright MCP, browser-use), without giving up success rate. Our approach is **script_first**, and that is the main metric.
 
 ### The four arms
 
 | Arm | What it does |
 | --- | --- |
-| **script_first** | Tom's approach. The model writes one Playwright script for the whole task. The harness runs that script and grades the end state. A later warm pass can replay a cached script with no (or fewer) model calls. |
+| **script_first** | Our approach. The model writes one Playwright script for the whole task. The harness runs that script and grades the end state. A later warm pass can replay a cached script with no (or fewer) model calls. |
 | **playwright_mcp** | Baseline: many small tool calls through Playwright MCP. |
 | **stagehand** | Baseline: the Stagehand computer-use agent. |
 | **browser_use** | Baseline: browser-use 1.0 driving local Chrome. |
@@ -266,7 +266,7 @@ Titles are from `gh pr list` at the time this document was written. All of these
 
 ## 7. Suggested next steps (not started)
 
-Do not run these until Tom says go. They spend API money.
+Do not run these until the project owner says go. They spend API money.
 
 ### 18-task OpenAI runs, Luna medium then Sol medium
 
@@ -286,7 +286,7 @@ Cost planning estimate, **not a measurement**: the 3-task medium runs cost $0.00
 
 ### PR #30 Claude probe
 
-A Sonnet 5.5 `--honest` probe of [PR #30](https://github.com/advcode118/alexs-computeruseoptimisation/pull/30) ("Start Chrome while the model writes and check evidence the script returns") has been waiting on Tom. The planning figure for that probe is about $3. It would charge the Claude ledger (currently $26.02 of $50). It has not been run.
+A Sonnet 5.5 `--honest` probe of [PR #30](https://github.com/advcode118/alexs-computeruseoptimisation/pull/30) ("Start Chrome while the model writes and check evidence the script returns") has been waiting on the project owner. The planning figure for that probe is about $3. It would charge the Claude ledger (currently $26.02 of $50). It has not been run.
 
 ---
 
