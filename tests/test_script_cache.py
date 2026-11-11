@@ -30,7 +30,7 @@ from bench.script_first import (
     model_visible_script_result,
     script_verdict,
 )
-from bench.tasks import markers_for_task
+from bench.tasks import markers_for_task, task_message
 
 FIXTURE = json.loads(
     (Path(__file__).parent / "fixtures" / "evidence" / "wikipedia_encoded.json").read_text(encoding="utf-8")
@@ -357,7 +357,7 @@ def test_failed_patch_falls_back_to_fresh(tmp_path):
     assert len(model.calls) == 2
     assert model.calls[0]["tools"] == [PATCH_TOOL]
     assert model.calls[1]["system"] == prompt_for("script_first")
-    assert model.calls[1]["messages"] == [{"role": "user", "content": f"Task: {DESCRIPTION}\n\nStart URL: {START}"}]
+    assert model.calls[1]["messages"] == [{"role": "user", "content": task_message(DESCRIPTION, START)}]
     assert result.success is True
     assert result.end_state == PASS
     assert result.tier == TIER_FRESH

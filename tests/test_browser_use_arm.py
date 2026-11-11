@@ -32,7 +32,7 @@ from bench.browser_use_arm import (
 from bench.budget import PROJECT_BUDGET_USD, ModelNotAllowed, SpendLedger, estimate_usd
 from bench.harness import PLAYWRIGHT_MCP_VERSION as HARNESS_MCP
 from bench.probe import execute_probe, main, plan_probe
-from bench.tasks import BENCHMARK_TASKS, get_held_out_tasks
+from bench.tasks import ANSWER_FORMAT, BENCHMARK_TASKS, get_held_out_tasks, task_message
 from proxy.child import PLAYWRIGHT_MCP_VERSION as CHILD_MCP
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -160,7 +160,8 @@ def test_prompts_carry_the_task_and_not_the_judge_fields():
     assert tasks
     for task in tasks:
         text = task_text(task)
-        assert text == f"Task: {task['description']}\n\nStart URL: {task['start_url']}"
+        assert text == task_message(task["description"], task["start_url"])
+        assert text == f"Task: {task['description']}\n\nStart URL: {task['start_url']}\n\n{ANSWER_FORMAT}"
         visible = task["description"] + "\n" + task["start_url"]
         assert "selector_text" not in text
         assert "selector_text" not in prompt

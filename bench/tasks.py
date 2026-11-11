@@ -1078,3 +1078,16 @@ def get_dev_tasks() -> list[dict]:
 def get_held_out_tasks() -> list[dict]:
     """Held-out public tasks. Not the tasks the arms were tuned on."""
     return tasks_for_split(SPLIT_HELD_OUT)
+
+
+# Every arm reads the same task message. The answer line is the same for all
+# of them, so no arm loses a value-match task on phrasing alone.
+ANSWER_FORMAT = (
+    "If the task asks for a value, such as a title, a name, or a number, "
+    "give that exact value from the page as your answer, with no sentence around it."
+)
+
+
+def task_message(description: str, start_url: str) -> str:
+    """The user message every arm gets: task, start URL, and the shared answer line."""
+    return f"Task: {description}\n\nStart URL: {start_url}\n\n{ANSWER_FORMAT}"

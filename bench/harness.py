@@ -1123,8 +1123,10 @@ class BenchmarkHarness:
         last_url = ""
         self._pending_snapshot_path = None
 
+        from bench.tasks import task_message
+
         messages: list[dict] = [
-            {"role": "user", "content": f"Task: {task_description}\n\nStart URL: {start_url}"}
+            {"role": "user", "content": task_message(task_description, start_url)}
         ]
 
         tools = self.mcp_client.tools_for_claude()
