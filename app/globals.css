@@ -21,6 +21,10 @@
   --color-arm-replay: #ccd2dc;
   --color-arm-script: var(--color-yours);
   --color-stop: #8a5a00;
+  --color-yours-ink: #b0124f;
+  --color-pass: #1f6f43;
+  --color-fail: #9b1c1c;
+  --color-fail-soft: #fdecec;
 }
 
 html {

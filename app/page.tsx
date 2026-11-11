@@ -180,7 +180,12 @@ export default function HomePage() {
               </a>
             ))}
           </nav>
-          <RepoLinks className="flex shrink-0 gap-2 text-sm" />
+          <div className="flex shrink-0 items-center gap-2 text-sm">
+            <a href="/stats" className="rounded-full bg-ink px-3 py-1 font-semibold text-sheet hover:bg-[var(--color-yours)]">
+              Stats
+            </a>
+            <RepoLinks className="flex shrink-0 gap-2" />
+          </div>
         </div>
       </header>
 
