@@ -1064,10 +1064,6 @@ class BenchmarkHarness:
 
         The shared check uses this text. The snapshot is not a second source.
         The read stays out of the model transcript.
-
-        script_first already ran this read to judge the script. Reading the
-        DOM again is only for a miss: empty page text, or a marked value the
-        task requires and the first read did not find. The judge is unchanged.
         """
         from bench.script_first import read_marked_page
         from bench.tasks import markers_for_task
@@ -1078,9 +1074,6 @@ class BenchmarkHarness:
         wanted = markers.get("answer_equals_selector")
         selector = wanted if isinstance(wanted, str) else ""
         last = steps[-1]
-        if self.arm == "script_first" and (last.page_text or "").strip():
-            if not selector or (last.selector_text or "").strip():
-                return
         page_text, marked = await read_marked_page(self.mcp_client, selector)
         if page_text:
             last.page_text = page_text
@@ -1504,7 +1497,11 @@ class BenchmarkHarness:
 
         if spoken_answer and self.arm != "script_first":
             self._apply_spoken_claim(steps, spoken_answer)
+        # The grade read is the judge's work, not the arm's. Every arm does the
+        # same read, and none of them is timed for it.
+        grade_start = time.perf_counter()
         await self._read_shared_page(task_id, steps)
+        grade_read_ms = (time.perf_counter() - grade_start) * 1000
 
         if self.arm == "script_first" and end_state == UNKNOWN and success_reason == "Max steps reached":
             reason = last_verdict.reason if last_verdict is not None else "no page evidence"
@@ -1540,7 +1537,7 @@ class BenchmarkHarness:
                     landed_url=landed,
                 )
 
-        total_wall_ms = (time.perf_counter() - wall_start) * 1000
+        total_wall_ms = (time.perf_counter() - wall_start) * 1000 - grade_read_ms
         total_other_ms = total_wall_ms - total_model_ms - total_tool_ms
 
         return TaskResult(
