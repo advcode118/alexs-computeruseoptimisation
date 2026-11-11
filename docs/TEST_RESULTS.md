@@ -359,6 +359,31 @@ What was run: the live smoke once, then script_first only, gpt-6-luna, `--effort
 
 **Odd or worth knowing.** (1) The two smoke timeouts were both first calls; in the probes no call timed out. If the client opens a fresh connection per process, the first call of a run could be a timeout. (2) All 4 wrong accepts scored p(task_done) 1.00 on soft FAILs about the answer or evidence (`evidence_not_on_page`, `answer_not_in_text`, `claimed_url_mismatch`): Decisions judged that the page was right, not that the answer was. (3) Six of the 13 overturned tasks are ones `off` also failed.
 
+### 7d. Plain rules and the narrower Decisions gate, live (11 Nov 2026, PR #50 + PR #49)
+
+What was run: from `t3/decisions-second-opinion` after merging `t3/runtime-plain-rules` and narrowing the gate (overturn only if p(answer_needed) <= 0.2). script_first only, gpt-6-luna, `--effort medium`, the same 50 held-out tasks as 7b and 7c, six separate processes alternating `--decisions-check off`, `on`, `off`, `on`, `off`, `on`. Rows: `docs/results/rules_{off,on}_run{1,2,3}_luna_medium_20261111.jsonl`. OpenAI ledger $3.1065 before, $3.2185 after (+$0.112). Claude API spend: $0.
+
+| Run | Pass /50 | Median s (all / fail) | USD |
+| --- | --- | --- | --- |
+| off 1 | 31 | 4.71 / 5.00 | $0.0153 |
+| on 1 | 29 | 5.19 / 8.07 | $0.0238 |
+| off 2 | 36 | 5.28 / 6.34 | $0.0148 |
+| on 2 | 35 | 4.01 / 5.28 | $0.0217 |
+| off 3 | 31 | 4.05 / 6.28 | $0.0155 |
+| on 3 | 37 | 4.44 / 7.48 | $0.0208 |
+
+**Plain rules (check off).** 31, 36, 31: mean 32.7. The three earlier baseline runs on `t3/tip` gave 27, 30, 28 (mean 28.3). The ranges do not overlap. Across all six runs, 20 first runtime verdicts were PASS because of a rule (15 "answer is the live page URL", 5 "answer is in the page title or h1", 0 from dash folding), and all 20 passed the grade.
+
+**Decisions with the narrower gate (check on).** 29, 35, 37: mean 33.7.
+- 9 overturns; 3 passed the grade (precision 33%). All had p(answer_needed) 0.00.
+  - Passed: `ho_github_rust` (run 1, `no_return`, p 1.00), `ho_form_w3schools_action` (run 2, `script_error`, 0.97), `ho_find_crates_serde` (run 2, `no_return`, 1.00).
+  - Failed: `ho_page_wp_core` (run 1, `evidence_not_on_page`, 1.00), `ho_open_rust_vec` (runs 1 and 2, `evidence_not_on_page`, 1.00), `ho_open_redis_get` (run 1, `evidence_not_on_page`, 1.00), `ho_github_rust` (run 3, `evidence_not_on_page`, 1.00), `ho_nav_rust_result` (run 2, `evidence_not_on_page`, 0.99; wrong page).
+  - 5 of the 6 failed overturns failed the grade on "returned evidence is not on the page". The grade runs the same key_text check that gave the runtime FAIL, so overturning an `evidence_not_on_page` FAIL cannot pass the grade unless the URL alone decides it.
+- 14 targeted repairs (all p(answer_needed) 1.00); 1 then passed (`ho_find_arxiv_resnet`, run 3).
+- 149 Decisions calls, 0 errors or timeouts. Per-task Decisions time (in-run plus after-clock calls summed) median 299 ms, max 911 ms.
+
+**Verdict against the rule fixed in advance** (at least 6 overturns, at least 90% graded pass, mean `on` not below mean `off`): 9 overturns (met), 33% graded pass (not met), mean 33.7 vs 32.7 (met). **Decisions does not meet the rule.** The plain rules alone account for the gain over the earlier baseline.
+
 ---
 
 ## 8. Source files
