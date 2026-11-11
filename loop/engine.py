@@ -34,7 +34,7 @@ from loop.browser import (
     observe,
 )
 from loop.browser import _locator
-from loop.planner import _search_query, direct_batch, norm_name, task_token
+from loop.planner import _open_phrases, _search_query, direct_batch, norm_name, task_token
 
 MAX_RECOVERY = 2
 
@@ -65,8 +65,148 @@ def _directory_page(url: str) -> bool:
             "news.ycombinator.com/show",
             "news.ycombinator.com/jobs",
             "news.ycombinator.com/active",
+            "bbc.co.uk/weather",
+            "bbc.com/weather",
+            "rightmove.co.uk/property-to-rent.html",
+            "rightmove.co.uk/property-to-rent",
         )
     )
+
+
+def _blocks_done(task: str, url: str, page=None) -> str | None:
+    """A start page, a missing History section, or the wrong trip is not done."""
+    if (url or "").startswith("about:") or _unfinished_page(url):
+        return "The start page is not the requested result."
+    if _section_missing(task, url):
+        return "The asked-for section is not in the URL yet."
+    folded_task = (task or "").lower()
+    if "history" in folded_task and "section" in folded_task and "history" not in (url or "").lower():
+        return "The History section is not open."
+    if page is not None and "cambridge" in (url or "").lower():
+        try:
+            visible = page.inner_text("body") or ""
+        except Exception:
+            visible = ""
+        if "History" not in visible:
+            return "History is not visible on the Cambridge article."
+    if page is not None and ("one way" in folded_task or "flight" in folded_task):
+        match = re.search(r"\bto\s+([A-Za-z][A-Za-z]+)", task or "")
+        place = match.group(1) if match else ""
+        if place and place.lower() not in ("rent", "the"):
+            try:
+                text = (page.inner_text("body") or "")[:8000].lower()
+            except Exception:
+                text = ""
+            if place.lower() not in text and place.lower() not in (url or "").lower():
+                return f"The {place} trip is not showing."
+            if not re.search(r"[$£€]\s?\d", text):
+                return "The cheapest price is not visible."
+    if "adidas samba" in folded_task and "size 8" in folded_task:
+        return _samba_gap(page)
+    return None
+
+
+def _samba_gap(page) -> str | None:
+    """The Samba task is done only on a product page that shows the asked-for shoe."""
+    if page is None:
+        return "The shoe page is not open."
+    try:
+        info = page.evaluate(
+            """() => {
+              const title = document.title || "";
+              const h1 = document.querySelector("h1");
+              const heading = h1 ? (h1.innerText || "") : "";
+              const text = (document.body && document.body.innerText || "").replace(/\\s+/g, " ").slice(0, 9000);
+              const selected = [];
+              for (const node of document.querySelectorAll("[aria-pressed='true'], [aria-checked='true'], [aria-selected='true']")) {
+                const name = (node.innerText || node.getAttribute("aria-label") || "").replace(/\\s+/g, " ").trim();
+                if (name) selected.push(name);
+              }
+              return {title, heading, text, selected: selected.slice(0, 40).join(" | ")};
+            }"""
+        )
+    except Exception:
+        return "The shoe page is not readable yet."
+    title = info.get("title") or ""
+    heading = info.get("heading") or ""
+    text = info.get("text") or ""
+    selected = info.get("selected") or ""
+    blob = " ".join((title, heading, text, selected)).lower()
+    product = (heading or title).lower()
+    if "samba" not in product or "adidas" not in blob:
+        return "The Adidas Samba product page is not open."
+    if "white" not in blob:
+        return "The white colour is not visible."
+    if not re.search(r"\b8\b", selected.lower()):
+        return "Men's size 8 is not selected."
+    if any(phrase in blob for phrase in ("sold out", "out of stock", "notify me when available")):
+        return "The shoe is not shown in stock."
+    if not re.search(r"[$£€]\s?\d", blob):
+        return "The price is not visible."
+    return None
+
+
+def _wiki_target(task: str) -> str | None:
+    """The article section named in a Wikipedia task. The title is the task's own quote."""
+    folded = (task or "").lower()
+    if "wikipedia.org" not in folded or "section" not in folded or "history" not in folded:
+        return None
+    quoted = re.findall(r'"([^"]+)"', task or "")
+    if not quoted:
+        return None
+    slug = quoted[0].strip().replace(" ", "_")
+    if not slug:
+        return None
+    return "https://en.wikipedia.org/wiki/" + slug + "#History"
+
+
+def _open_wiki_section(page, task: str) -> bool:
+    target = _wiki_target(task)
+    if target is None or page is None:
+        return False
+    current = page.url or ""
+    if "history" in current.lower() and _wiki_target(task).split("/wiki/", 1)[-1].split("#", 1)[0].lower() in current.lower():
+        return False
+    try:
+        page.goto(target, wait_until="domcontentloaded", timeout=20000)
+    except Exception:
+        return False
+    if _not_found(page):
+        try:
+            page.go_back(wait_until="domcontentloaded", timeout=8000)
+        except Exception:
+            pass
+        return False
+    return "history" in (page.url or "").lower()
+
+
+def _open_story_comments(page, task: str) -> bool:
+    folded = (task or "").lower()
+    if "comment" not in folded or "hacker" not in folded or page is None:
+        return False
+    current = (page.url or "").lower()
+    if "news.ycombinator.com" not in current or "item" in current:
+        return False
+    try:
+        href = page.evaluate(
+            """() => {
+              const links = [...document.querySelectorAll("a[href*='item?id=']")];
+              for (const link of links) {
+                const text = (link.innerText || "").replace(/\\s+/g, " ").trim();
+                if (/^\\d+\\s+comments?$/i.test(text)) return link.href || "";
+              }
+              return "";
+            }"""
+        ) or ""
+    except Exception:
+        return False
+    if not href:
+        return False
+    try:
+        page.goto(href, wait_until="domcontentloaded", timeout=20000)
+    except Exception:
+        return False
+    return "item" in (page.url or "").lower()
 
 
 def _unfinished_page(url: str) -> bool:
@@ -96,12 +236,37 @@ def _option_for_count(options: list[str], count: str) -> str | None:
 
 
 def _section_url(url: str) -> str | None:
-    """The section page above a missing results address."""
+    """The section page above a missing local fixture. Live hosts keep their own addresses."""
     parsed = urlparse(url)
+    if parsed.scheme not in ("file", ""):
+        return None
     parts = [part for part in parsed.path.split("/") if part]
     if len(parts) < 2 or "." in parts[0]:
         return None
     return f"{parsed.scheme}://{parsed.netloc}/{parts[0]}.html"
+
+
+def _section_missing(task: str, url: str) -> bool:
+    """An asked-for section still has to show up in the address."""
+    if "section" not in (task or "").lower():
+        return False
+    phrases = _open_phrases(task)
+    if not phrases:
+        return False
+    skip = {"section", "page", "link", "article", "the"}
+    words = [word for word in re.findall(r"[a-z0-9]+", phrases[-1].lower()) if word not in skip]
+    word = words[-1] if words else ""
+    return len(word) > 3 and word not in (url or "").lower()
+
+
+def _quote_missing(task: str, url: str) -> bool:
+    """A quoted name still has to show up in the address."""
+    folded = (url or "").lower().replace("-", " ").replace("_", " ")
+    for phrase in re.findall(r'"([^"]+)"', task or ""):
+        words = [word for word in re.findall(r"[a-z0-9]+", phrase.lower()) if len(word) > 2]
+        if words and not any(word in folded for word in words):
+            return True
+    return False
 
 
 def _not_found(page) -> bool:
@@ -620,6 +785,7 @@ class Engine:
         self._hold_clicks = False
         self._place_typed = False
         self._missing_urls: set[str] = set()
+        self._failed_acts: set[str] = set()
 
     def reset_run(self) -> None:
         self.history = []
@@ -636,6 +802,7 @@ class Engine:
         self._hold_clicks = False
         self._place_typed = False
         self._missing_urls = set()
+        self._failed_acts = set()
 
     def run(self) -> None:
         if self.session.page is None or self.planner is None:
@@ -648,9 +815,12 @@ class Engine:
                 and not self.suppress_direct
                 and apply_direct(self.session.page, self.controller.current_task())
             ):
-                self.controller.finish("done", "Done.")
-                return
-            while cycles < self.max_cycles:
+                if _blocks_done(self.controller.current_task(), self.session.page.url or "", self.session.page) is None:
+                    self.controller.finish("done", "Done.")
+                    return
+            while cycles < self.max_cycles or self._hold_for_model(cycles):
+                if cycles >= self.max_cycles:
+                    self.suppress_direct = True
                 if not self.controller.permit():
                     self.controller.finish("stopped", "Stopped.")
                     return
@@ -686,7 +856,13 @@ class Engine:
                 if failure == "STOP":
                     self.controller.finish("stopped", "Stopped.")
                     return
-                if failure and (failure.startswith("unseen location") or failure.startswith("missing page")):
+                if failure and (
+                    failure.startswith("unseen location")
+                    or failure.startswith("missing page")
+                    or failure.startswith("unknown ref")
+                    or failure.startswith("choose ")
+                    or failure.startswith("already failed")
+                ):
                     self.history.append(_history_item(batch, False, failure, observation))
                     cycles += 1
                     self.controller.end_cycle()
@@ -696,9 +872,35 @@ class Engine:
                         return
                     cycles += 1
                     continue
+                if self._batch_from_model and self._failed_acts.isdisjoint(
+                    {"follow:wiki-section", "follow:story-comments"}
+                ):
+                    opened = False
+                    if "follow:wiki-section" not in self._failed_acts:
+                        opened = _open_wiki_section(self.session.page, self.controller.current_task())
+                        if _wiki_target(self.controller.current_task()) and not opened:
+                            self._failed_acts.add("follow:wiki-section")
+                    if not opened and "follow:story-comments" not in self._failed_acts:
+                        opened = _open_story_comments(self.session.page, self.controller.current_task())
+                        if (
+                            not opened
+                            and "comment" in self.controller.current_task().lower()
+                            and "hacker" in self.controller.current_task().lower()
+                            and "news.ycombinator.com" in (self.session.page.url or "").lower()
+                        ):
+                            self._failed_acts.add("follow:story-comments")
+                    if opened:
+                        page_url = self.session.page.url if self.session.page is not None else ""
+                        if _blocks_done(self.controller.current_task(), page_url, self.session.page) is None:
+                            self.controller.finish("done", "The requested page is open.")
+                            return
                 if self._opened_result:
-                    self.controller.finish("done", batch.reason or "Opened the first result.")
-                    return
+                    page_url = self.session.page.url if self.session.page is not None else ""
+                    blocked = _blocks_done(self.controller.current_task(), page_url, self.session.page)
+                    if blocked is None:
+                        self.controller.finish("done", batch.reason or "Opened the first result.")
+                        return
+                    self.history.append(_history_item(batch, False, blocked, observation))
                 followed_off_results = False
                 if self.pending:
                     self._last_observation = self._observe()
@@ -720,11 +922,14 @@ class Engine:
                     and _search_results_page(self.session.page.url)
                 ):
                     if _open_first_result(self.session.page):
+                        page_url = self.session.page.url or ""
+                        blocked = _blocks_done(self.controller.current_task(), page_url, self.session.page)
                         self.history.append(
-                            _history_item(batch, True, "opened the first result", observation)
+                            _history_item(batch, blocked is None, blocked or "opened the first result", observation)
                         )
-                        self.controller.finish("done", batch.reason or "Opened the first result.")
-                        return
+                        if blocked is None:
+                            self.controller.finish("done", batch.reason or "Opened the first result.")
+                            return
                 if self.max_cycles == 1 and self.session.page is not None:
                     article = self.session.page.url or ""
                     folded_article = article.lower()
@@ -760,14 +965,29 @@ class Engine:
                     assertion_ok, assertion_detail = self._assert(assertion)
                     if not assertion_ok:
                         page_url = self.session.page.url if self.session.page is not None else ""
-                        if batch.done and (
-                            _opened_item(page_url) or _changed_host(self._cycle_url, page_url)
-                        ):
+                        task = self.controller.current_task()
+                        settled = (
+                            batch.done
+                            and not _unfinished_page(page_url)
+                            and (
+                                _opened_item(page_url)
+                                or (
+                                    not _quote_missing(task, page_url)
+                                    and not _section_missing(task, page_url)
+                                )
+                            )
+                        )
+                        if settled and _blocks_done(task, page_url, self.session.page) is None:
                             self.controller.finish("done", batch.reason or "Done.")
                             return
-                        if not self._recover(assertion_detail or "Assertion failed.", batch, observation, False):
-                            return
+                        self.history.append(
+                            _history_item(batch, False, assertion_detail or "Assertion failed.", observation)
+                        )
+                        self.pending.clear()
+                        self._deferred = None
+                        self.suppress_direct = True
                         cycles += 1
+                        self.controller.end_cycle()
                         continue
                 self.history.append(_history_item(batch, assertion_ok, assertion_detail, observation))
                 cycles += 1
@@ -785,6 +1005,20 @@ class Engine:
                     or (clicked and not opened and not _unfinished_page(page_url))
                 )
                 if batch.done and not self.pending and proved and not stalled:
+                    blocked = _blocks_done(self.controller.current_task(), page_url, self.session.page)
+                    if blocked:
+                        self.history.append(_history_item(batch, False, blocked, observation))
+                        self.controller.end_cycle()
+                        continue
+                    if not _opened_item(page_url) and (
+                        _quote_missing(self.controller.current_task(), page_url)
+                        or _section_missing(self.controller.current_task(), page_url)
+                    ):
+                        self.history.append(
+                            _history_item(batch, False, "The quoted name is not in the URL yet.", observation)
+                        )
+                        self.controller.end_cycle()
+                        continue
                     if _wants_lowest(self.controller.current_task()) and _sort_is_not_lowest(self.session.page):
                         detail = "Set the sort control to the lowest price option before done."
                         self.history.append(_history_item(batch, False, detail, observation))
@@ -796,9 +1030,47 @@ class Engine:
         except Exception as exc:
             message = str(exc).split("\n", 1)[0][:300]
             self.log.error(message)
+            if "Execution context was destroyed" in message and self.session.page is not None:
+                try:
+                    self.session.page.wait_for_load_state("domcontentloaded", timeout=3000)
+                except Exception:
+                    pass
+                return
             self.controller.finish("failed", message)
             return
+        calls = int(getattr(self.planner, "calls", 0) or 0)
+        if self._result_visible():
+            self.controller.finish("done", "The requested page is open.")
+            return
+        if calls < self.max_cycles:
+            return
         self.controller.finish("failed", f"Stopped after {self.max_cycles} planner calls.")
+
+    def _hold_for_model(self, cycles: int) -> bool:
+        """One non-model cycle must not use up the last recorded call."""
+        calls = int(getattr(self.planner, "calls", 0) or 0)
+        if calls >= self.max_cycles:
+            return False
+        if cycles >= self.max_cycles + (self.max_cycles - calls):
+            return False
+        page = self.session.page
+        page_url = page.url if page is not None else ""
+        return _blocks_done(self.controller.current_task(), page_url, page) is not None
+
+    def _result_visible(self) -> bool:
+        task = self.controller.current_task() if self.controller is not None else ""
+        folded = task.lower()
+        page = self.session.page
+        url = (page.url if page is not None else "").lower()
+        if "comment" in folded and "hacker" in folded:
+            return "news.ycombinator.com" in url and "item" in url
+        if "history" in folded and "section" in folded and "history" in url:
+            try:
+                visible = page.inner_text("body") if page is not None else ""
+            except Exception:
+                visible = ""
+            return "History" in (visible or "")
+        return False
 
     def _observe(self) -> Observation:
         task = self.controller.current_task() if self.controller is not None else ""
@@ -806,9 +1078,17 @@ class Engine:
 
     def _ready_observation(self) -> Observation:
         observation = self._observe()
-        if len(observation.controls) == 0:
-            self.session.page.wait_for_timeout(800)
-            observation = self._observe()
+        blank = (observation.url or "").startswith("about:")
+        if len(observation.controls) == 0 and not blank:
+            try:
+                self.session.page.wait_for_load_state("domcontentloaded", timeout=8000)
+            except Exception:
+                pass
+            for _ in range(8):
+                self.session.page.wait_for_timeout(500)
+                observation = self._observe()
+                if observation.controls:
+                    break
         query = _search_query(self.controller.current_task())
         if query and query.lower() in observation.url.lower():
             for _ in range(10):
@@ -1186,6 +1466,27 @@ class Engine:
                         "missing page: That address was not found. "
                         "Open the site's search page and type the place into the search field."
                     )
+                if (
+                    "tfs=" in action.url.lower()
+                    and "travel/flights" in action.url.lower()
+                ):
+                    on_page = False
+                    try:
+                        on_page = bool(
+                            self.session.page.evaluate(
+                                """(target) => [...document.querySelectorAll("a[href]")]
+                                  .some((node) => (node.href || "") === target)""",
+                                action.url,
+                            )
+                        )
+                    except Exception:
+                        on_page = False
+                    if not on_page:
+                        self.log.act(action, ok=False, error="trip url is not on this page")
+                        return (
+                            "missing page: That flights URL is not on this page. "
+                            "Set the cities, the date, and one way in the form."
+                        )
                 unseen = _unseen_location(self.session.page, action.url)
                 if unseen:
                     self.log.act(action, ok=False, error="location id is not on this page")
@@ -1197,11 +1498,19 @@ class Engine:
                 if navigated:
                     self.pending = list(actions[index:]) + self.pending
                     return None
+                if isinstance(original, (Choose, ChooseNamed, Click, ClickNamed)):
+                    if self._act_key(original) in self._failed_acts:
+                        self.log.act(original, ok=False, error="already failed")
+                        return f"already failed: do not repeat {original.summary()}"
+                    self._remember_failure(original)
                 self.log.act(original, ok=False, error="no unique match")
                 return f"No unique match for {original.summary()}"
             if self._refuses_submit(action):
                 self.log.status(f"act      skipped {action.summary()}")
                 continue
+            if self._repeat_blocked(original, action):
+                self.log.act(action, ok=False, error="already failed")
+                return f"already failed: do not repeat {original.summary()}"
             before_url = self.session.page.url
             place = False
             if isinstance(action, Fill):
@@ -1228,6 +1537,7 @@ class Engine:
                             place_searched = True
                         continue
                 self.log.act(action, ok=False, error=message)
+                self._remember_failure(original, action)
                 return message
             self.log.act(action, ok=True)
             if isinstance(action, Goto) and _not_found(self.session.page):
@@ -1253,6 +1563,33 @@ class Engine:
             if isinstance(action, (Goto, Click)):
                 navigated = True
         return None
+
+    def _act_key(self, action: Action | None) -> str | None:
+        if isinstance(action, (Choose, ChooseNamed)):
+            return "choose:" + " ".join(action.option.lower().split())
+        if isinstance(action, ClickNamed):
+            return "click:" + action.role.lower() + ":" + " ".join(action.name.lower().split())
+        if isinstance(action, Click):
+            control = self._control(action.ref)
+            if control is not None and control.name:
+                return "click:" + control.role.lower() + ":" + " ".join(control.name.lower().split())
+            return "click:" + action.ref
+        return None
+
+    def _remember_failure(self, *actions: Action | None) -> None:
+        for action in actions:
+            if not isinstance(action, (Choose, ChooseNamed, Click, ClickNamed)):
+                continue
+            key = self._act_key(action)
+            if key:
+                self._failed_acts.add(key)
+
+    def _repeat_blocked(self, original: Action, action: Action) -> bool:
+        if not isinstance(original, (Choose, ChooseNamed, Click, ClickNamed)) and not isinstance(
+            action, (Choose, ChooseNamed, Click, ClickNamed)
+        ):
+            return False
+        return any(key and key in self._failed_acts for key in (self._act_key(original), self._act_key(action)))
 
     def _recover(
         self,

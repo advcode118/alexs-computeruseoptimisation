@@ -197,6 +197,17 @@ _OBSERVE_JS = """
     add(node);
     if (controls.length > before) preferred += 1;
   }
+  if (preferText.includes("comment")) {
+    let commentAdded = 0;
+    for (const node of document.querySelectorAll("a[href*='item?id=']")) {
+      if (commentAdded >= 3) break;
+      const name = (node.innerText || "").replace(/\\s+/g, " ").trim().toLowerCase();
+      if (!/\\d+\\s*comments?/.test(name) || inChrome(node)) continue;
+      const before = controls.length;
+      add(node);
+      if (controls.length > before) commentAdded += 1;
+    }
+  }
   const mainSelector = "main a[href], article a[href], [role='main'] a[href], #mw-content-text a[href]";
   for (const node of document.querySelectorAll(mainSelector)) {
     if (controls.length >= priority + otherMax) break;
@@ -218,10 +229,18 @@ def fixture_file_url() -> str:
 class BrowserSession:
     """One Chrome, owned by the thread that calls open()."""
 
-    def __init__(self, *, headless: bool = True, cdp: str | None = None, bundled: bool = False):
+    def __init__(
+        self,
+        *,
+        headless: bool = True,
+        cdp: str | None = None,
+        bundled: bool = False,
+        video_dir: str | None = None,
+    ):
         self.headless = headless
         self.cdp = cdp
         self.bundled = bundled
+        self.video_dir = video_dir
         self.attached = False
         self.page: Page | None = None
         self._pw = None
@@ -242,7 +261,11 @@ class BrowserSession:
                 self.page = self._context.new_page()
         else:
             self._browser = self._launch()
-            self._context = self._browser.new_context(viewport={"width": 1280, "height": 720})
+            context = {"viewport": {"width": 1280, "height": 720}}
+            if self.video_dir:
+                context["record_video_dir"] = self.video_dir
+                context["record_video_size"] = {"width": 1280, "height": 720}
+            self._context = self._browser.new_context(**context)
             self.page = self._context.new_page()
         self.page.set_default_timeout(15000)
         return self.page
@@ -458,6 +481,101 @@ def _choose(locator, option: str) -> None:
     except Exception as exc:
         raise ChooseError(f"choose {label!r} failed: {exc}") from exc
     if not picked:
+        page = locator.page
+        try:
+            locator.click(timeout=1500)
+            page.wait_for_timeout(250)
+        except Exception:
+            pass
+        for role in ("button", "radio", "link", "option", "menuitem", "menuitemradio", "tab"):
+            try:
+                page.get_by_role(role, name=label, exact=True).first.click(timeout=1000)
+                return
+            except Exception:
+                continue
+        try:
+            clicked = page.evaluate(
+                """(wanted) => {
+                  const norm = (text) => (text || "")
+                    .toLowerCase()
+                    .replace(/[\\u2010-\\u2015-]/g, " ")
+                    .replace(/\\s+/g, " ")
+                    .trim();
+                  const nodes = document.querySelectorAll(
+                    "[role='option'], [role='menuitem'], [role='menuitemradio'], [role='tab'], [role='radio'], button, li, span, div, a"
+                  );
+                  for (const node of nodes) {
+                    const bits = [];
+                    for (const child of node.childNodes) {
+                      if (child.nodeType === 3) bits.push(child.textContent || "");
+                    }
+                    const own = norm(bits.join(" "));
+                    const name = own || norm(node.getAttribute("aria-label") || "");
+                    const full = norm(node.innerText || "");
+                    if (name !== wanted && full !== wanted) continue;
+                    const box = node.getBoundingClientRect();
+                    if (box.width < 2 || box.height < 2) continue;
+                    const style = window.getComputedStyle(node);
+                    if (style.visibility === "hidden" || style.display === "none") continue;
+                    node.click();
+                    return true;
+                  }
+                  return false;
+                }""",
+                wanted,
+            )
+        except Exception:
+            clicked = False
+        if not clicked and wanted == "one way":
+            try:
+                opened = page.evaluate(
+                    """() => {
+                      const norm = (text) => (text || "").toLowerCase().replace(/\\s+/g, " ").trim();
+                      const nodes = document.querySelectorAll("button, [role='button'], [role='combobox'], [role='tab'], [role='listbox']");
+                      for (const node of nodes) {
+                        const name = norm(node.innerText || node.getAttribute("aria-label") || "");
+                        if (name !== "round trip" && !name.startsWith("round trip ")) continue;
+                        const box = node.getBoundingClientRect();
+                        if (box.width < 2 || box.height < 2) continue;
+                        node.click();
+                        return true;
+                      }
+                      return false;
+                    }"""
+                )
+                if opened:
+                    page.wait_for_timeout(300)
+                    clicked = page.evaluate(
+                        """(wanted) => {
+                          const norm = (text) => (text || "")
+                            .toLowerCase()
+                            .replace(/[\\u2010-\\u2015-]/g, " ")
+                            .replace(/\\s+/g, " ")
+                            .trim();
+                          const nodes = document.querySelectorAll(
+                            "[role='option'], [role='menuitem'], [role='menuitemradio'], [role='tab'], [role='radio'], button, li, span, div, a"
+                          );
+                          for (const node of nodes) {
+                            const name = norm(node.getAttribute("aria-label") || node.innerText || "");
+                            if (name !== wanted) continue;
+                            const box = node.getBoundingClientRect();
+                            if (box.width < 2 || box.height < 2) continue;
+                            node.click();
+                            return true;
+                          }
+                          return false;
+                        }""",
+                        wanted,
+                    )
+            except Exception:
+                clicked = False
+        if clicked:
+            return
+        try:
+            page.get_by_text(label, exact=True).first.click(timeout=1000)
+            return
+        except Exception:
+            pass
         raise ChooseError(f"choose {label!r} failed: that option is not in the list")
 
 

@@ -1,0 +1,17 @@
+{
+  "deepseek": 0.0,
+  "claude": 0.0531,
+  "rows": [
+    {
+      "task": "samba",
+      "result": "fail",
+      "seconds": 50.3,
+      "calls": 12,
+      "fact": "",
+      "note": "no action",
+      "url": "https://www.adidas.com/",
+      "deepseek": 0.0,
+      "claude": 0.0531
+    }
+  ]
+}
