@@ -856,6 +856,69 @@ def test_visible_answer_is_not_invented_by_the_harness():
     assert "canonical" in page.log[-1][1]
 
 
+def test_script_first_does_not_reread_a_page_it_already_judged(monkeypatch):
+    """The shared check reuses the read that judged the script.
+
+    A missing page body, or a missing marked title, still reads. Another arm
+    still reads even when a step already carries text. The Hacker News title
+    stays the exact marked value from the first read.
+    """
+    from bench.harness import StepMetrics
+
+    calls: list[str] = []
+
+    async def read_again(client, selector):
+        del client
+        calls.append(selector)
+        return "replacement text", "replacement title"
+
+    monkeypatch.setattr("bench.script_first.read_marked_page", read_again)
+
+    def step(*, page_text: str, selector_text: str) -> StepMetrics:
+        return StepMetrics(
+            step_number=1,
+            tool_name="run_script",
+            tool_args={},
+            tool_result_size=1,
+            snapshot_tokens=0,
+            model_time_ms=0.0,
+            tool_time_ms=0.0,
+            input_tokens=0,
+            output_tokens=0,
+            page_url="https://news.ycombinator.com/",
+            page_text=page_text,
+            selector_text=selector_text,
+        )
+
+    harness = BenchmarkHarness(api_key="local-test", arm="script_first")
+    harness.mcp_client = object()
+    judged = step(page_text="Show HN\nSecond story", selector_text="Show HN")
+    asyncio.run(harness._read_shared_page("wv_hackernews_top", [judged]))
+    wiki = step(page_text="Ada Lovelace was a mathematician.", selector_text="")
+    asyncio.run(harness._read_shared_page("wv_wikipedia_search", [wiki]))
+    assert calls == []
+    assert judged.page_text == "Show HN\nSecond story"
+    assert judged.selector_text == "Show HN"
+    assert wiki.page_text == "Ada Lovelace was a mathematician."
+
+    missing_title = step(page_text="Show HN\nSecond story", selector_text="")
+    asyncio.run(harness._read_shared_page("wv_hackernews_top", [missing_title]))
+    empty = step(page_text="", selector_text="")
+    asyncio.run(harness._read_shared_page("wv_wikipedia_search", [empty]))
+    assert calls == [".titleline a", ""]
+    assert missing_title.selector_text == "replacement title"
+    assert missing_title.page_text == "replacement text"
+    assert empty.page_text == "replacement text"
+
+    other = BenchmarkHarness(api_key="local-test", arm="playwright_mcp")
+    other.mcp_client = object()
+    carried = step(page_text="Show HN\nSecond story", selector_text="Show HN")
+    asyncio.run(other._read_shared_page("wv_hackernews_top", [carried]))
+    assert calls[-1] == ".titleline a"
+    assert carried.page_text == "replacement text"
+    assert carried.selector_text == "replacement title"
+
+
 def test_script_first_cache_breakpoint_is_sent_and_the_api_is_not_called(monkeypatch, tmp_path):
     """The stable prompt and tool schema carry the breakpoint. The request is not sent."""
     from bench.script_cache import PATCH_PROMPT, PATCH_TOOL
