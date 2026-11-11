@@ -321,6 +321,69 @@ Rows: `docs/results/heldout_luna_medium_20261111.jsonl`, `docs/results/heldout_s
 
 OpenAI spend for these runs: about $1.70 (ledger $1.338 to $3.034 of $20). Claude API spend: $0.
 
+### 7c. Decisions second opinion, live (11 Nov 2026, branch `t3/decisions-second-opinion`, PR #49)
+
+What was run: the live smoke once, then script_first only, gpt-6-luna, `--effort medium`, the same 50 held-out tasks as 7b, three separate processes: `--decisions-check off`, `on`, `shadow`. No client change was needed; the request shape was accepted first time. Rows: `docs/results/decisions_{off,on,shadow}_luna_medium_20261111.jsonl`. Claude API spend: $0. OpenAI ledger $3.0337 before, $3.1065 after (+$0.0727, smoke included).
+
+**Smoke (10 calls, 5 canned states x 2).** 8 answered, 2 timed out. Both timeouts were the first two calls, at the 1.5s hard limit (cold start). p50 220.8 ms, p95 1508 ms (that is the timeout; the 8 answered calls had p50 about 215 ms and max 609 ms). $0.00088 for the 8 priced calls. The canned wrong pages scored p(task_done) 0.00 and 0.11, the right pages 1.00.
+
+| Run | Pass /50 | Median s (all / pass / fail) | Total USD |
+| --- | --- | --- | --- |
+| off | 30 | 4.48 / 4.44 / 6.19 | $0.0186 |
+| on | 33 | 4.48 / 4.45 / 4.95 | $0.0231 |
+| shadow | 28 | 5.87 / 4.84 / 8.81 | $0.0301 |
+
+**Run-to-run noise is as large as the effect.** `off` and `shadow` behave identically (shadow only asks after the clock), yet 12 tasks flipped between them (7 pass-to-fail, 5 fail-to-pass), and the first script's runtime verdict differed on 17 of 50 tasks. The model's script differs from run to run. `off` 30 vs `on` 33 vs `shadow` 28 therefore does not show that `on` is better.
+
+**`on` run.** 48 Decisions calls (21 inside the timed run at a soft FAIL, 27 after the clock as `answer_ok` on plain PASS endings), 0 timeouts, 0 errors. In-run latency median 224 ms, max 487 ms; any call max 504 ms.
+- 13 overturns (soft FAIL turned into script_first's own PASS, repair skipped). 9 then passed the grade; 4 failed it, all wrong accepts at p(task_done) = 1.00:
+  - `ho_wiki_eiffel_city`: answer "Paris", "returned evidence is not on the page".
+  - `ho_table_calling_codes`: answer "81", URL does not contain the expected page (`claimed_url_mismatch`).
+  - `ho_table_html_tr`: answer "<tr>", "returned evidence is not on the page".
+  - `ho_open_rust_vec`: answer "Struct Vec Copy item path", "returned evidence is not on the page". (`off` failed this one too; `shadow` passed it.)
+- 2 targeted repairs (p(task_done) 1.00, but answer needed): `ho_find_wiki_gold` and `ho_table_iana_https`. Both still failed the grade (0 of 2 passed).
+- The other 6 soft FAILs had p(task_done) below 0.9 (0.00 to 0.50) and were repaired as before.
+- Of the 13 overturned tasks, `off` passed 7 and `shadow` passed 5; `on` passed 9. Of the 37 not overturned, `on` passed 24 and `off` 23.
+
+**Which tasks flipped, `off` to `on`, and why.** 11 flips. Decisions caused a flip only where `decisions_overturned` is true, the first runtime verdict matches `off`'s, and there was no repair turn. Otherwise the first script already differed, so the run diverged before Decisions could act (noise). Rows with no in-run Decisions call (`decisions_fail_code` empty) cannot have been changed by it.
+- Fail to pass, caused by an overturn: `ho_nodejs_fs_docs` (`off` and `shadow` both failed after repair; same first verdict `answer_not_in_text`).
+- Fail to pass, overturn on a different first script (`off` first verdict was `script_error`): `ho_page_jquery_blog`, `ho_page_wp_core`. The overturn passed them, so it helped, but the start differs from `off`.
+- Fail to pass, noise (no in-run call): `ho_iana_status_451`, `ho_nav_py_sqlite3`, `ho_form_httpbin_phone`, `ho_open_go_fmt`.
+- Pass to fail, `ho_wiki_eiffel_city`: `off`'s first script passed with no soft FAIL, `on`'s first script differed and was wrongly overturned. The overturn took away a repair that might have fixed it, but the divergence was before Decisions.
+- Pass to fail, `ho_form_internet_email`: `on`'s first script hit `script_error`, Decisions said p 0.05 so it repaired as before, and the repair failed. Not caused by Decisions; the block is only an effect of a different first script.
+- Pass to fail, noise (no in-run call): `ho_arxiv_attention`, `ho_nav_rust_result`.
+
+**`shadow` run.** 70 calls, 0 errors, median 233 ms, max 599 ms.
+- PASS endings, p(answer_ok) at threshold 0.5 against the grade: 31 scored (2 PASS endings had no p). 25 right and accepted, 2 right but rejected (`ho_rust_book_borrowing` 0.01, `ho_nav_rust_result` 0.02; both are URL-only answers), 2 wrong and accepted (`ho_nav_css_flex` 1.00, `ho_form_selenium_received` 0.99), 2 wrong and rejected. 27 of 31 agree.
+- Soft FAILs against `substring_success` (the URL check, the closest to "the page really was right"): 20 asked. would-overturn = true for 11 (7 URL right, 4 URL wrong); false for 9 (4 URL right, 5 URL wrong). 12 of 20 agree. The 0.90 threshold missed 4 URL-right pages and accepted 4 URL-wrong ones.
+
+**Odd or worth knowing.** (1) The two smoke timeouts were both first calls; in the probes no call timed out. If the client opens a fresh connection per process, the first call of a run could be a timeout. (2) All 4 wrong accepts scored p(task_done) 1.00 on soft FAILs about the answer or evidence (`evidence_not_on_page`, `answer_not_in_text`, `claimed_url_mismatch`): Decisions judged that the page was right, not that the answer was. (3) Six of the 13 overturned tasks are ones `off` also failed.
+
+### 7d. Plain rules and the narrower Decisions gate, live (11 Nov 2026, PR #50 + PR #49)
+
+What was run: from `t3/decisions-second-opinion` after merging `t3/runtime-plain-rules` and narrowing the gate (overturn only if p(answer_needed) <= 0.2). script_first only, gpt-6-luna, `--effort medium`, the same 50 held-out tasks as 7b and 7c, six separate processes alternating `--decisions-check off`, `on`, `off`, `on`, `off`, `on`. Rows: `docs/results/rules_{off,on}_run{1,2,3}_luna_medium_20261111.jsonl`. OpenAI ledger $3.1065 before, $3.2185 after (+$0.112). Claude API spend: $0.
+
+| Run | Pass /50 | Median s (all / fail) | USD |
+| --- | --- | --- | --- |
+| off 1 | 31 | 4.71 / 5.00 | $0.0153 |
+| on 1 | 29 | 5.19 / 8.07 | $0.0238 |
+| off 2 | 36 | 5.28 / 6.34 | $0.0148 |
+| on 2 | 35 | 4.01 / 5.28 | $0.0217 |
+| off 3 | 31 | 4.05 / 6.28 | $0.0155 |
+| on 3 | 37 | 4.44 / 7.48 | $0.0208 |
+
+**Plain rules (check off).** 31, 36, 31: mean 32.7. The three earlier baseline runs on `t3/tip` gave 27, 30, 28 (mean 28.3). The ranges do not overlap. Across all six runs, 20 first runtime verdicts were PASS because of a rule (15 "answer is the live page URL", 5 "answer is in the page title or h1", 0 from dash folding), and all 20 passed the grade.
+
+**Decisions with the narrower gate (check on).** 29, 35, 37: mean 33.7.
+- 9 overturns; 3 passed the grade (precision 33%). All had p(answer_needed) 0.00.
+  - Passed: `ho_github_rust` (run 1, `no_return`, p 1.00), `ho_form_w3schools_action` (run 2, `script_error`, 0.97), `ho_find_crates_serde` (run 2, `no_return`, 1.00).
+  - Failed: `ho_page_wp_core` (run 1, `evidence_not_on_page`, 1.00), `ho_open_rust_vec` (runs 1 and 2, `evidence_not_on_page`, 1.00), `ho_open_redis_get` (run 1, `evidence_not_on_page`, 1.00), `ho_github_rust` (run 3, `evidence_not_on_page`, 1.00), `ho_nav_rust_result` (run 2, `evidence_not_on_page`, 0.99; wrong page).
+  - 5 of the 6 failed overturns failed the grade on "returned evidence is not on the page". The grade runs the same key_text check that gave the runtime FAIL, so overturning an `evidence_not_on_page` FAIL cannot pass the grade unless the URL alone decides it.
+- 14 targeted repairs (all p(answer_needed) 1.00); 1 then passed (`ho_find_arxiv_resnet`, run 3).
+- 149 Decisions calls, 0 errors or timeouts. Per-task Decisions time (in-run plus after-clock calls summed) median 299 ms, max 911 ms.
+
+**Verdict against the rule fixed in advance** (at least 6 overturns, at least 90% graded pass, mean `on` not below mean `off`): 9 overturns (met), 33% graded pass (not met), mean 33.7 vs 32.7 (met). **Decisions does not meet the rule.** The plain rules alone account for the gain over the earlier baseline.
+
 ---
 
 ## 8. Source files

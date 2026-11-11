@@ -931,6 +931,11 @@ async def run_claude_arm(
             "claimed_answer": claimed_answer,
             "expected_value": selector_text,
         }
+        if arm == ARM_SCRIPT_FIRST:
+            # The first runtime verdict survives a repair. Decisions fields are logged only.
+            row["first_runtime_reason"] = result.first_runtime_reason
+            row["first_runtime_code"] = result.first_runtime_code
+            row.update(result.decisions)
         if provider == "openai":
             from bench.openai_spend import price_usd
 
@@ -1592,6 +1597,28 @@ def main(argv: list[str] | None = None) -> int:
         help="Run gpt-6-luna and gpt-6.1-sol at every accepted effort. One task. Caps at $5 and $15.",
     )
     parser.add_argument(
+        "--decisions-check",
+        default="off",
+        help=(
+            "script_first only, --provider openai only. off (default) changes nothing. "
+            "on asks the OpenAI Decisions API (gpt-6-luna) on a soft runtime FAIL before the repair, "
+            "inside the timed run, and skips the repair when p(task_done) reaches the accept threshold. "
+            "shadow asks after the clock stops and changes nothing. Never used in grading."
+        ),
+    )
+    parser.add_argument(
+        "--decisions-accept",
+        type=float,
+        default=None,
+        help="p(task_done) needed to overturn a soft FAIL in mode on. Default 0.90.",
+    )
+    parser.add_argument(
+        "--decisions-timeout",
+        type=float,
+        default=None,
+        help="Hard timeout in seconds for one Decisions call. Default 1.5. A timeout is no opinion.",
+    )
+    parser.add_argument(
         "--sweep-task",
         action="store_true",
         help="With one OpenAI model, use the one-task sweep subset instead of the full Claude split.",
@@ -1609,6 +1636,21 @@ def main(argv: list[str] | None = None) -> int:
             one_task=args.sweep_task,
         )
         chosen_repeats = resolve_repeats(args.repeats)
+        from bench.decisions import MODE_OFF, parse_mode
+
+        decisions_mode = parse_mode(args.decisions_check)
+        if decisions_mode != MODE_OFF and request["provider"] != "openai":
+            raise ValueError("--decisions-check needs --provider openai; its spend is on the OpenAI ledger.")
+        if args.decisions_accept is not None and not 0.5 < args.decisions_accept <= 1.0:
+            raise ValueError("--decisions-accept must be above 0.5 and at most 1.0.")
+        if args.decisions_timeout is not None and not 0 < args.decisions_timeout <= 30:
+            raise ValueError("--decisions-timeout must be above 0 and at most 30 seconds.")
+        # The harness reads these when it is built. off leaves the run as it was.
+        os.environ["CU_DECISIONS_CHECK"] = decisions_mode
+        if args.decisions_accept is not None:
+            os.environ["CU_DECISIONS_ACCEPT"] = str(args.decisions_accept)
+        if args.decisions_timeout is not None:
+            os.environ["CU_DECISIONS_TIMEOUT_S"] = str(args.decisions_timeout)
         if args.honest:
             chosen = HONEST_ARMS
             chosen_split = SPLIT_HONEST
@@ -1623,22 +1665,20 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if request["provider"] == "openai":
             if not args.execute:
-                print(
-                    json.dumps(
-                        plan_openai_probe(
-                            arms=chosen,
-                            split=chosen_split,
-                            sweep=request["sweep"],
-                            model=request.get("model") or "",
-                            effort=request.get("effort") or "",
-                            one_task=request["one_task"],
-                            no_model_only=args.no_model_only,
-                            warm_replay=warm,
-                            honest=args.honest,
-                        ),
-                        indent=2,
-                    )
+                plan = plan_openai_probe(
+                    arms=chosen,
+                    split=chosen_split,
+                    sweep=request["sweep"],
+                    model=request.get("model") or "",
+                    effort=request.get("effort") or "",
+                    one_task=request["one_task"],
+                    no_model_only=args.no_model_only,
+                    warm_replay=warm,
+                    honest=args.honest,
                 )
+                if isinstance(plan, dict):
+                    plan["decisions_check"] = decisions_mode
+                print(json.dumps(plan, indent=2))
                 return 0
             rows = asyncio.run(
                 execute_probe(

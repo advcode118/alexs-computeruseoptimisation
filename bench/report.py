@@ -47,6 +47,17 @@ def _shown(row: dict, key: str) -> str:
     return str(value)
 
 
+def _decisions_shown(row: dict) -> str:
+    """Rows from a run with the Decisions check say so. Off and older rows add nothing."""
+    mode = row.get("decisions_check")
+    if mode in (None, "", "off"):
+        return ""
+    shown = f" decisions={mode}"
+    if row.get("decisions_overturned"):
+        shown += " overturned"
+    return shown
+
+
 def render(rows: list[dict]) -> str:
     """Per-task wall time, steps, tier, and the sum of saved dollars per arm."""
     lines: list[str] = []
@@ -68,10 +79,22 @@ def render(rows: list[dict]) -> str:
                 f"steps={_shown(row, 'steps')} tier={_shown(row, 'tier')} usd={_shown(row, 'usd')}"
                 + (f" effort={_shown(row, 'effort')}" if "effort" in row else "")
                 + (f" model={_shown(row, 'model')}" if row.get("provider") == "openai" else "")
+                + _decisions_shown(row)
             )
             if "usd" in row and row["usd"] not in ("", None):
                 saved += float(row["usd"])
         lines.append(f"  sum of usd in this file: {saved:.6f}")
+        checked = [row for row in subset if row.get("decisions_check") not in (None, "", "off")]
+        if checked:
+            modes = sorted({str(row["decisions_check"]) for row in checked})
+            calls = sum(int(row.get("decisions_calls") or 0) for row in checked)
+            spent_ms = sum(float(row.get("decisions_ms") or 0) for row in checked)
+            spent = sum(float(row.get("decisions_usd") or 0) for row in checked)
+            flipped = sum(1 for row in checked if row.get("decisions_overturned"))
+            lines.append(
+                f"  decisions check {','.join(modes)}: calls={calls} ms={spent_ms:.0f} "
+                f"overturned={flipped} usd={spent:.6f}"
+            )
     return "\n".join(lines)
 
 

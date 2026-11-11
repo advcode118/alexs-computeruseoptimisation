@@ -260,8 +260,29 @@ Next, in order:
    - The progress site: decide which site history is canonical (`main` vs the `cursor/progress-site-redesign-8676` line, PR #43). The live Vercel site was deployed from detached worktrees.
 5. **Leave open:** PRs #45 (failure taxonomy) and #46 (check_page MCP tests) need a review and stay stacked where they are.
 
+## 11 Nov 2026: Decisions second opinion on script_first (branch `t3/decisions-second-opinion`)
+
+**Why.** On the held-out run, 11 of Luna's 23 script_first failures are false rejects. The script ended on the right page, but `runtime_verdict` (plain string matching) said FAIL. Examples: the answer was the page URL, or a title with a different dash, or nothing at all. The harness then asked for a repair, and the model ended without a script. Sol has 2 of these.
+
+**What it adds.** An offline-tested, opt-in second opinion from OpenAI's Decisions API (`POST /v1/decisions`, `gpt-6-luna`), asked just before script_first would spend its repair turn.
+- `bench/decisions.py`: the client (1.5s hard timeout; any error, refusal or timeout means "no opinion" and the run repairs as before) and the payload builder. The builder takes only what the run saw: the task, start and live URL, title, h1, the script's answer and key_text, the runtime FAIL reason, and the first 6,000 characters of page text. It has no parameter that could carry `end_markers`, `expected_answer` or `check_url_contains`.
+- `EvidenceVerdict.code`: each runtime FAIL now has a code. `runtime_verdict`'s rules are unchanged. A FAIL is hard (never asked) when there is no web page, the evidence is empty, or the script ended on the start page and returned nothing.
+- `--decisions-check off|shadow|on` on `bench.probe` (OpenAI provider only, default `off`). `off` sends the same requests as before. `on` asks once per task on a soft FAIL inside the timed run. At p(task_done) >= 0.90 it overturns to script_first's own PASS and skips the repair. Below that, it repairs as before. `shadow` asks after the clock stops and changes nothing.
+- Rows keep `first_runtime_reason`/`first_runtime_code` (the real FAIL reason, which "Model ended without completing task" used to overwrite) and `decisions_*` fields. Decisions spend is its own entry on the OpenAI ledger, and the row's `usd` includes it.
+- The grade is untouched. An overturned PASS still has to pass the task's markers, like every other script_first PASS.
+- Overturn rule. `task_done` asks whether the page holds the information, not whether the run returned it, so p(task_done) >= 0.90 is not enough alone. The soft-FAIL request also asks `answer_needed` (does the task ask for a value to be reported back). With no returned answer, the overturn needs p(answer_needed) <= 0.2, and a refusal or missing value blocks it. With a returned answer, it needs p(answer_ok) >= 0.5 when `answer_ok` is available. Both numbers are constants beside the accept threshold, and the shadow "would overturn" estimate uses the same function.
+- Targeted repair. When the page looks done (p(task_done) >= 0.90) but the rule above blocks the overturn, the repair still goes out, worded as: the page looks right, the script returned no answer (or the returned answer does not answer the task), so read the value from the current page and return it without navigating away. It is built only from the live URL and run-visible facts. Every other repair keeps the old wording. Rows record `decisions_p_answer_needed` and `decisions_blocked` so policies can be compared later.
+
+**Not run live.** The A/B commands and the smoke command (`python -m bench.decisions_smoke --live`) are in the PR. A plain rule (accept an answer equal to the live URL) would fix 5 of Luna's 11 false rejects and 1 of Sol's 2. That belongs in a separate change.
+
 ## 11 Nov 2026: plain rules in script_first's runtime check (branch `t3/runtime-plain-rules`)
 
 **Why.** In the Decisions live run, 7 of the 9 right overturns were scripts whose answer was the page URL (4) or the page title (3). `runtime_verdict` failed them only because that answer is not in the body text. A plain rule fixes these with no model call.
 
 **What changed, in `runtime_verdict` only.** (1) An http(s) answer that is the same page as the live or canonical URL (`_same_page`) is not checked against the page text. (2) The answer check also looks in the page title and h1. (3) The answer check folds the common dash variants (hyphen, non-breaking hyphen, figure, en and em dash, horizontal bar, minus) on both sides; non-breaking spaces already fold through `str.split()`. This uses a separate `_norm_runtime`, so the grade's `_norm_answer` is unchanged. Rules 1 and 2 do not apply when the live page is the start page, so a script that never left the start page still gets its repair. A PASS from a rule says which rule in its reason. A URL answer for another page, or an answer found nowhere, still FAILs. Task markers and the grade are untouched.
+
+## 11 Nov 2026: narrower Decisions gate (branch `t3/decisions-second-opinion`, after merging `t3/runtime-plain-rules`)
+
+**Why.** In the live `on` run, the 3 overturns on tasks that ask for a value all failed the grade, and 9 of the 10 on open-a-page tasks passed.
+
+**What changed in `overturn_decision` (`bench/decisions.py`).** An overturn now needs p(task_done) >= the accept threshold and p(answer_needed) <= `ANSWER_NEEDED_MAX` (0.2), whether or not the script returned an answer. A missing or refused `answer_needed` means no overturn. `answer_ok` no longer affects the decision (it is still asked and logged); `ANSWER_OK_MIN` and the `answer_not_ok` block are gone. A value task with a high p(task_done) still gets the targeted repair: `answer_needed` when nothing came back, and the new `answer_needed_returned` (wording: "the returned answer is not confirmed by this page") when an answer came back.
