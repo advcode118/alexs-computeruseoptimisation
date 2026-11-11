@@ -259,3 +259,16 @@ Next, in order:
    - Mission 10 (CUO-33/34) has not started. `cursor/local-bench-holdout-a63b` may contain earlier work on it.
    - The progress site: decide which site history is canonical (`main` vs the `cursor/progress-site-redesign-8676` line, PR #43). The live Vercel site was deployed from detached worktrees.
 5. **Leave open:** PRs #45 (failure taxonomy) and #46 (check_page MCP tests) need a review and stay stacked where they are.
+
+## 11 Nov 2026: Decisions second opinion on script_first (branch `t3/decisions-second-opinion`)
+
+**Why.** On the held-out run, 11 of Luna's 23 script_first failures are false rejects. The script ended on the right page, but `runtime_verdict` (plain string matching) said FAIL. Examples: the answer was the page URL, or a title with a different dash, or nothing at all. The harness then asked for a repair, and the model ended without a script. Sol has 2 of these.
+
+**What it adds.** An offline-tested, opt-in second opinion from OpenAI's Decisions API (`POST /v1/decisions`, `gpt-6-luna`), asked just before script_first would spend its repair turn.
+- `bench/decisions.py`: the client (1.5s hard timeout; any error, refusal or timeout means "no opinion" and the run repairs as before) and the payload builder. The builder takes only what the run saw: the task, start and live URL, title, h1, the script's answer and key_text, the runtime FAIL reason, and the first 6,000 characters of page text. It has no parameter that could carry `end_markers`, `expected_answer` or `check_url_contains`.
+- `EvidenceVerdict.code`: each runtime FAIL now has a code. `runtime_verdict`'s rules are unchanged. A FAIL is hard (never asked) when there is no web page, the evidence is empty, or the script ended on the start page and returned nothing.
+- `--decisions-check off|shadow|on` on `bench.probe` (OpenAI provider only, default `off`). `off` sends the same requests as before. `on` asks once per task on a soft FAIL inside the timed run. At p(task_done) >= 0.90 it overturns to script_first's own PASS and skips the repair. Below that, it repairs as before. `shadow` asks after the clock stops and changes nothing.
+- Rows keep `first_runtime_reason`/`first_runtime_code` (the real FAIL reason, which "Model ended without completing task" used to overwrite) and `decisions_*` fields. Decisions spend is its own entry on the OpenAI ledger, and the row's `usd` includes it.
+- The grade is untouched. An overturned PASS still has to pass the task's markers, like every other script_first PASS.
+
+**Not run live.** The A/B commands and the smoke command (`python -m bench.decisions_smoke --live`) are in the PR. A plain rule (accept an answer equal to the live URL) would fix 5 of Luna's 11 false rejects and 1 of Sol's 2. That belongs in a separate change.

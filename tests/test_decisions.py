@@ -397,3 +397,26 @@ def test_mode_flag_and_provider_guard(monkeypatch):
         BenchmarkHarness(api_key="local-test", arm="script_first", decisions_check="on")
     other = BenchmarkHarness(api_key="local-test", arm="playwright_mcp", decisions_check="on")
     assert other.decisions_check == MODE_OFF
+
+
+def test_live_smoke_refuses_without_live_flag_or_key(monkeypatch):
+    from bench import decisions_smoke
+
+    def no_network(*args, **kwargs):
+        raise AssertionError("the smoke must not send anything")
+
+    monkeypatch.setattr(decisions_smoke, "_run", no_network)
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    assert decisions_smoke.main([]) == 2
+    monkeypatch.delenv("OPENAI_API_KEY")
+    assert decisions_smoke.main(["--live"]) == 2
+
+
+def test_report_marks_runs_with_the_check_on():
+    from bench.report import render
+
+    base = {"arm": "script_first", "task_id": "a", "usd": 0.001, "provider": "openai", "model": "gpt-6-luna"}
+    on = render([dict(base, decisions_check="on", decisions_calls=1, decisions_overturned=True)])
+    off = render([dict(base, decisions_check="off")])
+    assert "decisions=on overturned" in on and "decisions check on: calls=1" in on
+    assert "decisions" not in off
