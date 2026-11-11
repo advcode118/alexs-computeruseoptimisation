@@ -290,6 +290,39 @@ A Sonnet 5.5 `--honest` probe of [PR #30](https://github.com/advcode118/alexs-co
 
 ---
 
+## 7b. Held-out run, 50 tasks, no answer key (11 Nov 2026)
+
+Run from `t3/tip` after the script_first prompt and `repair_request` were made site-neutral (no Wikipedia or `Main_Page` hints). Split `held-out`, OpenAI, `--effort medium`, one run per task. Grading is identical for every arm. script_first never read task markers.
+
+**These numbers are without the answer-key oracle. They are not comparable to PR #27's 18/18 at 3.18s**: different tasks, a different model family, and no answer key.
+
+| Model | Arm | Pass /50 | Median s | p90 s | Cost | FAIL / UNKNOWN (script_first) |
+| --- | --- | --- | --- | --- | --- | --- |
+| gpt-6-luna | script_first | 27 | 6.0 | 15.8 | $0.018 | 18 / 1 (4 more passed the URL check but failed the evidence check) |
+| gpt-6-luna | playwright_mcp | 28 | 13.0 | 27.0 | $0.088 | n/a |
+| gpt-6-luna | browser_use | 40 | 20.3 | 34.6 | $0.059 | n/a |
+| gpt-6.1-sol | script_first | 37 | 4.1 | 7.6 | $0.241 | 11 / 0 |
+| gpt-6.1-sol | playwright_mcp | 38 | 13.8 | 22.1 | $0.501 | n/a |
+| gpt-6.1-sol | browser_use | 41 | 13.8 | 20.9 | $0.714 | n/a |
+
+Only script_first reports FAIL vs UNKNOWN; the other arms report pass or fail only.
+
+**Reading it.** script_first is the fastest and cheapest arm, but it **loses on pass count**: browser_use passes more with both models (Luna 40 vs 27, Sol 41 vs 37). With Luna, script_first is about level with playwright_mcp (27 vs 28); with Sol it is one behind (37 vs 38). Luna's browser_use cost is the lowest of the slow arms.
+
+Top failure reasons:
+- Luna script_first: "Model ended without completing task" (10), "answer does not satisfy the marker" (3), "returned evidence is not on the page" (2).
+- Luna playwright_mcp: "empty answer" (15).
+- Sol script_first: "returned evidence is not on the page" (4), "claimed URL does not match the live page" (2), "Model ended without completing task" (1).
+- Sol playwright_mcp: "empty answer" (3).
+- browser_use: a few URL or marker mismatches (1 each); no dominant cause.
+- Tasks that every arm failed include an MDN Flexbox URL, a testpages form-submit URL and the npm `jest` page.
+
+Rows: `docs/results/heldout_luna_medium_20261111.jsonl`, `docs/results/heldout_sol_medium_20261111.jsonl`. A first Luna run was killed by my 30-minute background limit at 95 of 150 rows (not a code bug) and was repeated in full; its rows are not used.
+
+OpenAI spend for these runs: about $1.70 (ledger $1.338 to $3.034 of $20). Claude API spend: $0.
+
+---
+
 ## 8. Source files
 
 | What | Where |

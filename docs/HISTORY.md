@@ -248,14 +248,11 @@ OpenAI spend this session was $0.0075. The ledger is at $1.338349 of $20. Claude
 - `bench/runs/` is gitignored, so both files are only on Tom's PC.
 
 Next, in order:
-1. **Run the held-out measurement** from `t3/tip`. Estimates, not measured: Luna about $0.10–0.30 and 30–40 minutes; Sol about $1.5–3.
-   `python -m bench.probe --execute --provider openai --model gpt-6-luna --effort medium --split held-out --arms script_first,playwright_mcp,browser_use`
-   The OpenAI key goes in `OPENAI_API_KEY`. The `browser-use==1.0.0` and `openai` packages are installed on Tom's PC.
-   Then the same command with `--model gpt-6.1-sol`. Report per-task wall time, steps and pass for each arm, compared with PR #27, which used the answer key.
-2. **Write the results** into `docs/TEST_RESULTS.md` and copy the jsonl to `docs/results/`.
+1. ~~Run the held-out measurement~~ **Done 11 Nov 2026** (Luna and Sol, medium, 50 tasks, no answer key). Results are in `docs/TEST_RESULTS.md` section 7b and `docs/results/heldout_*_20261111.jsonl`. script_first is fastest and cheapest but passes fewer tasks than browser_use.
+2. ~~Write the results~~ Done.
 3. **Claude comparison (optional, costs Claude API, needs Tom's go).** First point `CU_SPEND_LEDGER` at a file seeded to $26.022488. Then run `--honest`, which now uses 3 arms.
 4. **Not done yet:**
-   - The prompt and `repair_request` still name Wikipedia (`Main_Page`, `Special:Search`), which is tuned to the probe task. Make them generic or measure the effect.
+   - The prompt and `repair_request` were made site-neutral (done before the held-out run); the earlier tuned-prompt numbers are not comparable.
    - About 19 held-out tasks have a final URL that can be guessed from the task text (see PR #45/#48 notes). Replace some with tasks whose URL is not derivable.
    - There are no multi-step or SPA tasks yet.
    - Mission 6 harness gaps from #32: timeouts and browsers still differ between arms.
