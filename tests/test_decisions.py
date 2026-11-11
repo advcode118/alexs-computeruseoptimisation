@@ -80,8 +80,8 @@ class FakeDecisions:
         )
 
 
-def _url_answer(url: str = ARTICLE, nth: int = 1) -> str:
-    """A false reject: the right page, but the answer (its URL) is not in the page text."""
+def _wrong_answer(url: str = ARTICLE, nth: int = 1) -> str:
+    """A soft FAIL: a web page with text, but the returned answer is not on it."""
     return format_run_result(
         ok=True,
         url=url,
@@ -90,7 +90,7 @@ def _url_answer(url: str = ARTICLE, nth: int = 1) -> str:
         h1="Ada Lovelace",
         text="Ada Lovelace was an English mathematician.",
         selector_text=SECRET_SELECTOR,
-        claimed={"answer": url},
+        claimed={"answer": "Charles Babbage"},
     )
 
 
@@ -185,8 +185,12 @@ def _repairs(model) -> int:
     return json.dumps(model.seen).count("END_STATE_FAILED")
 
 
-def test_the_url_answer_is_a_soft_fail_and_the_start_page_is_hard():
-    verdict, payload = script_runtime_verdict(_url_answer(), ARTICLE, START)
+def test_an_answer_not_on_the_page_is_a_soft_fail_and_the_start_page_is_hard():
+    url_answer = format_run_result(
+        ok=True, url=ARTICLE, step_count=1, title="Ada Lovelace - Wikipedia", text="Ada.", claimed={"answer": ARTICLE}
+    )
+    assert script_runtime_verdict(url_answer, ARTICLE, START)[0].verdict == PASS
+    verdict, payload = script_runtime_verdict(_wrong_answer(), ARTICLE, START)
     assert verdict.verdict == FAIL and verdict.code == FAIL_ANSWER_NOT_IN_TEXT
     assert is_soft_fail(verdict, payload, ARTICLE)
     hard, hard_payload = script_runtime_verdict(_start_page_nothing(), START, START)
@@ -198,7 +202,7 @@ def test_the_url_answer_is_a_soft_fail_and_the_start_page_is_hard():
 
 def test_high_probability_overturns_and_sends_no_repair(tmp_path):
     client = FakeDecisions(p_done=0.95)
-    result, model = _run(tmp_path, [_url_answer()], mode=MODE_ON, client=client)
+    result, model = _run(tmp_path, [_wrong_answer()], mode=MODE_ON, client=client)
     assert result.success is True and result.end_state == PASS
     assert _repairs(model) == 0
     assert len(model.seen) == 1
@@ -212,18 +216,18 @@ def test_high_probability_overturns_and_sends_no_repair(tmp_path):
 
 def test_low_probability_repairs_as_today(tmp_path):
     client = FakeDecisions(p_done=0.4)
-    result, model = _run(tmp_path, [_url_answer(), _good()], mode=MODE_ON, client=client)
+    result, model = _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_ON, client=client)
     assert _repairs(model) == 1
     assert result.decisions["decisions_overturned"] is False
     assert result.decisions["decisions_p_task_done"] == 0.4
-    off, off_model = _run(tmp_path, [_url_answer(), _good()])
+    off, off_model = _run(tmp_path, [_wrong_answer(), _good()])
     assert model.seen == off_model.seen
     assert result.success == off.success
 
 
 @pytest.mark.parametrize("p_done", [0.89, None])
 def test_below_threshold_or_missing_answer_does_not_overturn(tmp_path, p_done):
-    result, model = _run(tmp_path, [_url_answer(), _good()], mode=MODE_ON, client=FakeDecisions(p_done=p_done))
+    result, model = _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_ON, client=FakeDecisions(p_done=p_done))
     assert _repairs(model) == 1
     assert result.decisions["decisions_overturned"] is False
 
@@ -236,10 +240,10 @@ def test_timeout_and_error_fall_back_to_the_repair(tmp_path):
     def broken(url, headers, payload, timeout_s):
         raise OSError("connection refused")
 
-    off, off_model = _run(tmp_path, [_url_answer(), _good()])
+    off, off_model = _run(tmp_path, [_wrong_answer(), _good()])
     for transport in (slow, broken):
         client = DecisionsClient("k", timeout_s=0.05, transport=transport)
-        result, model = _run(tmp_path, [_url_answer(), _good()], mode=MODE_ON, client=client)
+        result, model = _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_ON, client=client)
         assert model.seen == off_model.seen
         assert result.success == off.success
         assert result.decisions["decisions_errors"] == 1
@@ -287,7 +291,7 @@ def test_no_answer_and_answer_needed_refused_is_not_overturned(tmp_path):
 
 def test_returned_answer_with_low_answer_ok_is_not_overturned(tmp_path):
     client = FakeDecisions(p_done=0.95, p_answer=0.4)
-    result, model = _run(tmp_path, [_url_answer(), _good()], mode=MODE_ON, client=client)
+    result, model = _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_ON, client=client)
     assert result.decisions["decisions_overturned"] is False
     assert result.decisions["decisions_blocked"] == "answer_not_ok"
     assert _repairs(model) == 1
@@ -313,8 +317,8 @@ def test_shadow_estimate_uses_the_same_rule(tmp_path):
 
 def test_off_makes_no_call_and_the_requests_are_unchanged(tmp_path):
     client = FakeDecisions()
-    plain, plain_model = _run(tmp_path, [_url_answer(), _good()])
-    off, off_model = _run(tmp_path, [_url_answer(), _good()], mode=MODE_OFF, client=client)
+    plain, plain_model = _run(tmp_path, [_wrong_answer(), _good()])
+    off, off_model = _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_OFF, client=client)
     assert client.bodies == []
     assert off_model.seen == plain_model.seen
     assert off.decisions == {"decisions_check": "off"}
@@ -331,8 +335,8 @@ def test_hard_fails_are_never_sent(tmp_path):
 
 def test_shadow_changes_nothing_and_asks_after_the_clock(tmp_path):
     client = FakeDecisions(p_done=0.95, delay=0.3)
-    off, off_model = _run(tmp_path, [_url_answer(), _good()])
-    shadow, shadow_model = _run(tmp_path, [_url_answer(), _good()], mode=MODE_SHADOW, client=client)
+    off, off_model = _run(tmp_path, [_wrong_answer(), _good()])
+    shadow, shadow_model = _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_SHADOW, client=client)
     assert shadow_model.seen == off_model.seen
     assert shadow.success == off.success and shadow.end_state == off.end_state
     # One ask at the soft FAIL the run saw, one at the end state.
@@ -367,8 +371,8 @@ def test_payload_cannot_take_and_does_not_carry_the_answer_key(tmp_path):
             word in name for name in names for word in ("marker", "expected", "check_url", "selector", "judge")
         ), names
     client = FakeDecisions(p_done=0.95)
-    _run(tmp_path, [_url_answer(), _good()], mode=MODE_SHADOW, client=client)
-    _run(tmp_path, [_url_answer()], mode=MODE_ON, client=client)
+    _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_SHADOW, client=client)
+    _run(tmp_path, [_wrong_answer()], mode=MODE_ON, client=client)
     sent = json.dumps(client.bodies)
     for secret in (SECRET_ANSWER, SECRET_URL, SECRET_SELECTOR, "end_markers", "selector_text"):
         assert secret not in sent

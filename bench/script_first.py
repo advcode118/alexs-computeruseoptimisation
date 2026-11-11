@@ -451,6 +451,19 @@ def _norm_answer(value: str) -> str:
     return " ".join((value or "").split()).casefold()
 
 
+# Dash variants the runtime check folds to "-": hyphen, non-breaking hyphen,
+# figure dash, en dash, em dash, horizontal bar, minus sign.
+_DASH_FOLD = str.maketrans({c: "-" for c in "‐‑‒–—―−"})
+
+
+def _norm_runtime(value: str) -> str:
+    """_norm_answer plus dash folding, for runtime_verdict only (not the grade).
+
+    Non-breaking and other Unicode spaces already fold through str.split().
+    """
+    return _norm_answer((value or "").translate(_DASH_FOLD))
+
+
 def _phrase_at_boundary(marker: str, text: str) -> bool:
     """True when the folded marker is in the folded text at token boundaries.
 
@@ -923,14 +936,29 @@ def runtime_verdict(
                 FAIL, "the script ended on the start page and returned nothing", live, FAIL_START_PAGE_NO_RETURN
             )
         return EvidenceVerdict(FAIL, "the script returned no answer or key_text", scored, FAIL_NO_RETURN)
+    rule = ""
+    # The URL and title/h1 rules never pass a script that stayed on the start page.
+    moved = not (_http(start_url) and _same_page(live, start_url))
     if answer:
-        if not page_text.strip():
-            return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
-        if _norm_answer(answer) not in _norm_answer(page_text):
-            return EvidenceVerdict(FAIL, "answer is not in the page text", scored, FAIL_ANSWER_NOT_IN_TEXT)
+        if moved and _http(answer) and (_same_page(answer, live) or (canonical and _same_page(answer, canonical))):
+            # The answer is the live page's own URL: nothing to find in the text.
+            rule = "the answer is the live page URL"
+        else:
+            needle = _norm_runtime(answer)
+            in_text = bool(page_text.strip()) and needle in _norm_runtime(page_text)
+            if in_text and _norm_answer(answer) not in _norm_answer(page_text):
+                rule = "the answer is in the page text once dashes fold"
+            elif not in_text and moved and any(needle in _norm_runtime(part) for part in (trusted.title, trusted.h1) if part):
+                rule = "the answer is in the page title or h1"
+            elif not page_text.strip():
+                return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
+            elif not in_text:
+                return EvidenceVerdict(FAIL, "answer is not in the page text", scored, FAIL_ANSWER_NOT_IN_TEXT)
     problem = _returned_problem(claimed, page_text, scored)
     if problem is not None:
         return problem
+    if rule:
+        return EvidenceVerdict(PASS, f"the script finished and {rule}", scored)
     return EvidenceVerdict(PASS, "the script finished and its evidence is on the live page", scored)
 
 

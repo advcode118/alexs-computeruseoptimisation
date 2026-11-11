@@ -274,3 +274,9 @@ Next, in order:
 - Targeted repair. When the page looks done (p(task_done) >= 0.90) but the rule above blocks the overturn, the repair still goes out, worded as: the page looks right, the script returned no answer (or the returned answer does not answer the task), so read the value from the current page and return it without navigating away. It is built only from the live URL and run-visible facts. Every other repair keeps the old wording. Rows record `decisions_p_answer_needed` and `decisions_blocked` so policies can be compared later.
 
 **Not run live.** The A/B commands and the smoke command (`python -m bench.decisions_smoke --live`) are in the PR. A plain rule (accept an answer equal to the live URL) would fix 5 of Luna's 11 false rejects and 1 of Sol's 2. That belongs in a separate change.
+
+## 11 Nov 2026: plain rules in script_first's runtime check (branch `t3/runtime-plain-rules`)
+
+**Why.** In the Decisions live run, 7 of the 9 right overturns were scripts whose answer was the page URL (4) or the page title (3). `runtime_verdict` failed them only because that answer is not in the body text. A plain rule fixes these with no model call.
+
+**What changed, in `runtime_verdict` only.** (1) An http(s) answer that is the same page as the live or canonical URL (`_same_page`) is not checked against the page text. (2) The answer check also looks in the page title and h1. (3) The answer check folds the common dash variants (hyphen, non-breaking hyphen, figure, en and em dash, horizontal bar, minus) on both sides; non-breaking spaces already fold through `str.split()`. This uses a separate `_norm_runtime`, so the grade's `_norm_answer` is unchanged. Rules 1 and 2 do not apply when the live page is the start page, so a script that never left the start page still gets its repair. A PASS from a rule says which rule in its reason. A URL answer for another page, or an answer found nowhere, still FAILs. Task markers and the grade are untouched.
