@@ -414,6 +414,40 @@ def _norm_answer(value: str) -> str:
     return " ".join((value or "").split()).casefold()
 
 
+def _phrase_at_boundary(marker: str, text: str) -> bool:
+    """True when the folded marker is in the folded text at token boundaries.
+
+    Case and spacing fold the same way as _norm_answer. A marker that starts
+    or ends on a letter or digit may not continue into one on that side, and a
+    number may not continue through a decimal or version point (443 is not in
+    4430 or 9.3.443, 9.3.1 is not in 9.3.10).
+    """
+    needle = _norm_answer(marker)
+    hay = _norm_answer(text)
+    if not needle:
+        return False
+    start = hay.find(needle)
+    while start != -1:
+        end = start + len(needle)
+        before = hay[start - 1] if start else ""
+        after = hay[end] if end < len(hay) else ""
+        ok = True
+        if needle[0].isalnum() or needle[0] == "_":
+            if before.isalnum() or before == "_":
+                ok = False
+            elif needle[0].isdigit() and before in ".," and start >= 2 and hay[start - 2].isdigit():
+                ok = False
+        if ok and (needle[-1].isalnum() or needle[-1] == "_"):
+            if after.isalnum() or after == "_":
+                ok = False
+            elif needle[-1].isdigit() and after in ".," and end + 1 < len(hay) and hay[end + 1].isdigit():
+                ok = False
+        if ok:
+            return True
+        start = hay.find(needle, start + 1)
+    return False
+
+
 def _host_name(url: str) -> str:
     if not _http(url):
         return ""
@@ -505,11 +539,15 @@ def _url_matches(url: str, markers: dict) -> bool:
         return False
     if not _path_suffix_ok(url, markers.get("path_suffix") or ""):
         return False
+    if markers.get("query_nonempty") and not urlsplit(url).query.strip():
+        return False
     return True
 
 
 def _positive_url(markers: dict) -> bool:
-    return bool(markers.get("url_contains") or markers.get("path_suffix"))
+    return bool(
+        markers.get("url_contains") or markers.get("path_suffix") or markers.get("query_nonempty")
+    )
 
 
 def _scored_url(live: str, canonical: str, markers: dict) -> str:
@@ -682,11 +720,7 @@ def evidence_verdict(
                 return gate(EvidenceVerdict(UNKNOWN, "page text was not read", scored))
             if _norm_answer(answer) not in _norm_answer(page_text):
                 return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
-            if _norm_answer(str(answer_in_text)) not in _norm_answer(answer) and _norm_answer(
-                str(answer_in_text)
-            ) not in _norm_answer(page_text):
-                return EvidenceVerdict(FAIL, "answer does not satisfy the marker", scored)
-            if _norm_answer(str(answer_in_text)) not in _norm_answer(answer):
+            if not _phrase_at_boundary(str(answer_in_text), answer):
                 return EvidenceVerdict(FAIL, "answer does not satisfy the marker", scored)
         if needs_url and not url_ok:
             return EvidenceVerdict(FAIL, "the URL marker does not match the live page", scored)

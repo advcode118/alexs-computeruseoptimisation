@@ -162,7 +162,7 @@ _NEW_FINISHED = {
         "",
     ),
     "ho_form_selenium_received": (
-        "https://www.selenium.dev/selenium/web/submitted-form.html",
+        "https://www.selenium.dev/selenium/web/submitted-form.html?my-text=a",
         "Received!",
         "Received!",
     ),
@@ -181,7 +181,7 @@ _NEW_FINISHED = {
         "comments",
         "comments",
     ),
-    "ho_form_w3schools_action": ("https://www.w3schools.com/action_page.php", "Submitted", ""),
+    "ho_form_w3schools_action": ("https://www.w3schools.com/action_page.php?fname=a&lname=b", "Submitted", ""),
     "ho_form_httpbin_phone": ("https://httpbin.org/post", "custtel=555", "custtel"),
     "ho_find_wiki_gold": ("https://en.wikipedia.org/wiki/Gold", "atomic number 79", "79"),
     "ho_find_wiki_wall": (
@@ -583,3 +583,53 @@ def test_held_out_split_is_a_plan_and_the_default_stays_the_tuned_trio(capsys):
     assert printed["tasks"] == list(HELD_OUT_TASK_IDS)
     assert main(["--split", "nope"]) == 2
     assert "unknown split" in capsys.readouterr().err
+
+
+def _marker_pass(markers, url, text, answer=""):
+    return _verdict(markers, url, title="t", text=text, answer=answer, claim_url=url).verdict
+
+
+def test_answer_marker_needs_token_boundaries():
+    cases = [
+        # (marker, page text, answer, must pass)
+        ("443", "HTTPS uses port 4430 here and 443.", "4430", False),
+        ("443", "HTTPS uses port 443.", "Port 443.", True),
+        ("443", "HTTPS uses port 443.", "443", True),
+        ("79", "atomic number 179 and 79", "179", False),
+        ("79", "atomic number 79", "79", True),
+        ("+81", "code +810 and +81", "+810", False),
+        ("+81", "code +81", "+81", True),
+        ("+81", "Japan is +81.", "Japan is +81.", True),
+        ("9.3.1", "version 9.3.10 and 9.3.1", "9.3.10", False),
+        ("9.3.1", "version 9.3.1", "9.3.1", True),
+        ("9.3.1", "version 9.3.1", "version 9.3.1.", True),
+        ("79", "ratio 1.79 and 79", "1.79", False),
+        ("Paris", "Parisian and Paris", "Parisian", False),
+        ("Paris", "in Paris", "  in   PARIS ", True),
+    ]
+    for marker, text, answer, ok in cases:
+        got = _marker_pass({"answer_in_text": marker, "host": "example.com"}, "https://example.com/p", text, answer)
+        assert (got == PASS) is ok, (marker, answer, got)
+
+
+def test_tightened_markers():
+    def result(task_id, url, text="", answer=""):
+        return _marker_pass(task_by_id(task_id)["end_markers"], url, text, answer)
+
+    assert result("ho_github_rust", "https://github.com/rust-lang/rust") == PASS
+    assert result("ho_github_rust", "https://github.com/rust-lang/rust-analyzer") != PASS
+    assert result("ho_github_rust", "https://github.com/rust-lang/rustup") != PASS
+    sel = "https://www.selenium.dev/selenium/web/submitted-form.html"
+    assert result("ho_form_selenium_received", sel, "Received!", "Received!") != PASS
+    assert result("ho_form_selenium_received", sel + "?", "Received!", "Received!") != PASS
+    assert result("ho_form_selenium_received", sel + "?my-text=a", "Received!", "Received!") == PASS
+    w3 = "https://www.w3schools.com/action_page.php"
+    assert result("ho_form_w3schools_action", w3) != PASS
+    assert result("ho_form_w3schools_action", w3 + "?fname=a") == PASS
+    arx = "Attention Is All You Need"
+    assert result("ho_arxiv_attention", "https://arxiv.org/abs/1706.03762", arx, arx) == PASS
+    assert result("ho_arxiv_attention", "https://arxiv.org/pdf/1706.03762", arx, arx) != PASS
+    assert result("ho_wiki_eiffel_city", "https://en.wikipedia.org/wiki/Eiffel_Tower", "Paris", "Paris") == PASS
+    assert result("ho_wiki_eiffel_city", "https://en.wikipedia.org/wiki/Talk:Eiffel_Tower", "Paris", "Paris") != PASS
+    assert "settled" not in task_by_id("ho_find_mdn_promise_all")["description"]
+    assert "module page" in task_by_id("ho_nav_css_flex")["description"]

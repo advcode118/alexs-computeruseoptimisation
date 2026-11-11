@@ -192,6 +192,7 @@ WEBVOYAGER_TASKS = [
         "check_url_contains": "rust-lang/rust",
         "end_markers": {
             "url_contains": "rust-lang/rust",
+            "path_suffix": "/rust-lang/rust",
             "host": "github.com",
             "deny": ["/search"],
         },
@@ -206,7 +207,7 @@ WEBVOYAGER_TASKS = [
         "expected_answer": "Attention Is All You Need",
         "check_url_contains": "1706.03762",
         "end_markers": {
-            "url_contains": "1706.03762",
+            "url_contains": "/abs/1706.03762",
             "host": "arxiv.org",
             "deny": ["/search"],
             "answer_in_text": "Attention Is All You Need",
@@ -219,7 +220,7 @@ WEBVOYAGER_TASKS = [
         "expected_answer": "Paris",
         "check_text": "Paris",
         "end_markers": {
-            "url_contains": "Eiffel_Tower",
+            "url_contains": "/wiki/Eiffel_Tower",
             "host": "en.wikipedia.org",
             "deny": list(_WIKI_DENY),
             "answer_in_text": "Paris",
@@ -487,9 +488,9 @@ WEBVOYAGER_TASKS = [
     },
     {
         "id": "ho_nav_css_flex",
-        "description": "From the MDN CSS reference, open the guide to one-dimensional flexible layout.",
+        "description": "From the MDN CSS reference, open the CSS flexible box layout module page (the overview of one-dimensional flexible layout).",
         "start_url": "https://developer.mozilla.org/en-US/docs/Web/CSS",
-        "expected_answer": "On the MDN flexible box layout guide",
+        "expected_answer": "On the MDN CSS flexible box layout module page",
         "check_url_contains": "CSS_flexible_box_layout",
         "end_markers": {
             "host": "developer.mozilla.org",
@@ -508,6 +509,7 @@ WEBVOYAGER_TASKS = [
             "host": "www.selenium.dev",
             "path_suffix": "/submitted-form.html",
             "url_contains": "/submitted-form.html",
+            "query_nonempty": True,
             "deny": ["/web-form.html", "/search"],
             "answer_in_text": "Received!",
         },
@@ -570,6 +572,7 @@ WEBVOYAGER_TASKS = [
             "host": "www.w3schools.com",
             "path_suffix": "/action_page.php",
             "url_contains": "/action_page.php",
+            "query_nonempty": True,
             "deny": ["/html_forms.asp", "/search"],
         },
     },
@@ -658,8 +661,9 @@ WEBVOYAGER_TASKS = [
     {
         "id": "ho_find_mdn_promise_all",
         "description": (
-            "Search MDN for the method that waits until every promise has settled, "
-            "and open its reference page. Do not stop on the search results."
+            "Search MDN for the Promise method that resolves once all of the given promises "
+            "fulfil, or rejects as soon as one of them rejects, and open its reference page. "
+            "Do not stop on the search results."
         ),
         "start_url": "https://developer.mozilla.org/en-US/",
         "expected_answer": "On the Promise.all reference",
