@@ -834,8 +834,8 @@ class BenchmarkHarness:
         Only in mode on, only on a soft FAIL, at most once per task. Any error
         or timeout is no opinion, and the caller repairs exactly as before.
         """
-        from bench.decisions import MODE_ON, note_opinion, payload_from_run, should_accept
-        from bench.script_first import is_soft_fail
+        from bench.decisions import MODE_ON, note_opinion, overturn_decision, payload_from_run
+        from bench.script_first import claimed_from_payload, is_soft_fail
 
         if self.decisions_check != MODE_ON or record.get("decisions_asked_in_run"):
             return False
@@ -849,13 +849,27 @@ class BenchmarkHarness:
             run_payload=payload,
             page_url=page_url,
             runtime_reason=verdict.reason,
+            ask_answer_needed=True,
         )
         opinion = await self.decisions_client.ask(body)
         note_opinion(record, opinion, post_clock=False)
-        if should_accept(opinion, self.decisions_accept):
+        has_answer = bool(claimed_from_payload(payload).answer.strip())
+        overturn, blocked = overturn_decision(opinion, self.decisions_accept, has_answer=has_answer)
+        record["decisions_blocked"] = blocked
+        if overturn:
             record["decisions_overturned"] = True
             return True
         return False
+
+    @staticmethod
+    def _repair_text(record: dict, url: str, failure: str) -> str:
+        """Targeted repair when Decisions found the page right but the answer missing or wrong."""
+        from bench.decisions import TARGETED_BLOCKS, targeted_repair_request
+        from bench.script_first import repair_request
+
+        if record.get("decisions_blocked", "") in TARGETED_BLOCKS:
+            return targeted_repair_request(url, record["decisions_blocked"])
+        return repair_request(url, failure)
 
     async def _decisions_after_clock(
         self,
@@ -870,7 +884,7 @@ class BenchmarkHarness:
         record: dict,
     ) -> None:
         """Logged only, after the wall clock. Never changes success or the grade."""
-        from bench.decisions import MODE_ON, MODE_SHADOW, Q_TASK_DONE, note_opinion, payload_from_run
+        from bench.decisions import MODE_ON, MODE_SHADOW, note_opinion, overturn_decision, payload_from_run
         from bench.script_first import FAIL, PASS, claimed_from_payload
 
         if self.decisions_check == MODE_SHADOW:
@@ -884,11 +898,14 @@ class BenchmarkHarness:
                         run_payload=soft_fail["payload"],
                         page_url=soft_fail["page_url"],
                         runtime_reason=soft_fail["verdict"].reason,
+                        ask_answer_needed=True,
                     )
                 )
                 note_opinion(record, opinion, post_clock=True)
-                p_done = opinion.p(Q_TASK_DONE) if opinion.ok else None
-                record["decisions_would_overturn"] = p_done is not None and p_done >= self.decisions_accept
+                has_answer = bool(claimed_from_payload(soft_fail["payload"]).answer.strip())
+                would, blocked = overturn_decision(opinion, self.decisions_accept, has_answer=has_answer)
+                record["decisions_would_overturn"] = would
+                record["decisions_blocked"] = blocked
             # The state the run actually ended in.
             if isinstance(payload, dict) and payload:
                 reason = ""
@@ -1418,7 +1435,7 @@ class BenchmarkHarness:
                             end_state = PASS
                         if failure:
                             messages.append({"role": "assistant", "content": assistant_content})
-                            messages.append({"role": "user", "content": repair_request(last_url, failure)})
+                            messages.append({"role": "user", "content": self._repair_text(decisions_record, last_url, failure)})
                             repairs_sent += 1
                             turn_limit = next_script_first_limit(
                                 step_num=step_num,
@@ -1567,7 +1584,7 @@ class BenchmarkHarness:
                             result_text = model_visible_script_result(result_text)
                             repair_pending = False
                             if verdict.verdict == FAIL and repairs_sent < 1:
-                                result_text += "\n" + repair_request(page_url, failure)
+                                result_text += "\n" + self._repair_text(decisions_record, page_url, failure)
                                 repairs_sent += 1
                                 repair_pending = True
                             turn_limit = next_script_first_limit(

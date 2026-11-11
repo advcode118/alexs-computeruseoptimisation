@@ -41,9 +41,18 @@ SECRET_SELECTOR = "SECRET-SELECTOR-TEXT"
 
 
 class FakeDecisions:
-    def __init__(self, p_done: float | None = 0.95, p_answer: float = 0.9, ok: bool = True, delay: float = 0.0):
+    def __init__(
+        self,
+        p_done: float | None = 0.95,
+        p_answer: float = 0.9,
+        ok: bool = True,
+        delay: float = 0.0,
+        p_needed: float | None = None,
+    ):
         self.p_done = p_done
         self.p_answer = p_answer
+        # None models a refusal: the answer_needed question comes back unanswered.
+        self.p_needed = p_needed
         self.ok = ok
         self.delay = delay
         self.bodies: list[dict] = []
@@ -55,6 +64,8 @@ class FakeDecisions:
         if not self.ok:
             return DecisionsOpinion(ok=False, elapsed_ms=1.0, error="timeout")
         probabilities = {"answer_ok": self.p_answer}
+        if self.p_needed is not None:
+            probabilities["answer_needed"] = self.p_needed
         if self.p_done is not None:
             probabilities["task_done"] = self.p_done
         usage = {
@@ -91,6 +102,18 @@ def _good(nth: int = 2) -> str:
         title="Ada Lovelace - Wikipedia",
         text="Ada Lovelace was an English mathematician.",
         claimed={"key_text": "Ada Lovelace"},
+    )
+
+
+def _no_answer(nth: int = 1) -> str:
+    """A soft FAIL with nothing returned: on the right page, but the script gave back no answer."""
+    return format_run_result(
+        ok=True,
+        url=ARTICLE,
+        step_count=nth,
+        title="Ada Lovelace - Wikipedia",
+        h1="Ada Lovelace",
+        text="Ada Lovelace was an English mathematician.",
     )
 
 
@@ -222,6 +245,70 @@ def test_timeout_and_error_fall_back_to_the_repair(tmp_path):
         assert result.decisions["decisions_errors"] == 1
         assert result.decisions["decisions_overturned"] is False
     assert result.decisions["decisions_error"].startswith("OSError")
+
+
+def test_no_answer_is_a_soft_fail():
+    verdict, payload = script_runtime_verdict(_no_answer(), ARTICLE, START)
+    assert verdict.verdict == FAIL and is_soft_fail(verdict, payload, ARTICLE)
+
+
+def test_no_answer_when_one_is_needed_is_not_overturned_and_gets_the_targeted_repair(tmp_path):
+    client = FakeDecisions(p_done=0.95, p_needed=0.9)
+    result, model = _run(tmp_path, [_no_answer(), _good()], mode=MODE_ON, client=client)
+    assert result.decisions["decisions_overturned"] is False
+    assert result.decisions["decisions_p_answer_needed"] == 0.9
+    assert result.decisions["decisions_blocked"] == "answer_needed"
+    assert _repairs(model) == 1
+    sent = json.dumps(model.seen)
+    assert "the page looks right but the script returned no answer" in sent
+    assert "without navigating away" in sent
+    for secret in (SECRET_ANSWER, SECRET_URL, SECRET_SELECTOR):
+        assert secret not in sent
+    assert "answer_needed" in [q["name"] for q in client.bodies[0]["questions"]]
+
+
+def test_no_answer_when_none_is_needed_is_overturned(tmp_path):
+    client = FakeDecisions(p_done=0.95, p_needed=0.2)
+    result, model = _run(tmp_path, [_no_answer()], mode=MODE_ON, client=client)
+    assert result.success is True and result.end_state == PASS
+    assert _repairs(model) == 0
+    assert result.decisions["decisions_overturned"] is True
+    assert result.decisions["decisions_blocked"] == ""
+
+
+def test_no_answer_and_answer_needed_refused_is_not_overturned(tmp_path):
+    client = FakeDecisions(p_done=0.95, p_needed=None)
+    result, model = _run(tmp_path, [_no_answer(), _good()], mode=MODE_ON, client=client)
+    assert result.decisions["decisions_overturned"] is False
+    assert result.decisions["decisions_p_answer_needed"] is None
+    assert result.decisions["decisions_blocked"] == "answer_needed_unknown"
+    assert "the page looks right but the script returned no answer" in json.dumps(model.seen)
+
+
+def test_returned_answer_with_low_answer_ok_is_not_overturned(tmp_path):
+    client = FakeDecisions(p_done=0.95, p_answer=0.4)
+    result, model = _run(tmp_path, [_url_answer(), _good()], mode=MODE_ON, client=client)
+    assert result.decisions["decisions_overturned"] is False
+    assert result.decisions["decisions_blocked"] == "answer_not_ok"
+    assert _repairs(model) == 1
+    assert "the returned answer does not answer the task" in json.dumps(model.seen)
+
+
+def test_below_threshold_keeps_the_stock_repair_wording(tmp_path):
+    result, model = _run(tmp_path, [_no_answer(), _good()], mode=MODE_ON, client=FakeDecisions(p_done=0.4, p_needed=0.9))
+    assert result.decisions["decisions_blocked"] == "below_threshold"
+    off, off_model = _run(tmp_path, [_no_answer(), _good()])
+    assert model.seen == off_model.seen
+
+
+def test_shadow_estimate_uses_the_same_rule(tmp_path):
+    needed = FakeDecisions(p_done=0.95, p_needed=0.9)
+    shadow, _ = _run(tmp_path, [_no_answer(), _good()], mode=MODE_SHADOW, client=needed)
+    assert shadow.decisions["decisions_would_overturn"] is False
+    assert shadow.decisions["decisions_blocked"] == "answer_needed"
+    not_needed = FakeDecisions(p_done=0.95, p_needed=0.1)
+    shadow, _ = _run(tmp_path, [_no_answer(), _good()], mode=MODE_SHADOW, client=not_needed)
+    assert shadow.decisions["decisions_would_overturn"] is True
 
 
 def test_off_makes_no_call_and_the_requests_are_unchanged(tmp_path):

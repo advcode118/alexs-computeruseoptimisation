@@ -34,6 +34,10 @@ DECISIONS_MODES = (MODE_OFF, MODE_SHADOW, MODE_ON)
 DEFAULT_TIMEOUT_S = 1.5
 # A wrong accept is a wrong answer. A wrong reject costs one repair turn.
 DEFAULT_ACCEPT_THRESHOLD = 0.90
+# With no returned answer, overturn only if the task is unlikely to need one.
+ANSWER_NEEDED_MAX = 0.2
+# With a returned answer, overturn only if it is not likely wrong.
+ANSWER_OK_MIN = 0.5
 # About 1,500 tokens. Long enough for the lead of an article, a docs page
 # heading block or a package page's summary, which is where the held-out
 # answers sit. Short enough to keep a call near $0.0002 and the input small
@@ -43,6 +47,7 @@ FIELD_CAP = 500
 
 Q_TASK_DONE = "task_done"
 Q_ANSWER_OK = "answer_ok"
+Q_ANSWER_NEEDED = "answer_needed"
 Q_FAILURE_CLASS = "failure_class"
 
 _FAILURE_CLASSES = (
@@ -66,6 +71,10 @@ _TASK_DONE = (
     "if the task asks for information, that page contains it."
 )
 _ANSWER_OK = "The returned answer correctly answers the task."
+_ANSWER_NEEDED = (
+    "The task asks for a specific piece of information to be reported back, "
+    "as opposed to only opening a page or performing an action."
+)
 _FAILURE_CLASS = "Which best describes where the run ended?"
 
 
@@ -87,6 +96,7 @@ def decisions_payload(
     page_text: str,
     ask_task_done: bool = True,
     ask_class: bool = True,
+    ask_answer_needed: bool = False,
     page_text_cap: int = PAGE_TEXT_CAP,
 ) -> dict:
     """The request body. Only run-visible fields. No answer key can be passed in."""
@@ -104,6 +114,8 @@ def decisions_payload(
     questions: list[dict] = []
     if ask_task_done:
         questions.append({"type": "predicate", "name": Q_TASK_DONE, "instructions": _TASK_DONE})
+    if ask_answer_needed:
+        questions.append({"type": "predicate", "name": Q_ANSWER_NEEDED, "instructions": _ANSWER_NEEDED})
     if evidence["script_answer"]:
         questions.append({"type": "predicate", "name": Q_ANSWER_OK, "instructions": _ANSWER_OK})
     if ask_class:
@@ -140,6 +152,7 @@ def payload_from_run(
     runtime_reason: str,
     ask_task_done: bool = True,
     ask_class: bool = True,
+    ask_answer_needed: bool = False,
 ) -> dict:
     """Pick the run-visible fields out of a run_script payload. selector_text is never read."""
     from bench.script_first import claimed_from_payload
@@ -163,6 +176,7 @@ def payload_from_run(
         page_text=text("text"),
         ask_task_done=ask_task_done,
         ask_class=ask_class,
+        ask_answer_needed=ask_answer_needed,
     )
 
 
@@ -305,6 +319,8 @@ def empty_record(mode: str) -> dict:
             "decisions_error": "",
             "decisions_p_task_done": None,
             "decisions_p_answer_ok": None,
+            "decisions_p_answer_needed": None,
+            "decisions_blocked": "",
             "decisions_class": "",
             "decisions_overturned": False,
             "decisions_would_overturn": None,
@@ -344,7 +360,11 @@ def note_opinion(record: dict, opinion: DecisionsOpinion, *, post_clock: bool, p
         record["decisions_cache_write_30m_tokens"] += opinion.usage["cache_write_30m_tokens"]
         record["decisions_cache_write_12h_tokens"] += opinion.usage["cache_write_12h_tokens"]
     if opinion.ok:
-        for name, key in ((Q_TASK_DONE, "p_task_done"), (Q_ANSWER_OK, "p_answer_ok")):
+        for name, key in (
+            (Q_TASK_DONE, "p_task_done"),
+            (Q_ANSWER_OK, "p_answer_ok"),
+            (Q_ANSWER_NEEDED, "p_answer_needed"),
+        ):
             value = opinion.p(name)
             if value is not None:
                 record[prefix + key] = value
@@ -352,12 +372,57 @@ def note_opinion(record: dict, opinion: DecisionsOpinion, *, post_clock: bool, p
             record[prefix + "class"] = opinion.choice
 
 
-def should_accept(opinion: DecisionsOpinion, threshold: float) -> bool:
-    """Overturn only on a real opinion at or above the accept threshold."""
+# Why a soft FAIL was not overturned. The last three mean the page looked done.
+BLOCK_NO_OPINION = "no_opinion"
+BLOCK_BELOW_THRESHOLD = "below_threshold"
+BLOCK_ANSWER_NEEDED = "answer_needed"
+BLOCK_ANSWER_NEEDED_UNKNOWN = "answer_needed_unknown"
+BLOCK_ANSWER_NOT_OK = "answer_not_ok"
+TARGETED_BLOCKS = (BLOCK_ANSWER_NEEDED, BLOCK_ANSWER_NEEDED_UNKNOWN, BLOCK_ANSWER_NOT_OK)
+
+
+def overturn_decision(opinion: DecisionsOpinion, threshold: float, *, has_answer: bool) -> tuple[bool, str]:
+    """(overturn, blocked_reason). The one rule for mode on and the shadow estimate.
+
+    task_done asks whether the page holds the information, not whether the run
+    returned it, so an overturn also needs the returned answer to hold up.
+    """
     if not opinion.ok:
-        return False
-    value = opinion.p(Q_TASK_DONE)
-    return value is not None and value >= threshold
+        return False, BLOCK_NO_OPINION
+    done = opinion.p(Q_TASK_DONE)
+    if done is None or done < threshold:
+        return False, BLOCK_BELOW_THRESHOLD
+    if not has_answer:
+        needed = opinion.p(Q_ANSWER_NEEDED)
+        if needed is None:
+            return False, BLOCK_ANSWER_NEEDED_UNKNOWN
+        if needed > ANSWER_NEEDED_MAX:
+            return False, BLOCK_ANSWER_NEEDED
+        return True, ""
+    ok = opinion.p(Q_ANSWER_OK)
+    if ok is not None and ok < ANSWER_OK_MIN:
+        return False, BLOCK_ANSWER_NOT_OK
+    return True, ""
+
+
+def targeted_repair_request(url: str, blocked: str) -> str:
+    """The repair when the page looks right but the returned answer is missing or wrong.
+
+    Built only from run-visible facts: the live URL and whether an answer came back.
+    """
+    shown = url if url else "(empty)"
+    problem = (
+        "the returned answer does not answer the task"
+        if blocked == BLOCK_ANSWER_NOT_OK
+        else "the script returned no answer"
+    )
+    return (
+        "END_STATE_FAILED: the page looks right but "
+        f"{problem}. Current URL: {shown}. "
+        "Send one corrected script that reads the asked value from the current page and returns it "
+        "with page.evaluate, without navigating away from this page. "
+        "Do not repeat the same script."
+    )
 
 
 def parse_mode(value: str) -> str:
