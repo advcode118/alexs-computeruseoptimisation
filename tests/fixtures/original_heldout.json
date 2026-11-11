@@ -21,6 +21,7 @@
     "check_url_contains": "rust-lang/rust",
     "end_markers": {
       "url_contains": "rust-lang/rust",
+      "path_suffix": "/rust-lang/rust",
       "host": "github.com",
       "deny": [
         "/search"
@@ -34,7 +35,7 @@
     "expected_answer": "Attention Is All You Need",
     "check_url_contains": "1706.03762",
     "end_markers": {
-      "url_contains": "1706.03762",
+      "url_contains": "/abs/1706.03762",
       "host": "arxiv.org",
       "deny": [
         "/search"
@@ -49,7 +50,7 @@
     "expected_answer": "Paris",
     "check_text": "Paris",
     "end_markers": {
-      "url_contains": "Eiffel_Tower",
+      "url_contains": "/wiki/Eiffel_Tower",
       "host": "en.wikipedia.org",
       "deny": [
         "Special:Search",
