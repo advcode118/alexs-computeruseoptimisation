@@ -113,7 +113,20 @@ def test_an_unsaved_url_and_a_page_fetch_do_not_open_a_socket(monkeypatch):
         def connect_ex(self, *args, **kwargs):
             raise AssertionError("offline replay opened a socket")
 
+    real_socket = socket.socket
+    real_socketpair = socket.socketpair
+
+    def socketpair(*args, **kwargs):
+        # Windows asyncio builds its self-pipe with socketpair(), which connects
+        # a socket to its own loopback listener. That is not a network fetch.
+        socket.socket = real_socket
+        try:
+            return real_socketpair(*args, **kwargs)
+        finally:
+            socket.socket = Guard
+
     monkeypatch.setattr(socket, "socket", Guard)
+    monkeypatch.setattr(socket, "socketpair", socketpair)
     book = load_book(FIXTURES / "wiki-search.har")
     task = task_by_id("wv_wikipedia_search")
     missing = replay_script(book, 'page.goto("https://example.com/not-saved");', task)

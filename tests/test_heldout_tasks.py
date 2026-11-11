@@ -25,7 +25,16 @@ from bench.script_first import (
     repair_request,
     script_verdict,
 )
-from bench.tasks import HELD_OUT_TASK_IDS, get_held_out_tasks, markers_for_task
+from bench.tasks import (
+    DEV_TASK_IDS,
+    HELD_OUT_TASK_IDS,
+    TUNED_PROBE_TASK_IDS,
+    get_dev_tasks,
+    get_held_out_tasks,
+    markers_for_task,
+    task_by_id,
+    tasks_for_split,
+)
 from loop import planner
 
 # The ten tasks added on top of the original five. Their destination tokens
@@ -117,18 +126,139 @@ def _finished(task_id):
             "",
         ),
     }
+    pages.update(_NEW_FINISHED)
     return pages[task_id]
 
 
-def test_held_out_set_is_fifteen_and_disjoint_from_the_tuned_probe():
+_NEW_PREFIXES = ("ho_nav_", "ho_form_", "ho_find_", "ho_page_", "ho_table_", "ho_open_")
+
+_NEW_FINISHED = {
+    "ho_nav_py_inputoutput": (
+        "https://docs.python.org/3/tutorial/inputoutput.html",
+        "Input and Output",
+        "",
+    ),
+    "ho_nav_py_sqlite3": ("https://docs.python.org/3/library/sqlite3.html", "sqlite3", ""),
+    "ho_nav_rust_result": (
+        "https://doc.rust-lang.org/book/ch09-02-recoverable-errors-with-result.html",
+        "Recoverable Errors with Result",
+        "",
+    ),
+    "ho_nav_k8s_service": (
+        "https://kubernetes.io/docs/concepts/services-networking/service/",
+        "Service",
+        "",
+    ),
+    "ho_nav_go_spec": ("https://go.dev/ref/spec", "The Go Programming Language Specification", ""),
+    "ho_nav_pg_select": (
+        "https://www.postgresql.org/docs/current/sql-select.html",
+        "SELECT",
+        "",
+    ),
+    "ho_nav_sqlite_pragma": ("https://www.sqlite.org/pragma.html", "PRAGMA", ""),
+    "ho_nav_css_flex": (
+        "https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_flexible_box_layout",
+        "CSS flexible box layout",
+        "",
+    ),
+    "ho_form_selenium_received": (
+        "https://www.selenium.dev/selenium/web/submitted-form.html",
+        "Received!",
+        "Received!",
+    ),
+    "ho_form_internet_secure": (
+        "https://the-internet.herokuapp.com/secure",
+        "You logged into a secure area!",
+        "You logged into a secure area!",
+    ),
+    "ho_form_internet_email": (
+        "https://the-internet.herokuapp.com/email_sent",
+        "Your e-mail's been sent!",
+        "Your e-mail's been sent!",
+    ),
+    "ho_form_testpages_comments": (
+        "https://testpages.herokuapp.com/styled/the_form_processor.php",
+        "comments",
+        "comments",
+    ),
+    "ho_form_w3schools_action": ("https://www.w3schools.com/action_page.php", "Submitted", ""),
+    "ho_form_httpbin_phone": ("https://httpbin.org/post", "custtel=555", "custtel"),
+    "ho_find_wiki_gold": ("https://en.wikipedia.org/wiki/Gold", "atomic number 79", "79"),
+    "ho_find_wiki_wall": (
+        "https://en.wikipedia.org/wiki/Great_Wall_of_China",
+        "The wall is in China.",
+        "China",
+    ),
+    "ho_find_pypi_urllib3": ("https://pypi.org/project/urllib3/", "urllib3", ""),
+    "ho_find_npm_jest": ("https://www.npmjs.com/package/jest", "jest", ""),
+    "ho_find_mdn_promise_all": (
+        "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all",
+        "Promise.all",
+        "",
+    ),
+    "ho_find_arxiv_resnet": (
+        "https://arxiv.org/abs/1512.03385",
+        "Deep Residual Learning for Image Recognition",
+        "Deep Residual Learning for Image Recognition",
+    ),
+    "ho_find_crates_serde": ("https://crates.io/crates/serde", "serde", ""),
+    "ho_page_wp_news": ("https://wordpress.org/news/page/2/", "News", ""),
+    "ho_page_github_blog": ("https://github.blog/page/2/", "Blog", ""),
+    "ho_page_so_blog": ("https://stackoverflow.blog/page/2/", "Blog", ""),
+    "ho_page_jquery_blog": ("https://blog.jquery.com/page/2/", "Blog", ""),
+    "ho_page_wp_core": ("https://make.wordpress.org/core/page/2/", "Core", ""),
+    "ho_table_iana_https": (
+        "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml",
+        "https 443",
+        "443",
+    ),
+    "ho_table_wiki_http_201": (
+        "https://en.wikipedia.org/wiki/List_of_HTTP_status_codes",
+        "201 Created",
+        "Created",
+    ),
+    "ho_table_calling_codes": (
+        "https://en.wikipedia.org/wiki/List_of_country_calling_codes",
+        "Japan +81",
+        "+81",
+    ),
+    "ho_table_html_tr": ("https://en.wikipedia.org/wiki/HTML_element", "tr Table row", "Table row"),
+    "ho_table_unicode_euro": (
+        "https://www.unicode.org/charts/nameslist/n_20A0.html",
+        "20AC EURO SIGN",
+        "EURO SIGN",
+    ),
+    "ho_open_go_fmt": ("https://pkg.go.dev/fmt", "fmt", ""),
+    "ho_open_rust_vec": (
+        "https://doc.rust-lang.org/std/vec/struct.Vec.html",
+        "Vec",
+        "",
+    ),
+    "ho_open_redis_get": ("https://redis.io/docs/latest/commands/get/", "GET", ""),
+    "ho_open_django_queries": (
+        "https://docs.djangoproject.com/en/stable/topics/db/queries/",
+        "Making queries",
+        "",
+    ),
+}
+
+
+def test_held_out_set_is_fifty_and_disjoint_from_dev():
     held = get_held_out_tasks()
+    dev = get_dev_tasks()
     assert [task["id"] for task in held] == list(HELD_OUT_TASK_IDS)
-    assert len(held) == 15
-    assert 10 <= len(held) <= 15
+    assert len(held) >= 50
     assert len({task["id"] for task in held}) == len(held)
+    assert [task["id"] for task in dev] == list(DEV_TASK_IDS)
+    assert set(DEV_TASK_IDS).isdisjoint(HELD_OUT_TASK_IDS)
+    assert set(TUNED_PROBE_TASK_IDS) <= set(DEV_TASK_IDS)
+    assert [task["id"] for task in tasks_for_split("honest")] == list(HELD_OUT_TASK_IDS)
+    assert [task["id"] for task in tasks_for_split("probe")] == list(TUNED_PROBE_TASK_IDS)
     probe_ids = {task["id"] for task in probe_tasks()}
     assert probe_ids == {"wv_wikipedia_search", "wv_python_docs", "wv_hackernews_top"}
     assert probe_ids.isdisjoint(HELD_OUT_TASK_IDS)
+    covered = {prefix for prefix in _NEW_PREFIXES if any(task["id"].startswith(prefix) for task in held)}
+    assert covered == set(_NEW_PREFIXES)
     for task in held:
         markers = task["end_markers"]
         assert markers.get("host")
@@ -207,6 +337,47 @@ def test_near_misses_fail_and_a_search_url_is_not_rewritten_into_a_pass():
         ("vector member", "ho_cppreference_vector", "https://en.cppreference.com/w/cpp/container/vector/empty", "", ""),
         ("sqlite other statement", "ho_sqlite_vacuum", "https://www.sqlite.org/lang_delete.html", "", ""),
         ("pod child", "ho_k8s_pod", "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/", "", ""),
+        ("tutorial index", "ho_nav_py_inputoutput", "https://docs.python.org/3/tutorial/index.html", "", ""),
+        ("sqlite sibling", "ho_nav_py_sqlite3", "https://docs.python.org/3/library/dbm.html", "", ""),
+        ("rust error index", "ho_nav_rust_result", "https://doc.rust-lang.org/book/ch09-00-error-handling.html", "", ""),
+        ("service child", "ho_nav_k8s_service", "https://kubernetes.io/docs/concepts/services-networking/service/virtual-ips/", "", ""),
+        ("spec prefix", "ho_nav_go_spec", "https://go.dev/ref/specification", "", ""),
+        ("insert not select", "ho_nav_pg_select", "https://www.postgresql.org/docs/current/sql-insert.html", "", ""),
+        ("pragma sibling", "ho_nav_sqlite_pragma", "https://www.sqlite.org/lang_explain.html", "", ""),
+        ("grid not flex", "ho_nav_css_flex", "https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_grid_layout", "", ""),
+        ("form not confirmed", "ho_form_selenium_received", "https://www.selenium.dev/selenium/web/web-form.html", "Received!", "Received!"),
+        ("insecure login", "ho_form_internet_secure", "https://the-internet.herokuapp.com/insecure", "You logged into a secure area!", "You logged into a secure area!"),
+        ("login page", "ho_form_internet_secure", "https://the-internet.herokuapp.com/login", "You logged into a secure area!", "You logged into a secure area!"),
+        ("reset form", "ho_form_internet_email", "https://the-internet.herokuapp.com/forgot_password", "Your e-mail's been sent!", "Your e-mail's been sent!"),
+        ("html form", "ho_form_testpages_comments", "https://testpages.herokuapp.com/styled/basic-html-form-test.html", "comments", "comments"),
+        ("wrong field", "ho_form_testpages_comments", "https://testpages.herokuapp.com/styled/the_form_processor.php", "username", "username"),
+        ("forms lesson", "ho_form_w3schools_action", "https://www.w3schools.com/html/html_forms.asp", "", ""),
+        ("phone not submitted", "ho_form_httpbin_phone", "https://httpbin.org/forms/post", "custtel", "custtel"),
+        ("phone other endpoint", "ho_form_httpbin_phone", "https://httpbin.org/anything/post", "custtel", "custtel"),
+        ("wrong phone field", "ho_form_httpbin_phone", "https://httpbin.org/post", "custname", "custname"),
+        ("gold article prefix", "ho_find_wiki_gold", "https://en.wikipedia.org/wiki/Golden_Gate_Bridge", "79", "79"),
+        ("wrong atomic number", "ho_find_wiki_gold", "https://en.wikipedia.org/wiki/Gold", "atomic number 47", "47"),
+        ("wrong country", "ho_find_wiki_wall", "https://en.wikipedia.org/wiki/Great_Wall_of_China", "The wall is in China.", "Mongolia"),
+        ("urllib3 search", "ho_find_pypi_urllib3", "https://pypi.org/search/?q=/project/urllib3/", "", ""),
+        ("jest sibling", "ho_find_npm_jest", "https://www.npmjs.com/package/jest-cli", "", ""),
+        ("allSettled", "ho_find_mdn_promise_all", "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled", "", ""),
+        ("resnet pdf", "ho_find_arxiv_resnet", "https://arxiv.org/pdf/1512.03385", "Deep Residual Learning for Image Recognition", "Deep Residual Learning for Image Recognition"),
+        ("wrong paper title", "ho_find_arxiv_resnet", "https://arxiv.org/abs/1512.03385", "Attention Is All You Need", "Attention Is All You Need"),
+        ("serde_json", "ho_find_crates_serde", "https://crates.io/crates/serde_json", "", ""),
+        ("news page 1", "ho_page_wp_news", "https://wordpress.org/news/page/1/", "", ""),
+        ("news page 20", "ho_page_wp_news", "https://wordpress.org/news/page/20/", "", ""),
+        ("blog page 20", "ho_page_github_blog", "https://github.blog/page/20/", "", ""),
+        ("core page 1", "ho_page_wp_core", "https://make.wordpress.org/core/page/1/", "", ""),
+        ("wrong port", "ho_table_iana_https", "https://www.iana.org/assignments/service-names-port-numbers/service-names-port-numbers.xhtml", "https 80", "80"),
+        ("status child", "ho_table_wiki_http_201", "https://en.wikipedia.org/wiki/List_of_HTTP_status_codes/201", "Created", "Created"),
+        ("wrong calling code", "ho_table_calling_codes", "https://en.wikipedia.org/wiki/List_of_country_calling_codes", "Japan +86", "+86"),
+        ("wrong element", "ho_table_html_tr", "https://en.wikipedia.org/wiki/HTML_element", "Table header", "Table header"),
+        ("wrong char name", "ho_table_unicode_euro", "https://www.unicode.org/charts/nameslist/n_20A0.html", "DOLLAR SIGN", "DOLLAR SIGN"),
+        ("other block", "ho_table_unicode_euro", "https://www.unicode.org/charts/nameslist/n_20D0.html", "EURO SIGN", "EURO SIGN"),
+        ("fmt child", "ho_open_go_fmt", "https://pkg.go.dev/fmt/print", "", ""),
+        ("vecdeque", "ho_open_rust_vec", "https://doc.rust-lang.org/std/vec/struct.VecDeque.html", "", ""),
+        ("getdel", "ho_open_redis_get", "https://redis.io/docs/latest/commands/getdel/", "", ""),
+        ("models not queries", "ho_open_django_queries", "https://docs.djangoproject.com/en/stable/topics/db/models/", "", ""),
         ("mdn search", "ho_mdn_array_map", "https://developer.mozilla.org/en-US/search?q=Array/map", "", ""),
         ("github search", "ho_github_rust", "https://github.com/search?q=rust-lang/rust", "", ""),
         ("arxiv search", "ho_arxiv_attention", "https://arxiv.org/search/?query=1706.03762", "Attention Is All You Need", "Attention Is All You Need"),
@@ -339,6 +510,8 @@ def test_answers_stay_off_the_prompt_repair_and_patch_turn():
             assert secret not in task_text, task["id"]
         if task["id"] in WIDER_IDS and url_token:
             assert url_token not in task_text, task["id"]
+        if task["id"].startswith(_NEW_PREFIXES) and url_token:
+            assert url_token not in task_text, task["id"]
         raw = format_run_result(
             ok=True,
             url=task["start_url"],
@@ -379,6 +552,18 @@ def test_answers_stay_off_the_prompt_repair_and_patch_turn():
             assert "selector_text" not in text
             if url_token:
                 assert url_token not in text
+
+
+def test_original_fifteen_checks_are_unchanged():
+    from pathlib import Path
+
+    frozen = json.loads(Path("tests/fixtures/original_heldout.json").read_text(encoding="utf-8"))
+    assert [row["id"] for row in frozen] == list(HELD_OUT_TASK_IDS[:15])
+    for row in frozen:
+        task = task_by_id(row["id"])
+        assert task is not None
+        for key, value in row.items():
+            assert task[key] == value, key
 
 
 def test_held_out_split_is_a_plan_and_the_default_stays_the_tuned_trio(capsys):
