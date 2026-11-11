@@ -34,10 +34,9 @@ DECISIONS_MODES = (MODE_OFF, MODE_SHADOW, MODE_ON)
 DEFAULT_TIMEOUT_S = 1.5
 # A wrong accept is a wrong answer. A wrong reject costs one repair turn.
 DEFAULT_ACCEPT_THRESHOLD = 0.90
-# With no returned answer, overturn only if the task is unlikely to need one.
+# Overturn only if the task is unlikely to ask for a value, answer returned or not.
+# A task that asks for a value is never overturned; it gets the targeted repair.
 ANSWER_NEEDED_MAX = 0.2
-# With a returned answer, overturn only if it is not likely wrong.
-ANSWER_OK_MIN = 0.5
 # About 1,500 tokens. Long enough for the lead of an article, a docs page
 # heading block or a package page's summary, which is where the held-out
 # answers sit. Short enough to keep a call near $0.0002 and the input small
@@ -377,31 +376,29 @@ BLOCK_NO_OPINION = "no_opinion"
 BLOCK_BELOW_THRESHOLD = "below_threshold"
 BLOCK_ANSWER_NEEDED = "answer_needed"
 BLOCK_ANSWER_NEEDED_UNKNOWN = "answer_needed_unknown"
-BLOCK_ANSWER_NOT_OK = "answer_not_ok"
-TARGETED_BLOCKS = (BLOCK_ANSWER_NEEDED, BLOCK_ANSWER_NEEDED_UNKNOWN, BLOCK_ANSWER_NOT_OK)
+BLOCK_ANSWER_NEEDED_RETURNED = "answer_needed_returned"
+TARGETED_BLOCKS = (BLOCK_ANSWER_NEEDED, BLOCK_ANSWER_NEEDED_UNKNOWN, BLOCK_ANSWER_NEEDED_RETURNED)
 
 
 def overturn_decision(opinion: DecisionsOpinion, threshold: float, *, has_answer: bool) -> tuple[bool, str]:
     """(overturn, blocked_reason). The one rule for mode on and the shadow estimate.
 
     task_done asks whether the page holds the information, not whether the run
-    returned it, so an overturn also needs the returned answer to hold up.
+    returned it. In the 11 Nov live run every overturn on a task that asks for a
+    value was wrong, so an overturn also needs p(answer_needed) <= ANSWER_NEEDED_MAX,
+    whether or not the script returned an answer. A missing or refused
+    answer_needed blocks it. has_answer only picks the targeted repair's wording.
     """
     if not opinion.ok:
         return False, BLOCK_NO_OPINION
     done = opinion.p(Q_TASK_DONE)
     if done is None or done < threshold:
         return False, BLOCK_BELOW_THRESHOLD
-    if not has_answer:
-        needed = opinion.p(Q_ANSWER_NEEDED)
-        if needed is None:
-            return False, BLOCK_ANSWER_NEEDED_UNKNOWN
-        if needed > ANSWER_NEEDED_MAX:
-            return False, BLOCK_ANSWER_NEEDED
-        return True, ""
-    ok = opinion.p(Q_ANSWER_OK)
-    if ok is not None and ok < ANSWER_OK_MIN:
-        return False, BLOCK_ANSWER_NOT_OK
+    needed = opinion.p(Q_ANSWER_NEEDED)
+    if needed is None:
+        return False, BLOCK_ANSWER_NEEDED_UNKNOWN
+    if needed > ANSWER_NEEDED_MAX:
+        return False, BLOCK_ANSWER_NEEDED_RETURNED if has_answer else BLOCK_ANSWER_NEEDED
     return True, ""
 
 
@@ -412,8 +409,8 @@ def targeted_repair_request(url: str, blocked: str) -> str:
     """
     shown = url if url else "(empty)"
     problem = (
-        "the returned answer does not answer the task"
-        if blocked == BLOCK_ANSWER_NOT_OK
+        "the returned answer is not confirmed by this page"
+        if blocked == BLOCK_ANSWER_NEEDED_RETURNED
         else "the script returned no answer"
     )
     return (

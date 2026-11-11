@@ -201,7 +201,7 @@ def test_an_answer_not_on_the_page_is_a_soft_fail_and_the_start_page_is_hard():
 
 
 def test_high_probability_overturns_and_sends_no_repair(tmp_path):
-    client = FakeDecisions(p_done=0.95)
+    client = FakeDecisions(p_done=0.95, p_needed=0.1)
     result, model = _run(tmp_path, [_wrong_answer()], mode=MODE_ON, client=client)
     assert result.success is True and result.end_state == PASS
     assert _repairs(model) == 0
@@ -289,13 +289,30 @@ def test_no_answer_and_answer_needed_refused_is_not_overturned(tmp_path):
     assert "the page looks right but the script returned no answer" in json.dumps(model.seen)
 
 
-def test_returned_answer_with_low_answer_ok_is_not_overturned(tmp_path):
-    client = FakeDecisions(p_done=0.95, p_answer=0.4)
+def test_returned_answer_on_a_value_task_is_never_overturned(tmp_path):
+    client = FakeDecisions(p_done=1.0, p_answer=1.0, p_needed=0.9)
     result, model = _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_ON, client=client)
     assert result.decisions["decisions_overturned"] is False
-    assert result.decisions["decisions_blocked"] == "answer_not_ok"
+    assert result.decisions["decisions_blocked"] == "answer_needed_returned"
     assert _repairs(model) == 1
-    assert "the returned answer does not answer the task" in json.dumps(model.seen)
+    sent = json.dumps(model.seen)
+    assert "the returned answer is not confirmed by this page" in sent
+    assert "without navigating away" in sent
+
+
+def test_returned_answer_with_answer_needed_refused_is_not_overturned(tmp_path):
+    client = FakeDecisions(p_done=1.0, p_answer=1.0, p_needed=None)
+    result, model = _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_ON, client=client)
+    assert result.decisions["decisions_overturned"] is False
+    assert result.decisions["decisions_blocked"] == "answer_needed_unknown"
+    assert _repairs(model) == 1
+
+
+def test_returned_answer_on_an_open_page_task_is_overturned_whatever_answer_ok_says(tmp_path):
+    client = FakeDecisions(p_done=0.95, p_answer=0.1, p_needed=0.1)
+    result, model = _run(tmp_path, [_wrong_answer()], mode=MODE_ON, client=client)
+    assert result.decisions["decisions_overturned"] is True
+    assert _repairs(model) == 0
 
 
 def test_below_threshold_keeps_the_stock_repair_wording(tmp_path):
@@ -334,7 +351,7 @@ def test_hard_fails_are_never_sent(tmp_path):
 
 
 def test_shadow_changes_nothing_and_asks_after_the_clock(tmp_path):
-    client = FakeDecisions(p_done=0.95, delay=0.3)
+    client = FakeDecisions(p_done=0.95, p_needed=0.1, delay=0.3)
     off, off_model = _run(tmp_path, [_wrong_answer(), _good()])
     shadow, shadow_model = _run(tmp_path, [_wrong_answer(), _good()], mode=MODE_SHADOW, client=client)
     assert shadow_model.seen == off_model.seen
