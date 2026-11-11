@@ -807,6 +807,80 @@ def claimed_from_payload(payload: dict | None) -> ClaimedEvidence:
     return _evidence_from_claim(claimed)
 
 
+def runtime_verdict(
+    trusted: PageEvidence,
+    claimed: ClaimedEvidence | None = None,
+    *,
+    script_ok: bool = True,
+    script_error: str = "",
+    start_url: str = "",
+) -> EvidenceVerdict:
+    """The live check script_first runs on itself. No task markers, no model call.
+
+    A real user has no answer key, so this uses only what the run can see:
+    whether the script finished, the live page, and whether what the script
+    claimed is really on that page. The final grade still applies the task's
+    markers to every arm. A PASS here is never a graded pass by itself.
+    """
+    claimed = claimed or ClaimedEvidence()
+    live = (trusted.url or "").strip()
+    canonical = (trusted.canonical or "").strip()
+    if not _http(canonical):
+        canonical = ""
+    scored = canonical if canonical and not _http(live) else live
+    page_text = trusted.text or ""
+    has_page = _http(live) or bool(canonical)
+    has_body = bool(page_text.strip() or (trusted.title or "").strip() or (trusted.h1 or "").strip())
+
+    if not script_ok:
+        detail = " ".join((script_error or "").split())[:200]
+        return EvidenceVerdict(FAIL, f"the script stopped before it finished ({detail or 'error'})", scored)
+    if not has_page and not has_body:
+        return EvidenceVerdict(FAIL, "empty evidence", "")
+    if not has_page:
+        return EvidenceVerdict(FAIL, "the script did not end on a web page", "")
+    if _http(claimed.url) and not _same_page(claimed.url, live) and not (
+        canonical and _same_page(claimed.url, canonical)
+    ):
+        return EvidenceVerdict(FAIL, "claimed URL does not match the live page", scored)
+    answer = (claimed.answer or "").strip()
+    returned_any = bool(answer or (claimed.key_text or "").strip() or any(v.strip() for v in claimed.values))
+    if not returned_any:
+        # The prompt asks every script to return an answer or a phrase from the page.
+        if _http(start_url) and _same_page(live, start_url):
+            return EvidenceVerdict(FAIL, "the script ended on the start page and returned nothing", live)
+        return EvidenceVerdict(FAIL, "the script returned no answer or key_text", scored)
+    if answer:
+        if not page_text.strip():
+            return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
+        if _norm_answer(answer) not in _norm_answer(page_text):
+            return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
+    problem = _returned_problem(claimed, page_text, scored)
+    if problem is not None:
+        return problem
+    return EvidenceVerdict(PASS, "the script finished and its evidence is on the live page", scored)
+
+
+def script_runtime_verdict(result_text: str, page_url: str, start_url: str = "") -> tuple[EvidenceVerdict, dict]:
+    """Judge one run_script result without the task's markers."""
+    from bench.harness import page_field
+
+    payload = script_result_payload(result_text)
+    title = page_field(result_text, "Title")
+    if not title and isinstance(payload.get("title"), str):
+        title = payload["title"]
+    ok = payload.get("ok")
+    error = payload.get("error") if isinstance(payload.get("error"), str) else ""
+    verdict = runtime_verdict(
+        trusted_from_payload(payload, url=page_url, title=title),
+        claimed_from_payload(payload),
+        script_ok=ok is not False,
+        script_error=error,
+        start_url=start_url,
+    )
+    return verdict, payload
+
+
 def script_verdict(markers: dict | None, result_text: str, page_url: str) -> tuple[EvidenceVerdict, dict]:
     """Judge one run_script result. page_url is the live URL the harness read back."""
     from bench.harness import page_field

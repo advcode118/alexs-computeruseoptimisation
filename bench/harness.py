@@ -911,7 +911,7 @@ class BenchmarkHarness:
             fingerprint_from_payload,
             patch_request,
         )
-        from bench.script_first import PASS, EvidenceVerdict, script_verdict
+        from bench.script_first import PASS, EvidenceVerdict, script_runtime_verdict
         from proxy.script import ScriptError
 
         outcome = {
@@ -937,7 +937,8 @@ class BenchmarkHarness:
             result_text, tool_ms = await self.mcp_client.call_tool("run_script", {"code": code})
             outcome["tool_ms"] += tool_ms
             page_url = page_url_from_result(result_text)
-            verdict, payload = script_verdict(markers, result_text, page_url)
+            # The live check has no answer key. The final grade still does.
+            verdict, payload = script_runtime_verdict(result_text, page_url, start_url)
             selector_text, claimed_answer, page_text, returned = logged_evidence(payload)
             steps.append(
                 StepMetrics(
@@ -967,10 +968,7 @@ class BenchmarkHarness:
         passed, verdict, payload = await run(entry.script)
         live_fp = fingerprint_from_payload(payload, start_url)
         if passed and live_fp == entry.fingerprint:
-            if self._page_passes_shared(task_id, steps[-1] if steps else None):
-                outcome["tier"] = TIER_CACHE_HIT
-                return outcome
-            cache.drop(task_description, start_url)
+            outcome["tier"] = TIER_CACHE_HIT
             return outcome
         if passed and live_fp != entry.fingerprint:
             verdict = EvidenceVerdict(
@@ -1021,7 +1019,7 @@ class BenchmarkHarness:
                 patched = ""
         if patched:
             passed, verdict, patched_payload = await run(patched, model_ms, input_tokens, output_tokens)
-            if passed and self._page_passes_shared(task_id, steps[-1] if steps else None):
+            if passed:
                 cache.save(
                     task_description,
                     start_url,
@@ -1160,14 +1158,13 @@ class BenchmarkHarness:
                 next_script_first_limit,
                 repair_request,
                 script_made_progress,
-                script_verdict,
+                script_runtime_verdict,
             )
-            from bench.tasks import markers_for_task
-
-            markers = markers_for_task(task_id)
+            # No answer key while the run is live. The task's markers are read
+            # only by the post-run grade, the same as for every other arm.
             turn_limit = min(self.max_steps, SCRIPT_FIRST_HARD_CAP)
             if hasattr(self.mcp_client, "end_markers"):
-                self.mcp_client.end_markers = markers
+                self.mcp_client.end_markers = {}
 
         try:
             if cache is not None:
@@ -1373,7 +1370,8 @@ class BenchmarkHarness:
                         else:
                             script_calls += 1
                             # page_url stays the live URL. Markers never rewrite it.
-                            verdict, payload = script_verdict(markers, result_text, page_url)
+                            # No answer key while the run is live. The final grade uses the markers.
+                            verdict, payload = script_runtime_verdict(result_text, page_url, start_url)
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
                             script_steps = int(payload.get("steps") or 0)
@@ -1522,7 +1520,6 @@ class BenchmarkHarness:
                 and success
                 and end_state == PASS
                 and passing_code
-                and self._page_passes_shared(task_id, steps[-1] if steps else None)
             ):
                 landed = ""
                 controls = None

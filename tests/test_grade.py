@@ -353,7 +353,7 @@ def test_probe_grade_uses_the_same_rule_for_both_arms(monkeypatch, tmp_path):
     assert page["success"] is True
 
 
-def test_rfc_fail_then_a_stopped_model_is_not_cached(tmp_path):
+def test_a_wrong_but_consistent_answer_stops_and_fails_the_grade(tmp_path):
     """The reported RFC miss: judge FAIL, two steps, model stopped, no cache write.
 
     The judge already failed. The model then ended the turn. That is not a
@@ -417,12 +417,27 @@ def test_rfc_fail_then_a_stopped_model_is_not_cached(tmp_path):
         )
     )
     seen = json.dumps(model.seen)
+    # The first script ended on the start page with nothing returned: one
+    # legitimate repair. The second is wrong (9.3.2, not 9.3.1) but consistent
+    # with its own page, so the live check, which has no answer key, stops.
     assert client.calls == 2
     assert result.total_steps == 2
-    assert result.end_state == "FAIL"
-    assert result.success is False
-    assert result.success_reason == "Model ended without completing task"
-    assert cache.saved == 0
+    assert seen.count("END_STATE_FAILED") == 1
+    assert result.end_state == "PASS"
+    assert cache.saved == 1
+    # The final grade has the answer key and fails it.
+    from bench.probe import grade_observation
+    from bench.tasks import task_by_id
+
+    last = result.steps[-1]
+    ok, reason, _shared, _why = grade_observation(
+        task_by_id("ho_rfc9110_get_section"),
+        last.page_url,
+        "9.3.2 POST",
+        answer="9.3.2",
+        run_verdict=result.end_state,
+    )
+    assert ok is False, reason
     assert "9.3.1" not in seen
     assert "9.3.1" not in harness.system_prompt
     assert "selector_text" not in seen

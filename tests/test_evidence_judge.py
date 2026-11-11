@@ -249,7 +249,8 @@ def test_unknown_is_logged_and_is_not_a_success(tmp_path):
 
     async def call_tool(name, arguments, nth):
         del name, arguments, nth
-        return format_run_result(ok=True, url="https://example.com/page", step_count=1, text="hello"), 1.0
+        # A claimed answer and no page text: the live check cannot tell.
+        return format_run_result(ok=True, url="https://example.com/page", step_count=1, claimed={"answer": "hello"}), 1.0
 
     harness, model, client = _script_harness(
         tmp_path,

@@ -368,22 +368,46 @@ def test_failed_patch_falls_back_to_fresh(tmp_path):
     assert cache.lookup(DESCRIPTION, START).script.startswith(f'page.goto({json.dumps(FIXTURE["page"]["url"])})')
 
 
-def test_replay_is_judged_again_and_a_wrong_page_is_not_a_hit(tmp_path):
+def test_a_wrong_page_replay_is_a_hit_that_fails_the_grade(tmp_path):
+    """No answer key on replay. A self-consistent wrong page is a visible graded failure."""
     _seed(tmp_path)
     result, model, cache = _run(
         tmp_path,
         _WikiPage({LINK: "babbage"}),
-        [_text_reply("TASK_FAILED"), _script_reply(CLICK_SCRIPT), _script_reply(CLICK_SCRIPT), _text_reply("TASK_FAILED")],
+        [_text_reply("TASK_FAILED")],
     )
-    assert model.calls[0]["tools"] == [PATCH_TOOL]
-    assert "All 3 steps ran. END_STATE_FAILED" in model.calls[0]["messages"][0]["content"]
-    assert result.tier == TIER_FRESH
-    assert result.success is False
-    assert result.end_state == FAIL
-    assert len(cache) == 0
+    assert model.calls == []
+    assert result.tier == TIER_CACHE_HIT
+    assert result.end_state == PASS
+    from bench.probe import grade_observation
+    from bench.tasks import task_by_id
+
+    last = result.steps[-1]
+    ok, reason, _shared, _why = grade_observation(
+        task_by_id(TASK_ID),
+        last.page_url,
+        last.page_text,
+        answer=last.claimed_answer,
+        run_verdict=result.end_state,
+    )
+    assert ok is False, reason
 
 
-def test_unknown_or_fail_scripts_are_never_cached(tmp_path):
+def test_the_live_run_never_reads_the_answer_key(tmp_path, monkeypatch):
+    """Tripwire: script_first finishes with markers_for_task unavailable until the grade read."""
+    def refuse(task_id):
+        raise AssertionError(f"the live run read the answer key for {task_id}")
+
+    async def no_grade_read(self, task_id, steps):
+        del self, task_id, steps
+
+    monkeypatch.setattr("bench.tasks.markers_for_task", refuse)
+    monkeypatch.setattr(BenchmarkHarness, "_read_shared_page", no_grade_read)
+    result, _model, _cache = _run(tmp_path, _WikiPage({LINK: "article"}), [_script_reply(CLICK_SCRIPT)])
+    assert result.end_state == PASS
+
+
+def test_fail_scripts_are_never_cached(tmp_path):
     fail_dir = tmp_path / "fail"
     fail_dir.mkdir()
     stay = f"await page.goto({json.dumps(START)});\nawait {EVIDENCE};"
@@ -399,16 +423,16 @@ def test_unknown_or_fail_scripts_are_never_cached(tmp_path):
 
     unknown_dir = tmp_path / "unknown"
     unknown_dir.mkdir()
+    # A task with no markers is cached on the live check alone, as it would be
+    # for a real user. The answer key never decides what is saved.
     result, _model, cache = _run(
         unknown_dir,
         _WikiPage({LINK: "article"}),
         [_script_reply(CLICK_SCRIPT), _text_reply("TASK_COMPLETE")],
         task_id="not-a-catalog-task",
     )
-    assert result.end_state == UNKNOWN
-    assert result.success is False
-    assert len(cache) == 0
-    assert not cache.path.exists()
+    assert result.end_state == PASS
+    assert len(cache) == 1
 
     direct = ScriptCache(tmp_path / "direct.json")
     for verdict in (EvidenceVerdict(FAIL, "x", START), EvidenceVerdict(UNKNOWN, "x", START), None):

@@ -421,11 +421,7 @@ def test_run_claude_arm_caps_script_first_calls_and_keeps_the_url(monkeypatch, t
 
 
 def test_harness_keeps_the_script_url_for_the_judge(tmp_path):
-    prose = format_run_result(
-        ok=True,
-        url="https://en.wikipedia.org/wiki/Ada_Lovelace",
-        step_count=2,
-    )
+    prose = _page("https://en.wikipedia.org/wiki/Ada_Lovelace", 2)
     responses = [
         {
             "content": [{"type": "tool_use", "id": "t1", "name": "run_script", "input": {"code": "page.goto()"}}],
@@ -579,6 +575,18 @@ def _done_reply(text: str = "TASK_COMPLETE") -> dict:
     }
 
 
+def _page(url: str, step_count: int = 1):
+    """A script result that returns a phrase that is on the live page."""
+    return format_run_result(
+        ok=True,
+        url=url,
+        step_count=step_count,
+        title="Ada Lovelace - Wikipedia",
+        text="Ada Lovelace was an English mathematician.",
+        claimed={"key_text": "Ada Lovelace"},
+    )
+
+
 def _hn_evidence(answer: str):
     return format_run_result(
         ok=True,
@@ -595,10 +603,9 @@ def _hn_evidence(answer: str):
 def test_script_first_repairs_a_main_page_script_once(tmp_path):
     async def call_tool(name, arguments, nth):
         del name
-        url = "https://en.wikipedia.org/wiki/Main_Page"
         if nth > 1:
-            url = "https://en.wikipedia.org/wiki/Ada_Lovelace"
-        return format_run_result(ok=True, url=url, step_count=nth), 1.0
+            return _page("https://en.wikipedia.org/wiki/Ada_Lovelace", nth), 1.0
+        return format_run_result(ok=True, url="https://en.wikipedia.org/wiki/Main_Page", step_count=nth), 1.0
 
     harness, model, client = _script_harness(
         tmp_path,
@@ -693,7 +700,7 @@ def test_script_first_stops_when_the_text_is_already_back(tmp_path):
 def test_script_first_stops_when_the_finished_url_is_already_open(tmp_path):
     async def call_tool(name, arguments, nth):
         del name, arguments, nth
-        return format_run_result(ok=True, url="https://en.wikipedia.org/wiki/Ada_Lovelace", step_count=1), 1.0
+        return _page("https://en.wikipedia.org/wiki/Ada_Lovelace"), 1.0
 
     harness, model, client = _script_harness(
         tmp_path,
@@ -763,13 +770,13 @@ def test_script_first_stops_when_the_repair_stays_on_main_page(tmp_path):
     )
     assert client.calls == 2
     assert result.success is False
-    assert "Main_Page" in result.success_reason
+    assert "start page" in result.success_reason
 
 
 def test_encoded_article_url_ends_the_task_without_a_repair(tmp_path):
     async def call_tool(name, arguments, nth):
         del name, arguments, nth
-        return format_run_result(ok=True, url="https://en.wikipedia.org/wiki/Ada%20Lovelace", step_count=1), 1.0
+        return _page("https://en.wikipedia.org/wiki/Ada%20Lovelace"), 1.0
 
     harness, model, client = _script_harness(
         tmp_path,
@@ -1034,11 +1041,7 @@ def test_script_first_cache_breakpoint_is_sent_and_the_api_is_not_called(monkeyp
 def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
     """The launch begins before the model returns and finishes before run_script."""
     order: list[str] = []
-    prose = format_run_result(
-        ok=True,
-        url="https://en.wikipedia.org/wiki/Ada_Lovelace",
-        step_count=1,
-    )
+    prose = _page("https://en.wikipedia.org/wiki/Ada_Lovelace")
 
     class Client:
         def __init__(self):
