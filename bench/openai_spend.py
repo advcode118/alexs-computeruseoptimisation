@@ -56,6 +56,18 @@ _STANDARD_PRICES = {
         "output_usd_per_mtok": "0.5",
     },
 }
+# Decisions API (POST /v1/decisions), gpt-6-luna only. Input at the gpt-6-luna
+# rates, output not charged.
+# https://developers.openai.com/api/docs/guides/decisions
+DECISIONS_MODEL = "gpt-6-luna"
+_DECISIONS_PRICES = {
+    "input_usd_per_mtok": "0.1",
+    "cached_input_usd_per_mtok": "0.01",
+    "cache_write_30m_usd_per_mtok": "0.125",
+    "cache_write_12h_usd_per_mtok": "0.25",
+    "output_usd_per_mtok": "0",
+}
+DECISIONS_KIND = "decisions"
 # The billed call that died before this file existed. Saved once, on the first run.
 UNRECORDED_CALL_ALLOWANCE_USD = 0.05
 # A later call whose usage cannot be priced. Saved before the process aborts.
@@ -198,6 +210,36 @@ def price_usd(
         + write_30m * write_30m_rate
         + write_12h * write_12h_rate
         + outgoing * out_rate
+    ) / Decimal(1_000_000)
+    return float(amount.quantize(_QUANTUM, rounding=ROUND_HALF_UP))
+
+
+def price_decisions_usd(
+    input_tokens: int,
+    output_tokens: int = 0,
+    cached_tokens: int = 0,
+    cache_write_30m_tokens: int = 0,
+    cache_write_12h_tokens: int = 0,
+) -> float:
+    """Dollars for one Decisions call. Same slices and long-context rule as price_usd, output free."""
+    rates = {key: Decimal(value) for key, value in _DECISIONS_PRICES.items()}
+    try:
+        incoming = int(input_tokens)
+        outgoing = int(output_tokens)
+        cached = int(cached_tokens)
+        write_30m = int(cache_write_30m_tokens)
+        write_12h = int(cache_write_12h_tokens)
+    except (TypeError, ValueError) as exc:
+        raise PriceUnknown("Token counts are not integers. Refusing to price.") from exc
+    writes = write_30m + write_12h
+    if min(incoming, outgoing, cached, write_30m, write_12h) < 0 or cached + writes > incoming:
+        raise PriceUnknown("Token counts are inconsistent. Refusing to price.")
+    scale = Decimal(2) if incoming > LONG_CONTEXT_INPUT_TOKENS else Decimal(1)
+    amount = scale * (
+        (incoming - cached - writes) * rates["input_usd_per_mtok"]
+        + cached * rates["cached_input_usd_per_mtok"]
+        + write_30m * rates["cache_write_30m_usd_per_mtok"]
+        + write_12h * rates["cache_write_12h_usd_per_mtok"]
     ) / Decimal(1_000_000)
     return float(amount.quantize(_QUANTUM, rounding=ROUND_HALF_UP))
 
@@ -373,6 +415,46 @@ class OpenAISpendLedger:
         self.recompute()
         return usd
 
+    def record_decisions(
+        self,
+        *,
+        run_id: str,
+        task_id: str,
+        input_tokens: int,
+        output_tokens: int = 0,
+        cached_tokens: int = 0,
+        cache_write_30m_tokens: int = 0,
+        cache_write_12h_tokens: int = 0,
+        calls: int = 1,
+    ) -> float:
+        """Decisions API calls for one row. No reasoning effort; kind marks the entry."""
+        usd = price_decisions_usd(
+            input_tokens,
+            output_tokens,
+            cached_tokens,
+            cache_write_30m_tokens,
+            cache_write_12h_tokens,
+        )
+        self.tasks.append(
+            {
+                "run_id": run_id,
+                "task_id": task_id,
+                "provider": "openai",
+                "kind": DECISIONS_KIND,
+                "model": DECISIONS_MODEL,
+                "effort": "",
+                "calls": int(calls),
+                "input_tokens": int(input_tokens),
+                "output_tokens": int(output_tokens),
+                "cached_tokens": int(cached_tokens),
+                "cache_write_30m_tokens": int(cache_write_30m_tokens),
+                "cache_write_12h_tokens": int(cache_write_12h_tokens),
+                "usd": usd,
+            }
+        )
+        self.recompute()
+        return usd
+
     def cover_unrecorded_call(self) -> float:
         """Save the one billed call that never reached a ledger. Once, before the next request.
 
@@ -447,6 +529,10 @@ class OpenAISpendLedger:
             if not isinstance(item, dict):
                 raise PriceUnknown("OpenAI ledger has a task that is not an object. Refusing to run.")
             assert_openai_model(str(item.get("model") or ""))
+            if item.get("kind") == DECISIONS_KIND:
+                if item.get("model") != DECISIONS_MODEL:
+                    raise PriceUnknown("OpenAI ledger has a Decisions entry for another model. Refusing to run.")
+                continue
             assert_effort(str(item.get("model")), str(item.get("effort") or ""))
         ledger = cls(
             path=target,

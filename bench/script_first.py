@@ -13,7 +13,7 @@ import json
 import shutil
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import unquote, urlsplit
 
 from bench.judge import is_search_results_url
@@ -399,6 +399,33 @@ class EvidenceVerdict:
     verdict: str
     reason: str
     scored_url: str
+    # Machine-readable FAIL reason from runtime_verdict. Not part of equality.
+    code: str = field(default="", compare=False)
+
+
+# runtime_verdict FAIL codes. A hard FAIL has nothing a second opinion could read.
+FAIL_SCRIPT_ERROR = "script_error"
+FAIL_EMPTY_EVIDENCE = "empty_evidence"
+FAIL_NO_WEB_PAGE = "no_web_page"
+FAIL_CLAIMED_URL = "claimed_url_mismatch"
+FAIL_START_PAGE_NO_RETURN = "start_page_no_return"
+FAIL_NO_RETURN = "no_return"
+FAIL_ANSWER_NOT_IN_TEXT = "answer_not_in_text"
+FAIL_RETURN_NOT_TEXT = "return_not_text"
+FAIL_EVIDENCE_NOT_ON_PAGE = "evidence_not_on_page"
+HARD_FAIL_CODES = frozenset({FAIL_EMPTY_EVIDENCE, FAIL_NO_WEB_PAGE, FAIL_START_PAGE_NO_RETURN})
+
+
+def is_soft_fail(verdict: "EvidenceVerdict | None", payload: dict | None, page_url: str = "") -> bool:
+    """A coded runtime FAIL on a live http(s) page that has some text."""
+    if verdict is None or verdict.verdict != FAIL or not verdict.code:
+        return False
+    if verdict.code in HARD_FAIL_CODES:
+        return False
+    data = payload if isinstance(payload, dict) else {}
+    live = page_url or (data.get("url") if isinstance(data.get("url"), str) else "")
+    text = data.get("text") if isinstance(data.get("text"), str) else ""
+    return _http(live) and bool(text.strip())
 
 
 def _http(url: str) -> bool:
@@ -745,7 +772,7 @@ def _returned_problem(claimed: ClaimedEvidence, page_text: str, scored: str) -> 
     leaves the marker verdict alone. This does not call a model.
     """
     if claimed.rejected:
-        return EvidenceVerdict(FAIL, "returned value is not text", scored)
+        return EvidenceVerdict(FAIL, "returned value is not text", scored, FAIL_RETURN_NOT_TEXT)
     needed = []
     key = (claimed.key_text or "").strip()
     if key:
@@ -758,7 +785,7 @@ def _returned_problem(claimed: ClaimedEvidence, page_text: str, scored: str) -> 
     folded = _norm_answer(page_text)
     for item in needed:
         if _norm_answer(item) not in folded:
-            return EvidenceVerdict(FAIL, "returned evidence is not on the page", scored)
+            return EvidenceVerdict(FAIL, "returned evidence is not on the page", scored, FAIL_EVIDENCE_NOT_ON_PAGE)
     return None
 
 
@@ -868,27 +895,29 @@ def runtime_verdict(
 
     if not script_ok:
         detail = " ".join((script_error or "").split())[:200]
-        return EvidenceVerdict(FAIL, f"the script stopped before it finished ({detail or 'error'})", scored)
+        return EvidenceVerdict(FAIL, f"the script stopped before it finished ({detail or 'error'})", scored, FAIL_SCRIPT_ERROR)
     if not has_page and not has_body:
-        return EvidenceVerdict(FAIL, "empty evidence", "")
+        return EvidenceVerdict(FAIL, "empty evidence", "", FAIL_EMPTY_EVIDENCE)
     if not has_page:
-        return EvidenceVerdict(FAIL, "the script did not end on a web page", "")
+        return EvidenceVerdict(FAIL, "the script did not end on a web page", "", FAIL_NO_WEB_PAGE)
     if _http(claimed.url) and not _same_page(claimed.url, live) and not (
         canonical and _same_page(claimed.url, canonical)
     ):
-        return EvidenceVerdict(FAIL, "claimed URL does not match the live page", scored)
+        return EvidenceVerdict(FAIL, "claimed URL does not match the live page", scored, FAIL_CLAIMED_URL)
     answer = (claimed.answer or "").strip()
     returned_any = bool(answer or (claimed.key_text or "").strip() or any(v.strip() for v in claimed.values))
     if not returned_any:
         # The prompt asks every script to return an answer or a phrase from the page.
         if _http(start_url) and _same_page(live, start_url):
-            return EvidenceVerdict(FAIL, "the script ended on the start page and returned nothing", live)
-        return EvidenceVerdict(FAIL, "the script returned no answer or key_text", scored)
+            return EvidenceVerdict(
+                FAIL, "the script ended on the start page and returned nothing", live, FAIL_START_PAGE_NO_RETURN
+            )
+        return EvidenceVerdict(FAIL, "the script returned no answer or key_text", scored, FAIL_NO_RETURN)
     if answer:
         if not page_text.strip():
             return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
         if _norm_answer(answer) not in _norm_answer(page_text):
-            return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
+            return EvidenceVerdict(FAIL, "answer is not in the page text", scored, FAIL_ANSWER_NOT_IN_TEXT)
     problem = _returned_problem(claimed, page_text, scored)
     if problem is not None:
         return problem
