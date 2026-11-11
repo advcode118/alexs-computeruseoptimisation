@@ -31,7 +31,8 @@ ARM_BROWSER_USE = "browser_use"
 # are selected with --arms. browser_use is a baseline beside plain Playwright
 # MCP and Stagehand, not one of the four.
 ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
-BASELINE_ARMS = (ARM_PLAYWRIGHT, ARM_STAGEHAND, ARM_BROWSER_USE)
+# Stagehand is cut for now (11 Nov 2026). It is still selectable with --arms stagehand.
+BASELINE_ARMS = (ARM_PLAYWRIGHT, ARM_BROWSER_USE)
 SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST, ARM_ENDPOINT, ARM_BROWSER_USE)
 # One script and a completion turn. A repair may use the spare calls.
 # Moving the page does not add a turn. The harness will not run a third script.

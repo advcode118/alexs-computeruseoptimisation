@@ -207,9 +207,8 @@ def test_execute_stops_before_another_task_can_cross_the_run_ceiling(tmp_path, m
     report = arm_report(rows, HONEST_ARMS)
     assert report["playwright_mcp"]["success_count"] == 1
     assert report["script_first"]["success_count"] == 1
-    assert report["stagehand"]["success_count"] is None
+    assert "stagehand" not in report
     assert report["browser_use"]["success_count"] is None
-    assert report["stagehand"]["mean_wall_ms_per_success"] is None
     assert report["script_first"]["warm_replay"]["success_count"] is None
 
 
@@ -282,7 +281,7 @@ def test_report_uses_only_recorded_rows():
     assert script["warm_replay"]["success_count"] == 1
     assert script["warm_replay"]["mean_wall_ms_per_success"] == 4.0
     assert script["warm_replay"]["median_wall_ms_per_success"] == 4.0
-    assert report["stagehand"]["success_count"] is None
+    assert "stagehand" not in report
     assert report["browser_use"]["mean_wall_ms_per_success"] is None
 
 
@@ -292,7 +291,7 @@ def test_printed_report_comes_from_the_rows(monkeypatch, capsys, isolated_spend_
     async def fake(**_kwargs):
         return [
             {
-                "arm": "stagehand",
+                "arm": "browser_use",
                 "pass": "cold",
                 "success": False,
                 "skipped": False,
@@ -307,9 +306,9 @@ def test_printed_report_comes_from_the_rows(monkeypatch, capsys, isolated_spend_
     assert main(["--execute", "--honest"]) == 0
     out = capsys.readouterr().out
     report = json.loads(out[out.index('{\n  "report"') :])["report"]
-    assert report["stagehand"]["success_count"] == 0
-    assert report["stagehand"]["mean_wall_ms_per_success"] is None
-    assert report["stagehand"]["steps"]["repair"] == [4]
+    assert report["browser_use"]["success_count"] == 0
+    assert report["browser_use"]["mean_wall_ms_per_success"] is None
+    assert report["browser_use"]["steps"]["repair"] == [4]
     assert report["playwright_mcp"]["success_count"] is None
     assert report["script_first"]["warm_replay"]["wall_ms"] is None
 

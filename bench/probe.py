@@ -140,7 +140,7 @@ PROBE_CLAUDE_BUDGET_USD = 5.0
 SCRIPT_FIRST_CLAUDE_BUDGET_USD = 2.0
 # Hard ceiling for --honest. The run is meant to land around $5–$8.
 HONEST_PROBE_BUDGET_USD = 8.0
-HONEST_ARMS = (ARM_PLAYWRIGHT, ARM_SCRIPT_FIRST, ARM_STAGEHAND, ARM_BROWSER_USE)
+HONEST_ARMS = (ARM_PLAYWRIGHT, ARM_SCRIPT_FIRST, ARM_BROWSER_USE)
 # One cold pass. A second pass would double the scored-set bill.
 DEFAULT_REPEATS = 1
 # Published dollars from the PR #18 probe, three tasks, at the ledger rate.

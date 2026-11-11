@@ -119,7 +119,7 @@ def _secrets(task: dict) -> list[str]:
 
 def test_browser_use_is_a_baseline_and_the_default_probe_stays_four():
     assert ARMS == ("playwright_mcp", "diff_fast_act", "macro_replay", "stagehand")
-    assert BASELINE_ARMS == (ARM_PLAYWRIGHT, ARM_STAGEHAND, ARM_BROWSER_USE)
+    assert BASELINE_ARMS == (ARM_PLAYWRIGHT, ARM_BROWSER_USE)
     assert ARM_BROWSER_USE in SELECTABLE_ARMS
     assert ARM_BROWSER_USE not in ARMS
     assert arm_needs_claude("browser_use") is True
@@ -406,7 +406,7 @@ def test_probe_selects_the_arm_without_a_live_run(monkeypatch, capsys):
     assert plan["arms"] == ["playwright_mcp", "stagehand", "browser_use"]
     assert plan["claude_arms"] == ["playwright_mcp", "stagehand", "browser_use"]
     assert plan["outer_model"] == "claude-sonnet-5-5"
-    assert plan["baseline_arms"] == ["playwright_mcp", "stagehand", "browser_use"]
+    assert plan["baseline_arms"] == ["playwright_mcp", "browser_use"]
     assert "Browser('chromium')" in plan["browser_isolation"]["browser_use"]
     assert "0.0.84" in plan["browser_isolation"]["playwright_mcp"]
     assert plan_probe()["arms"] == list(ARMS)
