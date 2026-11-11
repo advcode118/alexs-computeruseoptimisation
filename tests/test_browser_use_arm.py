@@ -32,7 +32,7 @@ from bench.browser_use_arm import (
 from bench.budget import PROJECT_BUDGET_USD, ModelNotAllowed, SpendLedger, estimate_usd
 from bench.harness import PLAYWRIGHT_MCP_VERSION as HARNESS_MCP
 from bench.probe import execute_probe, main, plan_probe
-from bench.tasks import BENCHMARK_TASKS, get_held_out_tasks
+from bench.tasks import ANSWER_FORMAT, BENCHMARK_TASKS, get_held_out_tasks, task_message
 from proxy.child import PLAYWRIGHT_MCP_VERSION as CHILD_MCP
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -119,7 +119,7 @@ def _secrets(task: dict) -> list[str]:
 
 def test_browser_use_is_a_baseline_and_the_default_probe_stays_four():
     assert ARMS == ("playwright_mcp", "diff_fast_act", "macro_replay", "stagehand")
-    assert BASELINE_ARMS == (ARM_PLAYWRIGHT, ARM_STAGEHAND, ARM_BROWSER_USE)
+    assert BASELINE_ARMS == (ARM_PLAYWRIGHT, ARM_BROWSER_USE)
     assert ARM_BROWSER_USE in SELECTABLE_ARMS
     assert ARM_BROWSER_USE not in ARMS
     assert arm_needs_claude("browser_use") is True
@@ -160,7 +160,8 @@ def test_prompts_carry_the_task_and_not_the_judge_fields():
     assert tasks
     for task in tasks:
         text = task_text(task)
-        assert text == f"Task: {task['description']}\n\nStart URL: {task['start_url']}"
+        assert text == task_message(task["description"], task["start_url"])
+        assert text == f"Task: {task['description']}\n\nStart URL: {task['start_url']}\n\n{ANSWER_FORMAT}"
         visible = task["description"] + "\n" + task["start_url"]
         assert "selector_text" not in text
         assert "selector_text" not in prompt
@@ -406,7 +407,7 @@ def test_probe_selects_the_arm_without_a_live_run(monkeypatch, capsys):
     assert plan["arms"] == ["playwright_mcp", "stagehand", "browser_use"]
     assert plan["claude_arms"] == ["playwright_mcp", "stagehand", "browser_use"]
     assert plan["outer_model"] == "claude-sonnet-5-5"
-    assert plan["baseline_arms"] == ["playwright_mcp", "stagehand", "browser_use"]
+    assert plan["baseline_arms"] == ["playwright_mcp", "browser_use"]
     assert "Browser('chromium')" in plan["browser_isolation"]["browser_use"]
     assert "0.0.84" in plan["browser_isolation"]["playwright_mcp"]
     assert plan_probe()["arms"] == list(ARMS)

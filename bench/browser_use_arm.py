@@ -44,10 +44,12 @@ class BrowserUseClient:
 
 
 def task_text(task: dict) -> str:
-    """What the model reads. Description and start URL only."""
+    """What the model reads. The same task message as every other arm."""
+    from bench.tasks import task_message
+
     description = task.get("description") if isinstance(task.get("description"), str) else ""
     start_url = task.get("start_url") if isinstance(task.get("start_url"), str) else ""
-    return f"Task: {description}\n\nStart URL: {start_url}"
+    return task_message(description, start_url)
 
 
 def load_browser_use(provider: str = "anthropic"):

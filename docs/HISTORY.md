@@ -208,3 +208,54 @@ Every Origin PR head below is on GitHub under the same branch name, at the same 
 | Origin `main` | `origin-archive/main` | ce4430a |
 
 GitHub `main` (9f666e3) is the README and progress-site history and is not the Origin `main`. `cursor/origin-stack-sync` (GitHub PR #1) holds the Origin stack through #17 plus the Next.js site.
+
+## 11 Nov 2026: handover to Claude Code and the consolidated tip
+
+Work moved from Grok/Cursor to Claude Code (Opus 5.5 and Sonnet 5.5, with Fable 5.2 as advisor). The consolidated tip is `t3/tip` ([PR #47](https://github.com/advcode118/alexs-computeruseoptimisation/pull/47)), stacked on #42.
+
+### Spend, corrected
+- Claude ledger: **$26.022488** after the PR #27 probe. The $16.639436 figure above is stale. That ledger lived on the Cursor cloud box (`/workspace/cu-probe-tip-v6/bench/results/spend.json`). Set `CU_SPEND_LEDGER` to a file that starts at that total before any Claude probe from a new machine.
+- OpenAI ledger: $1.330861 after the PR #36 runs. It was re-seeded on Tom's PC at `~/.cu-optimisation/openai-spend.json` with that figure as `recorded_extra_usd`.
+
+### What the tip changes and why
+1. **No answer key during script_first's run.** Up to #42, script_first's in-run stop/repair check used the task's `end_markers`. That gave it an oracle repair ("answer is not the marked value") and an oracle early stop that the baselines did not have, and that no real user would have. The live check is now `runtime_verdict` in `bench/script_first.py`, which uses no markers. The post-run grade is unchanged and still requires script_first's own PASS. The PR #27 numbers (18/18, 3.18s) were measured with the oracle, so they are an upper bound.
+2. **Grading is no longer timed.** The post-run grade read was inside the wall clock, and #42 skipped it for script_first only.
+3. **Stagehand cut.** `bench/stagehand_local.py` imitates Stagehand's tool surface on local Playwright. It is not the Stagehand library, so it is out of the comparison until the real library is run.
+4. **Same answer-format line for every arm.** The baselines lost Hacker News on phrasing, not on finding the title.
+5. Merged in #33/#34, #38, #41/#44, and the docs #21/#31/#32.
+
+### Stale drafts (left open, not merged, not closed)
+- #40 is replaced by #42 and the tip.
+- #20, #22 and #24 are older copies of returned-evidence/overlap/helpers, redone in #30.
+- #2's `NOTES.md` is already in the tip.
+- #1 is contained in the tip and conflicts with `main`.
+- #37 says there are no logs. PR #45 now groups the real OpenAI failures.
+- #14 is the Grok/Cursor sync scripts, no longer used.
+- `t3/step-heldout-tasks` is abandoned work-in-progress, replaced by #15/#33.
+- The open PRs from #3 to #36 on the main line are all ancestors of the tip.
+
+### Other branches from this session
+- PR #45: failure taxonomy from the OpenAI jsonl (Mission 5).
+- PR #46: `check_page` over MCP, which was already built (Mission 9). It adds tests and a README section.
+- `cursor/local-bench-holdout-a63b`: a backup of the unpushed `computeruseoptimisation-loop` checkout. It has separate history and is not for merging.
+
+### Where it stopped (11 Nov 2026, about 01:30) and what is next
+The tip is `t3/tip`, PR #47, at `acf4011` plus this note. It includes PR #48's held-out tightening. The offline suite gives 280 passed, 1 skipped on Windows with Python 3.14.
+
+OpenAI spend this session was $0.0075. The ledger is at $1.338349 of $20. Claude API spend was $0.
+- The smoke run (`bench/runs/probe_20261111_012031.jsonl`, Luna medium, 3 tuned tasks) passed. script_first was 3/3 with one script each at 4.2–6.2s. browser_use was 3/3. playwright_mcp was 1/3.
+- The 50-task held-out run was **stopped by hand after 8 of 150 rows** (`probe_20261111_012409.jsonl`, partial, not a result).
+- `bench/runs/` is gitignored, so both files are only on Tom's PC.
+
+Next, in order:
+1. ~~Run the held-out measurement~~ **Done 11 Nov 2026** (Luna and Sol, medium, 50 tasks, no answer key). Results are in `docs/TEST_RESULTS.md` section 7b and `docs/results/heldout_*_20261111.jsonl`. script_first is fastest and cheapest but passes fewer tasks than browser_use.
+2. ~~Write the results~~ Done.
+3. **Claude comparison (optional, costs Claude API, needs Tom's go).** First point `CU_SPEND_LEDGER` at a file seeded to $26.022488. Then run `--honest`, which now uses 3 arms.
+4. **Not done yet:**
+   - The prompt and `repair_request` were made site-neutral (done before the held-out run); the earlier tuned-prompt numbers are not comparable.
+   - About 19 held-out tasks have a final URL that can be guessed from the task text (see PR #45/#48 notes). Replace some with tasks whose URL is not derivable.
+   - There are no multi-step or SPA tasks yet.
+   - Mission 6 harness gaps from #32: timeouts and browsers still differ between arms.
+   - Mission 10 (CUO-33/34) has not started. `cursor/local-bench-holdout-a63b` may contain earlier work on it.
+   - The progress site: decide which site history is canonical (`main` vs the `cursor/progress-site-redesign-8676` line, PR #43). The live Vercel site was deployed from detached worktrees.
+5. **Leave open:** PRs #45 (failure taxonomy) and #46 (check_page MCP tests) need a review and stay stacked where they are.

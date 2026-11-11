@@ -414,6 +414,40 @@ def _norm_answer(value: str) -> str:
     return " ".join((value or "").split()).casefold()
 
 
+def _phrase_at_boundary(marker: str, text: str) -> bool:
+    """True when the folded marker is in the folded text at token boundaries.
+
+    Case and spacing fold the same way as _norm_answer. A marker that starts
+    or ends on a letter or digit may not continue into one on that side, and a
+    number may not continue through a decimal or version point (443 is not in
+    4430 or 9.3.443, 9.3.1 is not in 9.3.10).
+    """
+    needle = _norm_answer(marker)
+    hay = _norm_answer(text)
+    if not needle:
+        return False
+    start = hay.find(needle)
+    while start != -1:
+        end = start + len(needle)
+        before = hay[start - 1] if start else ""
+        after = hay[end] if end < len(hay) else ""
+        ok = True
+        if needle[0].isalnum() or needle[0] == "_":
+            if before.isalnum() or before == "_":
+                ok = False
+            elif needle[0].isdigit() and before in ".," and start >= 2 and hay[start - 2].isdigit():
+                ok = False
+        if ok and (needle[-1].isalnum() or needle[-1] == "_"):
+            if after.isalnum() or after == "_":
+                ok = False
+            elif needle[-1].isdigit() and after in ".," and end + 1 < len(hay) and hay[end + 1].isdigit():
+                ok = False
+        if ok:
+            return True
+        start = hay.find(needle, start + 1)
+    return False
+
+
 def _host_name(url: str) -> str:
     if not _http(url):
         return ""
@@ -505,11 +539,15 @@ def _url_matches(url: str, markers: dict) -> bool:
         return False
     if not _path_suffix_ok(url, markers.get("path_suffix") or ""):
         return False
+    if markers.get("query_nonempty") and not urlsplit(url).query.strip():
+        return False
     return True
 
 
 def _positive_url(markers: dict) -> bool:
-    return bool(markers.get("url_contains") or markers.get("path_suffix"))
+    return bool(
+        markers.get("url_contains") or markers.get("path_suffix") or markers.get("query_nonempty")
+    )
 
 
 def _scored_url(live: str, canonical: str, markers: dict) -> str:
@@ -682,11 +720,7 @@ def evidence_verdict(
                 return gate(EvidenceVerdict(UNKNOWN, "page text was not read", scored))
             if _norm_answer(answer) not in _norm_answer(page_text):
                 return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
-            if _norm_answer(str(answer_in_text)) not in _norm_answer(answer) and _norm_answer(
-                str(answer_in_text)
-            ) not in _norm_answer(page_text):
-                return EvidenceVerdict(FAIL, "answer does not satisfy the marker", scored)
-            if _norm_answer(str(answer_in_text)) not in _norm_answer(answer):
+            if not _phrase_at_boundary(str(answer_in_text), answer):
                 return EvidenceVerdict(FAIL, "answer does not satisfy the marker", scored)
         if needs_url and not url_ok:
             return EvidenceVerdict(FAIL, "the URL marker does not match the live page", scored)
@@ -807,6 +841,80 @@ def claimed_from_payload(payload: dict | None) -> ClaimedEvidence:
     return _evidence_from_claim(claimed)
 
 
+def runtime_verdict(
+    trusted: PageEvidence,
+    claimed: ClaimedEvidence | None = None,
+    *,
+    script_ok: bool = True,
+    script_error: str = "",
+    start_url: str = "",
+) -> EvidenceVerdict:
+    """The live check script_first runs on itself. No task markers, no model call.
+
+    A real user has no answer key, so this uses only what the run can see:
+    whether the script finished, the live page, and whether what the script
+    claimed is really on that page. The final grade still applies the task's
+    markers to every arm. A PASS here is never a graded pass by itself.
+    """
+    claimed = claimed or ClaimedEvidence()
+    live = (trusted.url or "").strip()
+    canonical = (trusted.canonical or "").strip()
+    if not _http(canonical):
+        canonical = ""
+    scored = canonical if canonical and not _http(live) else live
+    page_text = trusted.text or ""
+    has_page = _http(live) or bool(canonical)
+    has_body = bool(page_text.strip() or (trusted.title or "").strip() or (trusted.h1 or "").strip())
+
+    if not script_ok:
+        detail = " ".join((script_error or "").split())[:200]
+        return EvidenceVerdict(FAIL, f"the script stopped before it finished ({detail or 'error'})", scored)
+    if not has_page and not has_body:
+        return EvidenceVerdict(FAIL, "empty evidence", "")
+    if not has_page:
+        return EvidenceVerdict(FAIL, "the script did not end on a web page", "")
+    if _http(claimed.url) and not _same_page(claimed.url, live) and not (
+        canonical and _same_page(claimed.url, canonical)
+    ):
+        return EvidenceVerdict(FAIL, "claimed URL does not match the live page", scored)
+    answer = (claimed.answer or "").strip()
+    returned_any = bool(answer or (claimed.key_text or "").strip() or any(v.strip() for v in claimed.values))
+    if not returned_any:
+        # The prompt asks every script to return an answer or a phrase from the page.
+        if _http(start_url) and _same_page(live, start_url):
+            return EvidenceVerdict(FAIL, "the script ended on the start page and returned nothing", live)
+        return EvidenceVerdict(FAIL, "the script returned no answer or key_text", scored)
+    if answer:
+        if not page_text.strip():
+            return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
+        if _norm_answer(answer) not in _norm_answer(page_text):
+            return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
+    problem = _returned_problem(claimed, page_text, scored)
+    if problem is not None:
+        return problem
+    return EvidenceVerdict(PASS, "the script finished and its evidence is on the live page", scored)
+
+
+def script_runtime_verdict(result_text: str, page_url: str, start_url: str = "") -> tuple[EvidenceVerdict, dict]:
+    """Judge one run_script result without the task's markers."""
+    from bench.harness import page_field
+
+    payload = script_result_payload(result_text)
+    title = page_field(result_text, "Title")
+    if not title and isinstance(payload.get("title"), str):
+        title = payload["title"]
+    ok = payload.get("ok")
+    error = payload.get("error") if isinstance(payload.get("error"), str) else ""
+    verdict = runtime_verdict(
+        trusted_from_payload(payload, url=page_url, title=title),
+        claimed_from_payload(payload),
+        script_ok=ok is not False,
+        script_error=error,
+        start_url=start_url,
+    )
+    return verdict, payload
+
+
 def script_verdict(markers: dict | None, result_text: str, page_url: str) -> tuple[EvidenceVerdict, dict]:
     """Judge one run_script result. page_url is the live URL the harness read back."""
     from bench.harness import page_field
@@ -831,7 +939,7 @@ def repair_request(url: str, reason: str) -> str:
         f"{reason}. Current URL: {shown}. "
         "Send one corrected script that finishes the task. "
         "The end URL must be the finished page the task asked for. "
-        "Wikipedia must leave Main_Page. "
+        "The script must leave the start page and any search-results page for the page that holds the asked value. "
         "cu.click, cu.fill, and cu.press take a visible name. "
         "cu.claim belongs inside page.evaluate. "
         "Return any title or answer with page.evaluate in that same script. "

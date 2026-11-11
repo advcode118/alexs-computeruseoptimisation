@@ -68,7 +68,7 @@ OPENAI_RUN_BUDGET_USD = 5.0
 # stops at $5. One tuned task per cell keeps the sweep from repeating the
 # three-task Claude set at every effort.
 OPENAI_SWEEP_BUDGET_USD = 15.0
-OPENAI_ARMS = "script_first,playwright_mcp,stagehand,browser_use"
+OPENAI_ARMS = "script_first,playwright_mcp,browser_use"
 _QUANTUM = Decimal("0.000001")
 
 
