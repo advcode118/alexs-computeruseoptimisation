@@ -602,7 +602,7 @@ def test_answer_marker_needs_token_boundaries():
         ("+81", "Japan is +81.", "Japan is +81.", True),
         ("9.3.1", "version 9.3.10 and 9.3.1", "9.3.10", False),
         ("9.3.1", "version 9.3.1", "9.3.1", True),
-        ("9.3.1", "version 9.3.1", "version 9.3.1.", True),
+        ("9.3.1", "Use version 9.3.1.", "version 9.3.1.", True),
         ("79", "ratio 1.79 and 79", "1.79", False),
         ("Paris", "Parisian and Paris", "Parisian", False),
         ("Paris", "in Paris", "  in   PARIS ", True),
