@@ -428,6 +428,16 @@ def is_soft_fail(verdict: "EvidenceVerdict | None", payload: dict | None, page_u
     return _http(live) and bool(text.strip())
 
 
+def overturned_verdict(verdict: "EvidenceVerdict") -> "EvidenceVerdict":
+    """script_first's own PASS after the Decisions second opinion accepted a soft FAIL."""
+    return EvidenceVerdict(
+        PASS,
+        f"second opinion accepted the end state (runtime check said: {verdict.reason})",
+        verdict.scored_url,
+        verdict.code,
+    )
+
+
 def _http(url: str) -> bool:
     return isinstance(url, str) and url.startswith(("http://", "https://"))
 

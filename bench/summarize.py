@@ -22,6 +22,8 @@ class TaskSummary:
     total_snapshot_tokens: int
     error: str | None
     model_ignores_tools: int = 0
+    decisions_check: str = "off"
+    decisions_overturned: bool = False
 
 
 def load_results(run_file: Path) -> list[TaskSummary]:
@@ -45,6 +47,8 @@ def load_results(run_file: Path) -> list[TaskSummary]:
                 total_snapshot_tokens=data["total_snapshot_tokens"],
                 error=data.get("error"),
                 model_ignores_tools=int(data.get("model_ignores_tools") or 0),
+                decisions_check=str(data.get("decisions_check") or "off"),
+                decisions_overturned=bool(data.get("decisions_overturned")),
             ))
     return results
 
@@ -117,6 +121,10 @@ def generate_totals(results: list[TaskSummary]) -> str:
         f"- **Model ignores tools**: {total_ignores}",
         "",
     ]
+    modes = sorted({r.decisions_check for r in results if r.decisions_check != "off"})
+    if modes:
+        flipped = sum(1 for r in results if r.decisions_overturned)
+        lines[-1:-1] = [f"- **Decisions check**: {', '.join(modes)} (overturned {flipped})"]
 
     if total_tasks > 0:
         avg_steps = total_steps / total_tasks

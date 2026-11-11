@@ -159,6 +159,11 @@ class TaskResult:
     # Cache writes are a slice of input tokens. Claude stays at 0.
     total_cache_write_30m_tokens: int = 0
     total_cache_write_12h_tokens: int = 0
+    # script_first: the first runtime verdict, before a repair can overwrite success_reason.
+    first_runtime_reason: str = ""
+    first_runtime_code: str = ""
+    # Decisions second-opinion fields (bench/decisions.py). Empty for other arms.
+    decisions: dict = field(default_factory=dict)
 
 
 def estimate_tokens(text: str) -> int:
@@ -747,6 +752,9 @@ class BenchmarkHarness:
         script_cache=None,
         provider: str = "anthropic",
         effort: str | None = None,
+        decisions_check: str | None = None,
+        decisions_client=None,
+        decisions_accept: float | None = None,
     ):
         from bench.arms import prompt_for
 
@@ -783,6 +791,136 @@ class BenchmarkHarness:
         self._pending_snapshot_path: Path | None = None
         # In flight while the model writes. None for arms that start first.
         self._browser_launch: asyncio.Future | None = None
+        self._setup_decisions(decisions_check, decisions_client, decisions_accept)
+
+    def _setup_decisions(self, mode: str | None, client, accept: float | None) -> None:
+        """script_first's Decisions second opinion. off unless asked; off changes nothing."""
+        from bench.decisions import (
+            DEFAULT_ACCEPT_THRESHOLD,
+            DEFAULT_TIMEOUT_S,
+            MODE_OFF,
+            DecisionsClient,
+            parse_mode,
+        )
+
+        chosen = parse_mode(mode if mode is not None else os.environ.get("CU_DECISIONS_CHECK", MODE_OFF))
+        if self.arm != "script_first":
+            chosen = MODE_OFF
+        if chosen != MODE_OFF and self.provider != "openai" and client is None:
+            raise ValueError("--decisions-check needs --provider openai; its spend is on the OpenAI ledger.")
+        if accept is None:
+            accept = float(os.environ.get("CU_DECISIONS_ACCEPT") or DEFAULT_ACCEPT_THRESHOLD)
+        if not 0.5 < accept <= 1.0:
+            raise ValueError("The Decisions accept threshold must be above 0.5 and at most 1.0.")
+        self.decisions_check = chosen
+        self.decisions_accept = float(accept)
+        if client is None and chosen != MODE_OFF:
+            timeout = float(os.environ.get("CU_DECISIONS_TIMEOUT_S") or DEFAULT_TIMEOUT_S)
+            client = DecisionsClient(self.api_key, timeout_s=timeout)
+        self.decisions_client = client
+
+    async def _decisions_soft_fail(
+        self,
+        *,
+        verdict,
+        payload: dict | None,
+        page_url: str,
+        task_description: str,
+        start_url: str,
+        record: dict,
+    ) -> bool:
+        """The one check every repair site runs first. True: overturn to PASS, send no repair.
+
+        Only in mode on, only on a soft FAIL, at most once per task. Any error
+        or timeout is no opinion, and the caller repairs exactly as before.
+        """
+        from bench.decisions import MODE_ON, note_opinion, payload_from_run, should_accept
+        from bench.script_first import is_soft_fail
+
+        if self.decisions_check != MODE_ON or record.get("decisions_asked_in_run"):
+            return False
+        if not is_soft_fail(verdict, payload, page_url):
+            return False
+        record["decisions_asked_in_run"] = True
+        record["decisions_fail_code"] = verdict.code
+        body = payload_from_run(
+            task_description=task_description,
+            start_url=start_url,
+            run_payload=payload,
+            page_url=page_url,
+            runtime_reason=verdict.reason,
+        )
+        opinion = await self.decisions_client.ask(body)
+        note_opinion(record, opinion, post_clock=False)
+        if should_accept(opinion, self.decisions_accept):
+            record["decisions_overturned"] = True
+            return True
+        return False
+
+    async def _decisions_after_clock(
+        self,
+        *,
+        end_state: str,
+        last_verdict,
+        payload: dict | None,
+        page_url: str,
+        soft_fail: dict | None,
+        task_description: str,
+        start_url: str,
+        record: dict,
+    ) -> None:
+        """Logged only, after the wall clock. Never changes success or the grade."""
+        from bench.decisions import MODE_ON, MODE_SHADOW, Q_TASK_DONE, note_opinion, payload_from_run
+        from bench.script_first import FAIL, PASS, claimed_from_payload
+
+        if self.decisions_check == MODE_SHADOW:
+            # What mode on would have seen at the first soft FAIL.
+            if soft_fail is not None:
+                record["decisions_fail_code"] = soft_fail["verdict"].code
+                opinion = await self.decisions_client.ask(
+                    payload_from_run(
+                        task_description=task_description,
+                        start_url=start_url,
+                        run_payload=soft_fail["payload"],
+                        page_url=soft_fail["page_url"],
+                        runtime_reason=soft_fail["verdict"].reason,
+                    )
+                )
+                note_opinion(record, opinion, post_clock=True)
+                p_done = opinion.p(Q_TASK_DONE) if opinion.ok else None
+                record["decisions_would_overturn"] = p_done is not None and p_done >= self.decisions_accept
+            # The state the run actually ended in.
+            if isinstance(payload, dict) and payload:
+                reason = ""
+                if last_verdict is not None and last_verdict.verdict == FAIL:
+                    reason = last_verdict.reason
+                elif last_verdict is not None and last_verdict.verdict != PASS:
+                    reason = f"{last_verdict.verdict}: {last_verdict.reason}"
+                opinion = await self.decisions_client.ask(
+                    payload_from_run(
+                        task_description=task_description,
+                        start_url=start_url,
+                        run_payload=payload,
+                        page_url=page_url,
+                        runtime_reason=reason,
+                    )
+                )
+                note_opinion(record, opinion, post_clock=True, prefix="decisions_end_")
+            return
+        if self.decisions_check == MODE_ON and end_state == PASS and not record.get("decisions_overturned"):
+            if isinstance(payload, dict) and claimed_from_payload(payload).answer.strip():
+                opinion = await self.decisions_client.ask(
+                    payload_from_run(
+                        task_description=task_description,
+                        start_url=start_url,
+                        run_payload=payload,
+                        page_url=page_url,
+                        runtime_reason="",
+                        ask_task_done=False,
+                        ask_class=False,
+                    )
+                )
+                note_opinion(record, opinion, post_clock=True, prefix="decisions_end_")
 
     def has_api_key(self) -> bool:
         """Check if we have an API key configured."""
@@ -1149,6 +1287,11 @@ class BenchmarkHarness:
         script_steps = 0
         passing_code = ""
         passing_verdict = None
+        first_runtime = None
+        soft_fail_seen: dict | None = None
+        from bench.decisions import empty_record
+
+        decisions_record = empty_record(self.decisions_check) if self.arm == "script_first" else {}
         cache = self.script_cache if self.arm == "script_first" else None
         if self.arm == "script_first":
             from bench.arms import SCRIPT_FIRST_HARD_CAP, SCRIPT_FIRST_MAX_SCRIPTS
@@ -1157,7 +1300,9 @@ class BenchmarkHarness:
                 PASS,
                 UNKNOWN,
                 model_visible_script_result,
+                is_soft_fail,
                 next_script_first_limit,
+                overturned_verdict,
                 repair_request,
                 script_made_progress,
                 script_runtime_verdict,
@@ -1260,6 +1405,17 @@ class BenchmarkHarness:
                         failure = ""
                         if last_verdict is not None and last_verdict.verdict == FAIL and repairs_sent < 1:
                             failure = last_verdict.reason
+                        if failure and await self._decisions_soft_fail(
+                            verdict=last_verdict,
+                            payload=previous_payload,
+                            page_url=last_url,
+                            task_description=task_description,
+                            start_url=start_url,
+                            record=decisions_record,
+                        ):
+                            failure = ""
+                            last_verdict = overturned_verdict(last_verdict)
+                            end_state = PASS
                         if failure:
                             messages.append({"role": "assistant", "content": assistant_content})
                             messages.append({"role": "user", "content": repair_request(last_url, failure)})
@@ -1374,10 +1530,32 @@ class BenchmarkHarness:
                             # page_url stays the live URL. Markers never rewrite it.
                             # No answer key while the run is live. The final grade uses the markers.
                             verdict, payload = script_runtime_verdict(result_text, page_url, start_url)
+                            if first_runtime is None:
+                                first_runtime = verdict
+                            if (
+                                soft_fail_seen is None
+                                and repairs_sent < 1
+                                and is_soft_fail(verdict, payload, page_url)
+                            ):
+                                soft_fail_seen = {"verdict": verdict, "payload": payload, "page_url": page_url}
+                            if (
+                                verdict.verdict == FAIL
+                                and repairs_sent < 1
+                                and await self._decisions_soft_fail(
+                                    verdict=verdict,
+                                    payload=payload,
+                                    page_url=page_url,
+                                    task_description=task_description,
+                                    start_url=start_url,
+                                    record=decisions_record,
+                                )
+                            ):
+                                verdict = overturned_verdict(verdict)
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
                             script_steps = int(payload.get("steps") or 0)
-                            if verdict.verdict == PASS:
+                            # An overturned FAIL is not saved to the script cache.
+                            if verdict.verdict == PASS and not decisions_record.get("decisions_overturned"):
                                 args = tool_args if isinstance(tool_args, dict) else {}
                                 passing_code = args.get("code") or args.get("script") or ""
                                 passing_verdict = verdict
@@ -1540,6 +1718,19 @@ class BenchmarkHarness:
 
         total_wall_ms = (time.perf_counter() - wall_start) * 1000 - grade_read_ms
         total_other_ms = total_wall_ms - total_model_ms - total_tool_ms
+        # After the clock: logged only, and never part of the grade above.
+        if decisions_record.get("decisions_check", "off") != "off":
+            await self._decisions_after_clock(
+                end_state=end_state,
+                last_verdict=last_verdict,
+                payload=previous_payload,
+                page_url=last_url,
+                soft_fail=soft_fail_seen,
+                task_description=task_description,
+                start_url=start_url,
+                record=decisions_record,
+            )
+            decisions_record.pop("decisions_asked_in_run", None)
 
         return TaskResult(
             task_id=task_id,
@@ -1565,6 +1756,9 @@ class BenchmarkHarness:
             total_cached_tokens=total_cached_tokens,
             total_cache_write_30m_tokens=total_cache_write_30m_tokens,
             total_cache_write_12h_tokens=total_cache_write_12h_tokens,
+            first_runtime_reason=first_runtime.reason if first_runtime is not None else "",
+            first_runtime_code=first_runtime.code if first_runtime is not None else "",
+            decisions=decisions_record,
         )
 
     def _empty_result(
@@ -1613,6 +1807,9 @@ class BenchmarkHarness:
                 "tier": result.tier,
                 "model_calls": result.model_calls,
                 "script_steps": result.script_steps,
+                "first_runtime_reason": result.first_runtime_reason,
+                "first_runtime_code": result.first_runtime_code,
+                **result.decisions,
                 "error": result.error,
                 "claimed_answer": result.steps[-1].claimed_answer if result.steps else "",
                 "expected_value": result.steps[-1].selector_text if result.steps else "",

@@ -190,6 +190,23 @@ def _record(row: dict, ledger: OpenAISpendLedger, *, arm: str, model: str, effor
         cache_write_30m_tokens=int(row.get("cache_write_30m_tokens") or 0),
         cache_write_12h_tokens=int(row.get("cache_write_12h_tokens") or 0),
     )
+    calls = int(row.get("decisions_calls") or 0)
+    if row.get("decisions_unpriced"):
+        raise PriceUnknown(f"Decisions call could not be priced: {row['decisions_unpriced']}")
+    if calls and int(row.get("decisions_input_tokens") or 0):
+        # Its own ledger entry at the Decisions rates. The row's usd is the arm's whole bill.
+        decided = ledger.record_decisions(
+            run_id="probe",
+            task_id=f"{arm}:{row.get('task_id')}:decisions",
+            input_tokens=int(row.get("decisions_input_tokens") or 0),
+            output_tokens=int(row.get("decisions_output_tokens") or 0),
+            cached_tokens=int(row.get("decisions_cached_tokens") or 0),
+            cache_write_30m_tokens=int(row.get("decisions_cache_write_30m_tokens") or 0),
+            cache_write_12h_tokens=int(row.get("decisions_cache_write_12h_tokens") or 0),
+            calls=calls,
+        )
+        row["decisions_usd"] = decided
+        recorded = round(recorded + decided, 6)
     row["usd"] = recorded
     if not ledger.allows_project():
         ledger.mark_aborted(

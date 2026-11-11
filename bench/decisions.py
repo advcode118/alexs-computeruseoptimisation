@@ -307,6 +307,7 @@ def empty_record(mode: str) -> dict:
             "decisions_p_answer_ok": None,
             "decisions_class": "",
             "decisions_overturned": False,
+            "decisions_would_overturn": None,
             "decisions_fail_code": "",
             "decisions_usd": 0.0,
             "decisions_input_tokens": 0,
@@ -316,13 +317,16 @@ def empty_record(mode: str) -> dict:
             "decisions_cache_write_12h_tokens": 0,
             "decisions_unpriced": "",
             "decisions_post_clock": False,
+            "decisions_end_p_task_done": None,
+            "decisions_end_p_answer_ok": None,
+            "decisions_end_class": "",
         }
     )
     return record
 
 
-def note_opinion(record: dict, opinion: DecisionsOpinion, *, post_clock: bool) -> None:
-    """Add one call to the row. A later call's probabilities replace an earlier one's."""
+def note_opinion(record: dict, opinion: DecisionsOpinion, *, post_clock: bool, prefix: str = "decisions_") -> None:
+    """Add one call to the row. prefix decisions_end_ holds the ask about the final state."""
     record["decisions_calls"] += 1
     record["decisions_ms"] = round(record["decisions_ms"] + opinion.elapsed_ms, 3)
     if post_clock:
@@ -340,12 +344,12 @@ def note_opinion(record: dict, opinion: DecisionsOpinion, *, post_clock: bool) -
         record["decisions_cache_write_30m_tokens"] += opinion.usage["cache_write_30m_tokens"]
         record["decisions_cache_write_12h_tokens"] += opinion.usage["cache_write_12h_tokens"]
     if opinion.ok:
-        for name, key in ((Q_TASK_DONE, "decisions_p_task_done"), (Q_ANSWER_OK, "decisions_p_answer_ok")):
+        for name, key in ((Q_TASK_DONE, "p_task_done"), (Q_ANSWER_OK, "p_answer_ok")):
             value = opinion.p(name)
             if value is not None:
-                record[key] = value
+                record[prefix + key] = value
         if opinion.choice:
-            record["decisions_class"] = opinion.choice
+            record[prefix + "class"] = opinion.choice
 
 
 def should_accept(opinion: DecisionsOpinion, threshold: float) -> bool:
