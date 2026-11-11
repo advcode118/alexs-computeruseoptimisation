@@ -180,7 +180,12 @@ export default function HomePage() {
               </a>
             ))}
           </nav>
-          <RepoLinks className="flex shrink-0 gap-2 text-sm" />
+          <div className="flex shrink-0 items-center gap-2 text-sm">
+            <a href="/stats" className="rounded-full bg-ink px-3 py-1 font-semibold text-sheet hover:bg-[var(--color-yours)]">
+              Stats
+            </a>
+            <RepoLinks className="flex shrink-0 gap-2" />
+          </div>
         </div>
       </header>
 
@@ -216,7 +221,7 @@ export default function HomePage() {
                 id="charts"
                 number="02"
                 title="Results, probe by probe"
-                lede={`Scored on wall time per successful task. Three tasks per probe: ${progress.tasks.join(", ")}.`}
+                lede={`Scored on wall time per successful task. ${progress.tasksNote}`}
               />
             </div>
             <div className="reveal mt-10">

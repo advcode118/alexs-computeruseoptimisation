@@ -21,7 +21,7 @@ const metrics: { id: Metric; label: string; scale: string }[] = [
   { id: "cost", label: "Cost", scale: "Log scale, $0.01 to $2, as logged. Shorter is better." },
 ];
 
-const armOrder: ArmId[] = ["playwright_mcp", "script_first", "stagehand", "diff_fast_act", "macro_replay"];
+const armOrder: ArmId[] = ["playwright_mcp", "script_first", "browser_use", "stagehand", "diff_fast_act", "macro_replay"];
 
 function width(metric: Metric, result: ArmResult): number | null {
   if (metric === "success") {

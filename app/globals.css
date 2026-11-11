@@ -21,6 +21,10 @@
   --color-arm-replay: #ccd2dc;
   --color-arm-script: var(--color-yours);
   --color-stop: #8a5a00;
+  --color-yours-ink: #b0124f;
+  --color-pass: #1f6f43;
+  --color-fail: #9b1c1c;
+  --color-fail-soft: #fdecec;
 }
 
 html {
@@ -190,4 +194,25 @@ body {
   .loop-pulse {
     animation: none;
   }
+}
+
+/* Dark, dense theme for /stats: only the tokens change. */
+.aa {
+  color-scheme: dark;
+  --color-paper: #0b1220;
+  --color-sheet: #111a2e;
+  --color-ink: #e8edf7;
+  --color-mute: #9aa8c4;
+  --color-rule: #243049;
+  --color-yours: #f0508a;
+  --color-yours-bright: #ff7aa8;
+  --color-yours-soft: #2a1426;
+  --color-yours-ink: #ff8db3;
+  --color-arm-mcp: #6f84ad;
+  --color-pass: #5fd39a;
+  --color-fail: #ff8a8a;
+  --color-fail-soft: #3a1717;
+  --color-stop: #f0b45a;
+  --color-night: #0f1a33;
+  background-image: none;
 }
