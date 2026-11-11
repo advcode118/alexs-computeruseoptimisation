@@ -480,6 +480,8 @@ class PlaywrightMCPClient:
                 snapshot_mode=self.snapshot_mode,
             )
 
+        # On Windows npx is npx.cmd, which CreateProcess only finds by full path.
+        args = [shutil.which(args[0]) or args[0], *args[1:]]
         try:
             self.process = await asyncio.create_subprocess_exec(
                 *args,
