@@ -1,5 +1,5 @@
 <a href="https://computer-use-optimisation.vercel.app">
-  <img src=".github/readme/hero.svg" alt="Alex's browser tool. One Claude call writes the whole browser task. script_first is 3/3 at 3.67s and $0.047 per run in the PR #18 probe." width="100%">
+  <img src=".github/readme/hero.svg" alt="Our approach. One Claude call writes the whole browser task. script_first passes 18/18 at 3.18s per success in the PR #27 probe." width="100%">
 </a>
 
 <p align="center">
@@ -10,7 +10,7 @@
   <a href="https://cursor.com/codebase/tom-wei-de-vrieze/alexs-computeruseoptimisation">Cursor Origin</a>
 </p>
 
-# Alex's browser tool
+# Our approach: script_first
 
 Computer use is slow because the model stops and thinks before every click. **script_first** doesn't. One Claude call writes a Playwright script for the whole task, Chrome runs it start to finish, and Claude only comes back if the final page is wrong.
 
@@ -26,21 +26,22 @@ Plain Playwright MCP and Stagehand are the baselines it races.
 
 ## Latest numbers
 
-PR #18 probe on Claude Sonnet 5.5. Three tasks: Wikipedia search, Python docs, Hacker News top. Scored on wall time per successful task.
+PR #27 probe on Claude Sonnet 5.5. 18 tasks (3 tuned, 15 held out), one shared fail-closed grader. Scored on wall time per successful task.
 
-| | Passed | Per success | Per run |
+| | Passed | Per success (mean) | Median |
 | :-- | :-: | --: | --: |
-| **script_first** (Alex's tool) | **3/3** | **3.67s** | **$0.047** |
-| Plain Playwright MCP | 3/3 | 2.98s | $0.165 |
-| Stagehand | 3/3 | 4.62s | $0.074 |
+| **script_first** (our approach) | **18/18** | **3.18s** | **2.98s** |
+| Plain Playwright MCP | 17/18 | 5.25s | 4.03s |
+| browser-use | 17/18 | 6.03s | 4.95s |
+| Stagehand | 16/18 | 12.54s | 6.69s |
 
-Same pass rate as Playwright MCP at about 3.5x less cost per run, and about 0.7s behind it on time. Every script_first task is still 2 steps. Claude spend so far is about $16.64 of the $50 budget.
+A warm replay of script_first's cached script also passes 18/18, with a 1.46s median. Cost per arm was not logged for this probe. Claude spend so far is about $26.02 of the $50 budget. The full results, including the OpenAI runs and what is not tested yet, are on the Stats page.
 
 ## Done, and next
 
 - [x] A browser loop that owns each step, and an M0 measurement that showed the outer model's thinking is the clock (87% of the time).
 - [x] The speed-layer stack, PRs #7 to #17: an MCP proxy, settle, compact diffs, macros, and replay. Plain Playwright MCP stayed faster, so that stack is **parked**.
-- [x] script_first (PR #16), one repair call that reaches 3/3 (PR #17), and the PR #18 probe above.
+- [x] script_first (PR #16), one repair call that reaches 3/3 (PR #17), and the PR #27 probe above.
 - [ ] **PR #20: stop when the first page is already done.** In progress, not yet measured.
 
 <details>
@@ -60,7 +61,7 @@ npm run dev        # http://localhost:3000
 npm run build && npm start   # production build
 ```
 
-**Deploy.** There are no environment variables and no custom output directory. Deploy from a checkout with the Vercel CLI, signed in to Tom's Vercel account:
+**Deploy.** There are no environment variables and no custom output directory. Deploy from a checkout with the Vercel CLI, signed in to the project's Vercel account:
 
 ```bash
 npx vercel          # preview

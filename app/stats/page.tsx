@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { EffortLines, Legend, SonnetGroups, SpeedCostScatter, armColor } from "./charts";
 import {
   armOrder,
   arms,
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
 };
 
 const toc = [
+  { href: "#board", label: "Leaderboard" },
   { href: "#arms", label: "What we test" },
   { href: "#grading", label: "Grading" },
   { href: "#sonnet", label: "Sonnet 5.5" },
@@ -71,6 +73,74 @@ function SectionHead({ id, number, title, children }: { id: string; number: stri
         {children ? <div className="mt-3 max-w-3xl text-lg leading-relaxed text-mute">{children}</div> : null}
       </div>
     </div>
+  );
+}
+
+function ChartCard({ title, note, shapes = false, children }: { title: string; note: string; shapes?: boolean; children: ReactNode }) {
+  return (
+    <figure className="rounded-lg border border-rule bg-sheet p-4 sm:p-5">
+      <figcaption>
+        <span className="block font-display text-lg font-bold">{title}</span>
+        <span className="block text-sm text-mute">{note}</span>
+      </figcaption>
+      <div className="mt-3">
+        <Legend shapes={shapes} />
+      </div>
+      <div className="mt-3 overflow-hidden rounded-md">{children}</div>
+    </figure>
+  );
+}
+
+function Leaderboard() {
+  const best = sonnetProbes[0];
+  const medMed = (arm: StatsArm) => {
+    const p = mediumRuns.reduce((n, r) => n + r.totals[arm].pass, 0);
+    const o = mediumRuns.reduce((n, r) => n + r.totals[arm].of, 0);
+    return `${p}/${o}`;
+  };
+  const max = Math.max(...best.rows.map((r) => r.median));
+  return (
+    <TableWrap label="Leaderboard across all tests">
+      <table className="w-full min-w-[56rem] text-sm">
+        <caption className="px-3 pt-3 text-left font-display text-lg font-bold">
+          Leaderboard. Sorted by Sonnet median time, fastest first.
+        </caption>
+        <thead className="border-b-2 border-ink">
+          <tr>
+            <th scope="col" className={th}>Arm</th>
+            <th scope="col" className={`${th} text-right`}>Sonnet 18 tasks passed</th>
+            <th scope="col" className={th}>Sonnet median time per success</th>
+            <th scope="col" className={`${th} text-right`}>OpenAI sweep median</th>
+            <th scope="col" className={`${th} text-right`}>OpenAI sweep cost</th>
+            <th scope="col" className={`${th} text-right`}>OpenAI 3-task, both models</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-rule">
+          {[...best.rows].sort((a, b) => a.median - b.median).map((r) => (
+            <tr key={r.arm} className={r.arm === "script_first" ? "bg-[var(--color-yours-soft)]" : ""}>
+              <th scope="row" className={`${td} text-left`}>
+                <span className="flex items-center gap-2">
+                  <span aria-hidden className="inline-block size-3 rounded-sm" style={{ background: armColor[r.arm] }} />
+                  <ArmName arm={r.arm} withRole />
+                </span>
+              </th>
+              <td className={`${td} text-right font-mono tabular-nums`}>{r.pass}/{r.of}</td>
+              <td className={td}>
+                <span className="flex items-center gap-3">
+                  <span aria-hidden className="h-2.5 w-40 rounded-full bg-rule/60">
+                    <span className="block h-full rounded-full" style={{ width: `${(r.median / max) * 100}%`, background: armColor[r.arm] }} />
+                  </span>
+                  <span className="font-mono tabular-nums">{sec(r.median)}</span>
+                </span>
+              </td>
+              <td className={`${td} text-right font-mono tabular-nums`}>{sec(sweepTotals[r.arm].median)}</td>
+              <td className={`${td} text-right font-mono tabular-nums`}>${sweepTotals[r.arm].usd.toFixed(4)}</td>
+              <td className={`${td} text-right font-mono tabular-nums`}>{medMed(r.arm)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableWrap>
   );
 }
 
@@ -137,7 +207,7 @@ export default function StatsPage() {
   const sweepRunUsd = 0.1751;
 
   return (
-    <>
+    <div className="aa min-h-screen bg-paper text-ink">
       <a
         href="#main"
         className="sr-only z-50 rounded-md bg-ink px-4 py-2 text-sheet focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
@@ -150,7 +220,7 @@ export default function StatsPage() {
             <span aria-hidden className="grid size-6 place-items-center rounded-full bg-ink">
               <span className="size-2 rounded-full bg-[var(--color-yours-bright)]" />
             </span>
-            Alex&apos;s browser tool
+            Our approach
           </a>
           <nav aria-label="Site">
             <ul className="flex gap-1 text-sm">
@@ -215,6 +285,15 @@ export default function StatsPage() {
               ))}
             </ul>
           </nav>
+        </section>
+
+        <section aria-labelledby="board" className="mx-auto max-w-6xl px-4 pb-14 sm:px-8">
+          <h2 id="board" className="font-display text-2xl font-bold sm:text-3xl">Leaderboard</h2>
+          <p className="mt-1 max-w-3xl text-mute">
+            Every test on one table. Sonnet figures are the PR #27 probe (18 tasks). OpenAI figures are one Wikipedia task across 8
+            effort cells, and two 3-task medium runs. The sets differ, so read each column on its own.
+          </p>
+          <Leaderboard />
         </section>
 
         {/* 01 Arms and tasks */}
@@ -348,6 +427,12 @@ export default function StatsPage() {
               />
             </div>
 
+            <div className="mt-6">
+              <ChartCard title="Median time per success across the three probes" note="Lower is faster. 18 tasks per probe. PR #18 used uneven grading.">
+                <SonnetGroups />
+              </ChartCard>
+            </div>
+
             {sonnetProbes.map((probe) => (
               <article key={probe.id} aria-labelledby={`${probe.id}-h`} className="mt-12">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -418,7 +503,21 @@ export default function StatsPage() {
             total.
           </SectionHead>
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-2">
+          <div className="mt-10">
+            <ChartCard title="Speed against cost" note="Each point is one of the 32 runs. Both axes are logarithmic. The bottom left is best." shapes>
+              <SpeedCostScatter />
+            </ChartCard>
+          </div>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            {(["gpt-6-luna", "gpt-6.1-sol"] as const).map((m) => (
+              <ChartCard key={m} title={`Time by effort, ${m}`} note="Wikipedia task. Log scale. A cross is a failed run.">
+                <EffortLines model={m} />
+              </ChartCard>
+            ))}
+          </div>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <Bars
               title="Median time per success, all 8 cells"
               note="Lower is faster. Stagehand's one failure (137.03s) is left out."
@@ -720,6 +819,6 @@ export default function StatsPage() {
           </p>
         </div>
       </footer>
-    </>
+    </div>
   );
 }

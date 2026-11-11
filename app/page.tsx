@@ -221,7 +221,7 @@ export default function HomePage() {
                 id="charts"
                 number="02"
                 title="Results, probe by probe"
-                lede={`Scored on wall time per successful task. Three tasks per probe: ${progress.tasks.join(", ")}.`}
+                lede={`Scored on wall time per successful task. ${progress.tasksNote}`}
               />
             </div>
             <div className="reveal mt-10">

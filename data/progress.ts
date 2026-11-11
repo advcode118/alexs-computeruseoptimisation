@@ -3,9 +3,9 @@
  * Numbers come from the probe logs. Do not add a number that was not measured.
  */
 
-export type ArmId = "playwright_mcp" | "diff_fast_act" | "macro_replay" | "script_first" | "stagehand";
+export type ArmId = "playwright_mcp" | "diff_fast_act" | "macro_replay" | "script_first" | "stagehand" | "browser_use";
 
-export type ProbeId = "probe1" | "pr14" | "pr15" | "pr16" | "pr17" | "pr18";
+export type ProbeId = "probe1" | "pr14" | "pr15" | "pr16" | "pr17" | "pr18" | "pr27";
 
 export type ArmResult = {
   arm: ArmId;
@@ -59,7 +59,7 @@ export type DemoArm = {
 export type ArmOwner = "yours" | "baseline" | "competitor" | "parked";
 
 export const ownerLabel: Record<ArmOwner, string> = {
-  yours: "Alex's tool",
+  yours: "Our approach",
   baseline: "Baseline tool",
   competitor: "Competitor bar",
   parked: "Parked experiment",
@@ -68,6 +68,7 @@ export const ownerLabel: Record<ArmOwner, string> = {
 export const armMeta: Record<ArmId, { name: string; short: string; color: string; owner: ArmOwner }> = {
   script_first: { name: "script_first", short: "script_first", color: "var(--color-yours)", owner: "yours" },
   playwright_mcp: { name: "Plain Playwright MCP", short: "Playwright MCP", color: "var(--color-arm-mcp)", owner: "baseline" },
+  browser_use: { name: "browser-use", short: "browser-use", color: "#7a6fb0", owner: "competitor" },
   stagehand: { name: "Stagehand", short: "Stagehand", color: "var(--color-arm-stagehand)", owner: "competitor" },
   diff_fast_act: { name: "Proxy: diff + fast act", short: "diff_fast_act", color: "var(--color-arm-proxy)", owner: "parked" },
   macro_replay: { name: "Proxy: macro replay", short: "macro_replay", color: "var(--color-arm-replay)", owner: "parked" },
@@ -143,33 +144,46 @@ export const probes: Probe[] = [
       { arm: "stagehand", successes: 3, tasks: 3, seconds: 4.62, cost: 0.074, note: "Wikipedia 8.74s" },
     ],
   },
+  {
+    id: "pr27",
+    label: "PR #27",
+    model: "Claude Sonnet 5.5, 18 tasks",
+    summary:
+      "On the 18-task honest set with one shared grader, script_first passes all 18 and is the fastest arm. Cost per arm was not logged for this probe.",
+    results: [
+      { arm: "script_first", successes: 18, tasks: 18, seconds: 3.18, note: "Median 2.98s. Warm replay 18/18, median 1.46s" },
+      { arm: "playwright_mcp", successes: 17, tasks: 18, seconds: 5.25, note: "Failed Hacker News" },
+      { arm: "browser_use", successes: 17, tasks: 18, seconds: 6.03, note: "Failed Hacker News" },
+      { arm: "stagehand", successes: 16, tasks: 18, seconds: 12.54, note: "Failed Hacker News and Eiffel city" },
+    ],
+  },
 ];
 
 export const progress = {
-  project: "Alex's browser tool",
+  project: "Our approach",
   links: [
     { label: "GitHub", href: "https://github.com/advcode118/alexs-computeruseoptimisation" },
     { label: "Cursor Origin", href: "https://cursor.com/codebase/tom-wei-de-vrieze/alexs-computeruseoptimisation" },
   ],
-  asOf: "6 November 2026",
+  asOf: "11 November 2026",
   sourceFile: "data/progress.ts",
   goal: "A faster browser tool for computer use. An outer agent (Claude, Cursor) drives a browser. The main number is wall time per successful task, with success within about 2 points of the stronger baseline. Browser first. Desktop later, not started.",
   status: {
-    headline: "script_first is 3/3 and the cheapest.",
-    subhead: "About 0.7s over the ~3.1s bar.",
-    body: "In the latest probe (PR #18, Claude Sonnet 5.5, three tasks), script_first is 3.67s per success at $0.047, and every task is still 2 steps. Plain Playwright MCP is 2.98s at $0.165. Stagehand is 4.62s at $0.074.",
-    probe: "pr18" as ProbeId,
-    next: "Next: stop-check PR, in progress.",
-    spend: { used: 16.64, cap: 50, abortAt: 40 },
+    headline: "script_first is 18/18 and the fastest.",
+    subhead: "Our approach, on 18 tasks with one shared grader.",
+    body: "In the latest probe (PR #27, Claude Sonnet 5.5, 18 tasks), script_first passes 18/18 at 3.18s per success. Playwright MCP is 17/18 at 5.25s, browser-use 17/18 at 6.03s, Stagehand 16/18 at 12.54s. A warm replay of the cached script has a 1.46s median.",
+    probe: "pr27" as ProbeId,
+    next: "Next: the 50-task set and OpenAI on 18 tasks. See Stats.",
+    spend: { used: 26.02, cap: 50, abortAt: 40 },
   },
   pitch: {
-    kicker: "script_first, Alex's browser tool",
+    kicker: "script_first, our approach",
     headline: "One Claude call writes the whole browser task.",
     line: "Chrome runs the script. No model between clicks. If the end-state check fails, Claude gets one repair.",
     proof: [
-      { value: "3/3", label: "tasks passed", compare: "Same as plain Playwright MCP" },
-      { value: "$0.047", label: "per run", compare: "Playwright MCP $0.165, about 3.5x more" },
-      { value: "3.67s", label: "per success", compare: "About 0.7s behind Playwright MCP (2.98s)" },
+      { value: "18/18", label: "tasks passed", compare: "Playwright MCP and browser-use 17/18, Stagehand 16/18" },
+      { value: "3.18s", label: "per success", compare: "Playwright MCP 5.25s, browser-use 6.03s, Stagehand 12.54s" },
+      { value: "1.46s", label: "median on warm replay", compare: "Cached script, 18/18 again" },
     ],
     steps: [
       {
@@ -188,9 +202,10 @@ export const progress = {
         tag: "At most 1 repair",
       },
     ],
-    stepsNote: "In the PR #18 probe, every task was still 2 steps.",
+    stepsNote: "In the PR #27 probe, 17 of 18 tasks were one-shot scripts and one needed a 2-step repair.",
   },
   tasks: ["Wikipedia search", "Python docs", "Hacker News top"],
+  tasksNote: "Early probes used these three tuned tasks. PR #27 adds 15 held-out tasks (18 in all).",
   benchmark: {
     source: "LangChain, 3 Nov 2026, WebVoyager 100",
     rows: [
@@ -315,13 +330,25 @@ export const progress = {
         { value: "2.98s", label: "Playwright MCP, 3/3, $0.165" },
         { value: "4.62s", label: "Stagehand, 3/3, $0.074 (wiki 8.74s)" },
       ],
+    },
+    {
+      id: "pr27",
+      label: "Probe on PR #27",
+      title: "script_first passes 18/18 and is the fastest arm",
+      body: "Sonnet 5.5 on the 18-task honest set, graded by one fail-closed rule for every arm. The other arms missed Hacker News (and Stagehand missed Eiffel city). Warm replay passes 18/18 at a 1.46s median.",
+      figures: [
+        { value: "3.18s", label: "script_first, 18/18", yours: true },
+        { value: "5.25s", label: "Playwright MCP, 17/18" },
+        { value: "6.03s", label: "browser-use, 17/18" },
+        { value: "12.54s", label: "Stagehand, 16/18" },
+      ],
       tone: "now",
     },
     {
       id: "next",
       label: "Next",
-      title: "A stop-check PR",
-      body: "In progress.",
+      title: "Not tested yet",
+      body: "The 50-task set, OpenAI on 18 tasks, repeat runs and the newer speed-ups. See the Stats page.",
       figures: [],
     },
   ] satisfies TimelineEntry[],
@@ -374,7 +401,7 @@ export const progress = {
         { lane: "tool", title: "Run the repaired script", detail: "Chrome runs the second script.", counts: "browser", branch: "repair" },
         { lane: "check", title: "Check again", detail: "Pass, or the run fails.", branch: "repair" },
       ],
-      takeaway: "Alex's product. Cheapest arm per run. In PR #18 every task is still 2 steps, about 0.7s over the ~3.1s bar.",
+      takeaway: "Our approach. Passes 18/18 at 3.18s per success in the PR #27 probe, the fastest of the four arms.",
     },
     {
       id: "stagehand",

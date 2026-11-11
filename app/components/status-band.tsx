@@ -44,7 +44,7 @@ export default function StatusBand() {
           <p className="mt-1 flex flex-wrap gap-x-4 text-sm text-night-mute">
             <span className="flex items-center gap-1.5">
               <span aria-hidden className="size-2.5 rounded-full" style={{ background: highlight }} />
-              script_first (Alex's tool)
+              script_first (our approach)
             </span>
             <span className="flex items-center gap-1.5">
               <span aria-hidden className="size-2.5 rounded-full bg-white/35" />

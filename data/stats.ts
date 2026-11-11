@@ -12,7 +12,7 @@ export const armOrder: StatsArm[] = ["script_first", "playwright_mcp", "stagehan
 export const arms: Record<StatsArm, { name: string; role: string; what: string }> = {
   script_first: {
     name: "script_first",
-    role: "Alex's approach",
+    role: "Our approach",
     what: "The model writes one Playwright script for the whole task. The harness runs it and grades the end state. A warm pass can replay a cached script with no (or fewer) model calls.",
   },
   playwright_mcp: {
