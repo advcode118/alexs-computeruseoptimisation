@@ -85,7 +85,7 @@ Guidelines:
 - The first script must finish the task. Call run_script once. Do not plan a second script.
 - The end URL must be the finished page the task named. Do not stop on the start URL, and do not stop on a search-results URL when the task named a specific page.
 - Prefer one page.goto of the finished page over clicking through the site. Put the whole navigation in the same script.
-- Wikipedia must leave Main_Page. Special:Search is not the finished article.
+- A start page or a search-results page is not the finished page. Leave it for the page that holds the asked value.
 - Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, cu.click("visible name"), cu.fill("visible name", "text"), cu.press("visible name", "Enter"), and page.evaluate(() => { ... }) with a page-context function.
 - cu.click, cu.fill, and cu.press act on the one control with that visible name.
 - End every script with one page.evaluate that returns evidence from the live page:

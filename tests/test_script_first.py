@@ -122,7 +122,8 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     assert "run_script" in prompt
     assert "page.evaluate" in prompt
     assert "browser_run_code_unsafe is not a tool" in prompt
-    assert "Main_Page" in prompt
+    assert "Main_Page" not in prompt
+    assert "start page or a search-results page" in prompt
     assert "END_STATE_FAILED" in prompt
     assert "one corrected script" in prompt
     assert "does not settle or snapshot" in prompt

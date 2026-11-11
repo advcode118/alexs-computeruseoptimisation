@@ -939,7 +939,7 @@ def repair_request(url: str, reason: str) -> str:
         f"{reason}. Current URL: {shown}. "
         "Send one corrected script that finishes the task. "
         "The end URL must be the finished page the task asked for. "
-        "Wikipedia must leave Main_Page. "
+        "The script must leave the start page and any search-results page for the page that holds the asked value. "
         "cu.click, cu.fill, and cu.press take a visible name. "
         "cu.claim belongs inside page.evaluate. "
         "Return any title or answer with page.evaluate in that same script. "
