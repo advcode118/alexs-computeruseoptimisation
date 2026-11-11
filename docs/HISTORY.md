@@ -238,3 +238,27 @@ Work moved from Grok/Cursor to Claude Code (Opus 5.5 and Sonnet 5.5, with Fable 
 - PR #45: failure taxonomy from the OpenAI jsonl (Mission 5).
 - PR #46: `check_page` over MCP, which was already built (Mission 9). It adds tests and a README section.
 - `cursor/local-bench-holdout-a63b`: a backup of the unpushed `computeruseoptimisation-loop` checkout. It has separate history and is not for merging.
+
+### Where it stopped (11 Nov 2026, about 01:30) and what is next
+The tip is `t3/tip`, PR #47, at `acf4011` plus this note. It includes PR #48's held-out tightening. The offline suite gives 280 passed, 1 skipped on Windows with Python 3.14.
+
+OpenAI spend this session was $0.0075. The ledger is at $1.338349 of $20. Claude API spend was $0.
+- The smoke run (`bench/runs/probe_20261111_012031.jsonl`, Luna medium, 3 tuned tasks) passed. script_first was 3/3 with one script each at 4.2–6.2s. browser_use was 3/3. playwright_mcp was 1/3.
+- The 50-task held-out run was **stopped by hand after 8 of 150 rows** (`probe_20261111_012409.jsonl`, partial, not a result).
+- `bench/runs/` is gitignored, so both files are only on Tom's PC.
+
+Next, in order:
+1. **Run the held-out measurement** from `t3/tip`. Estimates, not measured: Luna about $0.10–0.30 and 30–40 minutes; Sol about $1.5–3.
+   `python -m bench.probe --execute --provider openai --model gpt-6-luna --effort medium --split held-out --arms script_first,playwright_mcp,browser_use`
+   The OpenAI key goes in `OPENAI_API_KEY`. The `browser-use==1.0.0` and `openai` packages are installed on Tom's PC.
+   Then the same command with `--model gpt-6.1-sol`. Report per-task wall time, steps and pass for each arm, compared with PR #27, which used the answer key.
+2. **Write the results** into `docs/TEST_RESULTS.md` and copy the jsonl to `docs/results/`.
+3. **Claude comparison (optional, costs Claude API, needs Tom's go).** First point `CU_SPEND_LEDGER` at a file seeded to $26.022488. Then run `--honest`, which now uses 3 arms.
+4. **Not done yet:**
+   - The prompt and `repair_request` still name Wikipedia (`Main_Page`, `Special:Search`), which is tuned to the probe task. Make them generic or measure the effect.
+   - About 19 held-out tasks have a final URL that can be guessed from the task text (see PR #45/#48 notes). Replace some with tasks whose URL is not derivable.
+   - There are no multi-step or SPA tasks yet.
+   - Mission 6 harness gaps from #32: timeouts and browsers still differ between arms.
+   - Mission 10 (CUO-33/34) has not started. `cursor/local-bench-holdout-a63b` may contain earlier work on it.
+   - The progress site: decide which site history is canonical (`main` vs the `cursor/progress-site-redesign-8676` line, PR #43). The live Vercel site was deployed from detached worktrees.
+5. **Leave open:** PRs #45 (failure taxonomy) and #46 (check_page MCP tests) need a review and stay stacked where they are.
