@@ -1,6 +1,8 @@
 /**
  * Every number on /stats lives here. Source of truth: docs/TEST_RESULTS.md and the raw JSONL under
- * docs/results/2026-11-10/ on branch docs/test-results-2026-11-10 (PR #41, commit 3e8bed0).
+ * docs/results/2026-11-10/ on branch docs/test-results-2026-11-10 (PR #41, commit 3e8bed0), plus the
+ * 11 Nov held-out files docs/results/heldout_*_20261111.jsonl (PR #47, tip 9442722) and the plain-rule
+ * and Decisions files docs/results/rules_*.jsonl and decisions_*.jsonl (PR #49, head 6b59b52).
  * OpenAI rows were re-computed from the JSONL. Claude Sonnet rows come from TEST_RESULTS.md (their
  * JSONL files are gitignored and not in the repo). Do not add a number that was not measured.
  */
@@ -22,8 +24,8 @@ export const arms: Record<StatsArm, { name: string; role: string; what: string }
   },
   stagehand: {
     name: "Stagehand",
-    role: "Competitor",
-    what: "The Stagehand computer-use agent.",
+    role: "Local imitation",
+    what: "A local imitation of Stagehand's tool surface on Playwright (bench/stagehand_local.py). It is not the Stagehand library. It was cut from the 50-task comparison until the real library is run.",
   },
   browser_use: {
     name: "browser-use",
@@ -241,30 +243,35 @@ export const mediumRuns: MediumRun[] = [
 
 export const ledgers = {
   claude: { used: 26.022488, cap: 50, abortAt: 40 },
-  openai: { used: 1.330861, priced: 0.280861, reserve: 1.05, cap: 20, perRun: 5 },
+  // 1.338349 after the 10 Nov runs, +1.695 for the 50-task held-out runs, +0.0727 and +0.112 for the Decisions rounds.
+  openai: { used: 3.218456, cap: 20, perRun: 5, beforeHeldOut: 1.338349, heldOut: 1.695, experiments: 0.185 },
 };
 
 export const notExplored: { title: string; body: string; where?: string }[] = [
   {
-    title: "The 50-task held-out set",
-    body: "Fifty tasks the dev set is not allowed to tune on, with a confidence interval from one cold pass. Built, not yet probed.",
-    where: "PR #33, PR #34",
+    title: "A harder, fairer held-out set",
+    body: "About 19 of the 50 held-out tasks have a final URL that can be guessed from the task text. There are no multi-step or single-page-app tasks yet. Replace some with tasks whose answer cannot be guessed.",
+    where: "PR #45, PR #48",
   },
   {
-    title: "OpenAI on the 18-task set",
-    body: "Luna medium, then Sol medium, on the same 18 tasks as Sonnet. The plan prints cleanly with no spend. Not run. Rough guess, not a measurement: under $1 each.",
+    title: "Claude on the 50-task held-out set",
+    body: "The held-out numbers are OpenAI only. A three-arm run on Claude Sonnet 5.5 uses the Claude API budget and has not been started.",
   },
   {
-    title: "Repeats and confidence intervals",
-    body: "Every cell so far is one run. No repeats, so no error bars. Stagehand alone swung from 9.46s to 137.03s across the sweep.",
+    title: "The real Stagehand library",
+    body: "Every Stagehand row here comes from a local imitation of its tool surface. The library itself has not been run.",
+  },
+  {
+    title: "Repeats for every arm and model",
+    body: "script_first on Luna now has three repeats per setting. The held-out runs for Sol, Playwright MCP and browser-use are one run each, so they have no error bars. The same code swung by about five tasks between identical runs.",
   },
   {
     title: "Warm replay on OpenAI",
     body: "The cached-script replay that gave Sonnet a 1.46s median is refused on the OpenAI path. OpenAI numbers are cold only.",
   },
   {
-    title: "The newer script_first speed-ups",
-    body: "Starting Chrome while the model writes (PR #30), caching the stable prompt (PR #29), and skipping a second page read (PR #40) are written but not live-probed.",
+    title: "The newer script_first speed-ups, alone",
+    body: "Starting Chrome while the model writes (PR #30), caching the stable prompt (PR #29) and skipping a second page read (PR #40) are in the tip the held-out runs used. Their effect on its own has not been measured.",
     where: "PR #29, PR #30, PR #40",
   },
   {
@@ -273,3 +280,106 @@ export const notExplored: { title: string; body: string; where?: string }[] = [
     where: "PR #31",
   },
 ];
+
+// ---------------------------------------------------------------------------------------------
+// 11 Nov 2026: held-out run, plain self-check rules, Decisions API experiment
+// ---------------------------------------------------------------------------------------------
+
+export type HeldOutArm = "script_first" | "playwright_mcp" | "browser_use";
+export const heldOutArms: HeldOutArm[] = ["script_first", "playwright_mcp", "browser_use"];
+
+export type HeldOutRow = { pass: number; of: number; median: number; medianPass: number; usd: number };
+
+/** 50 held-out tasks, OpenAI medium effort, one run per task, no answer key in script_first's run. Median is over all 50 rows. */
+export const heldOut: {
+  model: "gpt-6-luna" | "gpt-6.1-sol";
+  file: string;
+  rows: Record<HeldOutArm, HeldOutRow>;
+  /** Why script_first failed. Sums to its failure count. */
+  scriptFirstFailures: { reason: string; n: number }[];
+}[] = [
+  {
+    model: "gpt-6.1-sol",
+    file: "heldout_sol_medium_20261111.jsonl",
+    rows: {
+      script_first: { pass: 37, of: 50, median: 4.15, medianPass: 3.74, usd: 0.241 },
+      playwright_mcp: { pass: 38, of: 50, median: 13.79, medianPass: 13.63, usd: 0.501 },
+      browser_use: { pass: 41, of: 50, median: 13.81, medianPass: 13.62, usd: 0.714 },
+    },
+    scriptFirstFailures: [
+      { reason: "Ended on the wrong page", n: 4 },
+      { reason: "Returned evidence not on the page", n: 4 },
+      { reason: "Answer or claimed URL wrong", n: 3 },
+      { reason: "Model ended without finishing", n: 1 },
+      { reason: "Script error", n: 1 },
+    ],
+  },
+  {
+    model: "gpt-6-luna",
+    file: "heldout_luna_medium_20261111.jsonl",
+    rows: {
+      script_first: { pass: 27, of: 50, median: 5.98, medianPass: 5.16, usd: 0.018 },
+      playwright_mcp: { pass: 28, of: 50, median: 12.98, medianPass: 12.34, usd: 0.088 },
+      browser_use: { pass: 40, of: 50, median: 20.33, medianPass: 18.73, usd: 0.059 },
+    },
+    scriptFirstFailures: [
+      { reason: "Model ended without finishing", n: 10 },
+      { reason: "Ended on the wrong page", n: 6 },
+      { reason: "Answer or claimed URL wrong", n: 4 },
+      { reason: "Returned evidence not on the page", n: 2 },
+      { reason: "Script error", n: 1 },
+    ],
+  },
+];
+
+export type SelfCheckRun = { label: string; pass: number; median: number; usd: number };
+
+/** script_first on Luna medium, the same 50 held-out tasks, one process per run. Median is over all 50 rows. */
+export const selfCheckGroups: { id: string; title: string; note: string; runs: SelfCheckRun[] }[] = [
+  {
+    id: "before",
+    title: "Before: the tip's string check",
+    note: "Three runs of the same code (the Decisions check off or only watching).",
+    runs: [
+      { label: "Run 1", pass: 27, median: 5.98, usd: 0.0181 },
+      { label: "Run 2", pass: 30, median: 4.48, usd: 0.0186 },
+      { label: "Run 3", pass: 28, median: 5.87, usd: 0.0301 },
+    ],
+  },
+  {
+    id: "rules",
+    title: "After: two plain rules (PR #50)",
+    note: "No model call. The check accepts an answer that is the page's own URL, or that appears in the page title or main heading.",
+    runs: [
+      { label: "Run 1", pass: 31, median: 4.71, usd: 0.0153 },
+      { label: "Run 2", pass: 36, median: 5.28, usd: 0.0148 },
+      { label: "Run 3", pass: 31, median: 4.05, usd: 0.0155 },
+    ],
+  },
+  {
+    id: "decisions",
+    title: "Plain rules + Decisions API check (PR #49)",
+    note: "Asks OpenAI's Decisions API before a repair turn. Cost includes about $0.008 a run for the Decisions calls.",
+    runs: [
+      { label: "Run 1", pass: 29, median: 5.19, usd: 0.0238 },
+      { label: "Run 2", pass: 35, median: 4.01, usd: 0.0217 },
+      { label: "Run 3", pass: 37, median: 4.44, usd: 0.0208 },
+    ],
+  },
+];
+
+export const decisionsResult = {
+  /** Plain rules: first self-check verdicts that passed because of a rule, across the three runs. */
+  ruleFirstPasses: { urlRule: 15, titleRule: 5, gradedPass: 20 },
+  /** First round, before the gate was narrowed. */
+  firstRound: { overturns: 13, gradedPass: 9 },
+  /** Three runs on top of the plain rules. */
+  overturns: 9,
+  overturnsGradedPass: 3,
+  targetedRepairs: 14,
+  targetedRepairsPassed: 1,
+  calls: 149,
+  medianMs: 299,
+  maxMs: 911,
+  barPct: 90,
+};
