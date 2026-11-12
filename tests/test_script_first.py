@@ -121,6 +121,9 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     prompt = prompt_for("script_first")
     assert "run_script" in prompt
     assert "page.evaluate" in prompt
+    allowed = next(line for line in prompt.splitlines() if line.startswith("- Allowed:"))
+    assert "page.locator" in allowed
+    assert ".first()/.nth()" in allowed
     assert "browser_run_code_unsafe is not a tool" in prompt
     assert "Main_Page" not in prompt
     assert "start page or a search-results page" in prompt
