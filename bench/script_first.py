@@ -33,7 +33,7 @@ PASS = "PASS"
 FAIL = "FAIL"
 UNKNOWN = "UNKNOWN"
 
-# controls is the fingerprint's role/name list. model_visible_script_result strips it.
+# Controls also feed the cache fingerprint. Navigation hints are shown only on FAIL.
 _PAGE_EVIDENCE_JS = r"""() => {
   const link = document.querySelector('link[rel="canonical"]');
   const h1 = document.querySelector("h1");
@@ -95,6 +95,25 @@ _PAGE_EVIDENCE_JS = r"""() => {
     seen.add(pair);
     controls.push({ role, name });
   }
+  const links = [];
+  const seenHrefs = new Set();
+  const anchors = Array.from(document.querySelectorAll("a[href]"));
+  anchors.sort((a, b) => Number(!!b.closest("main, article, [role='main']")) - Number(!!a.closest("main, article, [role='main']")));
+  for (const node of anchors) {
+    if (links.length >= 40) break;
+    if (node.closest('[hidden], [aria-hidden="true"]')) continue;
+    if (!node.getClientRects().length) continue;
+    const style = getComputedStyle(node);
+    if (style.visibility === "hidden" || style.visibility === "collapse" || style.display === "none") continue;
+    const text = (node.innerText || "").replace(/\s+/g, " ").trim();
+    if (!text) continue;
+    let href;
+    try { href = new URL(node.getAttribute("href"), document.baseURI).href; }
+    catch { continue; }
+    if (/^(javascript|mailto):/i.test(href) || seenHrefs.has(href)) continue;
+    seenHrefs.add(href);
+    links.push([text.slice(0, 160), href]);
+  }
   return {
     url: location.href,
     title: document.title || "",
@@ -105,7 +124,8 @@ _PAGE_EVIDENCE_JS = r"""() => {
     headings: Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6")).slice(0, 400).map((node) => {
       return (node.innerText || node.textContent || "").replace(/\s+/g, " ").trim().slice(0, 160);
     }).filter(Boolean),
-    controls
+    controls,
+    links
   };
 }"""
 
@@ -377,6 +397,7 @@ class PageEvidence:
     text: str = ""
     selector_text: str = ""
     controls: tuple[str, ...] = ()
+    links: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1043,6 +1064,7 @@ def format_run_result(
     selector_text: str = "",
     claimed: dict | None = None,
     controls: list | tuple | None = None,
+    links: list | tuple | None = None,
 ) -> str:
     """JSON for the live page plus Stagehand-style goto prose.
 
@@ -1074,6 +1096,8 @@ def format_run_result(
             shown_controls.append({"role": str(item.get("role") or ""), "name": str(item.get("name") or "")})
     if shown_controls:
         payload["controls"] = shown_controls
+    if links:
+        payload["links"] = [list(pair) for pair in links[:40]]
     if claimed:
         kept = {}
         for key in ("url", "title", "h1", "answer", "key_text"):
@@ -1102,7 +1126,7 @@ def format_run_result(
     return "\n".join(lines)
 
 
-_HIDDEN_RESULT_KEYS = ("selector_text", "controls")
+_HIDDEN_RESULT_KEYS = ("selector_text",)
 
 
 def budget_script_result(result_text: str, limit: int) -> str:
@@ -1143,12 +1167,11 @@ def budget_script_result(result_text: str, limit: int) -> str:
     return render()
 
 
-def model_visible_script_result(result_text: str, *, limit: int | None = None) -> str:
+def model_visible_script_result(result_text: str, *, failed: bool = False, limit: int | None = None) -> str:
     """The run_script result the model may see.
 
-    selector_text is the judge's own read of answer_equals_selector. controls
-    is the role/name list the cache fingerprint hashes. A model message
-    must not include either.
+    selector_text is judge-only. Failed results may include trusted links and
+    role/name controls; PASS and UNKNOWN results do not expose these hints.
     """
     if limit is None:
         from bench.harness import MAX_SNAPSHOT_CHARS
@@ -1171,6 +1194,33 @@ def model_visible_script_result(result_text: str, *, limit: int | None = None) -
         return result_text
     for key in _HIDDEN_RESULT_KEYS:
         payload.pop(key, None)
+    if not failed:
+        payload.pop("links", None)
+        payload.pop("controls", None)
+    else:
+        for key, count in (("links", 40), ("controls", 30)):
+            items = payload.get(key)
+            if isinstance(items, list):
+                payload[key] = items[:count]
+            else:
+                payload.pop(key, None)
+        # Keep navigation hints ahead of page text. If the hints alone cannot
+        # fit, drop trailing entries (never cut a label/href or its JSON).
+        page_text = payload.get("text")
+        payload["text"] = "[text truncated]"
+        while True:
+            lines[json_index] = json.dumps(payload)
+            if len("\n".join(lines)) <= limit:
+                break
+            candidates = [key for key in ("links", "controls") if payload.get(key)]
+            if not candidates:
+                break  # The budgeter fails closed if other metadata cannot fit.
+            largest = max(candidates, key=lambda key: len(json.dumps(payload[key])))
+            payload[largest].pop()
+        if page_text is None:
+            payload.pop("text", None)
+        else:
+            payload["text"] = page_text
     lines[json_index] = json.dumps(payload)
     return budget_script_result("\n".join(lines), limit)
 
@@ -1397,6 +1447,11 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
         text=text,
         selector_text=selector_text,
         controls=tuple(pairs),
+        links=tuple(
+            (item[0], item[1]) for item in data.get("links", [])
+            if isinstance(item, (list, tuple)) and len(item) == 2
+            and all(isinstance(value, str) for value in item)
+        )[:40],
     )
 
 
@@ -1448,6 +1503,7 @@ async def _finish_page(
         selector_text=evidence.selector_text,
         claimed=claimed,
         controls=evidence.controls,
+        links=evidence.links,
     )
 
 

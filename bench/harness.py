@@ -1430,7 +1430,7 @@ class BenchmarkHarness:
                                 repairs_sent += 1
                                 awaiting_repair_reply = True
                                 repair_pending = True
-                            result_text = model_visible_script_result(result_text)
+                            result_text = model_visible_script_result(result_text, failed=verdict.verdict == FAIL)
                             turn_limit = next_script_first_limit(
                                 step_num=step_num,
                                 limit=turn_limit,
