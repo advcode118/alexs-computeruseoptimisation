@@ -1105,29 +1105,74 @@ def format_run_result(
 _HIDDEN_RESULT_KEYS = ("selector_text", "controls")
 
 
-def model_visible_script_result(result_text: str) -> str:
+def budget_script_result(result_text: str, limit: int) -> str:
+    """Keep repair lines first and trim only page text, never serialized JSON."""
+    lines = (result_text or "").splitlines()
+    repairs = [line for line in lines if line.startswith("END_STATE_FAILED:")]
+    rest = [line for line in lines if not line.startswith("END_STATE_FAILED:")]
+    if not rest:
+        return result_text
+    try:
+        payload = json.loads(rest[0])
+    except (ValueError, TypeError):
+        return result_text
+    if not isinstance(payload, dict) or not {"ok", "steps"} <= payload.keys():
+        return result_text
+
+    def render():
+        return "\n".join([*repairs, json.dumps(payload), *rest[1:]])
+
+    rendered = render()
+    if len(rendered) <= limit:
+        return rendered
+    text = payload.get("text", "")
+    text = text if isinstance(text, str) else ""
+    marker = "[text truncated]"
+    payload["text"] = marker
+    if len(render()) > limit:
+        raise ValueError("Script result metadata exceeds tool-result budget; refusing to cut JSON")
+    low, high = 0, len(text)
+    while low < high:
+        mid = (low + high + 1) // 2
+        payload["text"] = text[:mid] + marker
+        if len(render()) <= limit:
+            low = mid
+        else:
+            high = mid - 1
+    payload["text"] = text[:low] + marker
+    return render()
+
+
+def model_visible_script_result(result_text: str, *, limit: int | None = None) -> str:
     """The run_script result the model may see.
 
     selector_text is the judge's own read of answer_equals_selector. controls
     is the role/name list the cache fingerprint hashes. A model message
     must not include either.
     """
+    if limit is None:
+        from bench.harness import MAX_SNAPSHOT_CHARS
+
+        limit = MAX_SNAPSHOT_CHARS - 300
     lines = (result_text or "").splitlines()
     if not lines:
         return result_text or ""
-    first = lines[0].strip()
+    json_index = next((i for i, line in enumerate(lines) if line.startswith("{")), None)
+    if json_index is None:
+        return result_text
+    first = lines[json_index].strip()
     if not first.startswith("{"):
         return result_text
     try:
         payload = json.loads(first)
     except json.JSONDecodeError:
         return result_text
-    if not isinstance(payload, dict) or not any(key in payload for key in _HIDDEN_RESULT_KEYS):
+    if not isinstance(payload, dict):
         return result_text
     for key in _HIDDEN_RESULT_KEYS:
         payload.pop(key, None)
-    lines[0] = json.dumps(payload)
-    return "\n".join(lines)
+    lines[json_index] = json.dumps(payload)
+    return budget_script_result("\n".join(lines), limit)
 
 
 async def _read_title(page) -> str:
@@ -1594,6 +1639,15 @@ class ScriptFirstClient:
                         }
                     },
                     "required": ["code"],
+                },
+            },
+            {
+                "name": "task_failed",
+                "description": "Stop the task when it cannot be completed and explain why.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"reason": {"type": "string"}},
+                    "required": ["reason"],
                 },
             }
         ]
