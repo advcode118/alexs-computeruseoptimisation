@@ -929,8 +929,20 @@ async def run_claude_arm(
             "script_steps": result.script_steps,
             "claude": True,
             "claimed_answer": claimed_answer,
+            "final_url": final_url,
+            "final_title": last.page_title if last else "",
             "expected_value": selector_text,
         }
+        if arm == ARM_SCRIPT_FIRST:
+            row["scripts"] = [
+                step.tool_args["code"]
+                for step in result.steps
+                if step.tool_name == "run_script"
+                and isinstance(step.tool_args, dict)
+                and isinstance(step.tool_args.get("code"), str)
+            ]
+            row["repair_sent"] = result.repair_sent
+            row["repair_reply"] = result.repair_reply
         if provider == "openai":
             from bench.openai_spend import price_usd
 

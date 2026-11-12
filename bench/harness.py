@@ -159,6 +159,8 @@ class TaskResult:
     # Cache writes are a slice of input tokens. Claude stays at 0.
     total_cache_write_30m_tokens: int = 0
     total_cache_write_12h_tokens: int = 0
+    repair_sent: bool = False
+    repair_reply: str = "none"
 
 
 def estimate_tokens(text: str) -> int:
@@ -1139,6 +1141,8 @@ class BenchmarkHarness:
         turn_limit = self.max_steps
         script_calls = 0
         repairs_sent = 0
+        awaiting_repair_reply = False
+        repair_reply = "none"
         refusal_extended = False
         previous_payload: dict | None = None
         end_state = ""
@@ -1255,6 +1259,16 @@ class BenchmarkHarness:
                     messages.append({"role": "assistant", "content": assistant_content})
                     break
 
+                if self.arm == "script_first" and awaiting_repair_reply:
+                    names = {tool.get("name") for tool in tool_uses}
+                    if "run_script" in names:
+                        repair_reply = "script"
+                    elif "task_failed" in names or saw_failed_text:
+                        repair_reply = "task_failed"
+                    elif any(block.get("text", "").strip() for block in assistant_content):
+                        repair_reply = "prose"
+                    awaiting_repair_reply = False
+
                 if not tool_uses:
                     if self.arm == "script_first" and saw_complete:
                         failure = ""
@@ -1264,6 +1278,7 @@ class BenchmarkHarness:
                             messages.append({"role": "assistant", "content": assistant_content})
                             messages.append({"role": "user", "content": repair_request(last_url, failure)})
                             repairs_sent += 1
+                            awaiting_repair_reply = True
                             turn_limit = next_script_first_limit(
                                 step_num=step_num,
                                 limit=turn_limit,
@@ -1391,6 +1406,7 @@ class BenchmarkHarness:
                             if verdict.verdict == FAIL and repairs_sent < 1:
                                 result_text += "\n" + repair_request(page_url, failure)
                                 repairs_sent += 1
+                                awaiting_repair_reply = True
                                 repair_pending = True
                             turn_limit = next_script_first_limit(
                                 step_num=step_num,
@@ -1565,6 +1581,8 @@ class BenchmarkHarness:
             total_cached_tokens=total_cached_tokens,
             total_cache_write_30m_tokens=total_cache_write_30m_tokens,
             total_cache_write_12h_tokens=total_cache_write_12h_tokens,
+            repair_sent=repairs_sent > 0,
+            repair_reply=repair_reply,
         )
 
     def _empty_result(
