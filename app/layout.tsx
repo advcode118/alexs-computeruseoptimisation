@@ -22,7 +22,7 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Our approach: script_first",
   description:
-    "How the browser tool got faster, how each arm runs a task, and the probe numbers behind it.",
+    "One model call writes a browser task. script_first, Playwright MCP and browser-use on 50 held-out tasks for two OpenAI models.",
 };
 
 export const viewport: Viewport = {

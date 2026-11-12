@@ -1,14 +1,7 @@
 "use client";
 
 import { Component, createRef } from "react";
-import {
-  armMeta,
-  type DemoArm,
-  type DemoLane,
-  type DemoStep,
-  type Probe,
-  type ProbeId,
-} from "@/data/progress";
+import { armMeta, progress, type DemoArm, type DemoLane, type DemoStep } from "@/data/progress";
 
 const lanes: { id: DemoLane; label: string }[] = [
   { id: "model", label: "Model" },
@@ -26,8 +19,6 @@ const laneColumn: Record<DemoLane, string> = {
 
 type Props = {
   demos: DemoArm[];
-  probes: Probe[];
-  tasks: string[];
 };
 
 type State = {
@@ -35,17 +26,7 @@ type State = {
   shown: number;
   playing: boolean;
   showRepair: boolean;
-  probeId: ProbeId;
 };
-
-function probesFor(demo: DemoArm, probes: Probe[]) {
-  return probes.filter((probe) => probe.results.some((result) => demo.arms.includes(result.arm)));
-}
-
-function latestProbe(demo: DemoArm, probes: Probe[]): ProbeId {
-  const options = probesFor(demo, probes);
-  return options[options.length - 1].id;
-}
 
 export default class RunDemo extends Component<Props, State> {
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -59,7 +40,6 @@ export default class RunDemo extends Component<Props, State> {
       shown: 1,
       playing: false,
       showRepair: true,
-      probeId: latestProbe(props.demos[0], props.probes),
     };
   }
 
@@ -98,7 +78,6 @@ export default class RunDemo extends Component<Props, State> {
       demoIndex: index,
       shown: 1,
       playing: false,
-      probeId: latestProbe(this.props.demos[index], this.props.probes),
     });
   }
 
@@ -136,8 +115,8 @@ export default class RunDemo extends Component<Props, State> {
   }
 
   render() {
-    const { demos, probes, tasks } = this.props;
-    const { demoIndex, shown, playing, showRepair, probeId } = this.state;
+    const { demos } = this.props;
+    const { demoIndex, shown, playing, showRepair } = this.state;
     const demo = demos[demoIndex];
     const steps = this.steps();
     const visible = steps.slice(0, shown);
@@ -146,9 +125,6 @@ export default class RunDemo extends Component<Props, State> {
       browser: visible.filter((step) => step.counts === "browser").length,
       repair: visible.filter((step) => step.counts === "repair").length,
     };
-    const probeOptions = probesFor(demo, probes);
-    const probe = probeOptions.find((option) => option.id === probeId) ?? probeOptions[probeOptions.length - 1];
-    const results = probe.results.filter((result) => demo.arms.includes(result.arm));
     const current = steps[shown - 1];
     const accent = armMeta[demo.arms[0]].color;
 
@@ -176,11 +152,11 @@ export default class RunDemo extends Component<Props, State> {
           })}
         </div>
 
-        <div className="grid gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-10">
+        <div className="grid gap-8 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-10">
           <div className="min-w-0">
             <p className="max-w-2xl text-lg leading-snug">{demo.oneLine}</p>
             <p className="mt-1 text-sm text-mute">
-              Probe tasks: {tasks.join(", ")}. The walk-through shows the shape of one task, not a timed trace.
+              Illustrated shape of one task. The counters follow the steps on screen. They are not a timed trace of a saved run.
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -292,42 +268,8 @@ export default class RunDemo extends Component<Props, State> {
               ))}
             </dl>
             <p className="mt-2 text-xs text-mute">Steps marked as repeating run again for every page step.</p>
-
-            <div className="mt-6 border-t border-rule pt-5">
-              <label htmlFor="demo-probe" className="font-display text-sm font-semibold">
-                Measured
-              </label>
-              <select
-                id="demo-probe"
-                value={probe.id}
-                onChange={(event) => this.setState({ probeId: event.target.value as ProbeId })}
-                className="mt-2 block w-full rounded-md border border-ink bg-white px-2 py-1.5 font-mono text-sm"
-              >
-                {probeOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-mute">{probe.model}</p>
-              <ul className="mt-3 space-y-3">
-                {results.map((result) => (
-                  <li key={result.arm}>
-                    <p className="font-mono text-xs text-mute">{armMeta[result.arm].short}</p>
-                    <p className="font-mono text-sm">
-                      <span className="text-xl font-bold">
-                        {result.successes}/{result.tasks}
-                      </span>
-                      {result.seconds !== undefined ? ` · ${result.seconds}s per success` : ""}
-                      {result.cost !== undefined ? ` · $${result.cost.toFixed(3).replace(/0$/, "")}` : ""}
-                    </p>
-                    {result.note ? <p className="text-xs text-mute">{result.note}</p> : null}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
             <p className="mt-6 border-t border-rule pt-5 text-sm leading-snug">{demo.takeaway}</p>
+            <p className="mt-4 text-sm leading-snug text-mute">{progress.pitch.stepsNote}</p>
           </aside>
         </div>
       </div>

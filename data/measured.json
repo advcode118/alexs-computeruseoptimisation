@@ -1,0 +1,610 @@
+{
+  "asOf": "11 November 2026",
+  "populationNote": "Median is the statistical median. p90 is nearest-rank (index ceil(0.9*n)-1). 'all' is every task. 'successes' is graded passes only.",
+  "sources": {
+    "repo": "https://github.com/advcode118/alexs-computeruseoptimisation",
+    "heldOutCommit": "94427222b9fb9ce7b1e04f5dd62336321a745e00",
+    "decisionsCommit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+    "heldOutCommitUrl": "https://github.com/advcode118/alexs-computeruseoptimisation/commit/94427222b9fb9ce7b1e04f5dd62336321a745e00",
+    "decisionsCommitUrl": "https://github.com/advcode118/alexs-computeruseoptimisation/commit/6b59b525ea279041158b5fc2d320594cdb11261e",
+    "heldOutWriteUp": "https://github.com/advcode118/alexs-computeruseoptimisation/blob/94427222b9fb9ce7b1e04f5dd62336321a745e00/docs/TEST_RESULTS.md",
+    "decisionsWriteUp": "https://github.com/advcode118/alexs-computeruseoptimisation/blob/6b59b525ea279041158b5fc2d320594cdb11261e/docs/TEST_RESULTS.md"
+  },
+  "setup": {
+    "tasks": 50,
+    "effort": "medium",
+    "provider": "openai",
+    "cold": true,
+    "arms": [
+      "script_first",
+      "playwright_mcp",
+      "browser_use"
+    ],
+    "stagehand": "not in this run",
+    "answerKeyInScriptFirstRuntime": false,
+    "repeats": "one run per model and arm"
+  },
+  "heldOut": [
+    {
+      "model": "gpt-6-luna",
+      "file": "docs/results/heldout_luna_medium_20261111.jsonl",
+      "arms": {
+        "script_first": {
+          "pass": 27,
+          "of": 50,
+          "usd": 0.018071,
+          "all": {
+            "n": 50,
+            "medianS": 5.9821,
+            "meanS": 8.8326,
+            "p90S": 15.7575
+          },
+          "successes": {
+            "n": 27,
+            "medianS": 5.1576,
+            "meanS": 7.4409,
+            "p90S": 15.8968
+          },
+          "stepsMedian": 1.0,
+          "stepsSum": 61,
+          "modelCallsMedian": 1.0,
+          "modelCallsSum": 75,
+          "scriptStepsMedian": 2.0,
+          "scriptStepsSum": 106,
+          "failureBuckets": [
+            {
+              "reason": "Model ended without finishing",
+              "n": 10
+            },
+            {
+              "reason": "Ended on the wrong page",
+              "n": 6
+            },
+            {
+              "reason": "Returned evidence not on the page",
+              "n": 2
+            },
+            {
+              "reason": "Answer or claimed URL wrong",
+              "n": 4
+            },
+            {
+              "reason": "Script error",
+              "n": 1
+            }
+          ]
+        },
+        "playwright_mcp": {
+          "pass": 28,
+          "of": 50,
+          "usd": 0.088265,
+          "all": {
+            "n": 50,
+            "medianS": 12.9806,
+            "meanS": 16.737,
+            "p90S": 26.9899
+          },
+          "successes": {
+            "n": 28,
+            "medianS": 12.3399,
+            "meanS": 14.4059,
+            "p90S": 25.6684
+          },
+          "stepsMedian": 6.0,
+          "stepsSum": 332,
+          "modelCallsMedian": 7.0,
+          "modelCallsSum": 382,
+          "scriptStepsMedian": 0.0,
+          "scriptStepsSum": 0,
+          "failureBuckets": [
+            {
+              "reason": "Ended on the wrong page",
+              "n": 6
+            },
+            {
+              "reason": "Empty answer",
+              "n": 15
+            },
+            {
+              "reason": "Run stopped with a task error",
+              "n": 1
+            }
+          ]
+        },
+        "browser_use": {
+          "pass": 40,
+          "of": 50,
+          "usd": 0.059318,
+          "all": {
+            "n": 50,
+            "medianS": 20.3289,
+            "meanS": 22.9734,
+            "p90S": 34.6432
+          },
+          "successes": {
+            "n": 40,
+            "medianS": 18.7295,
+            "meanS": 22.3853,
+            "p90S": 34.6432
+          },
+          "stepsMedian": 5.0,
+          "stepsSum": 291,
+          "modelCallsMedian": null,
+          "modelCallsSum": null,
+          "scriptStepsMedian": null,
+          "scriptStepsSum": null,
+          "failureBuckets": [
+            {
+              "reason": "Ended on the wrong page",
+              "n": 6
+            },
+            {
+              "reason": "Answer or claimed URL wrong",
+              "n": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "model": "gpt-6.1-sol",
+      "file": "docs/results/heldout_sol_medium_20261111.jsonl",
+      "arms": {
+        "script_first": {
+          "pass": 37,
+          "of": 50,
+          "usd": 0.240825,
+          "all": {
+            "n": 50,
+            "medianS": 4.1489,
+            "meanS": 5.4816,
+            "p90S": 7.5732
+          },
+          "successes": {
+            "n": 37,
+            "medianS": 3.7416,
+            "meanS": 5.1315,
+            "p90S": 7.2662
+          },
+          "stepsMedian": 1.0,
+          "stepsSum": 59,
+          "modelCallsMedian": 1.0,
+          "modelCallsSum": 67,
+          "scriptStepsMedian": 2.0,
+          "scriptStepsSum": 103,
+          "failureBuckets": [
+            {
+              "reason": "Model ended without finishing",
+              "n": 1
+            },
+            {
+              "reason": "Ended on the wrong page",
+              "n": 4
+            },
+            {
+              "reason": "Returned evidence not on the page",
+              "n": 4
+            },
+            {
+              "reason": "Answer or claimed URL wrong",
+              "n": 3
+            },
+            {
+              "reason": "Script error",
+              "n": 1
+            }
+          ]
+        },
+        "playwright_mcp": {
+          "pass": 38,
+          "of": 50,
+          "usd": 0.500618,
+          "all": {
+            "n": 50,
+            "medianS": 13.7906,
+            "meanS": 14.114,
+            "p90S": 22.1406
+          },
+          "successes": {
+            "n": 38,
+            "medianS": 13.6314,
+            "meanS": 13.0941,
+            "p90S": 20.0892
+          },
+          "stepsMedian": 4.5,
+          "stepsSum": 225,
+          "modelCallsMedian": 5.5,
+          "modelCallsSum": 275,
+          "scriptStepsMedian": 0.0,
+          "scriptStepsSum": 0,
+          "failureBuckets": [
+            {
+              "reason": "Ended on the wrong page",
+              "n": 6
+            },
+            {
+              "reason": "Answer or claimed URL wrong",
+              "n": 2
+            },
+            {
+              "reason": "Empty answer",
+              "n": 3
+            },
+            {
+              "reason": "Run stopped with a task error",
+              "n": 1
+            }
+          ]
+        },
+        "browser_use": {
+          "pass": 41,
+          "of": 50,
+          "usd": 0.713748,
+          "all": {
+            "n": 50,
+            "medianS": 13.8128,
+            "meanS": 14.7191,
+            "p90S": 20.8972
+          },
+          "successes": {
+            "n": 41,
+            "medianS": 13.6183,
+            "meanS": 14.5137,
+            "p90S": 20.3776
+          },
+          "stepsMedian": 4.0,
+          "stepsSum": 246,
+          "modelCallsMedian": null,
+          "modelCallsSum": null,
+          "scriptStepsMedian": null,
+          "scriptStepsSum": null,
+          "failureBuckets": [
+            {
+              "reason": "Ended on the wrong page",
+              "n": 7
+            },
+            {
+              "reason": "Answer or claimed URL wrong",
+              "n": 2
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "rules": {
+    "model": "gpt-6-luna",
+    "arm": "script_first",
+    "codeNote": "Plain runtime rules on a different code variant from the held-out baseline. These six runs are not a rerun of that baseline.",
+    "off": [
+      {
+        "run": 1,
+        "file": "docs/results/rules_off_run1_luna_medium_20261111.jsonl",
+        "pass": 31,
+        "of": 50,
+        "usd": 0.015317,
+        "all": {
+          "n": 50,
+          "medianS": 4.7076,
+          "meanS": 6.851,
+          "p90S": 11.6483
+        },
+        "successes": {
+          "n": 31,
+          "medianS": 4.3816,
+          "meanS": 5.4974,
+          "p90S": 10.4076
+        },
+        "stepsMedian": 1.0,
+        "stepsSum": 66,
+        "modelCallsMedian": 1.0,
+        "modelCallsSum": 72,
+        "scriptStepsMedian": 2.0,
+        "scriptStepsSum": 113,
+        "failureBuckets": [
+          {
+            "reason": "Model ended without finishing",
+            "n": 1
+          },
+          {
+            "reason": "Ended on the wrong page",
+            "n": 6
+          },
+          {
+            "reason": "Returned evidence not on the page",
+            "n": 3
+          },
+          {
+            "reason": "Answer or claimed URL wrong",
+            "n": 7
+          },
+          {
+            "reason": "Empty answer",
+            "n": 2
+          }
+        ]
+      },
+      {
+        "run": 2,
+        "file": "docs/results/rules_off_run2_luna_medium_20261111.jsonl",
+        "pass": 36,
+        "of": 50,
+        "usd": 0.014829,
+        "all": {
+          "n": 50,
+          "medianS": 5.2771,
+          "meanS": 6.7542,
+          "p90S": 10.7871
+        },
+        "successes": {
+          "n": 36,
+          "medianS": 5.0432,
+          "meanS": 6.4756,
+          "p90S": 8.8191
+        },
+        "stepsMedian": 1.0,
+        "stepsSum": 61,
+        "modelCallsMedian": 1.0,
+        "modelCallsSum": 67,
+        "scriptStepsMedian": 2.0,
+        "scriptStepsSum": 112,
+        "failureBuckets": [
+          {
+            "reason": "Model ended without finishing",
+            "n": 1
+          },
+          {
+            "reason": "Ended on the wrong page",
+            "n": 4
+          },
+          {
+            "reason": "Returned evidence not on the page",
+            "n": 5
+          },
+          {
+            "reason": "Answer or claimed URL wrong",
+            "n": 4
+          }
+        ]
+      },
+      {
+        "run": 3,
+        "file": "docs/results/rules_off_run3_luna_medium_20261111.jsonl",
+        "pass": 31,
+        "of": 50,
+        "usd": 0.015514,
+        "all": {
+          "n": 50,
+          "medianS": 4.0532,
+          "meanS": 5.7837,
+          "p90S": 8.9198
+        },
+        "successes": {
+          "n": 31,
+          "medianS": 3.8849,
+          "meanS": 4.6016,
+          "p90S": 6.3611
+        },
+        "stepsMedian": 1.0,
+        "stepsSum": 58,
+        "modelCallsMedian": 1.0,
+        "modelCallsSum": 68,
+        "scriptStepsMedian": 2.0,
+        "scriptStepsSum": 111,
+        "failureBuckets": [
+          {
+            "reason": "Model ended without finishing",
+            "n": 2
+          },
+          {
+            "reason": "Ended on the wrong page",
+            "n": 6
+          },
+          {
+            "reason": "Returned evidence not on the page",
+            "n": 4
+          },
+          {
+            "reason": "Answer or claimed URL wrong",
+            "n": 5
+          },
+          {
+            "reason": "Empty answer",
+            "n": 1
+          },
+          {
+            "reason": "Script error",
+            "n": 1
+          }
+        ]
+      }
+    ],
+    "on": [
+      {
+        "run": 1,
+        "file": "docs/results/rules_on_run1_luna_medium_20261111.jsonl",
+        "pass": 29,
+        "of": 50,
+        "usd": 0.023807,
+        "all": {
+          "n": 50,
+          "medianS": 5.1923,
+          "meanS": 6.9886,
+          "p90S": 11.3298
+        },
+        "successes": {
+          "n": 29,
+          "medianS": 4.4185,
+          "meanS": 5.2818,
+          "p90S": 9.3375
+        },
+        "stepsMedian": 1.0,
+        "stepsSum": 62,
+        "modelCallsMedian": 1.0,
+        "modelCallsSum": 69,
+        "scriptStepsMedian": 2.0,
+        "scriptStepsSum": 110,
+        "failureBuckets": [
+          {
+            "reason": "Model ended without finishing",
+            "n": 1
+          },
+          {
+            "reason": "Ended on the wrong page",
+            "n": 7
+          },
+          {
+            "reason": "Returned evidence not on the page",
+            "n": 5
+          },
+          {
+            "reason": "Answer or claimed URL wrong",
+            "n": 6
+          },
+          {
+            "reason": "Empty answer",
+            "n": 2
+          }
+        ]
+      },
+      {
+        "run": 2,
+        "file": "docs/results/rules_on_run2_luna_medium_20261111.jsonl",
+        "pass": 35,
+        "of": 50,
+        "usd": 0.021741,
+        "all": {
+          "n": 50,
+          "medianS": 4.008,
+          "meanS": 5.782,
+          "p90S": 10.1232
+        },
+        "successes": {
+          "n": 35,
+          "medianS": 3.7548,
+          "meanS": 5.437,
+          "p90S": 6.9734
+        },
+        "stepsMedian": 1.0,
+        "stepsSum": 59,
+        "modelCallsMedian": 1.0,
+        "modelCallsSum": 62,
+        "scriptStepsMedian": 2.0,
+        "scriptStepsSum": 107,
+        "failureBuckets": [
+          {
+            "reason": "Model ended without finishing",
+            "n": 1
+          },
+          {
+            "reason": "Ended on the wrong page",
+            "n": 6
+          },
+          {
+            "reason": "Returned evidence not on the page",
+            "n": 3
+          },
+          {
+            "reason": "Answer or claimed URL wrong",
+            "n": 4
+          },
+          {
+            "reason": "Empty answer",
+            "n": 1
+          }
+        ]
+      },
+      {
+        "run": 3,
+        "file": "docs/results/rules_on_run3_luna_medium_20261111.jsonl",
+        "pass": 37,
+        "of": 50,
+        "usd": 0.020785,
+        "all": {
+          "n": 50,
+          "medianS": 4.4433,
+          "meanS": 5.5822,
+          "p90S": 8.9255
+        },
+        "successes": {
+          "n": 37,
+          "medianS": 4.2101,
+          "meanS": 5.017,
+          "p90S": 8.9255
+        },
+        "stepsMedian": 1.0,
+        "stepsSum": 60,
+        "modelCallsMedian": 1.0,
+        "modelCallsSum": 66,
+        "scriptStepsMedian": 2.0,
+        "scriptStepsSum": 108,
+        "failureBuckets": [
+          {
+            "reason": "Model ended without finishing",
+            "n": 1
+          },
+          {
+            "reason": "Ended on the wrong page",
+            "n": 5
+          },
+          {
+            "reason": "Returned evidence not on the page",
+            "n": 4
+          },
+          {
+            "reason": "Answer or claimed URL wrong",
+            "n": 3
+          }
+        ]
+      }
+    ],
+    "offPasses": [
+      31,
+      36,
+      31
+    ],
+    "onPasses": [
+      29,
+      35,
+      37
+    ],
+    "offMean": 32.6667,
+    "onMean": 33.6667,
+    "offGraded": "98/150",
+    "onGraded": "101/150",
+    "ruleFirstPasses": {
+      "the script finished and the answer is in the page title or h1": 5,
+      "the script finished and the answer is the live page URL": 15
+    },
+    "ruleFirstGradedPass": 20,
+    "decisions": {
+      "overturns": 9,
+      "overturnsGradedPass": 3,
+      "precisionBar": 0.9,
+      "targetedRepairs": 14,
+      "targetedRepairsPassed": 1,
+      "calls": 149,
+      "errors": 0,
+      "tasksWithCalls": 139,
+      "perTaskMsMedian": 299.395,
+      "perTaskMsMax": 911.16,
+      "singleCallTasks": 129,
+      "singleCallMsMedian": 284.911
+    }
+  },
+  "ledgers": {
+    "openai": {
+      "used": 3.2185,
+      "cap": 20,
+      "recordedIn": "https://github.com/advcode118/alexs-computeruseoptimisation/blob/6b59b525ea279041158b5fc2d320594cdb11261e/docs/TEST_RESULTS.md",
+      "note": "Recorded after the six plain-rule runs in section 7d. Not re-read from the live ledger."
+    },
+    "claude": {
+      "used": 26.022488,
+      "cap": 50,
+      "abortAt": 40,
+      "recordedIn": "https://github.com/advcode118/alexs-computeruseoptimisation/blob/94427222b9fb9ce7b1e04f5dd62336321a745e00/docs/TEST_RESULTS.md",
+      "note": "Recorded running_total_usd in the 11 Nov write-up. Not re-read from the live ledger. The OpenAI runs in that write-up did not change it."
+    }
+  }
+}
