@@ -447,6 +447,9 @@ class OpenAISpendLedger:
             if not isinstance(item, dict):
                 raise PriceUnknown("OpenAI ledger has a task that is not an object. Refusing to run.")
             assert_openai_model(str(item.get("model") or ""))
+            if item.get("kind") == "decisions":
+                # Decisions API rows (PR #49) carry no effort; they still count in the total.
+                continue
             assert_effort(str(item.get("model")), str(item.get("effort") or ""))
         ledger = cls(
             path=target,
