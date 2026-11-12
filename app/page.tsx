@@ -1,17 +1,16 @@
-import LoopPathway from "@/app/components/loop-pathway";
 import PitchSteps from "@/app/components/pitch-steps";
-import ProbeCharts from "@/app/components/probe-charts";
 import RunDemo from "@/app/components/run-demo";
+import SpeedChart from "@/app/components/speed-chart";
 import StatusBand from "@/app/components/status-band";
-import { armMeta, probes, progress, type TimelineEntry } from "@/data/progress";
+import { armInfo, armOrder, dollars, measured, seconds } from "@/data/format";
+import { progress } from "@/data/progress";
 
 const sections = [
   { href: "#pitch", label: "Pitch" },
   { href: "#works", label: "How it works" },
-  { href: "#how", label: "Compare" },
-  { href: "#charts", label: "Results" },
-  { href: "#history", label: "History" },
-  { href: "#loop", label: "Background" },
+  { href: "#how", label: "Walk-through" },
+  { href: "#compare", label: "Comparison" },
+  { href: "#next", label: "Next" },
 ];
 
 function SectionHead({ id, number, title, lede }: { id: string; number: string; title: string; lede: string }) {
@@ -25,107 +24,6 @@ function SectionHead({ id, number, title, lede }: { id: string; number: string; 
         <p className="mt-3 max-w-2xl text-lg leading-relaxed text-mute">{lede}</p>
       </div>
     </div>
-  );
-}
-
-function Timeline() {
-  return (
-    <ol className="relative mt-12 sm:ml-[5.5rem]">
-      <span aria-hidden className="absolute top-2 bottom-2 left-[7px] w-0.5 bg-rule" />
-      <span aria-hidden className="rail-fill absolute top-2 bottom-2 left-[7px] w-0.5 bg-ink" />
-      {progress.timeline.map((entry: TimelineEntry) => {
-        const dot =
-          entry.tone === "stop"
-            ? "bg-stop"
-            : entry.tone === "now"
-              ? "bg-[var(--color-arm-script)]"
-              : entry.id === "next"
-                ? "border-2 border-ink bg-paper"
-                : "bg-ink";
-
-        return (
-          <li key={entry.id} className="reveal relative pb-14 pl-10 last:pb-0">
-            <span aria-hidden className={`absolute top-1.5 left-0 size-4 rounded-full ring-4 ring-paper ${dot}`} />
-            <p className={`font-mono text-sm ${entry.tone === "stop" ? "font-bold text-stop" : "text-mute"}`}>
-              {entry.label}
-            </p>
-            <h3 className="mt-1 font-display text-2xl leading-tight font-bold tracking-tight sm:text-3xl">{entry.title}</h3>
-            <p className="mt-2 max-w-3xl leading-relaxed text-mute">{entry.body}</p>
-            {entry.stack ? (
-              <ol className="mt-4 grid max-w-3xl gap-x-6 sm:grid-cols-2">
-                {entry.stack.map((item) => (
-                  <li key={item.pr} className="grid grid-cols-[2.75rem_minmax(0,1fr)] border-b border-rule py-1.5 text-sm">
-                    <span className="font-mono font-bold">{item.pr}</span>
-                    <span>{item.text}</span>
-                  </li>
-                ))}
-              </ol>
-            ) : null}
-            {entry.figures.length ? (
-              <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
-                {entry.figures.map((figure) => (
-                  <div
-                    key={figure.label}
-                    className={`flex min-w-[8rem] flex-col-reverse ${
-                      figure.yours ? "-mx-2 rounded-md bg-[var(--color-yours-soft)] px-2 py-1" : ""
-                    }`}
-                  >
-                    <dt className={`text-sm ${figure.yours ? "font-semibold text-[var(--color-yours)]" : "text-mute"}`}>
-                                            {figure.label}
-                    </dt>
-                    <dd
-                      className={`font-mono text-2xl font-bold tracking-tight tabular-nums ${
-                        figure.yours ? "text-[var(--color-yours)]" : ""
-                      }`}
-                    >
-                      {figure.value}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            ) : null}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function ProbeTable() {
-  return (
-    <details className="mt-10 border-t border-rule pt-4">
-      <summary className="cursor-pointer font-display font-semibold">The same numbers as a table</summary>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[36rem] text-left text-sm">
-          <thead className="border-b-2 border-ink font-display">
-            <tr>
-              <th className="py-2 pr-4">Probe</th>
-              <th className="py-2 pr-4">Arm</th>
-              <th className="py-2 pr-4">Success</th>
-              <th className="py-2 pr-4">Wall time per success</th>
-              <th className="py-2 pr-4">Cost</th>
-              <th className="py-2">Note</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-rule font-mono">
-            {probes.flatMap((probe) =>
-              probe.results.map((result) => (
-                <tr key={`${probe.id}-${result.arm}`}>
-                  <td className="py-2 pr-4">{probe.label}</td>
-                  <td className="py-2 pr-4">{armMeta[result.arm].short}</td>
-                  <td className="py-2 pr-4">
-                    {result.successes}/{result.tasks}
-                  </td>
-                  <td className="py-2 pr-4">{result.seconds !== undefined ? `${result.seconds}s` : "—"}</td>
-                  <td className="py-2 pr-4">{result.cost !== undefined ? `$${result.cost}` : "—"}</td>
-                  <td className="py-2 font-sans text-mute">{result.note ?? ""}</td>
-                </tr>
-              )),
-            )}
-          </tbody>
-        </table>
-      </div>
-    </details>
   );
 }
 
@@ -150,7 +48,10 @@ function RepoLinks({ className }: { className: string }) {
 }
 
 export default function HomePage() {
-  const spend = progress.status.spend;
+  const off = measured.rules.offPasses;
+  const on = measured.rules.onPasses;
+  const luna = measured.heldOut.find((run) => run.model === "gpt-6-luna")!;
+  const sol = measured.heldOut.find((run) => run.model === "gpt-6.1-sol")!;
 
   return (
     <>
@@ -199,104 +100,125 @@ export default function HomePage() {
               id="how"
               number="01"
               title="Compare it, step by step"
-              lede="Press Play or Step. See where each arm calls a model. Pink is script_first."
+              lede="Press Play or Step. Pink is script_first. The picture is the mechanism, and the numbers live on the stats page."
             />
           </div>
           <div className="reveal mx-auto mt-10 max-w-6xl sm:px-8">
-            <RunDemo
-              demos={[
-                ...progress.demos.filter((demo) => demo.id === "script_first"),
-                ...progress.demos.filter((demo) => demo.id !== "script_first"),
-              ]}
-              probes={probes}
-              tasks={progress.tasks}
-            />
+            <RunDemo demos={progress.demos} />
           </div>
         </section>
 
-        <section aria-labelledby="charts" className="border-y border-rule bg-sheet/70 py-16 sm:py-24">
+        <section aria-labelledby="compare" className="border-y border-rule bg-sheet/70 py-16 sm:py-24">
           <div className="mx-auto max-w-6xl px-5 sm:px-8">
             <div className="reveal">
               <SectionHead
-                id="charts"
+                id="compare"
                 number="02"
-                title="Results, probe by probe"
-                lede={`Scored on wall time per successful task. ${progress.tasksNote}`}
+                title="The same 50 tasks, both models"
+                lede="OpenAI, medium effort, one cold run. Three arms. script_first never saw an answer key. Median and p90 below are two different populations: every task, and graded passes only."
               />
             </div>
             <div className="reveal mt-10">
-              <ProbeCharts probes={probes} />
+              <SpeedChart runs={measured.heldOut} />
             </div>
-            <ProbeTable />
-
-            <div className="reveal mt-14 grid gap-10 border-t-2 border-ink pt-8 lg:grid-cols-2 lg:gap-16">
-              <div>
-                <h3 className="font-display text-xl font-bold">The bar to beat</h3>
-                <p className="text-sm text-mute">{progress.benchmark.source}</p>
-                <dl className="mt-3 divide-y divide-rule border-y border-rule">
-                  {progress.benchmark.rows.map((row) => (
-                    <div key={row.name} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 py-2.5">
-                      <dt className="font-semibold">{row.name}</dt>
-                      <dd className="font-mono text-sm">
-                        {row.pass} pass, {row.cost}
-                      </dd>
-                      <dd className="col-span-2 font-mono text-xs text-mute">
-                        {row.time}, {row.steps}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-              <div>
-                <h3 className="font-display text-xl font-bold">Claude spend</h3>
-                <p className="mt-1 font-mono text-2xl font-bold">
-                  about ${spend.used} <span className="text-base font-normal text-mute">of ${spend.cap}</span>
-                </p>
-                <div className="relative mt-3 h-3 rounded-full bg-rule/60">
-                  <span
-                    className="grow-x block h-full rounded-full bg-ink"
-                    style={{ width: `${(spend.used / spend.cap) * 100}%` }}
-                  />
-                  <span
-                    aria-hidden
-                    className="absolute -top-1 -bottom-1 w-0.5 bg-stop"
-                    style={{ left: `${(spend.abortAt / spend.cap) * 100}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-sm text-mute">Scripts abort at ${spend.abortAt}.</p>
-              </div>
+            <div className="reveal mt-8 overflow-x-auto">
+              <table className="w-full min-w-[44rem] text-left text-sm">
+                <caption className="pb-3 text-left font-display text-lg font-bold">
+                  Held-out comparison. p90 is nearest-rank.
+                </caption>
+                <thead className="border-b-2 border-ink font-display">
+                  <tr>
+                    <th scope="col" className="py-2 pr-4">Model</th>
+                    <th scope="col" className="py-2 pr-4">Arm</th>
+                    <th scope="col" className="py-2 pr-4">Passed</th>
+                    <th scope="col" className="py-2 pr-4">Median, all 50</th>
+                    <th scope="col" className="py-2 pr-4">p90, all 50</th>
+                    <th scope="col" className="py-2 pr-4">Median, passes</th>
+                    <th scope="col" className="py-2 pr-4">p90, passes</th>
+                    <th scope="col" className="py-2">Cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rule">
+                  {measured.heldOut.flatMap((run) =>
+                    armOrder.map((arm) => {
+                      const row = run.arms[arm];
+                      return (
+                        <tr key={`${run.model}-${arm}`} className={arm === "script_first" ? "bg-[var(--color-yours-soft)]" : ""}>
+                          <th scope="row" className="py-2 pr-4 font-mono font-medium">
+                            {run.model}
+                          </th>
+                          <td className="py-2 pr-4">
+                            <span className="inline-flex items-center gap-2">
+                              <span aria-hidden className="size-2.5 rounded-sm" style={{ background: armInfo[arm].color }} />
+                              {armInfo[arm].name}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4 font-mono tabular-nums">
+                            {row.pass}/{row.of}
+                          </td>
+                          <td className="py-2 pr-4 font-mono tabular-nums">{seconds(row.all.medianS)}</td>
+                          <td className="py-2 pr-4 font-mono tabular-nums">{seconds(row.all.p90S)}</td>
+                          <td className="py-2 pr-4 font-mono tabular-nums">{seconds(row.successes.medianS)}</td>
+                          <td className="py-2 pr-4 font-mono tabular-nums">{seconds(row.successes.p90S)}</td>
+                          <td className="py-2 font-mono tabular-nums">{dollars(row.usd)}</td>
+                        </tr>
+                      );
+                    }),
+                  )}
+                </tbody>
+              </table>
             </div>
+            <p className="mt-4 max-w-3xl text-sm leading-relaxed text-mute">
+              script_first is the quickest arm on both models, and the cheapest. browser-use passes more tasks on both models:
+              {luna.arms.browser_use.pass} against {luna.arms.script_first.pass} on gpt-6-luna, {sol.arms.browser_use.pass} against{" "}
+              {sol.arms.script_first.pass} on gpt-6.1-sol. Playwright MCP passes {luna.arms.playwright_mcp.pass} on Luna and{" "}
+              {sol.arms.playwright_mcp.pass} on Sol.
+            </p>
           </div>
         </section>
 
-        <section aria-labelledby="history" className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
+        <section aria-labelledby="next" className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-24">
           <div className="reveal">
             <SectionHead
-              id="history"
+              id="next"
               number="03"
-              title="How it got here"
-              lede="A browser loop, one measurement, a stack of speed-layer PRs, then one script per task."
+              title="Reliability is the open gap"
+              lede="The plain URL, title and heading rules are a later code variant. Decisions stays off."
             />
           </div>
-          <Timeline />
-        </section>
-
-        <section aria-labelledby="loop" className="border-t border-rule bg-sheet/70 py-16 sm:py-24">
-          <div className="mx-auto max-w-6xl px-5 sm:px-8">
-            <div className="reveal">
-              <SectionHead id="loop" number="04" title="Background: the loop and the pathway" lede={progress.loop.body} />
-            </div>
-            <div className="reveal">
-              <LoopPathway />
-            </div>
+          <div className="reveal mt-10 grid gap-6 lg:grid-cols-2">
+            <article className="rounded-lg border border-rule bg-sheet p-5">
+              <h3 className="font-display text-2xl font-bold">Plain rules, Decisions off</h3>
+              <p className="mt-2 text-mute">
+                gpt-6-luna, script_first only, three separate runs of the same later code. Passes {off.join(", ")} out of 50.
+                Mean {measured.rules.offMean.toFixed(1)}. Together {measured.rules.offGraded}, {((off.reduce((sum, n) => sum + n, 0) / 150) * 100).toFixed(1)}%.
+              </p>
+            </article>
+            <article className="rounded-lg border border-rule bg-sheet p-5">
+              <h3 className="font-display text-2xl font-bold">Decisions on</h3>
+              <p className="mt-2 text-mute">
+                The same later code with the Decisions gate. Passes {on.join(", ")} out of 50. Mean {measured.rules.onMean.toFixed(1)}.
+                {measured.rules.decisions.overturnsGradedPass} of {measured.rules.decisions.overturns} overturns passed the grade,
+                under the {measured.rules.decisions.precisionBar * 100}% bar. {measured.rules.decisions.targetedRepairsPassed} of{" "}
+                {measured.rules.decisions.targetedRepairs} targeted repairs passed. The gate stays off.
+              </p>
+            </article>
           </div>
+          <p className="reveal mt-6 max-w-3xl text-sm leading-relaxed text-mute">
+            Those six runs are a different build from the three-arm table above. Read them on their own. The stats page has the
+            timings, the sources, and every task.
+          </p>
         </section>
 
         <footer className="border-t border-rule">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 font-mono text-xs text-mute sm:px-8">
-            <p>As of {progress.asOf}. Numbers are from the probe logs.</p>
+            <p>As of {progress.asOf}. Figures are recomputed from the saved rows.</p>
             <RepoLinks className="flex gap-2 font-sans text-sm" />
-            <p>Edit {progress.sourceFile}</p>
+            <p>
+              <a href="/stats" className="underline underline-offset-4">
+                Stats and sources
+              </a>
+            </p>
           </div>
         </footer>
       </main>

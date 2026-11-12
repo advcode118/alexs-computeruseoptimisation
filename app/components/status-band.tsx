@@ -1,16 +1,24 @@
-import { armMeta, ownerLabel, probes, progress } from "@/data/progress";
+import { armOrder, dollars, measured, seconds, type ArmId } from "@/data/format";
+import { progress } from "@/data/progress";
 
 const highlight = "var(--color-yours-bright)";
 
+const nightFill: Record<ArmId, string> = {
+  script_first: highlight,
+  playwright_mcp: "rgba(223, 230, 245, 0.55)",
+  browser_use: "#f0b45a",
+};
+
 export default function StatusBand() {
-  const { status, pitch } = progress;
-  const latest = probes.find((probe) => probe.id === status.probe)!;
-  const maxSeconds = Math.max(...latest.results.map((result) => result.seconds ?? 0));
-  const maxCost = Math.max(...latest.results.map((result) => result.cost ?? 0));
+  const { pitch } = progress;
+  const maxSeconds = Math.max(
+    ...measured.heldOut.flatMap((run) => armOrder.map((arm) => run.arms[arm].all.medianS)),
+  );
+  const maxCost = Math.max(...measured.heldOut.flatMap((run) => armOrder.map((arm) => run.arms[arm].usd)));
 
   return (
     <section id="pitch" aria-labelledby="pitch-title" className="overflow-hidden bg-night text-night-ink">
-      <div className="hero-out mx-auto grid max-w-6xl gap-12 px-5 pt-16 pb-20 sm:px-8 sm:pt-24 sm:pb-28 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-16">
+      <div className="hero-out mx-auto grid max-w-6xl gap-12 px-5 pt-16 pb-20 sm:px-8 sm:pt-24 sm:pb-28 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-16">
         <div>
           <p className="flex items-center gap-2 font-mono text-sm" style={{ color: highlight }}>
             <span aria-hidden className="size-2 rounded-full" style={{ background: highlight }} />
@@ -38,63 +46,57 @@ export default function StatusBand() {
         </div>
 
         <div className="self-end">
-          <p className="font-display text-lg font-semibold">
-            Latest probe: {latest.label}, {latest.model}
+          <p className="font-display text-lg font-semibold">50 held-out tasks, one cold run each</p>
+          <p className="mt-1 text-sm text-night-mute">
+            OpenAI medium. Median wall time of all 50 tasks. script_first had no answer key in its runtime.
           </p>
-          <p className="mt-1 flex flex-wrap gap-x-4 text-sm text-night-mute">
-            <span className="flex items-center gap-1.5">
-              <span aria-hidden className="size-2.5 rounded-full" style={{ background: highlight }} />
-              script_first (our approach)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span aria-hidden className="size-2.5 rounded-full bg-white/35" />
-              Baselines and others
-            </span>
-          </p>
-          <div className="mt-5 space-y-5">
-            {latest.results.map((result) => {
-              const yours = armMeta[result.arm].owner === "yours";
-              const fill = yours ? highlight : "rgba(223, 230, 245, 0.35)";
-
-              return (
-                <div
-                  key={result.arm}
-                  className={yours ? "-mx-3 rounded-lg px-3 py-2 ring-2 ring-[var(--color-yours-bright)]" : ""}
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="flex items-center gap-2 font-mono text-sm font-bold">
-                      <span style={yours ? { color: highlight } : undefined}>{armMeta[result.arm].short}</span>
-                      <span className="font-sans text-xs font-normal text-night-mute">
-                        {ownerLabel[armMeta[result.arm].owner]}
-                      </span>
-                    </span>
-                    <span className="font-mono text-sm text-night-mute">{result.successes}/{result.tasks}</span>
-                  </div>
-                  <div className="mt-1.5 grid grid-cols-[3rem_minmax(0,1fr)_4.5rem] items-center gap-x-2 gap-y-1 text-xs text-night-mute">
-                    <span>time</span>
-                    <span className="h-2.5 rounded-full bg-white/10">
-                      <span
-                        className="grow-x block h-full rounded-full"
-                        style={{ width: `${((result.seconds ?? 0) / maxSeconds) * 100}%`, background: fill }}
-                      />
-                    </span>
-                    <span className="text-right font-mono text-sm text-night-ink">{result.seconds}s</span>
-                    <span>cost</span>
-                    <span className="h-2.5 rounded-full bg-white/10">
-                      <span
-                        className="grow-x block h-full rounded-full"
-                        style={{ width: `${((result.cost ?? 0) / maxCost) * 100}%`, background: fill }}
-                      />
-                    </span>
-                    <span className="text-right font-mono text-sm text-night-ink">${result.cost}</span>
-                  </div>
+          <div className="mt-5 space-y-6">
+            {measured.heldOut.map((run) => (
+              <div key={run.model}>
+                <p className="font-mono text-sm font-bold" style={{ color: highlight }}>
+                  {run.model}
+                </p>
+                <div className="mt-2 space-y-3">
+                  {armOrder.map((arm) => {
+                    const row = run.arms[arm];
+                    const fill = nightFill[arm];
+                    return (
+                      <div key={arm}>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-mono text-sm font-bold">{arm === "script_first" ? "script_first" : arm === "playwright_mcp" ? "Playwright MCP" : "browser-use"}</span>
+                          <span className="font-mono text-sm text-night-mute">
+                            {row.pass}/{row.of}
+                          </span>
+                        </div>
+                        <div className="mt-1 grid grid-cols-[3rem_minmax(0,1fr)_4.75rem] items-center gap-x-2 text-xs text-night-mute">
+                          <span>time</span>
+                          <span className="h-2 rounded-full bg-white/10">
+                            <span
+                              className="block h-full rounded-full"
+                              style={{ width: `${(row.all.medianS / maxSeconds) * 100}%`, background: fill }}
+                            />
+                          </span>
+                          <span className="text-right font-mono text-sm text-night-ink">{seconds(row.all.medianS)}</span>
+                          <span>cost</span>
+                          <span className="h-2 rounded-full bg-white/10">
+                            <span
+                              className="block h-full rounded-full"
+                              style={{ width: `${(row.usd / maxCost) * 100}%`, background: fill }}
+                            />
+                          </span>
+                          <span className="text-right font-mono text-sm text-night-ink">{dollars(row.usd)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
-          <p className="mt-6 inline-flex items-center gap-2 rounded-full border border-night-mute/40 px-3 py-1 text-sm">
-            <span aria-hidden className="loop-pulse size-2 shrink-0 rounded-full" style={{ background: highlight }} />
-            {status.next}
+          <p className="mt-6 text-sm text-night-mute">
+            <a href="/stats" className="font-semibold text-night-ink underline decoration-white/30 underline-offset-4">
+              Full tables, both latency populations, and the per-task rows
+            </a>
           </p>
         </div>
       </div>
