@@ -110,7 +110,8 @@ _PAGE_EVIDENCE_JS = r"""() => {
 }"""
 
 from bench.script_helpers import HelperCall, is_helper_call, parse_helper_call, run_helper, wrap_evaluate
-from bench.stagehand_local import _locator, context_browser
+from bench.stagehand_local import context_browser
+from bench.script_grammar import BrowserAction, GRAMMAR_HINT, action_kind, browser_locator, parse_browser_action
 from proxy.script import MAX_SCRIPT_CHARS, MAX_SCRIPT_LINES, ScriptAction, ScriptError, parse_script
 
 _BANNED = (
@@ -138,7 +139,7 @@ class TaskStep:
     line: int
     source: str
     function: str = ""
-    action: ScriptAction | None = None
+    action: ScriptAction | BrowserAction | None = None
     helper: HelperCall | None = None
 
 
@@ -280,7 +281,7 @@ def _parse_evaluate(text: str, line: int) -> TaskStep:
     if lowered.startswith("page.evaluatehandle") or (
         lowered.startswith("page.evaluate") and len(text) > len("page.evaluate") and text[len("page.evaluate")].isalnum()
     ):
-        raise ScriptError(f"line {line}: page.evaluate is the only evaluate form")
+        raise ScriptError(f"line {line}: page.evaluate is the only evaluate form; {GRAMMAR_HINT}")
     rest = text[len("page.evaluate") :].strip()
     if not rest.startswith("(") or not rest.endswith(")"):
         raise ScriptError(f"line {line}: page.evaluate needs one function")
@@ -293,22 +294,6 @@ def _parse_evaluate(text: str, line: int) -> TaskStep:
     if not function:
         raise ScriptError(f"line {line}: page.evaluate needs one function")
     return TaskStep(kind="evaluate", line=line, source=text, function=function)
-
-
-def _is_wait_statement(body: str) -> bool:
-    """True for a Playwright wait or settle line. page.evaluate is not a wait."""
-    compact = "".join(body.split()).casefold()
-    if compact.startswith("page.evaluate"):
-        return False
-    if compact.startswith("page.waitfor") or compact.startswith("page.wait_for"):
-        return True
-    if compact.startswith("page.setdefaulttimeout") or compact.startswith("page.setdefaultnavigationtimeout"):
-        return True
-    if ".waitfor(" in compact:
-        return True
-    if "networkidle" in compact and "goto" not in compact:
-        return True
-    return False
 
 
 def parse_task_script(source: str) -> list[TaskStep]:
@@ -325,7 +310,7 @@ def parse_task_script(source: str) -> list[TaskStep]:
         raise ScriptError(f"script is longer than {MAX_SCRIPT_CHARS} characters")
     banned = _banned_token(text)
     if banned:
-        raise ScriptError(f"{banned.strip()} is not part of this script")
+        raise ScriptError(f"{banned.strip()} is not part of this script; {GRAMMAR_HINT}")
     steps: list[TaskStep] = []
     for index, stmt in enumerate(_statements(text), 1):
         body = _normalize_stmt(stmt)
@@ -333,8 +318,8 @@ def parse_task_script(source: str) -> list[TaskStep]:
             returned = _normalize_stmt(body[len("return ") :])
             if returned.casefold().startswith("page.evaluate"):
                 body = returned
-        if _is_wait_statement(body):
-            continue
+            else:
+                raise ScriptError(f"line {index}: top-level return is not supported; {GRAMMAR_HINT}")
         if body.casefold().startswith("page.evaluate"):
             steps.append(_parse_evaluate(body, index))
             continue
@@ -342,10 +327,17 @@ def parse_task_script(source: str) -> list[TaskStep]:
         if is_helper_call(helper_body):
             steps.append(TaskStep(kind="helper", line=index, source=body, helper=parse_helper_call(body, index)))
             continue
-        body = " ".join(body.split())
-        actions = parse_script(body, allow_goto=True, max_lines=1)
-        action = actions[0]
-        kind = "goto" if action.op == "goto" else "locator"
+        try:
+            if body.startswith("page.goto"):
+                action = parse_script(" ".join(body.split()), allow_goto=True, max_lines=1)[0]
+                kind = "goto"
+            else:
+                action = parse_browser_action(body, index)
+                kind = action_kind(action)
+        except ScriptError as exc:
+            raise ScriptError(f"{exc}; {GRAMMAR_HINT}") from exc
+        if kind == "wait":
+            continue
         steps.append(TaskStep(kind=kind, line=index, source=body, action=action))
     if not steps:
         raise ScriptError("script has no actions")
@@ -1428,7 +1420,33 @@ async def _run_step_on_page(page, step: TaskStep):
     if action.op == "goto":
         await page.goto(action.value, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
         return None
-    locator = _locator(page, action)
+    if action.finder == "page":
+        if action.op == "click":
+            await page.click(action.name, timeout=_ACTION_TIMEOUT_MS)
+        elif action.op == "fill":
+            await page.fill(action.name, action.value, timeout=_ACTION_TIMEOUT_MS)
+        elif action.op == "press":
+            await page.press(action.name, action.value, timeout=_ACTION_TIMEOUT_MS)
+        elif action.op == "goBack":
+            await page.go_back(wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+        elif action.op == "title":
+            return await asyncio.wait_for(page.title(), timeout=1.0)
+        elif action.op == "url":
+            return _page_url(page)
+        else:
+            raise ScriptError(f"line {step.line}: unsupported page action {action.op}")
+        return None
+    if action.finder == "keyboard":
+        # Keyboard methods have no Playwright timeout argument.
+        if action.op == "press":
+            pending = page.keyboard.press(action.value)
+        elif action.op == "type":
+            pending = page.keyboard.type(action.value)
+        else:
+            raise ScriptError(f"line {step.line}: unsupported keyboard action {action.op}")
+        await asyncio.wait_for(pending, timeout=_ACTION_TIMEOUT_MS / 1000)
+        return None
+    locator = browser_locator(page, action)
     if action.op == "click":
         await locator.click(timeout=_ACTION_TIMEOUT_MS)
     elif action.op == "fill":
@@ -1439,6 +1457,14 @@ async def _run_step_on_page(page, step: TaskStep):
         await locator.check(timeout=_ACTION_TIMEOUT_MS)
     elif action.op == "uncheck":
         await locator.uncheck(timeout=_ACTION_TIMEOUT_MS)
+    elif action.op == "selectOption":
+        await locator.select_option(action.value, timeout=_ACTION_TIMEOUT_MS)
+    elif action.op == "textContent":
+        return await locator.text_content(timeout=_ACTION_TIMEOUT_MS)
+    elif action.op == "innerText":
+        return await locator.inner_text(timeout=_ACTION_TIMEOUT_MS)
+    elif action.op == "getAttribute":
+        return await locator.get_attribute(action.value, timeout=_ACTION_TIMEOUT_MS)
     else:
         raise ScriptError(f"line {step.line}: unsupported action {action.op}")
     return None
@@ -1453,7 +1479,7 @@ async def run_on_page(
     """Run the whole script on a Playwright page. No settle between actions.
 
     Goto waits for DOMContentLoaded. Wait lines were already dropped. An
-    evaluate return value is the script's claim. After the script the harness
+    evaluate or top-level read return value is the script's claim. After the script the harness
     reads the live URL, canonical link, h1, and main text itself.
     """
     steps = parse_task_script(source)
@@ -1464,7 +1490,7 @@ async def run_on_page(
         for step in steps:
             value = await _run_step_on_page(page, step)
             done += 1
-            if step.kind == "evaluate":
+            if step.kind in {"evaluate", "read"}:
                 claimed = _note_extract(extracted, claimed, value)
     except ScriptError:
         raise
@@ -1517,7 +1543,7 @@ async def run_on_mcp(call_tool, source: str) -> str:
     There is no snapshot and no settle.
     """
     steps = parse_task_script(source)
-    if any(step.kind in {"locator", "helper"} for step in steps):
+    if any(step.kind not in {"goto", "evaluate"} for step in steps):
         raise ScriptError("the MCP evaluate runner accepts page.goto and page.evaluate only")
     url = ""
     done = 0
