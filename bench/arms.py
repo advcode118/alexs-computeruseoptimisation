@@ -86,7 +86,7 @@ Guidelines:
 - The end URL must be the finished page the task named. Do not stop on the start URL, and do not stop on a search-results URL when the task named a specific page.
 - Prefer one page.goto of the finished page over clicking through the site. Put the whole navigation in the same script.
 - A start page or a search-results page is not the finished page. Leave it for the page that holds the asked value.
-- Allowed: page.goto("https://..."), page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder, cu.click("visible name"), cu.fill("visible name", "text"), cu.press("visible name", "Enter"), and page.evaluate(() => { ... }) with a page-context function.
+- Allowed: page.goto("https://..."), page.locator, page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder (locators may use .first()/.nth()), cu.click("visible name"), cu.fill("visible name", "text"), cu.press("visible name", "Enter"), and page.evaluate(() => { ... }) with a page-context function.
 - cu.click, cu.fill, and cu.press act on the one control with that visible name.
 - End every script with one page.evaluate that returns evidence from the live page:
   page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector("h1")?.innerText, key_text: "", values: [], answer: ""}))
