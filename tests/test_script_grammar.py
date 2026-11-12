@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from bench.script_first import _run_step_on_page, parse_task_script, run_on_mcp, run_on_page
+from bench.script_first import _note_extract, _run_step_on_page, parse_task_script, run_on_mcp, run_on_page
 from bench.script_grammar import GRAMMAR_HINT
 from proxy.script import MAX_SCRIPT_CHARS, MAX_SCRIPT_LINES, ScriptError, parse_script
 
@@ -168,6 +168,7 @@ def test_modifier_dispatch_selects_the_correct_locator(modifier):
     ('page.keyboard.press("Control+A")', "press", ("Control+A",), "keyboard"),
     ('page.keyboard.type("hello")', "type", ("hello",), "keyboard"),
     ('page.goBack()', "go_back", (), "page"),
+    ('page.goBack({waitUntil: "load", timeout: 0})', "go_back", (), "page"),
 ])
 def test_page_and_keyboard_actions(source, method, args, kind):
     step, = parse_task_script(source)
@@ -227,6 +228,90 @@ def test_read_extraction_has_the_same_empty_caps_and_object_rules(returned):
     evaluated = json.loads(asyncio.run(run_on_page(page, 'page.evaluate(() => null)')).splitlines()[0])
     assert actual.get("extracted") == evaluated.get("extracted")
     assert actual.get("claimed") == evaluated.get("claimed")
+
+
+@pytest.mark.parametrize("read", ['page.title()', 'page.locator("h1").textContent()'])
+@pytest.mark.parametrize("read_first", [True, False])
+@pytest.mark.parametrize("field", ["answer", "key_text"])
+@pytest.mark.parametrize("claim", ['({answer: "42"})', 'cu.claim({answer: "42"})'])
+def test_evaluate_claim_precedes_reads_in_either_order(read, read_first, field, claim):
+    page, locator = fake_page()
+    page.title.return_value = "Search results - Site"
+    locator.text_content.return_value = "Search results - Site"
+    evaluate = f'page.evaluate(() => {claim.replace("answer:", field + ":")})'
+    source = ";".join([read, evaluate] if read_first else [evaluate, read])
+    page.evaluate.side_effect = [{field: "42"}, {"url": page.url, "text": "42"}]
+    result = json.loads(asyncio.run(run_on_page(page, source)).splitlines()[0])
+    assert result["claimed"] == {field: "42"}
+    expected = ["Search results - Site"] + (["42"] if field == "answer" else [])
+    if not read_first:
+        expected.reverse()
+    assert result["extracted"] == expected
+
+
+@pytest.mark.parametrize("field", ["answer", "key_text"])
+def test_last_evaluate_claim_wins(field):
+    page, _ = fake_page()
+    page.evaluate.side_effect = [
+        {field: "earlier"}, {field: "later"}, {"url": page.url, "text": "later"},
+    ]
+    source = 'page.evaluate(() => ({})); page.title(); page.evaluate(() => ({}))'
+    result = json.loads(asyncio.run(run_on_page(page, source)).splitlines()[0])
+    assert result["claimed"] == {field: "later"}
+
+
+def test_note_extract_later_answer_replaces_an_earlier_string():
+    extracted, claimed = [], {}
+    _note_extract(extracted, claimed, "Search results - Site")
+    _note_extract(extracted, claimed, {"answer": "42"})
+    assert claimed == {"answer": "42"}
+    assert extracted == ["Search results - Site", "42"]
+
+
+def test_read_is_answer_fallback_when_evaluate_only_supplies_metadata():
+    page, _ = fake_page()
+    page.evaluate.side_effect = [{"url": page.url}, {"url": page.url, "text": "Catalog"}]
+    source = 'page.title(); page.evaluate(() => ({url: location.href}))'
+    result = json.loads(asyncio.run(run_on_page(page, source)).splitlines()[0])
+    assert result["claimed"] == {"answer": "Catalog", "url": page.url}
+    assert result["extracted"] == ["Catalog"]
+
+
+@pytest.mark.parametrize("has_claim", [False, True])
+def test_answer_precedence_also_applies_when_a_later_action_fails(has_claim):
+    page, _ = fake_page()
+    page.click.side_effect = RuntimeError("click failed")
+    source = 'page.title(); '
+    if has_claim:
+        source += 'page.evaluate(() => ({answer: "42"})); '
+        page.evaluate.side_effect = [{"answer": "42"}, {"url": page.url, "text": "42"}]
+    source += 'page.click(".missing")'
+    result = json.loads(asyncio.run(run_on_page(page, source)).splitlines()[0])
+    assert result["ok"] is False
+    assert result["error"] == "click failed"
+    assert result["claimed"]["answer"] == ("42" if has_claim else "Catalog")
+
+
+@pytest.mark.parametrize("wait", [
+    'waitForURL("**/done", {waitUntil: "load"})', 'waitForNavigation()',
+    'wait_for_url("**/done")', 'wait_for_navigation()',
+    'waitForTimeout(1000)', 'waitForLoadState("load")', 'waitForSelector("h1")',
+    'wait_for_timeout(1000)', 'wait_for_load_state("load")', 'wait_for_selector("h1")',
+    'waitForFunction(() => document.title.includes("Ready"))',
+    'wait_for_function("() => document.title")',
+    'waitForResponse(response => response.status() === 200)',
+    'wait_for_event("request")', 'waitForFutureAPI({nested: {timeout: 1}})',
+])
+@pytest.mark.parametrize("prefix", ["", "await "])
+def test_all_page_wait_forms_are_silently_dropped(wait, prefix):
+    source = f'{prefix}page.{wait}; page.goto("https://example.com/catalog")'
+    steps = parse_task_script(source)
+    assert [step.kind for step in steps] == ["goto"]
+    page, _ = fake_page()
+    result = json.loads(asyncio.run(run_on_page(page, source)).splitlines()[0])
+    assert result["ok"] is True
+    assert result["steps"] == 1
+    assert not any(call[0].startswith(("waitFor", "wait_for")) for call in page.mock_calls)
 
 
 ESCAPES = [
@@ -303,6 +388,18 @@ def test_ignored_options_cannot_disable_timeouts_or_run_code():
     assert parse_task_script('page.fill("#q", "networkidle")')[0].action.value == "networkidle"
     with pytest.raises(ScriptError):
         parse_task_script('page.getByText("Next", {exact: "true"}).click()')
+
+
+@pytest.mark.parametrize("source", [
+    'page.locator("a").click({timeout: 1}, {x: 1})',
+    'page.locator("a").check({timeout: 1}, {x: 1})',
+    'page.locator("a").fill("text", {timeout: 1}, {x: 1})',
+    'page.goBack({waitUntil: "load"}, {x: 1})',
+    'page.goBack({waitUntil: getMode()})',
+])
+def test_options_are_literal_and_only_one_object_is_allowed(source):
+    with pytest.raises(ScriptError):
+        parse_task_script(source)
 
 
 def test_role_without_name_and_js_string_literals():

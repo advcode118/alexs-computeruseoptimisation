@@ -1351,7 +1351,7 @@ def _note_extract(extracted: list[str], claimed: dict, value) -> dict:
     parsed = _claim_from_value(value)
     if parsed:
         for key, item in parsed.items():
-            if item and not claimed.get(key):
+            if item:
                 claimed[key] = item
         if parsed.get("answer"):
             extracted.append(parsed["answer"])
@@ -1359,8 +1359,7 @@ def _note_extract(extracted: list[str], claimed: dict, value) -> dict:
     text = _coerce_extract(value)
     if text:
         extracted.append(text)
-        if not claimed.get("answer"):
-            claimed["answer"] = text
+        claimed["answer"] = text
     return claimed
 
 
@@ -1478,42 +1477,40 @@ async def run_on_page(
 ) -> str:
     """Run the whole script on a Playwright page. No settle between actions.
 
-    Goto waits for DOMContentLoaded. Wait lines were already dropped. An
-    evaluate or top-level read return value is the script's claim. After the script the harness
-    reads the live URL, canonical link, h1, and main text itself.
+    Goto waits for DOMContentLoaded. Wait lines were already dropped.
+    Evaluate claims take precedence over top-level reads; reads are a fallback
+    only when no evaluate supplied an answer or key_text. After the script the
+    harness reads the live URL, canonical link, h1, and main text itself.
     """
     steps = parse_task_script(source)
     done = 0
     extracted: list[str] = []
     claimed: dict = {}
+    read_claimed: dict = {}
+    ok, error = True, ""
     try:
         for step in steps:
             value = await _run_step_on_page(page, step)
             done += 1
-            if step.kind in {"evaluate", "read"}:
+            if step.kind == "evaluate":
                 claimed = _note_extract(extracted, claimed, value)
+            elif step.kind == "read":
+                read_claimed = _note_extract(extracted, read_claimed, value)
     except ScriptError:
         raise
     except Exception as exc:
-        return await _finish_page(
-            page,
-            ok=False,
-            step_count=done,
-            error=str(exc),
-            extracted=extracted,
-            claimed=claimed,
-            end_markers=end_markers,
-            wait_for_commit=True,
-        )
+        ok, error = False, str(exc)
+    if not (claimed.get("answer") or claimed.get("key_text")):
+        claimed = {**read_claimed, **claimed}
     return await _finish_page(
         page,
-        ok=True,
-        step_count=len(steps),
-        error="",
+        ok=ok,
+        step_count=done,
+        error=error,
         extracted=extracted,
         claimed=claimed,
         end_markers=end_markers,
-        wait_for_commit=bool(steps) and steps[-1].kind != "goto",
+        wait_for_commit=not ok or (bool(steps) and steps[-1].kind != "goto"),
     )
 
 

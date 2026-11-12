@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from proxy.script import ScriptError, _Scan
+from proxy.script import ScriptError, _Scan, _skip_until_call_end
 
 
 _FINDERS = {
@@ -23,14 +23,16 @@ _VALUE_OPS = {"fill", "press", "selectOption", "getAttribute"}
 _LOCATOR_OPS = _VALUE_OPS | {"click", "check", "uncheck", "textContent", "innerText", "waitFor"}
 READ_OPS = {"textContent", "innerText", "getAttribute", "title", "url"}
 _DROPPED_PAGE_OPS = {
-    "waitForTimeout", "waitForLoadState", "waitForSelector",
-    "wait_for_timeout", "wait_for_load_state", "wait_for_selector",
     "setDefaultTimeout", "setDefaultNavigationTimeout",
 }
 GRAMMAR_HINT = (
     'use page.locator("css").click() or page.evaluate(() => { ... }); '
     'for an object return, wrap it in page.evaluate(() => ({...}))'
 )
+
+
+def _dropped_page_op(method: str) -> bool:
+    return method.casefold().startswith(("waitfor", "wait_for")) or method in _DROPPED_PAGE_OPS
 
 
 @dataclass(frozen=True)
@@ -170,7 +172,7 @@ def parse_browser_action(text: str, line: int) -> BrowserAction:
         value = scan.string() if op in _VALUE_OPS else ""
         if op not in _VALUE_OPS and scan.startswith("{"):
             scan.options()
-        scan.end_call(options=True)
+        scan.end_call(options=op in _VALUE_OPS)
         action = BrowserAction(
             finder=finder, op=op, line=line, name=name,
             role=target if finder == "role" else "", value=value,
@@ -184,7 +186,7 @@ def parse_browser_action(text: str, line: int) -> BrowserAction:
             method = scan.identifier()
             if method not in {"press", "type"}:
                 raise ScriptError(f"line {line}: unsupported keyboard action {method}")
-        elif method not in {"click", "fill", "press", "goBack", "title", "url"} | _DROPPED_PAGE_OPS:
+        elif method not in {"click", "fill", "press", "goBack", "title", "url"} and not _dropped_page_op(method):
             raise ScriptError(f"line {line}: unsupported page action {method}")
         scan.take("(")
         name = None
@@ -196,9 +198,13 @@ def parse_browser_action(text: str, line: int) -> BrowserAction:
             if method != "click":
                 scan.take(",")
                 value = scan.string()
-        elif method in _DROPPED_PAGE_OPS and not scan.startswith(")"):
-            scan.literal()
-        scan.end_call(options=method not in {"title", "url"})
+        elif _dropped_page_op(method):
+            # These calls are never dispatched. Ignore their arguments, including
+            # predicates, but still reject a chained action after the call.
+            _skip_until_call_end(scan)
+        elif method == "goBack" and scan.startswith("{"):
+            scan.options()
+        scan.end_call(options=method in {"click", "fill", "press", "type"})
         action = BrowserAction(finder, method, line, name=name, value=value)
     scan.skip()
     if scan.i != len(text):
@@ -209,7 +215,7 @@ def parse_browser_action(text: str, line: int) -> BrowserAction:
 
 
 def action_kind(action: BrowserAction) -> str:
-    if action.op in _DROPPED_PAGE_OPS or action.op == "waitFor":
+    if (action.finder == "page" and _dropped_page_op(action.op)) or action.op == "waitFor":
         return "wait"
     if action.op in READ_OPS:
         return "read"
