@@ -185,6 +185,8 @@ def cap_snapshot_text(text: str, limit: int = MAX_SNAPSHOT_CHARS) -> str:
 def cap_messages_for_model(
     messages: list[dict],
     max_pairs: int = MAX_HISTORY_PAIRS,
+    *,
+    script_first: bool = False,
 ) -> list[dict]:
     """Keep the opening task and the last few assistant/tool pairs.
 
@@ -204,10 +206,10 @@ def cap_messages_for_model(
     if bucket:
         pairs.append(bucket)
     kept = [message for pair in pairs[-max_pairs:] for message in pair]
-    return [_cap_message(message) for message in (head, *kept)]
+    return [_cap_message(message, script_first=script_first) for message in (head, *kept)]
 
 
-def _cap_message(message: dict) -> dict:
+def _cap_message(message: dict, *, script_first: bool = False) -> dict:
     content = message.get("content")
     if not isinstance(content, list):
         return message
@@ -219,7 +221,12 @@ def _cap_message(message: dict) -> dict:
             and block.get("type") == "tool_result"
             and isinstance(block.get("content"), str)
         ):
-            capped = cap_snapshot_text(block["content"])
+            if script_first:
+                from bench.script_first import budget_script_result
+
+                capped = budget_script_result(block["content"], MAX_SNAPSHOT_CHARS)
+            else:
+                capped = cap_snapshot_text(block["content"])
             if capped != block["content"]:
                 changed = True
                 block = {**block, "content": capped}
@@ -663,6 +670,7 @@ def message_payload(
     max_tokens: int,
     *,
     cache_prefix: bool,
+    tool_choice: dict | None = None,
 ) -> dict:
     """The JSON body of one Messages request. This does not open a connection."""
     system_text = system or SYSTEM_PROMPT
@@ -670,13 +678,16 @@ def message_payload(
     sent_tools: list = list(tools)
     if cache_prefix:
         sent_system, sent_tools = cached_prompt_prefix(system_text, sent_tools)
-    return {
+    payload = {
         "model": model,
         "max_tokens": max_tokens,
         "system": sent_system,
         "messages": messages,
         "tools": sent_tools,
     }
+    if tool_choice is not None:
+        payload["tool_choice"] = tool_choice
+    return payload
 
 
 class AnthropicClient:
@@ -695,6 +706,7 @@ class AnthropicClient:
         tools: list[dict],
         system: str | None = None,
         max_tokens: int = 4096,
+        tool_choice: dict | None = None,
     ) -> tuple[dict, float]:
         """Create a message and return (response, time_ms)."""
         assert_allowed_model(self.model)
@@ -707,6 +719,7 @@ class AnthropicClient:
             system,
             max_tokens,
             cache_prefix=self.cache_prefix,
+            tool_choice=tool_choice,
         )
 
         headers = {
@@ -1208,10 +1221,14 @@ class BenchmarkHarness:
                 step_num += 1
 
                 self._begin_browser_launch()
+                request_options = {}
+                if self.arm == "script_first" and awaiting_repair_reply:
+                    request_options["tool_choice"] = "required" if self.provider == "openai" else {"type": "any"}
                 response, model_ms = await self.anthropic.create_message(
-                    cap_messages_for_model(messages),
+                    cap_messages_for_model(messages, script_first=self.arm == "script_first"),
                     tools,
                     system=self.system_prompt,
+                    **request_options,
                 )
                 model_calls += 1
                 total_model_ms += model_ms
@@ -1327,6 +1344,12 @@ class BenchmarkHarness:
                     tool_args = tool_use.get("input", {})
                     tool_id = tool_use.get("id", "")
 
+                    if self.arm == "script_first" and tool_name == "task_failed":
+                        success = False
+                        success_reason = f"Task failed: {tool_args.get('reason', '')}"
+                        stop_after_tools = True
+                        break
+
                     finished_first = script_calls >= 1 and repairs_sent < 1
                     refused = (
                         self.arm == "script_first"
@@ -1401,13 +1424,13 @@ class BenchmarkHarness:
                             failure = verdict.reason if verdict.verdict == FAIL else ""
                             logged_selector, logged_answer, logged_page_text, logged_return = logged_evidence(payload)
                             # The judge already read selector_text. The model must not.
-                            result_text = model_visible_script_result(result_text)
                             repair_pending = False
                             if verdict.verdict == FAIL and repairs_sent < 1:
                                 result_text += "\n" + repair_request(page_url, failure)
                                 repairs_sent += 1
                                 awaiting_repair_reply = True
                                 repair_pending = True
+                            result_text = model_visible_script_result(result_text)
                             turn_limit = next_script_first_limit(
                                 step_num=step_num,
                                 limit=turn_limit,

@@ -115,6 +115,7 @@ def responses_payload(
     system: str | None,
     max_tokens: int,
     effort: str,
+    tool_choice: str | None = None,
 ) -> dict:
     """The JSON body. This does not open a connection."""
     chosen = assert_openai_model(model)
@@ -129,6 +130,8 @@ def responses_payload(
         "store": False,
     }
     tool_types = {tool["type"] for tool in body["tools"]}
+    if tool_choice is not None:
+        body["tool_choice"] = tool_choice
     if tool_types - {"function"}:
         raise OpenAIResponseError("Refusing to send a non-function tool.")
     return body
@@ -254,6 +257,7 @@ class OpenAIClient:
         tools: list[dict],
         system: str | None = None,
         max_tokens: int = 4096,
+        tool_choice: str | None = None,
     ) -> tuple[dict, float]:
         """One Responses call. Returns the harness-shaped body and the elapsed milliseconds."""
         assert_openai_model(self.model)
@@ -265,6 +269,7 @@ class OpenAIClient:
             system,
             max_tokens,
             self.effort,
+            tool_choice=tool_choice,
         )
         headers = {
             "Authorization": f"Bearer {self.api_key}",
