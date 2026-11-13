@@ -40,6 +40,7 @@ def _snapshot_data() -> dict:
                     {"role": "textbox", "name": "Contact name", "type": "text", "required": True, "value": "Al"},
                     {"role": "combobox", "name": "Payment", "type": "select", "options": ["Cash", "Card"]},
                     {"role": "textbox", "name": "Date", "type": "date", "invalid": "Please fill out this field."},
+                    {"role": "textbox", "name": "", "type": "text", "locator": 'input[name="zip"]'},
                 ],
                 "buttons": ["Submit"],
             }
@@ -58,6 +59,7 @@ def test_snapshot_shows_names_fields_dialogs_and_stays_small():
     assert 'textbox "Contact name" type=text value="Al" required' in text
     assert 'options=["Cash", "Card"]' in text
     assert "INVALID: Please fill out this field." in text
+    assert """textbox (no name) page.locator("input[name=\\"zip\\"]")""" in text
     assert 'link "Docs" -> /docs/' in text and "...and 5 more" in text
     assert 'messages: "Please enter a valid date."' in text
     assert "table \"Codes\" (3 rows)" in text

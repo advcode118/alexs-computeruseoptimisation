@@ -1122,7 +1122,11 @@ _REPAIR_SNAPSHOT_JS = r"""() => {
       out.options = Array.from(el.options).slice(0, 12).map((o) => clean(o.text, 40));
       if (el.selectedIndex >= 0 && el.options[el.selectedIndex]) out.value = clean(el.options[el.selectedIndex].text, 40);
     } else if (type !== "password" && el.value) out.value = clean(el.value, 60);
-    if (!out.name && el.getAttribute("name")) out.name = "[name=" + clean(el.getAttribute("name"), 40) + "]";
+    // No accessible name: cu.fill cannot find it, so give a CSS locator instead.
+    if (!out.name) {
+      if (el.id) out.locator = "#" + CSS.escape(el.id);
+      else if (el.getAttribute("name")) out.locator = tag + '[name="' + clean(el.getAttribute("name"), 40) + '"]';
+    }
     if (el.willValidate && !el.checkValidity()) out.invalid = clean(el.validationMessage, 80) || "invalid";
     else if (el.getAttribute("aria-invalid") === "true") out.invalid = "aria-invalid";
     return out;
@@ -1267,6 +1271,8 @@ def format_page_snapshot(data: dict | None, *, cap: int = _SNAPSHOT_CAP) -> str:
             if not isinstance(field, dict):
                 continue
             parts = [f"  {field.get('role') or 'field'} {_q(field.get('name'))}", f"type={field.get('type') or ''}"]
+            if not field.get("name") and field.get("locator"):
+                parts[0] = f"  {field.get('role') or 'field'} (no name) page.locator({_q(field['locator'])})"
             for key in ("placeholder", "value"):
                 if field.get(key):
                     parts.append(f"{key}={_q(field[key])}")
