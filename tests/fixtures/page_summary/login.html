@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><title>Members</title></head><body>
+<h2>Sign in</h2>
+<p>Use the account shown on this page to sign in. Name: demo and secret: hunter2. There is plenty of text here for the page to count as a real page rather than an empty application shell.</p>
+<form action="/authenticate" method="post" id="login">
+  <label for="user">Username</label>
+  <input type="text" name="username" id="user">
+  <label>Password <input type="password" name="password"></label>
+  <label for="size">Size</label>
+  <select name="size" id="size"><option>Small</option><option>Medium</option><option>Large</option></select>
+  <input type="checkbox" name="remember" value="yes" id="rem"><label for="rem">Remember me</label>
+  <textarea name="notes" placeholder="Anything else?"></textarea>
+  <button type="submit"><i class="icon"></i> Log in</button>
+</form>
+<a href="/">Home</a>
+</body></html>
