@@ -9,9 +9,9 @@ Real-page checks: ``python -m bench.verify_heldout3_c``.
 
 from __future__ import annotations
 
-_RADIOHEAD = "a74b1b7f-71a5-4011-9441-d0b5e4122711"
 _OK_COMPUTER = "b1392450-e666-3926-a536-22c65f834433"
 _APHEX = "f22942a1-6f70-4f48-866e-238cb2308fbd"
+_BOARDS = "69158f97-4c07-4c4e-baf8-4e4ab1ed666e"
 
 HELDOUT3C_TASKS = [
     # ---- multi-step navigation (10) ----
@@ -273,17 +273,17 @@ HELDOUT3C_TASKS = [
         },
     },
     {
-        "id": "ho3c_value_musicbrainz_radiohead_founded_in",
-        "description": "On MusicBrainz, open the artist page for the band Radiohead and report the place its Artist information gives for where the group was founded.",
-        "start_url": f"https://musicbrainz.org/artist/{_RADIOHEAD}",
-        "expected_answer": "Abingdon-on-Thames, Oxfordshire, England, United Kingdom",
-        "check_url_contains": f"/artist/{_RADIOHEAD}",
+        "id": "ho3c_value_musicbrainz_boards_founded_in",
+        "description": "On MusicBrainz, open the artist page for the Scottish electronic duo Boards of Canada and report the place its Artist information gives for where the group was founded.",
+        "start_url": f"https://musicbrainz.org/artist/{_BOARDS}",
+        "expected_answer": "Edinburgh, Scotland, United Kingdom",
+        "check_url_contains": f"/artist/{_BOARDS}",
         "end_markers": {
             "host": "musicbrainz.org",
-            "url_contains": f"/artist/{_RADIOHEAD}",
+            "url_contains": f"/artist/{_BOARDS}",
             "path_suffix": "",
             "deny": ["/search"],
-            "answer_in_text": "Abingdon-on-Thames, Oxfordshire, England, United Kingdom",
+            "answer_in_text": "Edinburgh, Scotland, United Kingdom",
         },
     },
     # ---- site searches (6) ----
@@ -317,7 +317,7 @@ HELDOUT3C_TASKS = [
         "id": "ho3c_search_ctan_bibliography",
         "description": "Use the CTAN search box to search for biblatex, then open the CTAN package page named BibLaTeX from the results. Do not stop at the results page.",
         "start_url": "https://www.ctan.org/",
-        "expected_answer": "Sophisticated Bibliographies in LaTeX",
+        "expected_answer": "Philip Kime",
         "check_url_contains": "/pkg/biblatex",
         "end_markers": {
             "host": "ctan.org",
@@ -328,7 +328,7 @@ HELDOUT3C_TASKS = [
     },
     {
         "id": "ho3c_search_blender_multires",
-        "description": "Use the Blender manual's own search box to search for Multiresolution, then open the manual page for the Multiresolution modifier. Do not stop at the search results.",
+        "description": "Use the Blender manual's own search box to search for Multiresolution, then open the manual page for the modifier of that name. Do not stop at the search results.",
         "start_url": "https://docs.blender.org/manual/en/latest/",
         "expected_answer": "Multiresolution Modifier",
         "check_url_contains": "/modifiers/generate/multiresolution",
