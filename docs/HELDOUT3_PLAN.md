@@ -137,6 +137,14 @@ Not final: 3 of 16 runs are done. The rest come later, using the manifest and th
 
 Aggregates are in `docs/results/heldout3_20261113/interim_luna_sf2_bu1.json`. No post-run check or grader audit has been done yet.
 
+**Sol, interim (not a claim):**
+- script_first run 1 passed 122 of 138 (88.4%). Its self-check precision is 95.3%, its recall 100%, and its median time 5.9 s.
+- browser_use ran one exploratory partial run, which does not count as a planned run: the first 45 tasks in run order, 30 from set a and 15 from set b.
+- On those 45 tasks:
+  - script_first passed 41 (91%), browser_use 44 (98%), and the hybrid 42 (93%);
+  - script_first cost 0.40× browser_use's dollars per passed task, and its median time was 0.34× (5.8 s against 17.3 s).
+- The full Sol browser_use runs are still owed.
+
 ## Run record (written before the first heldout3 row)
 
 - **Code.** The commit that adds this section. The runner writes its SHA to `docs/results/heldout3_20261113/manifest.txt`.
