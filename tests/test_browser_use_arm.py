@@ -125,7 +125,7 @@ def test_browser_use_is_a_baseline_and_the_default_probe_stays_four():
     assert arm_needs_claude("browser_use") is True
     assert arm_needs_claude("browser_use", no_model_only=True) is True
     assert HARNESS_MCP == CHILD_MCP == BACKEND_MCP == "0.0.84"
-    assert BROWSER_USE_VERSION == "1.0.0"
+    assert BROWSER_USE_VERSION == "1.0.3"
     assert LOCAL_BROWSER == "chromium"
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert f"browser-use=={BROWSER_USE_VERSION}" in pyproject
@@ -207,7 +207,7 @@ def test_local_agent_uses_the_bench_model_and_the_page_not_the_claim():
     assert row["page_url"].endswith("Ada_Lovelace")
     assert row["model"] == "claude-sonnet-5-5"
     assert row["browser"] == "chromium"
-    assert row["browser_use"] == "1.0.0"
+    assert row["browser_use"] == "1.0.3"
     assert row["claude"] is True
     assert row["usd"] == estimate_usd(100, 10)
     assert row["usd"] != 999
@@ -286,7 +286,7 @@ def test_a_failed_run_still_stops_and_hides_the_exception_text():
         )
     )
     assert skipped["skipped"] is True
-    assert skipped["success_reason"] == "browser-use==1.0.0 is not installed"
+    assert skipped["success_reason"] == "browser-use==1.0.3 is not installed"
     assert "Ada_Lovelace" not in skipped["success_reason"]
 
 

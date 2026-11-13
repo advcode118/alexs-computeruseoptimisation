@@ -44,17 +44,26 @@ If anyone who tunes opens per-task heldout3 results, heldout3 becomes a dev set 
    - the browser settings.
 
    They are the same values used on the dev sets. They are not tuned for this test.
+   Before freezing, browser-use was upgraded from 1.0.0 to 1.0.3, so the baseline does not lose tasks to bugs already fixed upstream (1.0.2 fixed hangs on slow pages and on pages behind a dialog). It was then run once on the heldout2 dev set as a smoke check. The playwright_mcp arm is frozen the same way.
 3. **Pre-run check.** Run every heldout3 reproducer the same day. A task that fails is **dropped before any agent runs**. If more than 10% drop, stop and fix the set first.
 
 ## Arms, models, runs
 
-- Arms: `script_first` (being tested) and `browser_use` (baseline).
-- Models: `gpt-6-luna` (primary) and `gpt-6.1-sol` (secondary). Both at effort medium, **3 runs per arm** each.
-- Order within each model is ABBA-style: sf, bu, bu, sf, sf, bu. That way neither arm always gets the fresher site.
-- Estimated cost at 140 tasks, from held-out per-task costs:
-  - Luna: about $0.5.
-  - Sol: about $4.
-  - Hard stop: the OpenAI ledger may not pass $14.
+- Arms:
+  - `script_first` (being tested);
+  - `browser_use` (primary baseline);
+  - `playwright_mcp` (second baseline, added before freezing). It is the plain MCP tool most people use, and on Sol it was script_first's closest rival on the 50-task set.
+- Models, both at effort medium:
+  - `gpt-6-luna` (primary): **3 runs of each of the three arms**.
+  - `gpt-6.1-sol` (secondary): 3 runs each of script_first and browser_use, plus **1 run of playwright_mcp** (exploratory). The single MCP run keeps the spend under the stop.
+- Run order:
+  - Luna is a Latin square: (sf, bu, mcp), (bu, mcp, sf), (mcp, sf, bu). Each arm takes each position once.
+  - Sol is sf, bu, mcp, bu, sf, sf, bu.
+- Estimated cost at 138 tasks, from held-out per-task costs:
+  - Luna: about $1.4.
+  - Sol: about $9.3. An earlier estimate of $4 for Sol's two arms was wrong; this was corrected before the run.
+  - Hard stop: the OpenAI ledger may not pass $16. It stood at $3.55 before the run, and the project budget is $20.
+  - The runner checks the ledger after each run. If it passes the stop, the remaining runs are skipped and the report notes it.
 
 ## After the run
 
@@ -68,6 +77,7 @@ If anyone who tunes opens per-task heldout3 results, heldout3 becomes a dev set 
 
 Secondary, all with site-clustered CIs:
 - the same difference on Sol;
+- **script_first minus playwright_mcp** on Luna, paired the same way, with the same labels as the primary (reported as secondary). On Sol it is one MCP run, so that comparison is exploratory;
 - **self-check precision**: the share of script_first's runtime PASS verdicts that the grade passes;
 - **self-check recall**: the share of graded passes that the runtime also passed;
 - **dollars per passed task**, per arm;
@@ -113,3 +123,23 @@ Only for an infrastructure failure: more than 10% of an arm's rows ended in a ha
 ## Result
 
 (empty until the run)
+
+## Run record (written before the first heldout3 row)
+
+- **Code.** The commit that adds this section. The runner writes its SHA to `docs/results/heldout3_20261113/manifest.txt`.
+- **Tasks.** 138:
+  - the 140 authored, minus `ho3d_spa_toolshop_pliers` and `ho3d_form_parabank_login`;
+  - each of those two failed one of two same-day reproducer runs (`HELDOUT3_DROPPED_TASK_IDS`);
+  - the pre-run checks were a 30/30, b 30/30, c 40/40, and d 38/40 then 39/40.
+- **browser_use.**
+  - browser-use 1.0.3, local Chromium over CDP, `BROWSER_USE_MAX_STEPS = 30`;
+  - the same prompt, task message and answer-format line as on the dev sets;
+  - smoke check on heldout2, Luna: 20/20.
+- **playwright_mcp.** `@playwright/mcp` 0.0.84 with `--isolated`.
+- **Harness fixes made before the freeze**, after the heldout2 smoke check:
+  - On the OpenAI path, MCP's final reply is plain text, not TASK_COMPLETE. The harness had dropped that text, so every MCP row had an empty answer, and the 11 Nov MCP scores are too low.
+  - The fix records the final reply as the claimed answer and asks for the value in the MCP prompt.
+  - It also counts a final answer with no TASK_FAILED as a completion claim, as browser_use's `done()` does.
+  - Smoke check on heldout2, Luna: MCP 20/20 (it was 10/20 before the fix).
+- **script_first.** The tip as of this commit: the answer-required check is in, and heldout2 dev was 71.7% over 3 runs.
+- **OpenAI ledger before the run:** $3.70.

@@ -1222,6 +1222,19 @@ def run_self_test() -> tuple[str, int]:
     return text + "\n" + status, (0 if not failures else 1)
 
 
+def rebase_arm(rows: Sequence[Mapping], baseline: str) -> list[dict]:
+    """Rename the baseline arm to browser_use and drop real browser_use rows."""
+    out: list[dict] = []
+    for row in rows:
+        arm = str(row.get("arm") or "").strip()
+        if arm == ARM_BROWSER:
+            continue
+        if arm == baseline:
+            row = {**row, "arm": ARM_BROWSER}
+        out.append(dict(row))
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Blind aggregate report for heldout3. Prints totals only."
@@ -1230,6 +1243,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tasks", type=Path, help="Task ids to keep, one per line. Other rows are excluded.")
     parser.add_argument("--json", type=Path, help="Also write the aggregates as JSON.")
     parser.add_argument("--self-test", action="store_true", help="Check the report on synthetic data.")
+    parser.add_argument(
+        "--baseline",
+        default=ARM_BROWSER,
+        help="Arm to compare script_first against (default browser_use). "
+        "With another arm, its rows stand in for the browser_use columns and browser_use rows are ignored.",
+    )
     args = parser.parse_args(argv)
     if args.self_test:
         if args.logs or args.tasks or args.json:
@@ -1241,6 +1260,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.logs:
         parser.error("pass probe JSONL files, or --self-test")
     files = [read_jsonl(path) for path in args.logs]
+    if args.baseline != ARM_BROWSER:
+        files = [rebase_arm(rows, args.baseline) for rows in files]
+        print(f"baseline: {args.baseline} (shown in the browser_use columns)")
     task_ids = read_task_list(args.tasks) if args.tasks else None
     report = build_report(files, task_ids=task_ids)
     print(render_report(report))

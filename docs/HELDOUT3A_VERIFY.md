@@ -1,6 +1,6 @@
 # Heldout3a public-page verification
 
-Verified 2026-11-13 02:20 UTC with local headless Chromium.
+Verified 2026-11-13 10:07 UTC with local headless Chromium.
 
 This is page and marker validation, not an agent benchmark. No model calls and no bench probes were run.
 Each task was done in headless Chromium, then graded with evidence_verdict.
@@ -35,7 +35,7 @@ Reproduce: `python -m bench.verify_heldout3_a` (public network; no model calls).
 | ho3a_form_bonigarcia_received | 200 | https://bonigarcia.dev/selenium-webdriver-java/submitted-form.html?my-text=Ada&my-password=&my-textarea=&my-readonly=Readonly+input&my-select=Open+this+select+menu&my-datalist=&my-file=&my-check=on&my-radio=on&my-colors=%23563d7c&my-date=&my-range=5&my-hidden= | PASS | FAIL | file URL |
 | ho3a_form_bonigarcia_login | 200 | https://bonigarcia.dev/selenium-webdriver-java/login-sucess.html?username=user&password=user | PASS | FAIL | file URL |
 | ho3a_form_httpbingo_type | 200 | https://httpbingo.org/post | PASS | not applicable | file URL |
-| ho3a_form_globalsqa_sent | 200 | https://www.globalsqa.com/samplepagetest/?contact-form-id=2599&contact-form-sent=62708&contact-form-hash=740f3db3b251a0bcbd28bce26964be89cbd6de1c&_wpnonce=df88d8d62c#contact-form-2599 | PASS | FAIL | file URL |
+| ho3a_form_globalsqa_sent | 200 | https://www.globalsqa.com/samplepagetest/?contact-form-id=2599&contact-form-sent=62709&contact-form-hash=740f3db3b251a0bcbd28bce26964be89cbd6de1c&_wpnonce=5c0601a536#contact-form-2599 | PASS | FAIL | file URL |
 | ho3a_js_material_button | 200 | https://material.angular.dev/components/button/overview | PASS | not applicable | PASS |
 | ho3a_js_material_checkbox | 200 | https://material.angular.dev/components/checkbox/overview | PASS | not applicable | PASS |
 | ho3a_js_desmos_clear | 200 | https://www.desmos.com/scientific | PASS | not applicable | PASS |

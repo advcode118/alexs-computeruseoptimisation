@@ -497,3 +497,16 @@ def test_self_test_flag(capsys):
     assert "zz-hybrid-" not in printed
     assert "zz-secret" not in printed
     assert main(["--self-test", "probe.jsonl"]) == 2
+
+
+def test_rebase_arm_swaps_in_the_named_baseline():
+    from bench.heldout3_report import rebase_arm
+
+    rows = [
+        {"arm": "script_first", "task_id": "t"},
+        {"arm": "browser_use", "task_id": "t"},
+        {"arm": "playwright_mcp", "task_id": "t"},
+    ]
+    out = rebase_arm(rows, "playwright_mcp")
+    assert [r["arm"] for r in out] == ["script_first", "browser_use"]
+    assert rows[2]["arm"] == "playwright_mcp"

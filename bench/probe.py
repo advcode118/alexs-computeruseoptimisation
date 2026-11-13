@@ -423,7 +423,7 @@ def plan_probe(
             "script_first": "local Chrome via the Playwright Python API, own user-data-dir, no per-click settle",
             "endpoint": "direct fetch of the task start URL; no browser; the fetch URL is not rewritten",
             "browser_use": (
-                "browser-use 1.0.0 local Chrome over CDP via Browser('chromium'); "
+                "browser-use 1.0.3 local Chrome over CDP via Browser('chromium'); "
                 "model claude-sonnet-5-5"
             ),
         },

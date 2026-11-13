@@ -1,6 +1,6 @@
 # Heldout3c public-page verification
 
-Verified 2026-11-13 02:42 UTC with local headless Chromium.
+Verified 2026-11-13 10:09 UTC with local headless Chromium.
 
 This is page/marker validation, not an agent benchmark result. No LLM API calls or bench probes were run.
 Mix: 10 multi-step navigation, 10 value reports, 6 site searches, 6 submitted demo forms, 4 JavaScript-rendered pages, 4 page-title reports.

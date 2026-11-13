@@ -1200,11 +1200,12 @@ HELDOUT3A_TASK_IDS = tuple(task["id"] for task in HELDOUT3A_TASKS)
 WEBVOYAGER_TASKS += HELDOUT3D_TASKS
 WEBVOYAGER_TASKS += HELDOUT3C_TASKS
 # The frozen heldout3 test set: all four blind-authored splits. See docs/HELDOUT3_PLAN.md.
-HELDOUT3_TASK_IDS = (
-    *HELDOUT3A_TASK_IDS,
-    *HELDOUT3B_TASK_IDS,
-    *HELDOUT3C_TASK_IDS,
-    *HELDOUT3D_TASK_IDS,
+# Dropped by the pre-run rule on 13 Nov 2026: each failed a same-day live reproducer run.
+HELDOUT3_DROPPED_TASK_IDS = ("ho3d_spa_toolshop_pliers", "ho3d_form_parabank_login")
+HELDOUT3_TASK_IDS = tuple(
+    task_id
+    for task_id in (*HELDOUT3A_TASK_IDS, *HELDOUT3B_TASK_IDS, *HELDOUT3C_TASK_IDS, *HELDOUT3D_TASK_IDS)
+    if task_id not in HELDOUT3_DROPPED_TASK_IDS
 )
 
 # The three tasks the arms were tuned on. They stay inside the dev set.

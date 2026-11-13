@@ -87,7 +87,7 @@ Guidelines:
 - Use browser_click with target (ref like "S1E2") to click elements
 - Use browser_type with target and text to type into fields
 - Use browser_navigate with url to navigate to pages
-- When the task is complete, respond with TASK_COMPLETE
+- When the task is complete, respond with TASK_COMPLETE. If the task asks for a value, such as a title, a name, or a number, put that exact value in the same reply
 - If you cannot complete the task, respond with TASK_FAILED and explain why
 
 Be efficient - try to complete the task in as few steps as possible."""
@@ -1273,7 +1273,10 @@ class BenchmarkHarness:
                         if "TASK_COMPLETE" in text:
                             success = True
                             success_reason = "Task completed successfully"
-                            spoken_answer = spoken_claim(text)
+                            # The answer may sit in another text block of the same reply.
+                            spoken_answer = spoken_claim(
+                                "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
+                            )
                             break
                         if "TASK_FAILED" in text:
                             success = False
@@ -1338,6 +1341,17 @@ class BenchmarkHarness:
                         break
                     if stop_reason == "end_turn":
                         success_reason = "Model ended without completing task"
+                    if self.arm != "script_first":
+                        # A model that ends in plain prose without the stop token
+                        # still made a claim. The grade judges it like any other.
+                        spoken_answer = spoken_claim(
+                            "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
+                        )
+                        if spoken_answer and stop_reason == "end_turn":
+                            # A final answer with no TASK_FAILED is a completion
+                            # claim, like browser_use's done(). The grade checks it.
+                            success = True
+                            success_reason = "Task completed with a final answer"
                     break
 
                 if self._pending_snapshot_path is not None:
