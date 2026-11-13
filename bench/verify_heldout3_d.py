@@ -35,7 +35,7 @@ WRONG_VALUES = {
     "ho3d_value_pytorch_dropout_p": "False",
     "ho3d_value_webscraper_table_tim": "@dunno",
     "ho3d_value_rahulshetty_sql_price": "30",
-    "ho3d_value_pandas_head_default": "tail",
+    "ho3d_value_pandas_sort_kind": "mergesort",
     "ho3d_form_parabank_login": "Accounts Overview",
     "ho3d_form_qa_practice_textarea": "Requirements",
     "ho3d_form_scrapingcourse_login": "$52",
@@ -87,7 +87,7 @@ DECOYS = {
     ],
     "ho3d_value_pytorch_dropout_p": ["https://docs.pytorch.org/docs/stable/generated/torch.nn.Dropout2d.html"],
     "ho3d_value_webscraper_table_tim": ["https://webscraper.io/test-sites/tables/tables-without-thead"],
-    "ho3d_value_pandas_head_default": ["https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.tail.html"],
+    "ho3d_value_pandas_sort_kind": ["https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.sort_index.html"],
     "ho3d_search_videolan_cli": [
         "https://wiki.videolan.org/index.php?search=streaming&title=Special%3ASearch&fulltext=Search",
         "https://wiki.videolan.org/Command-line_interface/",
@@ -331,8 +331,8 @@ async def _interact(page, task: dict) -> None:
         await _follow(page, _link(page, "Semantically correct tables"))
     elif task_id == "ho3d_value_rahulshetty_sql_price":
         await page.get_by_text("Web Table Example").first.wait_for()
-    elif task_id == "ho3d_value_pandas_head_default":
-        await _follow(page, page.locator("a[href$='pandas.DataFrame.head.html']"))
+    elif task_id == "ho3d_value_pandas_sort_kind":
+        await _follow(page, page.locator("a[href$='pandas.DataFrame.sort_values.html']"))
     elif task_id == "ho3d_search_videolan_cli":
         await _search(page, page.locator("input[name='search']"), "command line",
                       page.locator(".mw-search-result-heading a[href='/VLC_command-line_help/']"))

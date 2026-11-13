@@ -1,6 +1,6 @@
 # Heldout3d public-page verification
 
-Verified 2026-11-13 02:32 UTC with local headless Chromium.
+Verified 2026-11-13 02:37 UTC with local headless Chromium.
 
 This is page/marker validation, not an agent benchmark result. No LLM API calls or bench probes were run.
 Mix: 10 multi-step navigation, 10 value reports, 6 site searches, 6 submitted demo forms, 4 JavaScript-rendered pages, 4 page-title reports.
@@ -38,15 +38,15 @@ Reproduce: `python -m bench.verify_heldout3_d` (public network access; no model 
 | ho3d_search_sklearn_random_forest | 200 | https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html | PASS | 3 wrong pages FAIL; 2 URL variants PASS |
 | ho3d_search_openbsd_man_pledge | 200 | https://man.openbsd.org/pledge | PASS | 3 wrong pages FAIL; 3 URL variants PASS |
 | ho3d_search_pytorch_conv2d | 200 | https://docs.pytorch.org/docs/2.15/generated/torch.nn.Conv2d.html | PASS | 3 wrong pages FAIL; 2 URL variants PASS |
-| ho3d_search_pokemondb_bulbasaur | 200 | https://pokemondb.net/pokedex/bulbasaur | PASS | 3 wrong pages FAIL; 1 URL variants PASS |
-| ho3d_form_uitap_sampleapp | 200 | http://uitestingplayground.com/sampleapp | PASS | 1 wrong pages FAIL; 1 URL variants PASS; wrong value FAIL |
-| ho3d_form_uitap_textinput | 200 | http://uitestingplayground.com/textinput | PASS | 1 wrong pages FAIL; 1 URL variants PASS; wrong value FAIL |
+| ho3d_search_vue_teleport | 200 | https://vuejs.org/guide/built-ins/teleport.html#teleport | PASS | 3 wrong pages FAIL; 3 URL variants PASS |
+| ho3d_form_parabank_login | 200 | https://parabank.parasoft.com/parabank/overview.htm | PASS | 2 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL |
 | ho3d_form_scrapingcourse_login | 200 | https://www.scrapingcourse.com/dashboard | PASS | 1 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL; absent without JS |
 | ho3d_form_pokeapi_pikachu | 200 | https://pokeapi.co/ | PASS | 1 wrong pages FAIL; 1 URL variants PASS; wrong value FAIL |
 | ho3d_form_qa_practice_input | 200 | https://www.qa-practice.com/elements/input/simple | PASS | 1 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL |
+| ho3d_form_qa_practice_textarea | 200 | https://www.qa-practice.com/elements/textarea/single | PASS | 1 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL |
 | ho3d_form_ultimateqa_contact | 200 | https://ultimateqa.com/filling-out-forms/ | PASS | 1 wrong pages FAIL; 1 URL variants PASS; wrong value FAIL |
 | ho3d_spa_scrapingcourse_hero | 200 | https://www.scrapingcourse.com/javascript-rendering | PASS | 1 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL; absent without JS |
-| ho3d_spa_uitap_ajax | 200 | http://uitestingplayground.com/ajax | PASS | 1 wrong pages FAIL; 1 URL variants PASS; wrong value FAIL |
+| ho3d_spa_rahul_shop_cart | 200 | https://rahulshettyacademy.com/angularpractice/shop | PASS | 1 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL |
 | ho3d_spa_toolshop_pliers | 200 | https://practicesoftwaretesting.com/ | PASS | 1 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL; absent without JS |
 | ho3d_spa_scrapingcourse_load_more | 200 | https://www.scrapingcourse.com/button-click | PASS | 1 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL; absent without JS |
 | ho3d_title_pokemondb_after_pikachu | 200 | https://pokemondb.net/pokedex/raichu | PASS | 2 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL |
