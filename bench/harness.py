@@ -1242,9 +1242,7 @@ class BenchmarkHarness:
                     self.last_page_summary = await await_summary(page_summary_future)
                     page_summary_future = None
                     if self.last_page_summary.text:
-                        messages[0]["content"] += "
-
-" + self.last_page_summary.text
+                        messages[0]["content"] += "\n\n" + self.last_page_summary.text
                 request_options = {}
                 if self.arm == "script_first" and awaiting_repair_reply:
                     request_options["tool_choice"] = "required" if self.provider == "openai" else {"type": "any"}

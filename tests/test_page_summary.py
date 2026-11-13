@@ -169,3 +169,39 @@ def test_start_summary_never_raises_on_a_bad_url(monkeypatch):
 def test_summary_ends_with_the_usage_line(name):
     text = ps.summarize(_facts(name), "task")
     assert text.splitlines()[-1].startswith("Use it:")
+
+
+def _fresh_run(tmp_path, monkeypatch, switch: str):
+    """One fresh script_first run on the offline wiki double, no cache entry."""
+    from tests.test_script_cache import CLICK_SCRIPT, _WikiPage, _run, _script_reply, LINK
+
+    monkeypatch.setenv(ps.ENV_SWITCH, switch)
+    fetched: list[str] = []
+
+    def fake_build(url, task, timeout=ps.FETCH_TIMEOUT_S):
+        fetched.append(url)
+        return ps.Summary(status=ps.STATUS_OK, text="Start page, read over HTTP: fixture", ms=5.0)
+
+    monkeypatch.setattr(ps, "build_summary", fake_build)
+    result, model, _cache = _run(tmp_path, _WikiPage({LINK: "article"}), [_script_reply(CLICK_SCRIPT)])
+    return result, model, fetched
+
+
+def test_harness_puts_the_summary_in_model_call_one(tmp_path, monkeypatch):
+    from bench.tasks import task_message
+    from tests.test_script_cache import DESCRIPTION, START
+
+    result, model, fetched = _fresh_run(tmp_path, monkeypatch, "1")
+    assert fetched == [START]
+    first = model.calls[0]["messages"][0]["content"]
+    assert first == task_message(DESCRIPTION, START) + "\n\nStart page, read over HTTP: fixture"
+    assert result.success is True
+
+
+def test_harness_off_sends_the_unchanged_task_message(tmp_path, monkeypatch):
+    from bench.tasks import task_message
+    from tests.test_script_cache import DESCRIPTION, START
+
+    _result, model, fetched = _fresh_run(tmp_path, monkeypatch, "0")
+    assert fetched == []
+    assert model.calls[0]["messages"][0]["content"] == task_message(DESCRIPTION, START)

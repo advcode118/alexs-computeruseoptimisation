@@ -17,6 +17,7 @@ import asyncio
 import gzip
 import os
 import re
+import ssl
 import threading
 import time
 import urllib.error
@@ -27,13 +28,14 @@ from html.parser import HTMLParser
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 ENV_SWITCH = "CU_PAGE_SUMMARY"
-FETCH_TIMEOUT_S = 1.8
+FETCH_TIMEOUT_S = 1.5
 MAX_HTML_BYTES = 1_500_000
 # Parsing costs about 0.5 ms per KB, so a huge page is cut before parsing.
 MAX_PARSE_CHARS = 600_000
 _STRIP_BLOCKS = re.compile(r"<(script|style|svg)\b.*?</\1\s*>|<!--.*?-->", re.I | re.S)
 # Links past this many are not ranked.
 MAX_RANKED_LINKS = 1500
+MAX_TEXTS_PER_URL = 16
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
@@ -54,6 +56,21 @@ MIN_TEXT_CHARS = 200
 MIN_LINKS = 3
 
 STATUS_OK = "ok"
+# A normal Chrome navigation. Some sites refuse a request without the Sec-Fetch headers.
+_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+}
 
 _STOPWORDS = frozenset(
     """a an and are as at be by for from has have in into is it its of on or that the
@@ -420,7 +437,9 @@ def _useful_task_tokens(task: str, entries: list[tuple[set[str], set[str]]], pag
     """Task words, without the site's own name and without words on most links."""
     host_words = _tokens(urlsplit(page_url).netloc.replace("-", " ").replace(".", " ")) if page_url else set()
     kept = set()
-    for token in _tokens(task) - host_words:
+    for token in _tokens(task):
+        if _match({token}, host_words):
+            continue
         if len(entries) >= 10:
             share = sum(1 for text, url in entries if _match({token}, text | url)) / len(entries)
             if share > COMMON_WORD_SHARE:
@@ -435,19 +454,28 @@ def rank_links(links: list[tuple[str, str]], task: str, page_url: str = "") -> l
     Text matches count double, URL matches once. A URL linked several times
     keeps its best-scoring text. Ties keep page order.
     """
-    links = links[:MAX_RANKED_LINKS]
-    tokenized = [(_tokens(text), _url_tokens(url)) for text, url in links]
-    task_tokens = _useful_task_tokens(task, tokenized, page_url)
-    best: dict[str, tuple[int, int, str]] = {}
-    for order, ((text, url), (text_tokens, url_tokens)) in enumerate(zip(links, tokenized)):
-        score = 2 * _match(task_tokens, text_tokens) + _match(task_tokens, url_tokens)
-        if url not in best:
-            best[url] = (score, order, text)
-            continue
-        old_score, first, old_text = best[url]
-        if score > old_score or (not old_text and text):
-            best[url] = (max(score, old_score), first, text if score >= old_score or not old_text else old_text)
-    scored = sorted((-score, order, text, url) for url, (score, order, text) in best.items())
+    texts: dict[str, list[str]] = {}
+    for text, url in links:
+        if url not in texts:
+            if len(texts) >= MAX_RANKED_LINKS:
+                continue
+            texts[url] = []
+        if len(texts[url]) < MAX_TEXTS_PER_URL and text not in texts[url]:
+            texts[url].append(text)
+    url_tokens = {url: _url_tokens(url) for url in texts}
+    text_tokens = {url: [_tokens(t) for t in names] for url, names in texts.items()}
+    entries = [(set().union(*text_tokens[url]) if text_tokens[url] else set(), url_tokens[url]) for url in texts]
+    task_tokens = _useful_task_tokens(task, entries, page_url)
+    scored = []
+    for order, (url, names) in enumerate(texts.items()):
+        url_score = _match(task_tokens, url_tokens[url])
+        best_text, best = "", -1
+        for name, tokens in zip(names, text_tokens[url]):
+            score = 2 * _match(task_tokens, tokens)
+            if score > best or (score == best and not best_text):
+                best_text, best = name, score
+        scored.append((-(max(best, 0) + url_score), order, best_text, url))
+    scored.sort()
     return [(text, url, -neg) for neg, _order, text, url in scored]
 
 
@@ -600,17 +628,17 @@ def fetch_html(url: str, timeout: float = FETCH_TIMEOUT_S) -> Fetched:
     """Blocking GET with a browser User-Agent. Never raises."""
     started = time.perf_counter()
     result = Fetched(url=url)
-    request = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate",
-        },
-    )
+    request = urllib.request.Request(url, headers=_HEADERS)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        try:
+            response = urllib.request.urlopen(request, timeout=timeout)
+        except urllib.error.URLError as exc:
+            # Python's own certificate store lacks some chains a browser completes.
+            # The page is only read, never sent anything, so it is read without the check.
+            if not isinstance(getattr(exc, "reason", None), ssl.SSLCertVerificationError):
+                raise
+            response = urllib.request.urlopen(request, timeout=timeout, context=ssl._create_unverified_context())
+        with response:
             result.status = response.status
             result.final_url = response.geturl()
             content_type = response.headers.get("Content-Type", "")
@@ -680,7 +708,7 @@ def start_for_arm(arm: str, url: str, task: str) -> asyncio.Future | None:
     return start_summary(url, task)
 
 
-async def await_summary(future: asyncio.Future | None, deadline_s: float = FETCH_TIMEOUT_S + 0.2) -> Summary:
+async def await_summary(future: asyncio.Future | None, deadline_s: float = FETCH_TIMEOUT_S) -> Summary:
     """Wait for the summary, but never past the deadline. Never raises."""
     if future is None:
         return Summary(status="off")
