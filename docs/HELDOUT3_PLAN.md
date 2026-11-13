@@ -129,6 +129,7 @@ Not final: 3 of 16 runs are done. The rest come later, using the manifest and th
 - The user had limited time, so Luna's second script_first run was moved from position 6 to position 3. The other 13 runs keep their pre-registered order.
 - Sol's first script_first run was done on 13 Nov before the remaining Luna runs, at the user's request.
 - **Machine load.** The runs resumed at 21:05 on 13 Nov share the machine with other agents' work (test-suite runs and short script_first dev probes), at the user's request. A timing test in the repo fails under that load, so wall times from these runs are inflated by an unknown amount. Pass rates and dollars are not affected. The time comparison will be reported twice: over all runs, and over the runs made on a quiet machine (the first four) only.
+- **Paused at 22:10 on 13 Nov.** The machine's CPU was at 70–99% from the other agents' work. Luna's first playwright_mcp run (21:05–22:08) finished under that load: 133 of 138 passed, with no timeout-shaped failures, so its pass rate is kept and its times carry the load caveat. The browser_use run that had just started was stopped and set aside unread. The remaining 11 runs resume when the machine is quiet.
 
 **Interim look (Luna; script_first × 2, browser_use × 1; not a claim):**
 - The pass-rate gap (script_first − browser_use, run 1) is −42 pp, CI [−51, −33], which is labelled behind.
