@@ -306,3 +306,17 @@ def test_a_look_does_not_use_up_a_turn(tmp_path):
     client = LookClient([_fail(f"https://example.org/{n}") for n in range(1, 4)] + [_pass("https://example.org/4")])
     result = _run(model, client, tmp_path=tmp_path)
     assert client.calls == 4 and result.success is True
+
+
+def test_repair_hint_follows_the_fail_reason():
+    def ask(reason):
+        return grounded_repair_request(reason, code=GOTO, payload={"ok": True, "steps": 1}, snapshot="url: x",
+                                       repair_number=1, max_repairs=3)
+
+    assert "copy them exactly from that text" in ask("returned evidence is not on the page")
+    assert "copy them exactly from that text" in ask("answer is not in the page text")
+    assert "Put the asked value in answer" in ask("the task asks for a value and the script returned no answer")
+    assert "as strings" in ask("returned value is not text")
+    assert "leave the start page" in ask("the script ended on the start page and returned nothing")
+    assert "location.href" in ask("claimed URL does not match the live page")
+    assert "copy them" not in ask("the script stopped before it finished (Timeout)")

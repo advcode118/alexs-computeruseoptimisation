@@ -1438,6 +1438,25 @@ def _claimed_note(payload: dict | None) -> str:
     return "It returned " + ", ".join(parts) + "."
 
 
+def _reason_hint(reason: str) -> str:
+    """What the self-check's FAIL reason asks of the next script. Keyed on runtime_verdict's wording."""
+    text = (reason or "").casefold()
+    if "not on the" in text or "not in the page text" in text:
+        return (
+            "The check looks for key_text, each item in values, and answer in the page's body text: "
+            "copy them exactly from that text (see the lines below), not from the title or your own words."
+        )
+    if "not text" in text:
+        return "Return answer and key_text as strings and values as a list of strings."
+    if "returned no answer" in text:
+        return "Put the asked value in answer, copied exactly from the page."
+    if "start page" in text or "did not end on a web page" in text:
+        return "The script has to leave the start page for the page that holds the asked value."
+    if "claimed url" in text:
+        return "Return url: location.href, not a URL you typed."
+    return ""
+
+
 def grounded_repair_request(
     reason: str,
     *,
@@ -1448,9 +1467,10 @@ def grounded_repair_request(
     max_repairs: int,
 ) -> str:
     """A repair ask that shows the live page, the failed step, and how far the script got."""
+    hint = _reason_hint(reason)
     lines = [
         f"END_STATE_FAILED (repair {repair_number} of {max_repairs}): {reason}.",
-        failed_step_note(code, payload) + " " + _claimed_note(payload),
+        failed_step_note(code, payload) + " " + _claimed_note(payload) + (" " + hint if hint else ""),
         "The browser is still on the page below. Your next script starts from this page: "
         "continue from here, or page.goto a URL to start over.",
         SNAPSHOT_BEGIN,
