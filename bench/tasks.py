@@ -22,6 +22,7 @@ from bench.tasks_heldout3_b import HELDOUT3B_TASK_IDS, HELDOUT3B_TASKS
 from bench.tasks_heldout3_a import HELDOUT3A_TASKS
 from bench.tasks_heldout3_d import HELDOUT3D_TASK_IDS, HELDOUT3D_TASKS
 from bench.tasks_heldout3_c import HELDOUT3C_TASK_IDS, HELDOUT3C_TASKS
+from bench.tasks_dev3 import DEV3_TASK_IDS, DEV3_TASKS
 
 FIXTURE_DIR = Path(__file__).parent.parent / "loop" / "fixture"
 
@@ -1199,6 +1200,8 @@ WEBVOYAGER_TASKS += HELDOUT3A_TASKS
 HELDOUT3A_TASK_IDS = tuple(task["id"] for task in HELDOUT3A_TASKS)
 WEBVOYAGER_TASKS += HELDOUT3D_TASKS
 WEBVOYAGER_TASKS += HELDOUT3C_TASKS
+# dev3 is a tune set, never scored. See bench/tasks_dev3.py.
+WEBVOYAGER_TASKS += DEV3_TASKS
 # The frozen heldout3 test set: all four blind-authored splits. See docs/HELDOUT3_PLAN.md.
 # Dropped by the pre-run rule on 13 Nov 2026: each failed a same-day live reproducer run.
 HELDOUT3_DROPPED_TASK_IDS = ("ho3d_spa_toolshop_pliers", "ho3d_form_parabank_login")
@@ -1292,6 +1295,7 @@ SPLIT_HELDOUT3A = "heldout3a"
 SPLIT_HELDOUT3D = "heldout3d"
 SPLIT_HELDOUT3C = "heldout3c"
 SPLIT_HELDOUT3 = "heldout3"
+SPLIT_DEV3 = "dev3"
 SPLIT_HONEST = "honest"
 # The scored set is held-out only. Dev is what we tune, and it is not scored.
 HONEST_TASK_IDS = HELD_OUT_TASK_IDS
@@ -1351,6 +1355,7 @@ def resolve_task_split(spec: str | None) -> str:
     heldout2 is an independently authored, disjoint public task set.
     heldout3a is a second independent public set. Its sites' registrable
     names start with a through m.
+    dev3 is a forty-task public tune set, not scored.
     The default stays probe.
     """
     key = (spec or SPLIT_PROBE).strip().casefold().replace("_", "-")
@@ -1372,6 +1377,8 @@ def resolve_task_split(spec: str | None) -> str:
         return SPLIT_HELDOUT3C
     if key == "heldout3":
         return SPLIT_HELDOUT3
+    if key == "dev3":
+        return SPLIT_DEV3
     if key == "honest":
         return SPLIT_HONEST
     raise ValueError(f"unknown split {spec!r}")
@@ -1396,6 +1403,8 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
         return _tasks_in_order(HELDOUT3C_TASK_IDS)
     if name == SPLIT_HELDOUT3:
         return _tasks_in_order(HELDOUT3_TASK_IDS)
+    if name == SPLIT_DEV3:
+        return _tasks_in_order(DEV3_TASK_IDS)
     if name == SPLIT_HONEST:
         return _tasks_in_order(HONEST_TASK_IDS)
     return _tasks_in_order(TUNED_PROBE_TASK_IDS)
