@@ -928,7 +928,12 @@ class BenchmarkHarness:
             fingerprint_from_payload,
             patch_request,
         )
-        from bench.script_first import PASS, EvidenceVerdict, script_runtime_verdict
+        from bench.script_first import (
+            PASS,
+            EvidenceVerdict,
+            script_runtime_verdict,
+            task_asks_value,
+        )
         from proxy.script import ScriptError
 
         outcome = {
@@ -955,7 +960,12 @@ class BenchmarkHarness:
             outcome["tool_ms"] += tool_ms
             page_url = page_url_from_result(result_text)
             # The live check has no answer key. The final grade still does.
-            verdict, payload = script_runtime_verdict(result_text, page_url, start_url)
+            verdict, payload = script_runtime_verdict(
+                result_text,
+                page_url,
+                start_url,
+                asks_value=task_asks_value(task_description),
+            )
             selector_text, claimed_answer, page_text, returned = logged_evidence(payload)
             steps.append(
                 StepMetrics(
@@ -1178,6 +1188,7 @@ class BenchmarkHarness:
                 repair_request,
                 script_made_progress,
                 script_runtime_verdict,
+                task_asks_value,
             )
             # No answer key while the run is live. The task's markers are read
             # only by the post-run grade, the same as for every other arm.
@@ -1411,7 +1422,12 @@ class BenchmarkHarness:
                             script_calls += 1
                             # page_url stays the live URL. Markers never rewrite it.
                             # No answer key while the run is live. The final grade uses the markers.
-                            verdict, payload = script_runtime_verdict(result_text, page_url, start_url)
+                            verdict, payload = script_runtime_verdict(
+                                result_text,
+                                page_url,
+                                start_url,
+                                asks_value=task_asks_value(task_description),
+                            )
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
                             script_steps = int(payload.get("steps") or 0)

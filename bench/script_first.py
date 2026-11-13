@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 import tempfile
 import time
@@ -867,6 +868,44 @@ def claimed_from_payload(payload: dict | None) -> ClaimedEvidence:
     return _evidence_from_claim(claimed)
 
 
+# The description only. Markers and the expected answer are not read.
+# "find the page" opens a page. The other shapes ask for a value to return.
+_REPORT_VERB = re.compile(r"\b(?:report|identify)\b", re.IGNORECASE)
+_GIVE_OR_TELL = re.compile(
+    r"\b(?:give|tell)\s+(?:me\s+|us\s+)?(?:the|a|an|its|their|that|this)\b",
+    re.IGNORECASE,
+)
+_NAME_OR_STATE = re.compile(
+    r"\b(?:name|state)\s+(?:the|a|an|its|their)\b",
+    re.IGNORECASE,
+)
+_VALUE_QUESTION = re.compile(
+    r"\b(?:what|which|who)\b|\bhow\s+(?:many|much)\b",
+    re.IGNORECASE,
+)
+_FIND = re.compile(r"\bfind\b", re.IGNORECASE)
+_FIND_PAGE = re.compile(
+    r"\bfind\s+(?:the\s+|a\s+|an\s+)?(?:page|article|section|documentation|document)\b",
+    re.IGNORECASE,
+)
+
+
+def task_asks_value(description: str) -> bool:
+    """True when the task text asks for a value, not only a page to open."""
+    text = " ".join((description or "").split())
+    if not text:
+        return False
+    if text.endswith("?"):
+        return True
+    if _REPORT_VERB.search(text) or _GIVE_OR_TELL.search(text) or _NAME_OR_STATE.search(text):
+        return True
+    if _VALUE_QUESTION.search(text):
+        return True
+    if _FIND.search(text) and not _FIND_PAGE.search(text):
+        return True
+    return False
+
+
 def runtime_verdict(
     trusted: PageEvidence,
     claimed: ClaimedEvidence | None = None,
@@ -874,6 +913,7 @@ def runtime_verdict(
     script_ok: bool = True,
     script_error: str = "",
     start_url: str = "",
+    asks_value: bool = False,
 ) -> EvidenceVerdict:
     """The live check script_first runs on itself. No task markers, no model call.
 
@@ -904,6 +944,12 @@ def runtime_verdict(
     ):
         return EvidenceVerdict(FAIL, "claimed URL does not match the live page", scored)
     answer = (claimed.answer or "").strip()
+    if asks_value and not answer:
+        return EvidenceVerdict(
+            FAIL,
+            "the task asks for a value and the script returned no answer",
+            scored,
+        )
     returned_any = bool(answer or (claimed.key_text or "").strip() or any(v.strip() for v in claimed.values))
     if not returned_any:
         # The prompt asks every script to return an answer or a phrase from the page.
@@ -936,7 +982,13 @@ def runtime_verdict(
     return EvidenceVerdict(PASS, "the script finished and its evidence is on the live page", scored)
 
 
-def script_runtime_verdict(result_text: str, page_url: str, start_url: str = "") -> tuple[EvidenceVerdict, dict]:
+def script_runtime_verdict(
+    result_text: str,
+    page_url: str,
+    start_url: str = "",
+    *,
+    asks_value: bool = False,
+) -> tuple[EvidenceVerdict, dict]:
     """Judge one run_script result without the task's markers."""
     from bench.harness import page_field
 
@@ -952,6 +1004,7 @@ def script_runtime_verdict(result_text: str, page_url: str, start_url: str = "")
         script_ok=ok is not False,
         script_error=error,
         start_url=start_url,
+        asks_value=asks_value,
     )
     return verdict, payload
 
