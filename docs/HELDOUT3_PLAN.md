@@ -20,9 +20,9 @@ The 50 held-out tasks and the 20 heldout2 tasks have both been studied task by t
 - Each task has:
   - a model-free reproducer that passes the real grader;
   - a negative check (a wrong page or wrong value must fail).
-- **Wave 1** (split `heldout3a`, 30 tasks): Grok 4.7, sites a–m.
-- **Wave 1** (split `heldout3b`, 30 tasks): Claude Opus 5.5 via Cursor, sites n–z. GPT-6.1 Sol was asked first and declined twice over repo-instruction conflicts, so no model under test wrote any heldout3 tasks.
-- **Wave 2**: two more authors from other model families, about 40 tasks each, on domains that wave 1 did not use.
+- **Wave 1** (split `heldout3a`, 30 tasks): written by Grok 4.7, sites a–m. Grok was stopped before verifying. It had also edited the grader against its brief, and that edit was reverted. Claude Opus 5.5 verified the set and fixed or replaced tasks, without reading results.
+- **Wave 1** (split `heldout3b`, 30 tasks): Claude Opus 5.5 via Cursor, sites n–z, verified by Claude Sonnet 5.5. GPT-6.1 Sol was asked first and declined twice over repo-instruction conflicts, so no model under test wrote any heldout3 tasks.
+- **Wave 2** (splits `heldout3c` and `heldout3d`, 40 tasks each): two Claude Sonnet 5.5 authors working separately, on sites a–m and n–z, using no domain from wave 1. The authors are now mostly from the Claude family, so results by author family are reported as exploratory.
 - No site may hold more than 3 tasks.
 - **Size rule.** The headline claim needs at least 120 valid tasks. With fewer, the run is reported as a **pilot**, and its labels are not claims.
 
