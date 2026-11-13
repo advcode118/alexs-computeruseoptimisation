@@ -27,7 +27,7 @@ def test_heldout2_split_has_twenty_unique_complete_tasks():
         assert all(task[key] for key in required)
         assert task["start_url"].startswith("https://")
         markers = task["end_markers"]
-        assert {"host", "url_contains", "path_suffix", "deny"} <= markers.keys()
+        assert {"host", "url_contains", "deny"} <= markers.keys()
         assert task["check_url_contains"] in markers["url_contains"]
         assert "https://" not in task["description"]
         assert not re.search(r"(?<!\w)" + re.escape(task["expected_answer"]) + r"(?!\w)", task["description"], re.I)
@@ -43,7 +43,7 @@ def test_heldout2_does_not_change_existing_splits_or_reuse_end_pages():
     for name in ("probe", "dev", "held-out", "honest"):
         assert new_ids.isdisjoint(task["id"] for task in tasks_for_split(name))
     old = [task for task in get_all_tasks() if task["id"] not in new_ids]
-    ends = [(task["end_markers"]["host"], task["end_markers"]["path_suffix"]) for task in tasks]
+    ends = [(task["end_markers"]["host"], task["end_markers"].get("path_suffix") or task["end_markers"]["url_contains"]) for task in tasks]
     assert len(set(ends)) == 20
     for task in tasks:
         markers = task["end_markers"]

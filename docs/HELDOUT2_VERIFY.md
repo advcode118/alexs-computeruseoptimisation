@@ -1,6 +1,6 @@
 # Heldout2 public-page verification
 
-Verified 2026-11-12 15:40 UTC with local headless Chromium.
+Verified 2026-11-13 01:23 UTC with local headless Chromium.
 
 This is page/marker validation, not an agent benchmark result. No LLM API calls or bench probes were run.
 Authored using only AGENTS.md, bench/tasks.py, bench/probe.py, and the evidence grading/collection helpers in bench/script_first.py; no results, failure taxonomy, notes, temporary-directory files, or other branches were read.
