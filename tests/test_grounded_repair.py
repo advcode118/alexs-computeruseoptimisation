@@ -320,3 +320,33 @@ def test_repair_hint_follows_the_fail_reason():
     assert "leave the start page" in ask("the script ended on the start page and returned nothing")
     assert "location.href" in ask("claimed URL does not match the live page")
     assert "copy them" not in ask("the script stopped before it finished (Timeout)")
+
+
+def test_blind_mode_is_tip2_one_blind_repair(tmp_path, monkeypatch):
+    monkeypatch.setenv("CU_SF_REPAIR", "blind")
+    model = _Model([_reply(_code(n)) for n in range(1, 5)] + [_reply(_code(9))])
+    client = _Client([_fail(f"https://example.org/{n}") for n in range(1, 5)])
+    result = _run(model, client, tmp_path=tmp_path)
+    assert client.snapshots == 0
+    seen = json.dumps(model.seen[1])
+    assert "END_STATE_FAILED: " in seen and SNAPSHOT_BEGIN not in seen
+    # One repair: a third script is refused, never run.
+    assert client.calls == 2
+    assert result.success is False
+
+
+def test_max_repairs_env_caps_grounded_repairs(tmp_path, monkeypatch):
+    monkeypatch.setenv("CU_SF_MAX_REPAIRS", "1")
+    model = _Model([_reply(_code(n)) for n in range(1, 5)])
+    client = _Client([_fail(f"https://example.org/{n}") for n in range(1, 5)])
+    result = _run(model, client, tmp_path=tmp_path)
+    assert client.calls == 2 and client.snapshots == 1 and len(model.seen) == 2
+    assert result.end_state == "FAIL"
+
+
+def test_script_turns_record_each_verdict_and_time(tmp_path):
+    model = _Model([_reply(_code(1)), _reply(_code(2))])
+    client = _Client([_fail("https://example.org/1"), _pass("https://example.org/2")])
+    result = _run(model, client, tmp_path=tmp_path)
+    assert [turn[0] for turn in result.script_turns] == ["FAIL", "PASS"]
+    assert result.script_turns[0][1] <= result.script_turns[1][1]

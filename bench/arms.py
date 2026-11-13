@@ -46,6 +46,26 @@ SCRIPT_FIRST_REPAIR_BUDGET_S = 30.0
 SCRIPT_FIRST_MAX_SCRIPTS = 1 + SCRIPT_FIRST_MAX_REPAIRS
 SCRIPT_FIRST_HARD_CAP = SCRIPT_FIRST_MAX_SCRIPTS + 2
 
+
+def script_first_repair_mode() -> dict:
+    """How script_first repairs, read from the environment at the start of each task.
+
+    CU_SF_REPAIR=blind restores tip2: one repair that carries only the reason
+    and the URL, tip2's prompt lines, and tip2's stop rules. It exists so one
+    checkout can measure before and after. CU_SF_MAX_REPAIRS caps the grounded
+    repairs (0..SCRIPT_FIRST_MAX_REPAIRS).
+    """
+    import os
+
+    legacy = os.environ.get("CU_SF_REPAIR", "") == "blind"
+    if legacy:
+        return {"legacy": True, "max_repairs": 1, "budget_s": float("inf")}
+    max_repairs = SCRIPT_FIRST_MAX_REPAIRS
+    raw = os.environ.get("CU_SF_MAX_REPAIRS", "")
+    if raw.strip().isdigit():
+        max_repairs = min(SCRIPT_FIRST_MAX_REPAIRS, int(raw))
+    return {"legacy": False, "max_repairs": max_repairs, "budget_s": SCRIPT_FIRST_REPAIR_BUDGET_S}
+
 # The proxy arms can still finish through decide(), replay, or a locator
 # script when no_model_only is requested. The competitive probe does not.
 NO_MODEL_CAPABLE = frozenset({ARM_DIFF, ARM_REPLAY})
@@ -105,6 +125,12 @@ Guidelines:
 
 Be efficient - one script that finishes the task. A repair only after END_STATE_FAILED."""
 
+_GROUNDED_REPAIR_LINE = "- If the tool result says END_STATE_FAILED, it shows the live page, the step that failed, and how far the script got. The browser stays on that page. Send one script that continues from there (or page.goto to start over), using the names and links shown.\n"
+_BLIND_REPAIR_LINE = "- If the tool result says END_STATE_FAILED, send one corrected script that lands on the finished page. Do not send a second repair.\n"
+_GROUNDED_CLOSING = "Be efficient - one script that finishes the task. A repair only after END_STATE_FAILED."
+_BLIND_CLOSING = "Be efficient - one script, at most one repair, then stop."
+assert _GROUNDED_REPAIR_LINE in _SCRIPT_FIRST_PROMPT and _GROUNDED_CLOSING in _SCRIPT_FIRST_PROMPT
+
 # Only with CU_SF_LOOK=1 (exploratory). The default prompt above is unchanged.
 _SCRIPT_FIRST_LOOK_LINE = """
 
@@ -155,6 +181,10 @@ def prompt_for(arm: str) -> str:
     if arm == ARM_SCRIPT_FIRST:
         from bench.script_first import look_enabled
 
+        if script_first_repair_mode()["legacy"]:
+            return _SCRIPT_FIRST_PROMPT.replace(_GROUNDED_REPAIR_LINE, _BLIND_REPAIR_LINE).replace(
+                _GROUNDED_CLOSING, _BLIND_CLOSING
+            )
         if look_enabled():
             return _SCRIPT_FIRST_PROMPT + _SCRIPT_FIRST_LOOK_LINE
         return _SCRIPT_FIRST_PROMPT

@@ -963,6 +963,7 @@ async def run_claude_arm(
             ]
             row["repair_sent"] = result.repair_sent
             row["repair_reply"] = result.repair_reply
+            row["script_turns"] = result.script_turns
         if provider == "openai":
             from bench.openai_spend import price_usd
 

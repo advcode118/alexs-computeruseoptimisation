@@ -161,6 +161,8 @@ class TaskResult:
     total_cache_write_12h_tokens: int = 0
     repair_sent: bool = False
     repair_reply: str = "none"
+    # script_first: one entry per script that ran: [self-check verdict, wall ms since the task started].
+    script_turns: list = field(default_factory=list)
 
 
 def estimate_tokens(text: str) -> int:
@@ -1172,6 +1174,7 @@ class BenchmarkHarness:
         seen_scripts: set[str] = set()
         last_fail_key: tuple | None = None
         same_fail_count = 0
+        script_turns: list = []
         looks = 0
         end_state = ""
         last_verdict = None
@@ -1183,12 +1186,7 @@ class BenchmarkHarness:
         passing_verdict = None
         cache = self.script_cache if self.arm == "script_first" else None
         if self.arm == "script_first":
-            from bench.arms import (
-                SCRIPT_FIRST_HARD_CAP,
-                SCRIPT_FIRST_MAX_REPAIRS,
-                SCRIPT_FIRST_MAX_SCRIPTS,
-                SCRIPT_FIRST_REPAIR_BUDGET_S,
-            )
+            from bench.arms import SCRIPT_FIRST_HARD_CAP, script_first_repair_mode
             from bench.script_first import (
                 FAIL,
                 PASS,
@@ -1207,6 +1205,11 @@ class BenchmarkHarness:
             # No answer key while the run is live. The task's markers are read
             # only by the post-run grade, the same as for every other arm.
             turn_limit = min(self.max_steps, SCRIPT_FIRST_HARD_CAP)
+            repair_mode = script_first_repair_mode()
+            legacy_repair = repair_mode["legacy"]
+            max_repairs = repair_mode["max_repairs"]
+            max_scripts = 1 + max_repairs
+            repair_budget_s = repair_mode["budget_s"]
             if hasattr(self.mcp_client, "end_markers"):
                 self.mcp_client.end_markers = {}
             if hasattr(self.mcp_client, "look_task"):
@@ -1322,8 +1325,8 @@ class BenchmarkHarness:
                         if (
                             last_verdict is not None
                             and last_verdict.verdict == FAIL
-                            and repairs_sent < SCRIPT_FIRST_MAX_REPAIRS
-                            and time.perf_counter() - wall_start < SCRIPT_FIRST_REPAIR_BUDGET_S
+                            and repairs_sent < max_repairs
+                            and time.perf_counter() - wall_start < repair_budget_s
                         ):
                             failure = last_verdict.reason
                         if failure:
@@ -1421,19 +1424,24 @@ class BenchmarkHarness:
                         and tool_name == "run_script"
                         and isinstance(code_now, str)
                         and normalized_script(code_now) in seen_scripts
+                        and not legacy_repair
                     )
                     refused = (
                         self.arm == "script_first"
                         and tool_name == "run_script"
-                        and (script_calls >= SCRIPT_FIRST_MAX_SCRIPTS or finished_first or repeated)
+                        and (script_calls >= max_scripts or finished_first or repeated)
                     )
                     if refused:
-                        if repeated and not (script_calls >= SCRIPT_FIRST_MAX_SCRIPTS or finished_first):
+                        if repeated and not (script_calls >= max_scripts or finished_first):
                             result_text = "No further scripts. This exact script already ran."
-                        elif script_calls >= SCRIPT_FIRST_MAX_SCRIPTS:
+                        elif script_calls >= max_scripts:
                             result_text = (
-                                "No further scripts. The repair limit is reached. "
-                                "Reply with TASK_COMPLETE or TASK_FAILED. Do not call run_script again."
+                                (
+                                    "No further scripts. One script and one repair already ran. "
+                                    if legacy_repair
+                                    else "No further scripts. The repair limit is reached. "
+                                )
+                                + "Reply with TASK_COMPLETE or TASK_FAILED. Do not call run_script again."
                             )
                         elif last_verdict is not None and last_verdict.verdict == UNKNOWN:
                             result_text = (
@@ -1507,6 +1515,7 @@ class BenchmarkHarness:
                                 passing_verdict = verdict
                             last_verdict = verdict
                             end_state = verdict.verdict
+                            script_turns.append([verdict.verdict, round((time.perf_counter() - wall_start) * 1000)])
                             failure = verdict.reason if verdict.verdict == FAIL else ""
                             logged_selector, logged_answer, logged_page_text, logged_return = logged_evidence(payload)
                             # The judge already read selector_text. The model must not.
@@ -1516,13 +1525,13 @@ class BenchmarkHarness:
                                 outcome = repair_outcome_key(verdict, payload)
                                 # The same failure on the same page three times in a row ends the repairs.
                                 same_fail_count = same_fail_count + 1 if outcome == last_fail_key else 1
-                                stalled = same_fail_count >= 3
+                                stalled = same_fail_count >= 3 and not legacy_repair
                                 last_fail_key = outcome
-                                in_budget = time.perf_counter() - wall_start < SCRIPT_FIRST_REPAIR_BUDGET_S
-                                if repairs_sent < SCRIPT_FIRST_MAX_REPAIRS and in_budget and not stalled:
+                                in_budget = time.perf_counter() - wall_start < repair_budget_s
+                                if repairs_sent < max_repairs and in_budget and not stalled:
                                     snapshot, snap_ms = "", 0.0
                                     reader = getattr(self.mcp_client, "page_snapshot", None)
-                                    if callable(reader):
+                                    if callable(reader) and not legacy_repair:
                                         try:
                                             snapshot, snap_ms = await reader(task_description)
                                         except Exception:
@@ -1536,7 +1545,7 @@ class BenchmarkHarness:
                                             payload=payload,
                                             snapshot=snapshot,
                                             repair_number=repairs_sent + 1,
-                                            max_repairs=SCRIPT_FIRST_MAX_REPAIRS,
+                                            max_repairs=max_repairs,
                                         )
                                         drop_old_snapshots(messages)
                                     else:
@@ -1572,7 +1581,17 @@ class BenchmarkHarness:
                                 success = False
                                 success_reason = f"UNKNOWN: {verdict.reason}"
                                 stop_after_tools = True
-                            elif verdict.verdict == FAIL and not repair_pending:
+                            elif legacy_repair and (
+                                verdict.verdict == FAIL
+                                and not progress
+                                and not repair_pending
+                                and script_calls >= max_scripts
+                            ):
+                                # tip2's rule: stop only when the repair made no progress either.
+                                stop_after_tools = True
+                                success = False
+                                success_reason = failure
+                            elif not legacy_repair and verdict.verdict == FAIL and not repair_pending:
                                 # No repair is left (limit, wall budget, or the same failure twice).
                                 # A further script would be refused, so another model call cannot change it.
                                 stop_after_tools = True
@@ -1724,6 +1743,7 @@ class BenchmarkHarness:
             total_cache_write_12h_tokens=total_cache_write_12h_tokens,
             repair_sent=repairs_sent > 0,
             repair_reply=repair_reply,
+            script_turns=script_turns,
         )
 
     def _empty_result(
