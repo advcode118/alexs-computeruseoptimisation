@@ -19,6 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from bench.tasks_heldout3_b import HELDOUT3B_TASK_IDS, HELDOUT3B_TASKS
+from bench.tasks_heldout3_d import HELDOUT3D_TASK_IDS, HELDOUT3D_TASKS
 
 FIXTURE_DIR = Path(__file__).parent.parent / "loop" / "fixture"
 
@@ -1192,6 +1193,7 @@ HELDOUT2_TASKS = [
 WEBVOYAGER_TASKS += HELDOUT2_TASKS
 HELDOUT2_TASK_IDS = tuple(task["id"] for task in HELDOUT2_TASKS)
 WEBVOYAGER_TASKS += HELDOUT3B_TASKS
+WEBVOYAGER_TASKS += HELDOUT3D_TASKS
 
 # The three tasks the arms were tuned on. They stay inside the dev set.
 TUNED_PROBE_TASK_IDS = (
@@ -1273,6 +1275,7 @@ SPLIT_DEV = "dev"
 SPLIT_HELD_OUT = "held-out"
 SPLIT_HELDOUT2 = "heldout2"
 SPLIT_HELDOUT3B = "heldout3b"
+SPLIT_HELDOUT3D = "heldout3d"
 SPLIT_HONEST = "honest"
 # The scored set is held-out only. Dev is what we tune, and it is not scored.
 HONEST_TASK_IDS = HELD_OUT_TASK_IDS
@@ -1343,6 +1346,8 @@ def resolve_task_split(spec: str | None) -> str:
         return SPLIT_HELDOUT2
     if key == "heldout3b":
         return SPLIT_HELDOUT3B
+    if key == "heldout3d":
+        return SPLIT_HELDOUT3D
     if key == "honest":
         return SPLIT_HONEST
     raise ValueError(f"unknown split {spec!r}")
@@ -1359,6 +1364,8 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
         return _tasks_in_order(HELDOUT2_TASK_IDS)
     if name == SPLIT_HELDOUT3B:
         return _tasks_in_order(HELDOUT3B_TASK_IDS)
+    if name == SPLIT_HELDOUT3D:
+        return _tasks_in_order(HELDOUT3D_TASK_IDS)
     if name == SPLIT_HONEST:
         return _tasks_in_order(HONEST_TASK_IDS)
     return _tasks_in_order(TUNED_PROBE_TASK_IDS)

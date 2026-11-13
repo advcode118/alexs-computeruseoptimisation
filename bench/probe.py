@@ -52,6 +52,7 @@ disjoint, so the tasks we tune are not the tasks we score. Do not run the
 held-out command from this checkout. It is a live Claude probe.
 --split heldout2 selects twenty independently authored public tasks.
 --split heldout3b selects thirty more, from bench/tasks_heldout3_b.py.
+--split heldout3d selects forty more, from bench/tasks_heldout3_d.py.
 Without --execute it only lists the plan, just like every other split.
 
 --honest is the live comparison. It selects playwright_mcp, script_first,
@@ -133,6 +134,7 @@ from bench.tasks import (
     HELD_OUT_TASK_IDS,
     SPLIT_HELDOUT2,
     SPLIT_HELDOUT3B,
+    SPLIT_HELDOUT3D,
     SPLIT_HONEST,
     SPLIT_PROBE,
     TUNED_PROBE_TASK_IDS,
@@ -374,7 +376,7 @@ def plan_probe(
     try:
         spent = SpendLedger.load().running_total_usd
     except LedgerMissing:
-        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B):
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3D):
             raise
         # Listing the new catalog needs no spend authority. Unknown is not
         # zero; live execution and existing splits retain strict ledger checks.
@@ -1564,6 +1566,7 @@ def main(argv: list[str] | None = None) -> int:
             "dev is the wider tune set. held-out is the scored set. "
             "heldout2 is the independent twenty-task set. "
             "heldout3b is a further independent thirty-task set. "
+            "heldout3d is a further independent forty-task set. "
             "Printing the plan does not run it."
         ),
     )
