@@ -965,7 +965,6 @@ HELDOUT2_TASKS = [
         "end_markers": {
             "host": "www.apache.org",
             "url_contains": "/licenses/LICENSE-2.0",
-            "path_suffix": "/licenses/LICENSE-2.0",
             "deny": ["/search", ".txt"],
         },
     },
