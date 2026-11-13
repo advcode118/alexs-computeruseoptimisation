@@ -1168,6 +1168,9 @@ class BenchmarkHarness:
         repair_reply = "none"
         refusal_extended = False
         previous_payload: dict | None = None
+        # script_first's grounded repair loop: scripts already run, and the last FAIL's outcome.
+        seen_scripts: set[str] = set()
+        last_fail_key: tuple | None = None
         end_state = ""
         last_verdict = None
         markers: dict = {}
@@ -1178,13 +1181,22 @@ class BenchmarkHarness:
         passing_verdict = None
         cache = self.script_cache if self.arm == "script_first" else None
         if self.arm == "script_first":
-            from bench.arms import SCRIPT_FIRST_HARD_CAP, SCRIPT_FIRST_MAX_SCRIPTS
+            from bench.arms import (
+                SCRIPT_FIRST_HARD_CAP,
+                SCRIPT_FIRST_MAX_REPAIRS,
+                SCRIPT_FIRST_MAX_SCRIPTS,
+                SCRIPT_FIRST_REPAIR_BUDGET_S,
+            )
             from bench.script_first import (
                 FAIL,
                 PASS,
                 UNKNOWN,
+                drop_old_snapshots,
+                grounded_repair_request,
                 model_visible_script_result,
                 next_script_first_limit,
+                normalized_script,
+                repair_outcome_key,
                 repair_request,
                 script_made_progress,
                 script_runtime_verdict,
@@ -1303,7 +1315,12 @@ class BenchmarkHarness:
                 if not tool_uses:
                     if self.arm == "script_first" and saw_complete:
                         failure = ""
-                        if last_verdict is not None and last_verdict.verdict == FAIL and repairs_sent < 1:
+                        if (
+                            last_verdict is not None
+                            and last_verdict.verdict == FAIL
+                            and repairs_sent < SCRIPT_FIRST_MAX_REPAIRS
+                            and time.perf_counter() - wall_start < SCRIPT_FIRST_REPAIR_BUDGET_S
+                        ):
                             failure = last_verdict.reason
                         if failure:
                             messages.append({"role": "assistant", "content": assistant_content})
@@ -1375,16 +1392,28 @@ class BenchmarkHarness:
                         stop_after_tools = True
                         break
 
-                    finished_first = script_calls >= 1 and repairs_sent < 1
+                    # Each script after the first needs a repair the harness sent.
+                    finished_first = script_calls >= 1 and script_calls > repairs_sent
+                    code_now = ""
+                    if isinstance(tool_args, dict):
+                        code_now = tool_args.get("code") or tool_args.get("script") or ""
+                    repeated = (
+                        self.arm == "script_first"
+                        and tool_name == "run_script"
+                        and isinstance(code_now, str)
+                        and normalized_script(code_now) in seen_scripts
+                    )
                     refused = (
                         self.arm == "script_first"
                         and tool_name == "run_script"
-                        and (script_calls >= SCRIPT_FIRST_MAX_SCRIPTS or finished_first)
+                        and (script_calls >= SCRIPT_FIRST_MAX_SCRIPTS or finished_first or repeated)
                     )
                     if refused:
-                        if script_calls >= SCRIPT_FIRST_MAX_SCRIPTS:
+                        if repeated and not (script_calls >= SCRIPT_FIRST_MAX_SCRIPTS or finished_first):
+                            result_text = "No further scripts. This exact script already ran."
+                        elif script_calls >= SCRIPT_FIRST_MAX_SCRIPTS:
                             result_text = (
-                                "No further scripts. One script and one repair already ran. "
+                                "No further scripts. The repair limit is reached. "
                                 "Reply with TASK_COMPLETE or TASK_FAILED. Do not call run_script again."
                             )
                         elif last_verdict is not None and last_verdict.verdict == UNKNOWN:
@@ -1419,7 +1448,13 @@ class BenchmarkHarness:
                     if found_url:
                         last_url = found_url
                     if self.arm == "script_first" and tool_name == "run_script":
-                        if refused:
+                        if refused and repeated:
+                            # The same script again cannot change a FAIL. End on the last verdict.
+                            stop_after_tools = True
+                            success = False
+                            if last_verdict is not None:
+                                success_reason = last_verdict.reason
+                        elif refused:
                             if refusal_extended:
                                 stop_after_tools = True
                             else:
@@ -1434,6 +1469,8 @@ class BenchmarkHarness:
                                 refusal_extended = True
                         else:
                             script_calls += 1
+                            if isinstance(code_now, str):
+                                seen_scripts.add(normalized_script(code_now))
                             # page_url stays the live URL. Markers never rewrite it.
                             # No answer key while the run is live. The final grade uses the markers.
                             verdict, payload = script_runtime_verdict(
@@ -1455,12 +1492,46 @@ class BenchmarkHarness:
                             logged_selector, logged_answer, logged_page_text, logged_return = logged_evidence(payload)
                             # The judge already read selector_text. The model must not.
                             repair_pending = False
-                            if verdict.verdict == FAIL and repairs_sent < 1:
-                                result_text += "\n" + repair_request(page_url, failure)
-                                repairs_sent += 1
-                                awaiting_repair_reply = True
-                                repair_pending = True
-                            result_text = model_visible_script_result(result_text, failed=verdict.verdict == FAIL)
+                            grounded = ""
+                            if verdict.verdict == FAIL:
+                                outcome = repair_outcome_key(verdict, payload)
+                                # A repair that failed the same way on the same page gets no further turn.
+                                stalled = script_calls > 1 and outcome == last_fail_key
+                                last_fail_key = outcome
+                                in_budget = time.perf_counter() - wall_start < SCRIPT_FIRST_REPAIR_BUDGET_S
+                                if repairs_sent < SCRIPT_FIRST_MAX_REPAIRS and in_budget and not stalled:
+                                    snapshot, snap_ms = "", 0.0
+                                    reader = getattr(self.mcp_client, "page_snapshot", None)
+                                    if callable(reader):
+                                        try:
+                                            snapshot, snap_ms = await reader()
+                                        except Exception:
+                                            snapshot, snap_ms = "", 0.0
+                                    tool_ms += snap_ms
+                                    total_tool_ms += snap_ms
+                                    if snapshot:
+                                        grounded = grounded_repair_request(
+                                            failure,
+                                            code=code_now if isinstance(code_now, str) else "",
+                                            payload=payload,
+                                            snapshot=snapshot,
+                                            repair_number=repairs_sent + 1,
+                                            max_repairs=SCRIPT_FIRST_MAX_REPAIRS,
+                                        )
+                                        drop_old_snapshots(messages)
+                                    else:
+                                        result_text += "\n" + repair_request(page_url, failure)
+                                    repairs_sent += 1
+                                    awaiting_repair_reply = True
+                                    repair_pending = True
+                            # With a snapshot, it replaces the raw links, controls, and page text.
+                            result_text = model_visible_script_result(
+                                result_text,
+                                failed=verdict.verdict == FAIL and not grounded,
+                                hide_page=bool(grounded),
+                            )
+                            if grounded:
+                                result_text += "\n" + grounded
                             turn_limit = next_script_first_limit(
                                 step_num=step_num,
                                 limit=turn_limit,
@@ -1481,12 +1552,9 @@ class BenchmarkHarness:
                                 success = False
                                 success_reason = f"UNKNOWN: {verdict.reason}"
                                 stop_after_tools = True
-                            elif (
-                                verdict.verdict == FAIL
-                                and not progress
-                                and not repair_pending
-                                and script_calls >= SCRIPT_FIRST_MAX_SCRIPTS
-                            ):
+                            elif verdict.verdict == FAIL and not repair_pending:
+                                # No repair is left (limit, wall budget, or the same failure twice).
+                                # A further script would be refused, so another model call cannot change it.
                                 stop_after_tools = True
                                 success = False
                                 success_reason = failure

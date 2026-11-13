@@ -854,7 +854,7 @@ async def run_claude_arm(
     started = time.perf_counter()
     # script_first starts at one script plus a completion turn. The harness
     # adds a turn only for a repair or a refused extra script, stops at
-    # SCRIPT_FIRST_HARD_CAP, and runs at most one repair script.
+    # SCRIPT_FIRST_HARD_CAP, and runs at most SCRIPT_FIRST_MAX_REPAIRS repair scripts.
     max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
     openai_model = None
     openai_effort = None

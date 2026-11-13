@@ -35,10 +35,16 @@ ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
 BASELINE_ARMS = (ARM_PLAYWRIGHT, ARM_BROWSER_USE)
 SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST, ARM_ENDPOINT, ARM_BROWSER_USE)
 # One script and a completion turn. A repair may use the spare calls.
-# Moving the page does not add a turn. The harness will not run a third script.
+# Moving the page does not add a turn.
 SCRIPT_FIRST_MAX_CALLS = 4
-SCRIPT_FIRST_MAX_SCRIPTS = 2
-SCRIPT_FIRST_HARD_CAP = 6
+# A FAIL gets a grounded repair: the live page, the failed step, and how far
+# the script got. Up to SCRIPT_FIRST_MAX_REPAIRS of them, each continuing from
+# the current page, while the task is under SCRIPT_FIRST_REPAIR_BUDGET_S of
+# wall time. A first script that passes never reaches any of this.
+SCRIPT_FIRST_MAX_REPAIRS = 3
+SCRIPT_FIRST_REPAIR_BUDGET_S = 30.0
+SCRIPT_FIRST_MAX_SCRIPTS = 1 + SCRIPT_FIRST_MAX_REPAIRS
+SCRIPT_FIRST_HARD_CAP = SCRIPT_FIRST_MAX_SCRIPTS + 2
 
 # The proxy arms can still finish through decide(), replay, or a locator
 # script when no_model_only is requested. The competitive probe does not.
@@ -94,10 +100,10 @@ Guidelines:
 - Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle. The runner drops those lines and does not settle or snapshot between actions.
 - Do not click, type, or snapshot one element at a time.
 - browser_run_code_unsafe is not a tool. Do not ask for it.
-- If the tool result says END_STATE_FAILED, send one corrected script that lands on the finished page. Do not send a second repair.
+- If the tool result says END_STATE_FAILED, it shows the live page, the step that failed, and how far the script got. The browser stays on that page. Send one script that continues from there (or page.goto to start over), using the names and links shown.
 - If the result already satisfies the task, the run stops. Do not call run_script again and do not send a separate completion turn. If it cannot be done, call task_failed({reason: string}).
 
-Be efficient - one script, at most one repair, then stop."""
+Be efficient - one script that finishes the task. A repair only after END_STATE_FAILED."""
 
 _ENDPOINT_PROMPT = """A direct read of the task start URL uses no model.
 
