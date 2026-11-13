@@ -61,6 +61,7 @@ RESOLVE_JS = r"""(args) => {
     return el.hasAttribute("onclick");
   };
   const visible = (el) => {
+    if (tag(el) === "option") { const sel = el.closest("select"); return !!sel && visible(sel); }
     if (!el.getClientRects().length) return false;
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) return false;
@@ -79,7 +80,7 @@ RESOLVE_JS = r"""(args) => {
     if (lb) add(lb.split(/\s+/).map(byId).join(" "), 1);
     if (el.labels) for (const l of el.labels) add(ownText(l), 1);
     add(el.getAttribute("placeholder"), 1);
-    if (!field) add(ownText(el), 1);
+    if (!field && tag(el) !== "select") add(ownText(el), 1);
     if (tag(el) === "input" && !field) add(el.value, 1);
     add(el.getAttribute("title"), 0.9);
     add(el.getAttribute("alt"), 0.9);
@@ -345,6 +346,15 @@ _PICK_OPTION_JS = r"""(el, want) => {
   const o = opts.find((x) => low(x.text) === w || low(x.value) === w)
     || opts.find((x) => low(x.text) && (low(x.text).includes(w) || w.includes(low(x.text))));
   return o ? o.value : null;
+}"""
+
+_CHOOSE_OPTION_JS = r"""(el) => {
+  const select = el.closest("select");
+  if (!select) return false;
+  select.value = el.value;
+  select.dispatchEvent(new Event("input", { bubbles: true }));
+  select.dispatchEvent(new Event("change", { bubbles: true }));
+  return true;
 }"""
 
 _SUBMIT_FORM_JS = r"""(el) => {
@@ -654,7 +664,14 @@ async def run_helper(page, call: HelperCall, *, timeout_ms: int) -> None:
         await run_search(page, call, timeout_ms=timeout_ms)
         return
     op = call.op
-    mark, info = await resolve(page, call.target, op)
+    flags = call.regex_flags
+    mark, info = await resolve(
+        page,
+        call.target,
+        op,
+        pattern=call.target if flags is not None else "",
+        flags="i" if flags and "i" in flags else "",
+    )
     if not mark:
         what = "field" if op in {"fill", "press"} else "control"
         raise miss_error(call.line, what, call.target, info)
@@ -662,6 +679,10 @@ async def run_helper(page, call: HelperCall, *, timeout_ms: int) -> None:
     before = page_url(page)
     if op == "fill" and info.get("tag") == "select":
         await select_option(locator, call.value, timeout_ms)
+        return
+    if op == "click" and info.get("tag") == "option":
+        # An option cannot be clicked; choose it in its select instead.
+        await _await(locator.evaluate(_CHOOSE_OPTION_JS), 3)
         return
     await act_on(page, locator, op, call.value, timeout_ms=timeout_ms)
     if op == "press" and call.value.casefold() == "enter" and info.get("field"):

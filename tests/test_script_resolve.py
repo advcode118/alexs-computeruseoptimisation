@@ -143,6 +143,13 @@ def test_locator_lines_take_a_regex_name_and_the_first_visible_of_several():
     assert answer(payload) == "refs"
 
 
+def test_a_helper_name_may_be_a_regex():
+    html = '<a href="#" onclick="out.innerText=\'book\'; return false">Frankenstein; or, The Modern Prometheus by Shelley</a><div id="out"></div>'
+    payload = run(html, f"cu.click(/frankenstein; or, the modern prometheus/i); {CLAIM}")
+    assert payload["ok"] is True, payload
+    assert answer(payload) == "book"
+
+
 def test_a_role_locator_with_no_match_falls_back_to_the_visible_name():
     html = '<div role="button" tabindex="0" onclick="out.innerText=\'sent\'">Submit order</div><div id="out"></div>'
     payload = run(html, f'page.getByRole("link", {{name: "Submit order"}}).click(); {CLAIM}')
@@ -164,6 +171,8 @@ def test_select_option_matches_a_label_loosely_and_a_bare_locator_only_waits():
     payload = run(html, script)
     assert payload["ok"] is True, payload
     assert answer(payload) == "cc"
+    clicked = run(html, 'cu.click("PayPal"); page.evaluate(() => cu.claim({answer: document.getElementById("p").value}))')
+    assert answer(clicked) == "pp", clicked
 
 
 def test_search_helper_types_into_the_search_box_and_submits_its_form():

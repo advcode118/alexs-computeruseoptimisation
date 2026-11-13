@@ -176,6 +176,8 @@ class HelperCall:
     target: str
     value: str
     line: int
+    # Set when the name was a /regex/flags literal; target then holds the pattern.
+    regex_flags: str | None = None
 
 
 class _Scan:
@@ -251,7 +253,18 @@ def parse_helper_call(text: str, line: int) -> HelperCall:
     if op not in _ARITY:
         raise ScriptError(f"line {line}: cu.{op} is not a helper")
     scan.take("(")
-    target = scan.string().strip()
+    regex_flags = None
+    scan.skip()
+    if scan.text.startswith("/", scan.i) and op != "search":
+        from bench.script_grammar import _LiteralScan
+
+        literal = _LiteralScan(scan.text, line)
+        literal.i = scan.i
+        found = literal.regex()
+        scan.i = literal.i
+        target, regex_flags = found.pattern, found.flags
+    else:
+        target = scan.string().strip()
     value = ""
     if _ARITY[op] == 2:
         scan.take(",")
@@ -267,7 +280,7 @@ def parse_helper_call(text: str, line: int) -> HelperCall:
         raise ScriptError(f"line {line}: empty name")
     if op == "press" and not value:
         raise ScriptError(f"line {line}: press needs a key")
-    return HelperCall(op=op, target=target, value=value, line=line)
+    return HelperCall(op=op, target=target, value=value, line=line, regex_flags=regex_flags)
 
 
 def references_claim(source: str) -> bool:

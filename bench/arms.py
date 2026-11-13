@@ -84,11 +84,11 @@ _SCRIPT_FIRST_PROMPT = """You are a browser automation agent. Use run_script to 
 The first script must finish the task. Write one script for the whole task and call run_script once. You cannot see the page, so name things by the text a person sees on it.
 
 Write the script:
-- Go to a page with page.goto("https://..."). If you are sure of the URL of the page that holds the answer, go straight there. If not, go to the start URL and click or search your way there.
+- Prefer one page.goto("https://...") of the finished page over clicking through the site. Click or search from the start page only when its URL cannot be known from the task.
 - Act with visible names: cu.click("Sign in"), cu.fill("Email", "a@b.c"), cu.press("Email", "Enter"). A button or link text, a label, a placeholder, or a clear part of one works. If several controls match, the first visible one is used.
 - cu.search("words") types into the site's own search box and submits it. Then cu.click the result you want.
 - The runner waits for each control to appear and for the page to settle after each action. Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle; those lines are dropped.
-- Allowed: page.goto, cu.click, cu.fill, cu.press, cu.search, page.locator, page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder (locators may use .first()/.nth() and a /regex/i name), and page.evaluate(() => { ... }) with a page-context function.
+- Allowed: page.goto, cu.click, cu.fill, cu.press, cu.search, page.locator, page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder (locators may use .first()/.nth(); any name may be a /regex/i), and page.evaluate(() => { ... }) with a page-context function.
 - End with one page.evaluate that reads the answer from the live page and returns it with cu.claim:
   page.evaluate(() => cu.claim({key_text: "a short phrase read from the page", answer: "the value the task asked for"}))
   cu.claim adds the url, title, and h1 itself. Read values from the page; do not type them from memory. cu.text("Label") returns the text shown next to a label, table header, or term, for example answer: cu.text("Population").
