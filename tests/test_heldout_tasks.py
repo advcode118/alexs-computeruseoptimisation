@@ -502,7 +502,7 @@ def test_answers_stay_off_the_prompt_repair_and_patch_turn():
     standing.append(("patch-tool", json.dumps(PATCH_TOOL)))
     standing.append(("planner", planner._SYSTEM))
     standing.append(("judge-system", JUDGE_SYSTEM))
-    for task in get_held_out_tasks():
+    for task in [*get_held_out_tasks(), *tasks_for_split("heldout3b")]:
         markers = task["end_markers"]
         url_token = str(markers.get("url_contains") or "")
         task_text = task["description"] + "\n" + task["start_url"]
