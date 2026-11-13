@@ -1,6 +1,6 @@
 # Heldout3d public-page verification
 
-Verified 2026-11-13 02:37 UTC with local headless Chromium.
+Verified 2026-11-13 02:40 UTC with local headless Chromium.
 
 This is page/marker validation, not an agent benchmark result. No LLM API calls or bench probes were run.
 Mix: 10 multi-step navigation, 10 value reports, 6 site searches, 6 submitted demo forms, 4 JavaScript-rendered pages, 4 page-title reports.
@@ -32,7 +32,7 @@ Reproduce: `python -m bench.verify_heldout3_d` (public network access; no model 
 | ho3d_value_pytorch_dropout_p | 200 | https://docs.pytorch.org/docs/2.15/generated/torch.nn.Dropout.html | PASS | 2 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL |
 | ho3d_value_webscraper_table_tim | 200 | https://webscraper.io/test-sites/tables/tables-semantically-correct | PASS | 2 wrong pages FAIL; 2 URL variants PASS; wrong value FAIL |
 | ho3d_value_rahulshetty_sql_price | 200 | https://rahulshettyacademy.com/AutomationPractice/ | PASS | 1 wrong pages FAIL; 1 URL variants PASS; wrong value FAIL |
-| ho3d_value_pandas_head_default | 200 | https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.head.html | PASS | 2 wrong pages FAIL; 1 URL variants PASS; wrong value FAIL |
+| ho3d_value_pandas_sort_kind | 200 | https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.sort_values.html | PASS | 2 wrong pages FAIL; 1 URL variants PASS; wrong value FAIL |
 | ho3d_search_videolan_cli | 200 | https://wiki.videolan.org/VLC_command-line_help/ | PASS | 3 wrong pages FAIL; 2 URL variants PASS |
 | ho3d_search_pandas_read_csv | 200 | https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html#pandas.read_csv | PASS | 3 wrong pages FAIL; 3 URL variants PASS |
 | ho3d_search_sklearn_random_forest | 200 | https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html | PASS | 3 wrong pages FAIL; 2 URL variants PASS |
