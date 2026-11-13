@@ -747,9 +747,9 @@ def test_script_first_stops_when_a_repair_fails_the_same_way(tmp_path):
             start_url="https://news.ycombinator.com/",
         )
     )
-    # The repair ended on the same page with the same reason: no third model call.
-    assert client.calls == 2 < SCRIPT_FIRST_MAX_SCRIPTS
-    assert len(model.seen) == 2
+    # Three scripts ended on the same page with the same reason: no fourth model call.
+    assert client.calls == 3 < SCRIPT_FIRST_MAX_SCRIPTS
+    assert len(model.seen) == 3
     assert result.success is False
     assert result.end_state == "FAIL"
     assert result.success_reason != "Max steps reached"
@@ -774,7 +774,8 @@ def test_script_first_stops_when_the_repair_stays_on_main_page(tmp_path):
             check_url_contains="Ada_Lovelace",
         )
     )
-    assert client.calls == 2
+    # The same start-page failure three times in a row ends the repairs.
+    assert client.calls == 3
     assert result.success is False
     assert "start page" in result.success_reason
 

@@ -1043,7 +1043,7 @@ def repair_request(url: str, reason: str) -> str:
 
 # Read only after a script FAILs, so the first-script path never pays for it.
 # Visible elements only, with the names cu.click/getByRole/getByLabel match.
-_REPAIR_SNAPSHOT_JS = r"""() => {
+_REPAIR_SNAPSHOT_JS = r"""(terms) => {
   const clean = (s, n) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
   const shown = (el) => {
     if (!el || !el.getClientRects || !el.getClientRects().length) return false;
@@ -1236,11 +1236,64 @@ _REPAIR_SNAPSHOT_JS = r"""() => {
     elements: items.slice(0, 36).map((i) => ({ role: i.role, name: i.name, href: i.href })),
     more_elements: Math.max(0, items.length - 36),
     tables,
+    matches: (() => {
+      // Page lines that share words or numbers with the task, wherever they sit on the page.
+      const list = (terms || []).filter((t) => t);
+      if (!list.length || !main) return [];
+      const scored = [];
+      const raw = (main.innerText || "").split(/\r?\n/);
+      for (let i = 0; i < raw.length && i < 6000; i++) {
+        const line = raw[i].replace(/\s+/g, " ").trim();
+        if (!line || line.length < 2) continue;
+        const low = line.toLowerCase();
+        let score = 0, first = -1;
+        for (const t of list) {
+          let at = -1;
+          if (/^[0-9]/.test(t)) {
+            const m = new RegExp("(^|[^0-9])" + t.replace(/[^a-z0-9]/g, (c) => "\\" + c) + "(?![0-9])").exec(low);
+            if (m) { at = m.index + m[1].length; score += 2; }
+          } else {
+            at = low.indexOf(t);
+            if (at >= 0) score += 1;
+          }
+          if (at >= 0 && (first < 0 || at < first)) first = at;
+        }
+        if (score < 2) continue;
+        const start = line.length > 200 ? Math.max(0, first - 60) : 0;
+        scored.push({ score, i, line: line.slice(start, start + 200) });
+      }
+      scored.sort((a, b) => b.score - a.score || a.i - b.i);
+      const out = [];
+      for (const item of scored) {
+        if (out.length >= 8) break;
+        if (!out.includes(item.line)) out.push(item.line);
+      }
+      return out;
+    })(),
     text: clean(main ? main.innerText : "", 1500)
   };
 }"""
 
 _SNAPSHOT_CAP = 5000
+_TERM_STOP = frozenset(
+    "that this with from what which when where there their then than into onto your about after before "
+    "page site open find give tell show report name state value values return answer task text link "
+    "click visit search using under over each some only also does have will would should could".split()
+)
+
+
+def task_terms(description: str, limit: int = 12) -> list[str]:
+    """Numbers and longer words from the task text, for matching page lines. No site knowledge."""
+    terms: list[str] = []
+    for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9.+#_-]*", description or ""):
+        word = token.strip(".-_").casefold()
+        if not word or word in terms:
+            continue
+        if any(ch.isdigit() for ch in word) or (len(word) >= 4 and word not in _TERM_STOP):
+            terms.append(word)
+        if len(terms) >= limit:
+            break
+    return terms
 
 
 def _q(text) -> str:
@@ -1300,6 +1353,10 @@ def format_page_snapshot(data: dict | None, *, cap: int = _SNAPSHOT_CAP) -> str:
         more = int(data.get("more_elements") or 0)
         if more:
             lines.append(f"  ...and {more} more")
+    matches = [m for m in data.get("matches") or [] if isinstance(m, str) and m.strip()]
+    if matches:
+        lines.append("page lines that match words in the task:")
+        lines.extend(f"  {m}" for m in matches)
     for table in data.get("tables") or []:
         if not isinstance(table, dict):
             continue
@@ -2240,12 +2297,13 @@ class ScriptFirstClient:
             if profile:
                 shutil.rmtree(profile, ignore_errors=True)
 
-    async def page_snapshot(self) -> tuple[str, float]:
+    async def page_snapshot(self, task: str = "") -> tuple[str, float]:
         """The compact repair snapshot of the live page, and the ms it took."""
         start = time.perf_counter()
         if self._page is None:
             return "", 0.0
-        raw = await _evaluate_value(self._page, _REPAIR_SNAPSHOT_JS)
+        source = "() => (" + _REPAIR_SNAPSHOT_JS + ")(" + json.dumps(task_terms(task)) + ")"
+        raw = await _evaluate_value(self._page, source)
         data = raw if isinstance(raw, dict) else {}
         if data and not _http(str(data.get("url") or "")):
             data["url"] = _page_url(self._page) or data.get("url")

@@ -19,6 +19,7 @@ from bench.script_first import (
     model_visible_script_result,
     normalized_script,
     repair_outcome_key,
+    task_terms,
 )
 
 GOTO = "await page.goto('https://example.org/a')"
@@ -153,6 +154,7 @@ class _Client:
         self.results = list(results)
         self.calls = 0
         self.snapshots = 0
+        self.tasks: list = []
 
     def tools_for_claude(self):
         return [{"name": "run_script", "description": "run", "input_schema": {"type": "object"}}]
@@ -161,7 +163,8 @@ class _Client:
         self.calls += 1
         return self.results.pop(0), 1.0
 
-    async def page_snapshot(self):
+    async def page_snapshot(self, task=""):
+        self.tasks.append(task)
         self.snapshots += 1
         return f"url: https://example.org/now{self.snapshots}\ntitle: Now", 1.0
 
@@ -244,4 +247,30 @@ def test_no_repair_after_the_wall_budget(tmp_path, monkeypatch):
     client = _Client([_fail("https://example.org/1")])
     result = _run(model, client, budget=0.0, monkeypatch=monkeypatch, tmp_path=tmp_path)
     assert client.calls == 1 and client.snapshots == 0 and len(model.seen) == 1
+    assert result.success is False and result.end_state == "FAIL"
+
+
+def test_task_terms_keep_numbers_and_long_words():
+    terms = task_terms("What is the reason phrase for HTTP status 201? Report it.")
+    assert "201" in terms and "reason" in terms and "phrase" in terms and "status" in terms
+    assert "what" not in terms and "report" not in terms and "is" not in terms
+
+
+def test_snapshot_lists_lines_that_match_the_task():
+    text = format_page_snapshot({"url": "https://example.org/", "matches": ["201 Created", "  "]})
+    assert "page lines that match words in the task:\n  201 Created" in text
+
+
+def test_the_snapshot_reader_gets_the_task(tmp_path):
+    model = _Model([_reply(_code(1)), _reply(_code(2))])
+    client = _Client([_fail("https://example.org/1"), _pass("https://example.org/2")])
+    _run(model, client, tmp_path=tmp_path)
+    assert client.tasks == ["What is the value? Report it."]
+
+
+def test_same_failure_three_times_ends_the_repairs(tmp_path):
+    model = _Model([_reply(_code(n)) for n in range(1, 6)])
+    client = _Client([_fail("https://example.org/same") for _ in range(5)])
+    result = _run(model, client, tmp_path=tmp_path)
+    assert client.calls == 3 and client.snapshots == 2
     assert result.success is False and result.end_state == "FAIL"

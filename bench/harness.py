@@ -1171,6 +1171,7 @@ class BenchmarkHarness:
         # script_first's grounded repair loop: scripts already run, and the last FAIL's outcome.
         seen_scripts: set[str] = set()
         last_fail_key: tuple | None = None
+        same_fail_count = 0
         end_state = ""
         last_verdict = None
         markers: dict = {}
@@ -1495,8 +1496,9 @@ class BenchmarkHarness:
                             grounded = ""
                             if verdict.verdict == FAIL:
                                 outcome = repair_outcome_key(verdict, payload)
-                                # A repair that failed the same way on the same page gets no further turn.
-                                stalled = script_calls > 1 and outcome == last_fail_key
+                                # The same failure on the same page three times in a row ends the repairs.
+                                same_fail_count = same_fail_count + 1 if outcome == last_fail_key else 1
+                                stalled = same_fail_count >= 3
                                 last_fail_key = outcome
                                 in_budget = time.perf_counter() - wall_start < SCRIPT_FIRST_REPAIR_BUDGET_S
                                 if repairs_sent < SCRIPT_FIRST_MAX_REPAIRS and in_budget and not stalled:
@@ -1504,7 +1506,7 @@ class BenchmarkHarness:
                                     reader = getattr(self.mcp_client, "page_snapshot", None)
                                     if callable(reader):
                                         try:
-                                            snapshot, snap_ms = await reader()
+                                            snapshot, snap_ms = await reader(task_description)
                                         except Exception:
                                             snapshot, snap_ms = "", 0.0
                                     tool_ms += snap_ms
