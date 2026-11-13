@@ -1,0 +1,5 @@
+sha f8decad9800ee94ee1f28ef51a35771935ef080e
+gpt-6-luna script_first rc=0 bench/runs/probe_20261113_110106.jsonl
+gpt-6-luna browser_use rc=0 bench/runs/probe_20261113_112234.jsonl (finished after the runner was stopped; 139 lines)
+order note: at the user's request (time limit) Luna script_first run 2 was brought forward from position 6 to position 3; the remaining 13 runs go later
+gpt-6-luna script_first rc=0 bench/runs/probe_20261113_122151.jsonl

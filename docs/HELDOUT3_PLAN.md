@@ -122,7 +122,20 @@ Only for an infrastructure failure: more than 10% of an arm's rows ended in a ha
 
 ## Result
 
-(empty until the run)
+Not final: 3 of 16 runs are done. The rest come later, using the manifest and the same commit.
+
+**Deviations so far (13 Nov):**
+- The first launch of Luna's first script_first run was cut off after 1 row by a session time limit. That file was set aside unread as an infrastructure abort, and the run was redone in full.
+- The user had limited time, so Luna's second script_first run was moved from position 6 to position 3. The other 13 runs keep their pre-registered order.
+
+**Interim look (Luna; script_first × 2, browser_use × 1; not a claim):**
+- The pass-rate gap (script_first − browser_use, run 1) is −42 pp, CI [−51, −33], which is labelled behind.
+- script_first passes 54%. browser_use passes 96%.
+- The self-check precision is 84%, CI [76, 91]. The recall is 100%.
+- script_first costs 0.74× browser_use's dollars per passed task, and its median wall time is 0.36× (7.3 s against 20.2 s).
+- The hybrid passes 89%, CI [83, 94], at 0.91× browser_use's dollars.
+
+Aggregates are in `docs/results/heldout3_20261113/interim_luna_sf2_bu1.json`. No post-run check or grader audit has been done yet.
 
 ## Run record (written before the first heldout3 row)
 
