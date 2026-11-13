@@ -1373,6 +1373,29 @@ def format_page_snapshot(data: dict | None, *, cap: int = _SNAPSHOT_CAP) -> str:
     return rendered[:cap]
 
 
+def look_enabled() -> bool:
+    """The opt-in look tool. Off unless CU_SF_LOOK=1, so the default arm is unchanged."""
+    import os
+
+    return os.environ.get("CU_SF_LOOK", "") == "1"
+
+
+LOOK_TOOL = {
+    "name": "look",
+    "description": (
+        "Open a URL and return a compact view of that page: headings, forms with their fields, "
+        "visible links and buttons with their names, and lines that match the task. "
+        "No check runs. Use it at most once, only when you do not know the page's controls "
+        "or where the value is; then send run_script, which starts from that page."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {"url": {"type": "string", "description": "http(s) URL to open."}},
+        "required": ["url"],
+    },
+}
+
+
 SNAPSHOT_BEGIN = "--- PAGE NOW ---"
 SNAPSHOT_END = "--- END PAGE ---"
 _SNAPSHOT_DROPPED = "(older page snapshot dropped; see the newest one)"
@@ -2176,6 +2199,8 @@ class ScriptFirstClient:
         self._page = page
         self._owns_page = page is None
         self.end_markers: dict = {}
+        # The task text for the opt-in look tool's matching lines. The harness sets it.
+        self.look_task = ""
         self._playwright = None
         self._browser = None
         self._context = None
@@ -2224,7 +2249,7 @@ class ScriptFirstClient:
                     "required": ["reason"],
                 },
             }
-        ]
+        ] + ([dict(LOOK_TOOL)] if look_enabled() else [])
 
     def begin_launch(self) -> asyncio.Future:
         """Launch local Chrome if it is not already up.
@@ -2297,6 +2322,21 @@ class ScriptFirstClient:
             if profile:
                 shutil.rmtree(profile, ignore_errors=True)
 
+    async def _look(self, arguments: dict, start: float) -> tuple[str, float]:
+        url = str(arguments.get("url") or "").strip()
+        error = ""
+        if _http(url):
+            try:
+                await self._page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+            except Exception as exc:
+                error = " ".join(str(exc).split())[:200]
+        elif url:
+            error = "look needs an http(s) URL"
+        snapshot, _ms = await self.page_snapshot(self.look_task)
+        lines = [f"LOOK (no check ran){': ' + error if error else ''}", SNAPSHOT_BEGIN, snapshot or "(the page could not be read)", SNAPSHOT_END]
+        lines.append("Now send run_script. It starts from this page.")
+        return "\n".join(lines), (time.perf_counter() - start) * 1000
+
     async def page_snapshot(self, task: str = "") -> tuple[str, float]:
         """The compact repair snapshot of the live page, and the ms it took."""
         start = time.perf_counter()
@@ -2318,6 +2358,8 @@ class ScriptFirstClient:
         if self._page is None:
             raise RuntimeError("script_first client is not started")
         start = time.perf_counter()
+        if name == "look" and look_enabled():
+            return await self._look(arguments or {}, start)
         if name != "run_script":
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""

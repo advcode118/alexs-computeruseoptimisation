@@ -274,3 +274,35 @@ def test_same_failure_three_times_ends_the_repairs(tmp_path):
     result = _run(model, client, tmp_path=tmp_path)
     assert client.calls == 3 and client.snapshots == 2
     assert result.success is False and result.end_state == "FAIL"
+
+
+def test_look_is_off_by_default(monkeypatch):
+    from bench.arms import _SCRIPT_FIRST_PROMPT, prompt_for
+    from bench.script_first import ScriptFirstClient
+
+    monkeypatch.delenv("CU_SF_LOOK", raising=False)
+    assert [t["name"] for t in ScriptFirstClient().tools_for_claude()] == ["run_script", "task_failed"]
+    assert prompt_for("script_first") == _SCRIPT_FIRST_PROMPT
+    monkeypatch.setenv("CU_SF_LOOK", "1")
+    assert "look" in [t["name"] for t in ScriptFirstClient().tools_for_claude()]
+    assert "look(url)" in prompt_for("script_first")
+
+
+def test_a_look_does_not_use_up_a_turn(tmp_path):
+    look = {
+        "content": [{"type": "tool_use", "id": "l1", "name": "look", "input": {"url": "https://example.org/"}}],
+        "stop_reason": "tool_use",
+        "usage": {"input_tokens": 1, "output_tokens": 1},
+    }
+    codes = [_code(n) for n in range(1, 5)]
+    model = _Model([look] + [_reply(c) for c in codes])
+
+    class LookClient(_Client):
+        async def call_tool(self, name, arguments):
+            if name == "look":
+                return "LOOK (no check ran)", 1.0
+            return await super().call_tool(name, arguments)
+
+    client = LookClient([_fail(f"https://example.org/{n}") for n in range(1, 4)] + [_pass("https://example.org/4")])
+    result = _run(model, client, tmp_path=tmp_path)
+    assert client.calls == 4 and result.success is True

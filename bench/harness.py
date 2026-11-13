@@ -1172,6 +1172,7 @@ class BenchmarkHarness:
         seen_scripts: set[str] = set()
         last_fail_key: tuple | None = None
         same_fail_count = 0
+        looks = 0
         end_state = ""
         last_verdict = None
         markers: dict = {}
@@ -1208,6 +1209,8 @@ class BenchmarkHarness:
             turn_limit = min(self.max_steps, SCRIPT_FIRST_HARD_CAP)
             if hasattr(self.mcp_client, "end_markers"):
                 self.mcp_client.end_markers = {}
+            if hasattr(self.mcp_client, "look_task"):
+                self.mcp_client.look_task = task_description
 
         try:
             if cache is not None:
@@ -1386,6 +1389,21 @@ class BenchmarkHarness:
                     tool_name = tool_use.get("name", "")
                     tool_args = tool_use.get("input", {})
                     tool_id = tool_use.get("id", "")
+
+                    if self.arm == "script_first" and tool_name == "look":
+                        # Opt-in (CU_SF_LOOK=1). One look; it gets its own turn so it does not use up a repair.
+                        looks += 1
+                        if looks == 1:
+                            turn_limit = min(SCRIPT_FIRST_HARD_CAP + 1, turn_limit + 1)
+                        else:
+                            tool_results.append(
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_id,
+                                    "content": "look was already used. Send run_script.",
+                                }
+                            )
+                            continue
 
                     if self.arm == "script_first" and tool_name == "task_failed":
                         success = False

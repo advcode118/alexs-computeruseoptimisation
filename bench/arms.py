@@ -105,6 +105,11 @@ Guidelines:
 
 Be efficient - one script that finishes the task. A repair only after END_STATE_FAILED."""
 
+# Only with CU_SF_LOOK=1 (exploratory). The default prompt above is unchanged.
+_SCRIPT_FIRST_LOOK_LINE = """
+
+If you know the URL but not the page's field names, buttons, or where the value sits, you may call look(url) once first. Otherwise write the script directly."""
+
 _ENDPOINT_PROMPT = """A direct read of the task start URL uses no model.
 
 A miss falls through to the script_first arm. This arm does not launch a browser."""
@@ -148,6 +153,10 @@ def prompt_for(arm: str) -> str:
     if arm == ARM_STAGEHAND:
         return _STAGEHAND_PROMPT
     if arm == ARM_SCRIPT_FIRST:
+        from bench.script_first import look_enabled
+
+        if look_enabled():
+            return _SCRIPT_FIRST_PROMPT + _SCRIPT_FIRST_LOOK_LINE
         return _SCRIPT_FIRST_PROMPT
     if arm == ARM_ENDPOINT:
         return _ENDPOINT_PROMPT
