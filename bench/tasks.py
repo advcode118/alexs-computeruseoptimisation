@@ -21,6 +21,7 @@ from pathlib import Path
 from bench.tasks_heldout3_b import HELDOUT3B_TASK_IDS, HELDOUT3B_TASKS
 from bench.tasks_heldout3_a import HELDOUT3A_TASKS
 from bench.tasks_heldout3_d import HELDOUT3D_TASK_IDS, HELDOUT3D_TASKS
+from bench.tasks_heldout3_c import HELDOUT3C_TASK_IDS, HELDOUT3C_TASKS
 
 FIXTURE_DIR = Path(__file__).parent.parent / "loop" / "fixture"
 
@@ -1197,6 +1198,14 @@ WEBVOYAGER_TASKS += HELDOUT3B_TASKS
 WEBVOYAGER_TASKS += HELDOUT3A_TASKS
 HELDOUT3A_TASK_IDS = tuple(task["id"] for task in HELDOUT3A_TASKS)
 WEBVOYAGER_TASKS += HELDOUT3D_TASKS
+WEBVOYAGER_TASKS += HELDOUT3C_TASKS
+# The frozen heldout3 test set: all four blind-authored splits. See docs/HELDOUT3_PLAN.md.
+HELDOUT3_TASK_IDS = (
+    *HELDOUT3A_TASK_IDS,
+    *HELDOUT3B_TASK_IDS,
+    *HELDOUT3C_TASK_IDS,
+    *HELDOUT3D_TASK_IDS,
+)
 
 # The three tasks the arms were tuned on. They stay inside the dev set.
 TUNED_PROBE_TASK_IDS = (
@@ -1280,6 +1289,8 @@ SPLIT_HELDOUT2 = "heldout2"
 SPLIT_HELDOUT3B = "heldout3b"
 SPLIT_HELDOUT3A = "heldout3a"
 SPLIT_HELDOUT3D = "heldout3d"
+SPLIT_HELDOUT3C = "heldout3c"
+SPLIT_HELDOUT3 = "heldout3"
 SPLIT_HONEST = "honest"
 # The scored set is held-out only. Dev is what we tune, and it is not scored.
 HONEST_TASK_IDS = HELD_OUT_TASK_IDS
@@ -1356,6 +1367,10 @@ def resolve_task_split(spec: str | None) -> str:
         return SPLIT_HELDOUT3A
     if key == "heldout3d":
         return SPLIT_HELDOUT3D
+    if key == "heldout3c":
+        return SPLIT_HELDOUT3C
+    if key == "heldout3":
+        return SPLIT_HELDOUT3
     if key == "honest":
         return SPLIT_HONEST
     raise ValueError(f"unknown split {spec!r}")
@@ -1376,6 +1391,10 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
         return _tasks_in_order(HELDOUT3A_TASK_IDS)
     if name == SPLIT_HELDOUT3D:
         return _tasks_in_order(HELDOUT3D_TASK_IDS)
+    if name == SPLIT_HELDOUT3C:
+        return _tasks_in_order(HELDOUT3C_TASK_IDS)
+    if name == SPLIT_HELDOUT3:
+        return _tasks_in_order(HELDOUT3_TASK_IDS)
     if name == SPLIT_HONEST:
         return _tasks_in_order(HONEST_TASK_IDS)
     return _tasks_in_order(TUNED_PROBE_TASK_IDS)
