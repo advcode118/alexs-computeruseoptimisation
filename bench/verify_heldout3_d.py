@@ -31,24 +31,24 @@ WRONG_VALUES = {
     "ho3d_value_nobel_1922_affiliation": "Copenhagen, Denmark",
     "ho3d_value_tailwind_text_base_leading": "calc(1.25 / 0.875)",
     "ho3d_value_playwright_test_timeout": "5",
-    "ho3d_value_sklearn_logreg_max_iter": "1000",
+    "ho3d_value_sklearn_logreg_max_iter": "lbfgs",
     "ho3d_value_pytorch_dropout_p": "False",
     "ho3d_value_webscraper_table_tim": "@dunno",
     "ho3d_value_rahulshetty_sql_price": "30",
     "ho3d_value_pandas_head_default": "tail",
-    "ho3d_form_uitap_sampleapp": "Log Out",
-    "ho3d_form_uitap_textinput": "Button",
+    "ho3d_form_parabank_login": "Accounts Overview",
+    "ho3d_form_qa_practice_textarea": "Requirements",
     "ho3d_form_scrapingcourse_login": "$52",
     "ho3d_form_pokeapi_pikachu": "pikachu",
-    "ho3d_form_qa_practice_input": "Result",
-    "ho3d_form_qa_practice_email": "Result",
+    "ho3d_form_qa_practice_input": "Requirements",
+    "ho3d_form_ultimateqa_contact": "Submit",
     "ho3d_spa_scrapingcourse_hero": "$52",
-    "ho3d_spa_uitap_ajax": "Data loaded",
-    "ho3d_spa_todomvc_count": "3 items left",
-    "ho3d_spa_scrapingcourse_infinite": "$52",
+    "ho3d_spa_rahul_shop_cart": "Shop Name",
+    "ho3d_spa_toolshop_pliers": "$12.01",
+    "ho3d_spa_scrapingcourse_load_more": "$74",
     "ho3d_title_pokemondb_after_pikachu": "Pikachu",
-    "ho3d_title_euler_after_palindrome": "Largest Palindrome Product",
-    "ho3d_title_vue_after_intro": "Introduction",
+    "ho3d_title_euler_after_palindrome": "Problem 5",
+    "ho3d_title_vue_after_intro": "Try Vue Online",
     "ho3d_title_ocaml_datatypes": "Values and Functions",
 }
 
@@ -60,9 +60,9 @@ DECOYS = {
     ],
     "ho3d_nav_vue_conditional": ["https://vuejs.org/guide/introduction.html", "https://vuejs.org/guide/essentials/list.html"],
     "ho3d_nav_euler_pythagorean": ["https://projecteuler.net/archives", "https://projecteuler.net/problem=90"],
-    "ho3d_nav_webscraper_priciest_touch": [
+    "ho3d_nav_webscraper_cheapest_touch": [
         "https://webscraper.io/test-sites/e-commerce/allinone/phones/touch",
-        "https://webscraper.io/test-sites/e-commerce/allinone/product/80",
+        "https://webscraper.io/test-sites/e-commerce/allinone/product/7",
     ],
     "ho3d_nav_openbsd_pf_shortcuts": ["https://www.openbsd.org/faq/pf/index.html", "https://www.openbsd.org/faq/pf/filter.html"],
     "ho3d_nav_react_first_component": [
@@ -89,8 +89,8 @@ DECOYS = {
     "ho3d_value_webscraper_table_tim": ["https://webscraper.io/test-sites/tables/tables-without-thead"],
     "ho3d_value_pandas_head_default": ["https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.tail.html"],
     "ho3d_search_videolan_cli": [
-        "https://wiki.videolan.org/index.php?search=command+line&title=Special%3ASearch&fulltext=Search",
-        "https://wiki.videolan.org/Windows_command-line_help/",
+        "https://wiki.videolan.org/index.php?search=streaming&title=Special%3ASearch&fulltext=Search",
+        "https://wiki.videolan.org/Command-line_interface/",
     ],
     "ho3d_search_pandas_read_csv": [
         "https://pandas.pydata.org/docs/search.html?q=read_csv",
@@ -105,8 +105,16 @@ DECOYS = {
         "https://docs.pytorch.org/docs/stable/search.html?q=Conv2d",
         "https://docs.pytorch.org/docs/stable/generated/torch.nn.Conv1d.html",
     ],
-    "ho3d_search_pokemondb_bulbasaur": ["https://pokemondb.net/search?q=bulbasaur", "https://pokemondb.net/pokedex/ivysaur"],
+    "ho3d_search_vue_teleport": ["https://vuejs.org/guide/built-ins/transition.html", "https://vuejs.org/api/built-in-components.html"],
     "ho3d_form_pokeapi_pikachu": ["https://pokeapi.co/api/v2/pokemon/pikachu"],
+    "ho3d_form_parabank_login": ["https://parabank.parasoft.com/parabank/about.htm"],
+    "ho3d_form_qa_practice_textarea": ["https://www.qa-practice.com/elements/input/simple"],
+    "ho3d_spa_rahul_shop_cart": ["https://rahulshettyacademy.com/angularpractice/"],
+    "ho3d_value_rahulshetty_sql_price": ["https://rahulshettyacademy.com/"],
+    "ho3d_form_qa_practice_input": ["https://www.qa-practice.com/elements/input/email"],
+    "ho3d_form_ultimateqa_contact": ["https://ultimateqa.com/automation/"],
+    "ho3d_spa_toolshop_pliers": ["https://practicesoftwaretesting.com/contact"],
+    "ho3d_spa_scrapingcourse_load_more": ["https://www.scrapingcourse.com/infinite-scrolling"],
     "ho3d_spa_scrapingcourse_hero": ["https://www.scrapingcourse.com/infinite-scrolling"],
     "ho3d_title_pokemondb_after_pikachu": ["https://pokemondb.net/pokedex/pikachu"],
     "ho3d_title_euler_after_palindrome": ["https://projecteuler.net/problem=4"],
@@ -136,6 +144,7 @@ VARIANTS = {
     "ho3d_value_pytorch_dropout_p": ["https://pytorch.org/docs/stable/generated/torch.nn.Dropout.html"],
     "ho3d_value_webscraper_table_tim": ["https://webscraper.io/test-sites/tables/tables-semantically-correct/"],
     "ho3d_search_videolan_cli": ["https://wiki.videolan.org/VLC_command-line_help"],
+    "ho3d_search_vue_teleport": ["https://vuejs.org/guide/built-ins/teleport", "https://vuejs.org/guide/built-ins/teleport.html#basic-usage"],
     "ho3d_search_pandas_read_csv": [
         "https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html#pandas.read_csv",
         "https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html",
@@ -146,8 +155,13 @@ VARIANTS = {
     "ho3d_search_openbsd_man_pledge": ["https://man.openbsd.org/pledge.2", "https://man.openbsd.org/OpenBSD-current/man2/pledge.2"],
     "ho3d_search_pytorch_conv2d": ["https://docs.pytorch.org/docs/2.15/generated/torch.nn.Conv2d.html"],
     "ho3d_form_scrapingcourse_login": ["https://www.scrapingcourse.com/dashboard/"],
+    "ho3d_form_parabank_login": ["https://parabank.parasoft.com/parabank/overview.htm?x=1"],
+    "ho3d_form_qa_practice_textarea": ["https://www.qa-practice.com/elements/textarea/single/"],
+    "ho3d_spa_rahul_shop_cart": ["https://rahulshettyacademy.com/angularpractice/shop/"],
+    "ho3d_form_qa_practice_input": ["https://www.qa-practice.com/elements/input/simple/"],
     "ho3d_spa_scrapingcourse_hero": ["https://www.scrapingcourse.com/javascript-rendering/"],
-    "ho3d_spa_todomvc_count": ["https://todomvc.com/examples/react/dist/index.html", "https://todomvc.com/examples/react/dist/#/active"],
+    "ho3d_spa_toolshop_pliers": ["https://practicesoftwaretesting.com/#/"],
+    "ho3d_spa_scrapingcourse_load_more": ["https://www.scrapingcourse.com/button-click/"],
     "ho3d_title_pokemondb_after_pikachu": ["https://pokemondb.net/pokedex/raichu/"],
     "ho3d_title_euler_after_palindrome": ["https://projecteuler.net/problem=5?x=1"],
     "ho3d_title_vue_after_intro": ["https://vuejs.org/guide/quick-start"],
@@ -160,21 +174,22 @@ START_IS_FINISHED = {
     "ho3d_value_tailwind_text_base_leading",
     "ho3d_value_playwright_test_timeout",
     "ho3d_value_rahulshetty_sql_price",
-    "ho3d_form_uitap_sampleapp",
-    "ho3d_form_uitap_textinput",
+    "ho3d_form_qa_practice_textarea",
     "ho3d_form_pokeapi_pikachu",
     "ho3d_form_qa_practice_input",
-    "ho3d_form_qa_practice_email",
     "ho3d_spa_scrapingcourse_hero",
-    "ho3d_spa_uitap_ajax",
-    "ho3d_spa_todomvc_count",
-    "ho3d_spa_scrapingcourse_infinite",
+    "ho3d_spa_rahul_shop_cart",
+    "ho3d_form_ultimateqa_contact",
+    "ho3d_spa_toolshop_pliers",
+    "ho3d_spa_scrapingcourse_load_more",
 }
 
 # Text from the answer's row that must be missing when the finished page loads without JavaScript.
 SCRIPT_ONLY = {
     "ho3d_spa_scrapingcourse_hero": "Hero Hoodie",
     "ho3d_form_scrapingcourse_login": "Teton Pullover Hoodie",
+    "ho3d_spa_toolshop_pliers": "Combination Pliers",
+    "ho3d_spa_scrapingcourse_load_more": "Lando Gym Jacket",
 }
 
 DEBUG = bool(os.environ.get("HO3D_DEBUG"))
@@ -251,10 +266,6 @@ async def _sphinx_search(page, button, query: str, result) -> None:
     await _follow(page, result)
 
 
-def _scroll_prices_js() -> str:
-    return "Array.from(document.querySelectorAll('.product-item, .product, [class*=product]')).length"
-
-
 async def _interact(page, task: dict) -> None:
     task_id = task["id"]
     if task_id == "ho3d_nav_nobel_physics_1921_facts":
@@ -271,15 +282,15 @@ async def _interact(page, task: dict) -> None:
         await _follow(page, _link(page, "Special Pythagorean Triplet"))
     elif task_id == "ho3d_title_euler_after_palindrome":
         await _follow(page, _link(page, "Smallest Multiple"))
-    elif task_id == "ho3d_nav_webscraper_priciest_touch":
-        await _follow(page, _link(page, "Phones"))
-        await _follow(page, _link(page, "Touch"))
+    elif task_id == "ho3d_nav_webscraper_cheapest_touch":
+        await _follow(page, page.locator("a[href$='/allinone/phones']"))
+        await _follow(page, page.locator("a[href$='/allinone/phones/touch']"))
         pods = page.locator(".thumbnail")
         count = await pods.count()
         prices = [float((await pods.nth(i).locator(".price").inner_text()).strip().strip("$")) for i in range(count)]
-        top = max(prices)
-        assert prices.count(top) == 1, ("tied price", prices)
-        await _follow(page, pods.nth(prices.index(top)).locator("a.title"))
+        low = min(prices)
+        assert prices.count(low) == 1, ("tied price", prices)
+        await _follow(page, pods.nth(prices.index(low)).locator("a.title"))
     elif task_id == "ho3d_nav_openbsd_pf_shortcuts":
         await _follow(page, _link(page, "FAQ"))
         await _follow(page, _link(page, "PF User's Guide"))
@@ -301,7 +312,7 @@ async def _interact(page, task: dict) -> None:
         await _follow(page, page.locator("a[href='/pokedex/national']:visible"))
         await _follow(page, page.locator("a.ent-name[href='/pokedex/mewtwo']"))
     elif task_id == "ho3d_nav_nim_strutils":
-        await _follow(page, page.locator("a[href='documentation.html']"))
+        await _follow(page, page.locator("a[href$='documentation.html']"))
         await _follow(page, _link(page, "Standard Library"))
         await _follow(page, page.locator("a[href='strutils.html']"))
     elif task_id == "ho3d_value_rcsb_1tup_resolution":
@@ -334,20 +345,18 @@ async def _interact(page, task: dict) -> None:
     elif task_id == "ho3d_search_openbsd_man_pledge":
         await _search(page, page.locator("input[name='query']"), "pledge", None)
     elif task_id == "ho3d_search_pytorch_conv2d":
-        await _sphinx_search(page, page.locator("button.search-button__button, button.search-button-field"), "Conv2d",
-                             page.locator("#search-results a[href*='torch.nn.Conv2d.html']"))
-    elif task_id == "ho3d_search_pokemondb_bulbasaur":
-        box = page.locator("input[name='q']:visible, input[type='search']:visible")
-        await _search(page, box, "Bulbasaur", page.locator("a[href='https://pokemondb.net/pokedex/bulbasaur'], a[href='/pokedex/bulbasaur']"))
-    elif task_id == "ho3d_form_uitap_sampleapp":
-        await page.locator("input[name='UserName']").fill("Alex")
-        await page.locator("input[name='Password']").fill("pwd")
-        await page.locator("#login").click()
-        await page.get_by_text("Welcome, Alex!").wait_for()
-    elif task_id == "ho3d_form_uitap_textinput":
-        await page.locator("#newButtonName").fill("Renamed")
-        await page.locator("#updatingButton").click()
-        await page.locator("#updatingButton", has_text="Renamed").wait_for()
+        await _search(page, page.locator("input#search-input:visible"), "Conv2d",
+                      page.locator("a[href$='/generated/torch.nn.Conv2d.html']"))
+    elif task_id == "ho3d_search_vue_teleport":
+        await page.locator("button.DocSearch-Button").click()
+        await page.locator("input.DocSearch-Input").fill("teleport")
+        hit = page.locator(".DocSearch-Hit a[href*='/guide/built-ins/teleport']")
+        await hit.first.wait_for()
+        await _follow(page, hit)
+    elif task_id == "ho3d_form_parabank_login":
+        await page.locator("input[name='username']").fill("john")
+        await page.locator("input[name='password']").fill("demo")
+        await _submit(page, lambda: page.locator("input[value='Log In']").click())
     elif task_id == "ho3d_form_scrapingcourse_login":
         await page.locator("#email").fill("admin@example.com")
         await page.locator("#password").fill("password")
@@ -357,28 +366,28 @@ async def _interact(page, task: dict) -> None:
         await page.locator("#url-input").fill("pokemon/pikachu")
         await page.get_by_role("button", name="Submit", exact=True).click()
         await page.get_by_text("Resource for pikachu").wait_for()
+    elif task_id == "ho3d_form_qa_practice_textarea":
+        await page.locator("textarea[name='text_area']").fill("jupiter")
+        await _submit(page, lambda: page.locator("#submit-id-submit").click())
     elif task_id == "ho3d_form_qa_practice_input":
-        await page.locator("input[name='text_string']").fill("hello_world")
+        await page.locator("input[name='text_string']").fill("paris")
         await _submit(page, lambda: page.locator("input[name='text_string']").press("Enter"))
-    elif task_id == "ho3d_form_qa_practice_email":
-        await page.locator("input[name='email']").fill("alex@example.com")
-        await _submit(page, lambda: page.locator("input[name='email']").press("Enter"))
+    elif task_id == "ho3d_form_ultimateqa_contact":
+        await page.locator("#et_pb_contact_name_0").fill("Alex")
+        await page.locator("#et_pb_contact_message_0").fill("Hello from a test")
+        await page.locator("form:has(#et_pb_contact_name_0) button[type='submit']").click()
+        await page.wait_for_timeout(4000)
     elif task_id == "ho3d_spa_scrapingcourse_hero":
         await page.get_by_text("Hero Hoodie", exact=True).wait_for()
-    elif task_id == "ho3d_spa_uitap_ajax":
-        await page.locator("#ajaxButton").click()
-        await page.get_by_text("Data loaded with AJAX get request.").wait_for(timeout=30000)
-    elif task_id == "ho3d_spa_todomvc_count":
-        box = page.locator("input.new-todo")
-        for name in ("one", "two", "three"):
-            await box.fill(name)
-            await box.press("Enter")
-        await page.locator("li", has_text="two").locator("input.toggle").check()
-        await page.get_by_text("2 items left").first.wait_for()
-    elif task_id == "ho3d_spa_scrapingcourse_infinite":
-        for _ in range(8):
-            await page.mouse.wheel(0, 4000)
-            await page.wait_for_timeout(600)
+    elif task_id == "ho3d_spa_rahul_shop_cart":
+        await page.get_by_text("iphone X", exact=True).wait_for()
+        await page.locator("app-card").first.get_by_role("button", name="Add").click()
+        await page.get_by_text("Checkout ( 1 )").first.wait_for()
+    elif task_id == "ho3d_spa_toolshop_pliers":
+        await page.get_by_text("Combination Pliers", exact=True).first.wait_for()
+    elif task_id == "ho3d_spa_scrapingcourse_load_more":
+        await page.locator("#load-more-btn").click()
+        await page.get_by_text("Lando Gym Jacket", exact=True).wait_for()
     elif task_id == "ho3d_title_pokemondb_after_pikachu":
         await _follow(page, page.locator("a[href='/pokedex/raichu']").first)
     elif task_id == "ho3d_title_vue_after_intro":
