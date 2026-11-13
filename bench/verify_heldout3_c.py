@@ -35,7 +35,7 @@ WRONG_VALUES = {
     "ho3c_value_chemicool_gallium_melting": "302.91",
     "ho3c_value_brew_ripgrep_license": "BurntSushi",
     "ho3c_value_geonames_iceland_area": "392,404",
-    "ho3c_value_duckdb_hugeint_size": "8",
+    "ho3c_value_duckdb_utinyint_max": "2^7 - 1",
     "ho3c_value_eslint_file_line_limit": "skipBlankLines",
     "ho3c_value_mathsisfun_mile_km": "0.3048",
     "ho3c_value_govuk_vat_reduced": "20%",
@@ -45,7 +45,7 @@ WRONG_VALUES = {
     "ho3c_form_calcnet_sales_tax": "20.63",
     "ho3c_form_lipsum_eight_words": "8",
     "ho3c_form_alpine_bash_license": "v3.20",
-    "ho3c_form_geonames_postal_zermatt": "Zermatt",
+    "ho3c_form_alpine_envsubst_file": "/usr/bin/envsubst",
     "ho3c_spa_datatables_ajax_salary": "$1,200,000",
     "ho3c_spa_crontab_weekday_text": "any value",
     "ho3c_spa_bstack_pro_max": "$999.00",
@@ -61,7 +61,6 @@ DECOYS = {
     "ho3c_nav_musicbrainz_ok_computer": [
         f"https://musicbrainz.org/artist/{RADIOHEAD}",
         "https://musicbrainz.org/release-group/e75c0549-ad55-39e3-8025-c72c5d4a3c5d",
-        "https://musicbrainz.org/search?query=Radiohead&type=artist&method=indexed",
     ],
     "ho3c_nav_graphviz_rankdir": [
         "https://www.graphviz.org/documentation/",
@@ -99,7 +98,7 @@ DECOYS = {
     "ho3c_value_chemicool_gallium_melting": ["https://www.chemicool.com/elements/aluminum.html"],
     "ho3c_value_brew_ripgrep_license": ["https://formulae.brew.sh/formula/", "https://formulae.brew.sh/formula/grep"],
     "ho3c_value_geonames_iceland_area": ["https://www.geonames.org/statistics"],
-    "ho3c_value_duckdb_hugeint_size": ["https://duckdb.org/docs/stable/sql/data_types/overview"],
+    "ho3c_value_duckdb_utinyint_max": ["https://duckdb.org/docs/stable/sql/data_types/overview"],
     "ho3c_value_eslint_file_line_limit": ["https://eslint.org/docs/latest/rules/max-lines-per-function"],
     "ho3c_value_mathsisfun_mile_km": ["https://www.mathsisfun.com/"],
     "ho3c_value_govuk_vat_reduced": ["https://www.gov.uk/vat-registration"],
@@ -128,7 +127,7 @@ DECOYS = {
     "ho3c_form_calcnet_percent_of": ["https://www.calculator.net/percent-calculator.html"],
     "ho3c_form_calcnet_mean": ["https://www.calculator.net/average-calculator.html"],
     "ho3c_form_alpine_bash_license": ["https://pkgs.alpinelinux.org/packages?name=curl&branch=v3.20"],
-    "ho3c_form_geonames_postal_zermatt": ["https://www.geonames.org/postalcode-search.html?q=Matterhorn"],
+    "ho3c_form_alpine_envsubst_file": ["https://pkgs.alpinelinux.org/contents?file=ssl_client&branch=v3.20&arch=x86_64"],
     "ho3c_spa_datatables_ajax_salary": ["https://datatables.net/examples/core/data_sources/ajax.html"],
     "ho3c_spa_crontab_weekday_text": ["https://crontab.guru/examples.html"],
     "ho3c_spa_bstack_pro_max": ["https://bstackdemo.com/signin"],
@@ -168,7 +167,7 @@ VARIANTS = {
     "ho3c_value_chemicool_gallium_melting": ["https://chemicool.com/elements/gallium.html"],
     "ho3c_value_brew_ripgrep_license": ["https://formulae.brew.sh/formula/ripgrep/", "https://formulae.brew.sh/formula/ripgrep.html"],
     "ho3c_value_geonames_iceland_area": ["https://www.geonames.org/countries/", "https://www.geonames.org/countries"],
-    "ho3c_value_duckdb_hugeint_size": [
+    "ho3c_value_duckdb_utinyint_max": [
         "https://duckdb.org/docs/stable/sql/data_types/numeric",
         "https://duckdb.org/docs/2.0/sql/data_types/numeric/",
     ],
@@ -193,7 +192,7 @@ VARIANTS = {
     ],
     "ho3c_form_calcnet_mean": ["https://www.calculator.net/average-calculator.html?numberinputs=5%2C+9%2C+17%2C+22%2C+41&x=Calculate"],
     "ho3c_form_alpine_bash_license": ["https://pkgs.alpinelinux.org/packages?name=bash&branch=v3.20&repo=&arch=x86_64&origin=&flagged=&maintainer="],
-    "ho3c_form_geonames_postal_zermatt": ["https://www.geonames.org/postalcode-search.html?q=Zermatt&country="],
+    "ho3c_form_alpine_envsubst_file": ["https://pkgs.alpinelinux.org/contents?file=envsubst&path=&name=&branch=v3.20&repo=&arch=x86_64"],
     "ho3c_spa_datatables_ajax_salary": ["https://datatables.net/examples/ajax/objects.html"],
     "ho3c_spa_crontab_weekday_text": ["https://crontab.guru/#30_8_*_*_1-5", "https://crontab.guru/"],
     "ho3c_spa_bstack_pro_max": ["https://bstackdemo.com/?vendors=Apple", "https://www.bstackdemo.com/"],
@@ -338,7 +337,7 @@ async def _interact(page, task: dict) -> None:
         await _follow(page, _href(page, "/formula/ripgrep"))
     elif task_id == "ho3c_value_geonames_iceland_area":
         await _follow(page, _href(page, "/countries"))
-    elif task_id == "ho3c_value_duckdb_hugeint_size":
+    elif task_id == "ho3c_value_duckdb_utinyint_max":
         await _follow(page, page.locator("a[href*='data_types/numeric']"))
     elif task_id == "ho3c_value_eslint_file_line_limit":
         await _follow(page, _href(page, "/docs/latest/rules/max-lines"))
@@ -376,10 +375,11 @@ async def _interact(page, task: dict) -> None:
         await page.locator("input[name='name']").fill("bash")
         await page.locator("select[name='branch']").select_option("v3.20")
         await _submit(page, lambda: page.locator("form button").first.click())
-    elif task_id == "ho3c_form_geonames_postal_zermatt":
-        box = page.locator("input[name='q']:visible").first
-        await box.fill("Zermatt")
-        await _submit(page, lambda: box.press("Enter"))
+    elif task_id == "ho3c_form_alpine_envsubst_file":
+        await page.locator("input[name='file']").fill("envsubst")
+        await page.locator("select[name='branch']").select_option("v3.20")
+        await page.locator("select[name='arch']").select_option("x86_64")
+        await _submit(page, lambda: page.locator("form button").first.click())
     elif task_id == "ho3c_spa_datatables_ajax_salary":
         await page.get_by_text("Airi Satou").first.wait_for()
     elif task_id == "ho3c_spa_crontab_weekday_text":
