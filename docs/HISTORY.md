@@ -259,3 +259,9 @@ Next, in order:
    - Mission 10 (CUO-33/34) has not started. `cursor/local-bench-holdout-a63b` may contain earlier work on it.
    - The progress site: decide which site history is canonical (`main` vs the `cursor/progress-site-redesign-8676` line, PR #43). The live Vercel site was deployed from detached worktrees.
 5. **Leave open:** PRs #45 (failure taxonomy) and #46 (check_page MCP tests) need a review and stay stacked where they are.
+
+## 11 Nov 2026: plain rules in script_first's runtime check (branch `t3/runtime-plain-rules`)
+
+**Why.** In the Decisions live run, 7 of the 9 right overturns were scripts whose answer was the page URL (4) or the page title (3). `runtime_verdict` failed them only because that answer is not in the body text. A plain rule fixes these with no model call.
+
+**What changed, in `runtime_verdict` only.** (1) An http(s) answer that is the same page as the live or canonical URL (`_same_page`) is not checked against the page text. (2) The answer check also looks in the page title and h1. (3) The answer check folds the common dash variants (hyphen, non-breaking hyphen, figure, en and em dash, horizontal bar, minus) on both sides; non-breaking spaces already fold through `str.split()`. This uses a separate `_norm_runtime`, so the grade's `_norm_answer` is unchanged. Rules 1 and 2 do not apply when the live page is the start page, so a script that never left the start page still gets its repair. A PASS from a rule says which rule in its reason. A URL answer for another page, or an answer found nowhere, still FAILs. Task markers and the grade are untouched.

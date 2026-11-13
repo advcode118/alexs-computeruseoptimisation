@@ -1,0 +1,105 @@
+{
+  "seed": 20261113,
+  "resamples": 10000,
+  "pilot": false,
+  "primary_model": "gpt-6-luna",
+  "accuracy": "behind",
+  "within_10pp_margin": "no",
+  "bars": {
+    "The self-check is fit to use": "met",
+    "Cheaper": "not met",
+    "Faster": "met",
+    "Hybrid worth building": "not met"
+  },
+  "counts": {
+    "tasks": 138,
+    "sites": 87,
+    "runs_script_first": 2,
+    "runs_browser_use": 1,
+    "runs_paired": 1,
+    "rows_dropped_missing_pairs": 138,
+    "rows_skipped_no_arm": 3,
+    "rows_skipped_other_arm": 0,
+    "rows_skipped_incomplete": 0,
+    "rows_outside_task_list": 0
+  },
+  "models": {
+    "gpt-6-luna": {
+      "tasks": 138,
+      "sites": 87,
+      "runs_script_first": 2,
+      "runs_browser_use": 1,
+      "runs_paired": 1,
+      "rows_dropped_missing_pairs": 138,
+      "paired_diff": {
+        "estimate": -0.42028985507246375,
+        "ci95": [
+          -0.5109489051094891,
+          -0.33088235294117646
+        ]
+      },
+      "accuracy": "behind",
+      "within_10pp_margin": "no",
+      "pass_rate": {
+        "script_first": {
+          "estimate": 0.5434782608695652,
+          "ci95": [
+            0.460431654676259,
+            0.6258992805755396
+          ]
+        },
+        "browser_use": {
+          "estimate": 0.9637681159420289,
+          "ci95": [
+            0.9300699300699301,
+            0.9926470588235294
+          ]
+        }
+      },
+      "self_check": {
+        "precision": {
+          "estimate": 0.8426966292134831,
+          "ci95": [
+            0.759493670886076,
+            0.9139784946236559
+          ]
+        },
+        "recall": {
+          "estimate": 1.0,
+          "ci95": [
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "usd_per_passed_task": {
+        "script_first": 0.0009965066666666666,
+        "browser_use": 0.0013466541353383459,
+        "ratio_sf_over_bu": 0.7399870839265608
+      },
+      "median_wall_ms": {
+        "script_first": 7317.831450010999,
+        "browser_use": 20220.719049990294,
+        "ratio_sf_over_bu": 0.3618976868191298
+      },
+      "hybrid": {
+        "pass_rate": {
+          "estimate": 0.8913043478260869,
+          "ci95": [
+            0.8333333333333334,
+            0.9411764705882353
+          ]
+        },
+        "usd_per_passed_task": 0.0012238617886178862,
+        "ratio_to_bu": 0.9088167158157442,
+        "median_wall_ms": 7670.730350015219
+      },
+      "bars": {
+        "The self-check is fit to use": "met",
+        "Cheaper": "not met",
+        "Faster": "met",
+        "Hybrid worth building": "not met"
+      }
+    }
+  }
+}

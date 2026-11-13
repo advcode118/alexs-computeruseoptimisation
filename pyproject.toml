@@ -8,7 +8,7 @@ dependencies = ["playwright>=1.49", "mcp==2.3.0", "anyio"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
-browser_use = ["browser-use==1.0.0"]
+browser_use = ["browser-use==1.0.3"]
 
 [project.scripts]
 playwright-mcp-proxy = "proxy.server:main"

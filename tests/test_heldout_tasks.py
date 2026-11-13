@@ -502,7 +502,12 @@ def test_answers_stay_off_the_prompt_repair_and_patch_turn():
     standing.append(("patch-tool", json.dumps(PATCH_TOOL)))
     standing.append(("planner", planner._SYSTEM))
     standing.append(("judge-system", JUDGE_SYSTEM))
-    for task in get_held_out_tasks():
+    covered = [*get_held_out_tasks(), *tasks_for_split("heldout3a"), *tasks_for_split("heldout3b"), *tasks_for_split("heldout3c"), *tasks_for_split("heldout3d")]
+    assert any(task["id"].startswith("ho3a_") for task in covered)
+    assert any(task["id"].startswith("ho3b_") for task in covered)
+    assert any(task["id"].startswith("ho3d_") for task in covered)
+    assert any(task["id"].startswith("ho3c_") for task in covered)
+    for task in covered:
         markers = task["end_markers"]
         url_token = str(markers.get("url_contains") or "")
         task_text = task["description"] + "\n" + task["start_url"]

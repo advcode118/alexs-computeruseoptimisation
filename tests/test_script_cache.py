@@ -592,8 +592,8 @@ def test_fail_repair_hides_selector_text_and_judge_markers(tmp_path):
                 _text_reply("TASK_FAILED"),
             ]
 
-        async def create_message(self, messages, tools, system=None, max_tokens=4096):
-            del tools, max_tokens
+        async def create_message(self, messages, tools, system=None, max_tokens=4096, **kwargs):
+            del tools, max_tokens, kwargs
             self.seen.append({"messages": messages, "system": system})
             return self._replies.pop(0), 1.0
 

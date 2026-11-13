@@ -87,7 +87,7 @@ Guidelines:
 - Use browser_click with target (ref like "S1E2") to click elements
 - Use browser_type with target and text to type into fields
 - Use browser_navigate with url to navigate to pages
-- When the task is complete, respond with TASK_COMPLETE
+- When the task is complete, respond with TASK_COMPLETE. If the task asks for a value, such as a title, a name, or a number, put that exact value in the same reply
 - If you cannot complete the task, respond with TASK_FAILED and explain why
 
 Be efficient - try to complete the task in as few steps as possible."""
@@ -159,6 +159,8 @@ class TaskResult:
     # Cache writes are a slice of input tokens. Claude stays at 0.
     total_cache_write_30m_tokens: int = 0
     total_cache_write_12h_tokens: int = 0
+    repair_sent: bool = False
+    repair_reply: str = "none"
 
 
 def estimate_tokens(text: str) -> int:
@@ -183,6 +185,8 @@ def cap_snapshot_text(text: str, limit: int = MAX_SNAPSHOT_CHARS) -> str:
 def cap_messages_for_model(
     messages: list[dict],
     max_pairs: int = MAX_HISTORY_PAIRS,
+    *,
+    script_first: bool = False,
 ) -> list[dict]:
     """Keep the opening task and the last few assistant/tool pairs.
 
@@ -202,10 +206,10 @@ def cap_messages_for_model(
     if bucket:
         pairs.append(bucket)
     kept = [message for pair in pairs[-max_pairs:] for message in pair]
-    return [_cap_message(message) for message in (head, *kept)]
+    return [_cap_message(message, script_first=script_first) for message in (head, *kept)]
 
 
-def _cap_message(message: dict) -> dict:
+def _cap_message(message: dict, *, script_first: bool = False) -> dict:
     content = message.get("content")
     if not isinstance(content, list):
         return message
@@ -217,7 +221,12 @@ def _cap_message(message: dict) -> dict:
             and block.get("type") == "tool_result"
             and isinstance(block.get("content"), str)
         ):
-            capped = cap_snapshot_text(block["content"])
+            if script_first:
+                from bench.script_first import budget_script_result
+
+                capped = budget_script_result(block["content"], MAX_SNAPSHOT_CHARS)
+            else:
+                capped = cap_snapshot_text(block["content"])
             if capped != block["content"]:
                 changed = True
                 block = {**block, "content": capped}
@@ -661,6 +670,7 @@ def message_payload(
     max_tokens: int,
     *,
     cache_prefix: bool,
+    tool_choice: dict | None = None,
 ) -> dict:
     """The JSON body of one Messages request. This does not open a connection."""
     system_text = system or SYSTEM_PROMPT
@@ -668,13 +678,16 @@ def message_payload(
     sent_tools: list = list(tools)
     if cache_prefix:
         sent_system, sent_tools = cached_prompt_prefix(system_text, sent_tools)
-    return {
+    payload = {
         "model": model,
         "max_tokens": max_tokens,
         "system": sent_system,
         "messages": messages,
         "tools": sent_tools,
     }
+    if tool_choice is not None:
+        payload["tool_choice"] = tool_choice
+    return payload
 
 
 class AnthropicClient:
@@ -693,6 +706,7 @@ class AnthropicClient:
         tools: list[dict],
         system: str | None = None,
         max_tokens: int = 4096,
+        tool_choice: dict | None = None,
     ) -> tuple[dict, float]:
         """Create a message and return (response, time_ms)."""
         assert_allowed_model(self.model)
@@ -705,6 +719,7 @@ class AnthropicClient:
             system,
             max_tokens,
             cache_prefix=self.cache_prefix,
+            tool_choice=tool_choice,
         )
 
         headers = {
@@ -913,7 +928,12 @@ class BenchmarkHarness:
             fingerprint_from_payload,
             patch_request,
         )
-        from bench.script_first import PASS, EvidenceVerdict, script_runtime_verdict
+        from bench.script_first import (
+            PASS,
+            EvidenceVerdict,
+            script_runtime_verdict,
+            task_asks_value,
+        )
         from proxy.script import ScriptError
 
         outcome = {
@@ -940,7 +960,12 @@ class BenchmarkHarness:
             outcome["tool_ms"] += tool_ms
             page_url = page_url_from_result(result_text)
             # The live check has no answer key. The final grade still does.
-            verdict, payload = script_runtime_verdict(result_text, page_url, start_url)
+            verdict, payload = script_runtime_verdict(
+                result_text,
+                page_url,
+                start_url,
+                asks_value=task_asks_value(task_description),
+            )
             selector_text, claimed_answer, page_text, returned = logged_evidence(payload)
             steps.append(
                 StepMetrics(
@@ -1139,6 +1164,8 @@ class BenchmarkHarness:
         turn_limit = self.max_steps
         script_calls = 0
         repairs_sent = 0
+        awaiting_repair_reply = False
+        repair_reply = "none"
         refusal_extended = False
         previous_payload: dict | None = None
         end_state = ""
@@ -1161,6 +1188,7 @@ class BenchmarkHarness:
                 repair_request,
                 script_made_progress,
                 script_runtime_verdict,
+                task_asks_value,
             )
             # No answer key while the run is live. The task's markers are read
             # only by the post-run grade, the same as for every other arm.
@@ -1204,10 +1232,14 @@ class BenchmarkHarness:
                 step_num += 1
 
                 self._begin_browser_launch()
+                request_options = {}
+                if self.arm == "script_first" and awaiting_repair_reply:
+                    request_options["tool_choice"] = "required" if self.provider == "openai" else {"type": "any"}
                 response, model_ms = await self.anthropic.create_message(
-                    cap_messages_for_model(messages),
+                    cap_messages_for_model(messages, script_first=self.arm == "script_first"),
                     tools,
                     system=self.system_prompt,
+                    **request_options,
                 )
                 model_calls += 1
                 total_model_ms += model_ms
@@ -1241,7 +1273,10 @@ class BenchmarkHarness:
                         if "TASK_COMPLETE" in text:
                             success = True
                             success_reason = "Task completed successfully"
-                            spoken_answer = spoken_claim(text)
+                            # The answer may sit in another text block of the same reply.
+                            spoken_answer = spoken_claim(
+                                "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
+                            )
                             break
                         if "TASK_FAILED" in text:
                             success = False
@@ -1255,6 +1290,16 @@ class BenchmarkHarness:
                     messages.append({"role": "assistant", "content": assistant_content})
                     break
 
+                if self.arm == "script_first" and awaiting_repair_reply:
+                    names = {tool.get("name") for tool in tool_uses}
+                    if "run_script" in names:
+                        repair_reply = "script"
+                    elif "task_failed" in names or saw_failed_text:
+                        repair_reply = "task_failed"
+                    elif any(block.get("text", "").strip() for block in assistant_content):
+                        repair_reply = "prose"
+                    awaiting_repair_reply = False
+
                 if not tool_uses:
                     if self.arm == "script_first" and saw_complete:
                         failure = ""
@@ -1264,6 +1309,7 @@ class BenchmarkHarness:
                             messages.append({"role": "assistant", "content": assistant_content})
                             messages.append({"role": "user", "content": repair_request(last_url, failure)})
                             repairs_sent += 1
+                            awaiting_repair_reply = True
                             turn_limit = next_script_first_limit(
                                 step_num=step_num,
                                 limit=turn_limit,
@@ -1295,6 +1341,17 @@ class BenchmarkHarness:
                         break
                     if stop_reason == "end_turn":
                         success_reason = "Model ended without completing task"
+                    if self.arm != "script_first":
+                        # A model that ends in plain prose without the stop token
+                        # still made a claim. The grade judges it like any other.
+                        spoken_answer = spoken_claim(
+                            "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
+                        )
+                        if spoken_answer and stop_reason == "end_turn":
+                            # A final answer with no TASK_FAILED is a completion
+                            # claim, like browser_use's done(). The grade checks it.
+                            success = True
+                            success_reason = "Task completed with a final answer"
                     break
 
                 if self._pending_snapshot_path is not None:
@@ -1311,6 +1368,12 @@ class BenchmarkHarness:
                     tool_name = tool_use.get("name", "")
                     tool_args = tool_use.get("input", {})
                     tool_id = tool_use.get("id", "")
+
+                    if self.arm == "script_first" and tool_name == "task_failed":
+                        success = False
+                        success_reason = f"Task failed: {tool_args.get('reason', '')}"
+                        stop_after_tools = True
+                        break
 
                     finished_first = script_calls >= 1 and repairs_sent < 1
                     refused = (
@@ -1373,7 +1436,12 @@ class BenchmarkHarness:
                             script_calls += 1
                             # page_url stays the live URL. Markers never rewrite it.
                             # No answer key while the run is live. The final grade uses the markers.
-                            verdict, payload = script_runtime_verdict(result_text, page_url, start_url)
+                            verdict, payload = script_runtime_verdict(
+                                result_text,
+                                page_url,
+                                start_url,
+                                asks_value=task_asks_value(task_description),
+                            )
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
                             script_steps = int(payload.get("steps") or 0)
@@ -1386,12 +1454,13 @@ class BenchmarkHarness:
                             failure = verdict.reason if verdict.verdict == FAIL else ""
                             logged_selector, logged_answer, logged_page_text, logged_return = logged_evidence(payload)
                             # The judge already read selector_text. The model must not.
-                            result_text = model_visible_script_result(result_text)
                             repair_pending = False
                             if verdict.verdict == FAIL and repairs_sent < 1:
                                 result_text += "\n" + repair_request(page_url, failure)
                                 repairs_sent += 1
+                                awaiting_repair_reply = True
                                 repair_pending = True
+                            result_text = model_visible_script_result(result_text, failed=verdict.verdict == FAIL)
                             turn_limit = next_script_first_limit(
                                 step_num=step_num,
                                 limit=turn_limit,
@@ -1565,6 +1634,8 @@ class BenchmarkHarness:
             total_cached_tokens=total_cached_tokens,
             total_cache_write_30m_tokens=total_cache_write_30m_tokens,
             total_cache_write_12h_tokens=total_cache_write_12h_tokens,
+            repair_sent=repairs_sent > 0,
+            repair_reply=repair_reply,
         )
 
     def _empty_result(

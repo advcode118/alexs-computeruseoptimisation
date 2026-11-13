@@ -1,0 +1,54 @@
+seed: 20261113
+resamples: 10000
+pilot: yes
+primary_model: gpt-6-luna
+accuracy: behind
+within_10pp_margin: no
+bar The self-check is fit to use: met
+bar Cheaper: not met
+bar Faster: met
+bar Hybrid worth building: not met
+counts tasks: 20
+counts sites: 18
+counts runs_script_first: 3
+counts runs_browser_use: 3
+counts runs_paired: 3
+counts rows_dropped_missing_pairs: 0
+counts rows_skipped_no_arm: 6
+counts rows_skipped_other_arm: 0
+counts rows_skipped_incomplete: 0
+counts rows_outside_task_list: 0
+model gpt-6-luna
+  tasks: 20
+  sites: 18
+  runs_script_first: 3
+  runs_browser_use: 3
+  runs_paired: 3
+  rows_dropped_missing_pairs: 0
+  paired_diff: -0.283333
+  paired_diff_ci95: [-0.466667, -0.126984]
+  accuracy: behind
+  within_10pp_margin: no
+  pass_rate_script_first: 0.716667
+  pass_rate_script_first_ci95: [0.533333, 0.873016]
+  pass_rate_browser_use: 1.000000
+  pass_rate_browser_use_ci95: [1.000000, 1.000000]
+  self_check_precision: 0.977273
+  self_check_precision_ci95: [0.923077, 1.000000]
+  self_check_recall: 1.000000
+  self_check_recall_ci95: [1.000000, 1.000000]
+  usd_per_passed_task_script_first: 0.000663
+  usd_per_passed_task_browser_use: 0.001158
+  usd_ratio_sf_over_bu: 0.572561
+  median_wall_ms_script_first: 5360.965683
+  median_wall_ms_browser_use: 16294.130750
+  wall_ratio_sf_over_bu: 0.329012
+  hybrid_pass_rate: 0.983333
+  hybrid_pass_rate_ci95: [0.947368, 1.000000]
+  hybrid_usd_per_passed_task: 0.000933
+  hybrid_usd_ratio_to_bu: 0.805793
+  hybrid_median_wall_ms: 5750.283000
+  bar The self-check is fit to use: met
+  bar Cheaper: not met
+  bar Faster: met
+  bar Hybrid worth building: not met

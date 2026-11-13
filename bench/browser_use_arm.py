@@ -19,7 +19,7 @@ from bench.budget import ALLOWED_MODEL, assert_allowed_model, estimate_usd
 from bench.probe import grade_observation
 from bench.script_first import _PAGE_EVIDENCE_JS, text_from_page_read
 
-BROWSER_USE_VERSION = "1.0.0"
+BROWSER_USE_VERSION = "1.0.3"
 LOCAL_BROWSER = "chromium"
 BROWSER_USE_MAX_STEPS = 30
 # The same page-evidence read script_first uses, as one CDP expression.

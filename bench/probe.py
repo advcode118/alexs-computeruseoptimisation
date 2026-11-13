@@ -50,6 +50,11 @@ runs it with no per-click settle or snapshot.
 wider tune set. --split held-out is the scored set. Dev and held-out are
 disjoint, so the tasks we tune are not the tasks we score. Do not run the
 held-out command from this checkout. It is a live Claude probe.
+--split heldout2 selects twenty independently authored public tasks.
+--split heldout3a and --split heldout3b select thirty more each, and
+--split heldout3c and --split heldout3d forty more each, from
+bench/tasks_heldout3_*.py. --split heldout3 is all four: the frozen test
+set. Without --execute they only list the plan, like every other split.
 
 --honest is the live comparison. It selects playwright_mcp, script_first,
 stagehand, and browser_use on the held-out scored set, and a warm replay of
@@ -128,6 +133,12 @@ from bench.judge import check_text_present, check_url_contains
 from bench.tasks import (
     DEV_TASK_IDS,
     HELD_OUT_TASK_IDS,
+    SPLIT_HELDOUT2,
+    SPLIT_HELDOUT3B,
+    SPLIT_HELDOUT3A,
+    SPLIT_HELDOUT3D,
+    SPLIT_HELDOUT3C,
+    SPLIT_HELDOUT3,
     SPLIT_HONEST,
     SPLIT_PROBE,
     TUNED_PROBE_TASK_IDS,
@@ -366,7 +377,14 @@ def plan_probe(
     else:
         chosen = resolve_arms(arms)
         chosen_split = resolve_task_split(split)
-    spent = SpendLedger.load().running_total_usd
+    try:
+        spent = SpendLedger.load().running_total_usd
+    except LedgerMissing:
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3):
+            raise
+        # Listing the new catalog needs no spend authority. Unknown is not
+        # zero; live execution and existing splits retain strict ledger checks.
+        spent = None
     reserve = honest_task_reserve_usd() if honest else 0.0
     room = honest_run_budget(spent) if honest else None
     if honest:
@@ -405,7 +423,7 @@ def plan_probe(
             "script_first": "local Chrome via the Playwright Python API, own user-data-dir, no per-click settle",
             "endpoint": "direct fetch of the task start URL; no browser; the fetch URL is not rewritten",
             "browser_use": (
-                "browser-use 1.0.0 local Chrome over CDP via Browser('chromium'); "
+                "browser-use 1.0.3 local Chrome over CDP via Browser('chromium'); "
                 "model claude-sonnet-5-5"
             ),
         },
@@ -929,8 +947,20 @@ async def run_claude_arm(
             "script_steps": result.script_steps,
             "claude": True,
             "claimed_answer": claimed_answer,
+            "final_url": final_url,
+            "final_title": last.page_title if last else "",
             "expected_value": selector_text,
         }
+        if arm == ARM_SCRIPT_FIRST:
+            row["scripts"] = [
+                step.tool_args["code"]
+                for step in result.steps
+                if step.tool_name == "run_script"
+                and isinstance(step.tool_args, dict)
+                and isinstance(step.tool_args.get("code"), str)
+            ]
+            row["repair_sent"] = result.repair_sent
+            row["repair_reply"] = result.repair_reply
         if provider == "openai":
             from bench.openai_spend import price_usd
 
@@ -1538,6 +1568,11 @@ def main(argv: list[str] | None = None) -> int:
         help=(
             "Task split. probe is the three tuned tasks and the default. "
             "dev is the wider tune set. held-out is the scored set. "
+            "heldout2 is the independent twenty-task set. "
+            "heldout3a and heldout3b are further independent thirty-task sets. "
+            "heldout3d is a further independent forty-task set. "
+            "heldout3c is a further independent forty-task set. "
+            "heldout3 is a, b, c and d together, the frozen test set. "
             "Printing the plan does not run it."
         ),
     )

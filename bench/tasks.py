@@ -18,6 +18,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from bench.tasks_heldout3_b import HELDOUT3B_TASK_IDS, HELDOUT3B_TASKS
+from bench.tasks_heldout3_a import HELDOUT3A_TASKS
+from bench.tasks_heldout3_d import HELDOUT3D_TASK_IDS, HELDOUT3D_TASKS
+from bench.tasks_heldout3_c import HELDOUT3C_TASK_IDS, HELDOUT3C_TASKS
+
 FIXTURE_DIR = Path(__file__).parent.parent / "loop" / "fixture"
 
 
@@ -914,6 +919,295 @@ WEBVOYAGER_TASKS = [
     },
 ]
 
+# Independently authored public tasks. Never use this split for tuning.
+# Answers are literal page text; markers are judge-only, just like ho_ tasks.
+HELDOUT2_TASKS = [
+    {
+        "id": "ho2_nav_gutenberg_shelley",
+        "description": "On Project Gutenberg, open the ebook details page for Mary Shelley's novel about Victor and his creature.",
+        "start_url": "https://www.gutenberg.org/",
+        "expected_answer": "Frankenstein; or, The modern Prometheus by Mary Wollstonecraft Shelley",
+        "check_url_contains": "/ebooks/84",
+        "end_markers": {
+            "host": "www.gutenberg.org",
+            "url_contains": "/ebooks/84",
+            "path_suffix": "/ebooks/84",
+            "deny": ["/ebooks/search", "/search"],
+        },
+    },
+    {
+        "id": "ho2_nav_standardebooks_austen",
+        "description": "On Standard Ebooks, open the ebook details page for Jane Austen's novel about the Dashwood sisters.",
+        "start_url": "https://standardebooks.org/ebooks",
+        "expected_answer": "Sense and Sensibility",
+        "check_url_contains": "/ebooks/jane-austen/sense-and-sensibility",
+        "end_markers": {
+            "host": "standardebooks.org",
+            "url_contains": "/ebooks/jane-austen/sense-and-sensibility",
+            "path_suffix": "/ebooks/jane-austen/sense-and-sensibility",
+            "deny": ["/search", "query="],
+        },
+    },
+    {
+        "id": "ho2_nav_cc_attribution",
+        "description": "Open the plain-language summary of Creative Commons' version-four attribution-only license, rather than its legal code.",
+        "start_url": "https://creativecommons.org/build/",
+        "expected_answer": "Attribution 4.0 International",
+        "check_url_contains": "/licenses/by/4.0/",
+        "end_markers": {
+            "host": "creativecommons.org",
+            "url_contains": "/licenses/by/4.0/",
+            "path_suffix": "/licenses/by/4.0/",
+            "deny": ["/search", "/legalcode"],
+        },
+    },
+    {
+        "id": "ho2_nav_apache_license",
+        "description": "From the Apache Software Foundation home page, open the HTML page for its version-two software license.",
+        "start_url": "https://www.apache.org/",
+        "expected_answer": "Apache License, Version 2.0",
+        "check_url_contains": "/licenses/LICENSE-2.0",
+        "end_markers": {
+            "host": "www.apache.org",
+            "url_contains": "/licenses/LICENSE-2.0",
+            "deny": ["/search", ".txt"],
+        },
+    },
+    {
+        "id": "ho2_nav_nginx_beginner",
+        "description": "From the nginx documentation index, open the introductory guide for new administrators.",
+        "start_url": "https://nginx.org/en/docs/",
+        "expected_answer": "Beginner’s Guide",
+        "check_url_contains": "/en/docs/beginners_guide.html",
+        "end_markers": {
+            "host": "nginx.org",
+            "url_contains": "/en/docs/beginners_guide.html",
+            "path_suffix": "/en/docs/beginners_guide.html",
+            "deny": ["/search"],
+        },
+    },
+    {
+        "id": "ho2_nav_git_branching",
+        "description": "From the English Pro Git book contents, open the section covering basic branch creation and integrating changes with merges.",
+        "start_url": "https://git-scm.com/book/en/v2",
+        "expected_answer": "3.2 Git Branching - Basic Branching and Merging",
+        "check_url_contains": "/Git-Branching-Basic-Branching-and-Merging",
+        "end_markers": {
+            "host": "git-scm.com",
+            "url_contains": "/book/en/v2/Git-Branching-Basic-Branching-and-Merging",
+            "path_suffix": "/Git-Branching-Basic-Branching-and-Merging",
+            "deny": ["/search"],
+        },
+    },
+    {
+        "id": "ho2_nav_curl_manual",
+        "description": "From curl's documentation overview, open the command-line tool's complete manual page, not the tutorial.",
+        "start_url": "https://curl.se/docs/",
+        "expected_answer": "curl man page",
+        "check_url_contains": "/docs/manpage.html",
+        "end_markers": {
+            "host": "curl.se",
+            "url_contains": "/docs/manpage.html",
+            "path_suffix": "/docs/manpage.html",
+            "deny": ["/search"],
+        },
+    },
+    {
+        "id": "ho2_nav_pytest_setup",
+        "description": "From the pytest documentation home, open the how-to guide for reusable test setup and teardown objects.",
+        "start_url": "https://docs.pytest.org/en/stable/",
+        "expected_answer": "How to use fixtures",
+        "check_url_contains": "/how-to/fixtures.html",
+        "end_markers": {
+            "host": "docs.pytest.org",
+            "url_contains": "/en/stable/how-to/fixtures.html",
+            "path_suffix": "/how-to/fixtures.html",
+            "deny": ["/search", "search.html"],
+        },
+    },
+    {
+        "id": "ho2_value_iban_japan",
+        "description": "Open IBAN.com's country currency codes table and report the three-letter currency code in the row for Japan.",
+        "start_url": "https://www.iban.com/",
+        "expected_answer": "JPY",
+        "check_url_contains": "/currency-codes",
+        "end_markers": {
+            "host": "www.iban.com",
+            "url_contains": "/currency-codes",
+            "path_suffix": "/currency-codes",
+            "deny": ["/search"],
+            "answer_in_text": "JPY",
+        },
+    },
+    {
+        "id": "ho2_value_color_rebecca",
+        "description": "Open W3Schools' HTML color names reference and report the hexadecimal color value listed for RebeccaPurple, including the leading hash sign.",
+        "start_url": "https://www.w3schools.com/colors/",
+        "expected_answer": "#663399",
+        "check_url_contains": "/colors/colors_names.asp",
+        "end_markers": {
+            "host": "www.w3schools.com",
+            "url_contains": "/colors/colors_names.asp",
+            "path_suffix": "/colors/colors_names.asp",
+            "deny": ["/search"],
+            "answer_in_text": "#663399",
+        },
+    },
+    {
+        "id": "ho2_value_dns_type",
+        "description": "Open IANA's DNS parameters registry. In the Resource Record TYPEs table, report the mnemonic in the TYPE column for numeric value 28.",
+        "start_url": "https://www.iana.org/protocols",
+        "expected_answer": "AAAA",
+        "check_url_contains": "/assignments/dns-parameters",
+        "end_markers": {
+            "host": "www.iana.org",
+            "url_contains": "/assignments/dns-parameters",
+            "path_suffix": "/assignments/dns-parameters",
+            "deny": ["/search"],
+            "answer_in_text": "AAAA",
+        },
+    },
+    {
+        "id": "ho2_value_sqlite_busy",
+        "description": "Open SQLite's result and error code reference. In the primary result code list, report the symbolic name for numeric code 5.",
+        "start_url": "https://www.sqlite.org/docs.html",
+        "expected_answer": "SQLITE_BUSY",
+        "check_url_contains": "/rescode.html",
+        "end_markers": {
+            "host": "www.sqlite.org",
+            "url_contains": "/rescode.html",
+            "path_suffix": "/rescode.html",
+            "deny": ["/search"],
+            "answer_in_text": "SQLITE_BUSY",
+        },
+    },
+    {
+        "id": "ho2_value_si_deka",
+        "description": "Open NIST's metric prefix table and report the case-sensitive symbol listed for the prefix deka.",
+        "start_url": "https://www.nist.gov/pml/owm/metric-si",
+        "expected_answer": "da",
+        "check_url_contains": "/pml/owm/metric-si-prefixes",
+        "end_markers": {
+            "host": "www.nist.gov",
+            "url_contains": "/pml/owm/metric-si-prefixes",
+            "path_suffix": "/pml/owm/metric-si-prefixes",
+            "deny": ["/search"],
+            "answer_in_text": "da",
+        },
+    },
+    {
+        "id": "ho2_value_rfc_status",
+        "description": "Open the RFC Editor's information page for RFC 8259 and report its status designation, not the document's title.",
+        "start_url": "https://www.rfc-editor.org/",
+        "expected_answer": "Internet Standard",
+        "check_url_contains": "/info/rfc8259/",
+        "end_markers": {
+            "host": "www.rfc-editor.org",
+            "url_contains": "/info/rfc8259/",
+            "path_suffix": "/info/rfc8259/",
+            "deny": ["/search"],
+            "answer_in_text": "Internet Standard",
+        },
+    },
+    {
+        "id": "ho2_title_gutenberg_carroll",
+        "description": "Open Project Gutenberg's ebook details page for Lewis Carroll's novel about a girl following a white rabbit. Report the full main heading, including the author credit.",
+        "start_url": "https://www.gutenberg.org/",
+        "expected_answer": "Alice's Adventures in Wonderland by Lewis Carroll",
+        "check_url_contains": "/ebooks/11",
+        "end_markers": {
+            "host": "www.gutenberg.org",
+            "url_contains": "/ebooks/11",
+            "path_suffix": "/ebooks/11",
+            "deny": ["/ebooks/search", "/search"],
+            "answer_in_text": "Alice's Adventures in Wonderland by Lewis Carroll",
+        },
+    },
+    {
+        "id": "ho2_title_standardebooks_wells",
+        "description": "Open Standard Ebooks' details page for H. G. Wells' novella about an inventor who visits the distant future. Report the book-title heading only, without the author.",
+        "start_url": "https://standardebooks.org/ebooks",
+        "expected_answer": "The Time Machine",
+        "check_url_contains": "/ebooks/h-g-wells/the-time-machine",
+        "end_markers": {
+            "host": "standardebooks.org",
+            "url_contains": "/ebooks/h-g-wells/the-time-machine",
+            "path_suffix": "/ebooks/h-g-wells/the-time-machine",
+            "deny": ["/search", "query="],
+            "answer_in_text": "The Time Machine",
+        },
+    },
+    {
+        "id": "ho2_search_sphinx_toctree",
+        "description": "Use the Sphinx documentation's own search box to look up toctree, then open the reference page documenting that directive. Do not stop at search results.",
+        "start_url": "https://www.sphinx-doc.org/en/master/",
+        "expected_answer": "Directives",
+        "check_url_contains": "/usage/restructuredtext/directives.html",
+        "end_markers": {
+            "host": "www.sphinx-doc.org",
+            "url_contains": "/en/master/usage/restructuredtext/directives.html",
+            "path_suffix": "/usage/restructuredtext/directives.html",
+            "deny": ["search.html", "/search"],
+        },
+    },
+    {
+        "id": "ho2_search_flask_blueprints",
+        "description": "Use the Flask documentation's own search box to look up blueprints, then open the user-guide chapter about organizing modular applications with them. Do not stop at search results.",
+        "start_url": "https://flask.palletsprojects.com/en/stable/",
+        "expected_answer": "Modular Applications with Blueprints",
+        "check_url_contains": "/en/stable/blueprints/",
+        "end_markers": {
+            "host": "flask.palletsprojects.com",
+            "url_contains": "/en/stable/blueprints/",
+            "path_suffix": "/blueprints/",
+            "deny": ["/search", "search.html"],
+        },
+    },
+    {
+        "id": "ho2_form_expand_ticket",
+        "description": "Fill the demo ticket-validation form with contact name Alex Example, contact number 012-3456789, pickup date 15 January 2030, and card payment. Submit it and report the thank-you sentence on the confirmation page.",
+        "start_url": "https://practice.expandtesting.com/form-validation",
+        "expected_answer": "Thank you for validating your ticket",
+        "check_url_contains": "/form-confirmation",
+        "end_markers": {
+            "host": "practice.expandtesting.com",
+            "url_contains": "/form-confirmation",
+            "path_suffix": "/form-confirmation",
+            "deny": ["/form-validation", "/search"],
+            "answer_in_text": "Thank you for validating your ticket",
+        },
+    },
+    {
+        "id": "ho2_form_calculator_sum",
+        "description": "Use the Server Side Calculator demo: enter 17 as the first number and 25 as the second, choose addition, and submit with Calculate. Report only the numeric result shown beside Answer.",
+        "start_url": "https://testpages.eviltester.com/apps/server-side-calculator/",
+        "expected_answer": "42",
+        "check_url_contains": "/apps/server-side-calculator/",
+        "end_markers": {
+            "host": "testpages.eviltester.com",
+            "url_contains": "/apps/server-side-calculator/",
+            "path_suffix": "/apps/server-side-calculator/",
+            "deny": ["/search"],
+            "answer_in_text": "42",
+        },
+    },
+]
+WEBVOYAGER_TASKS += HELDOUT2_TASKS
+HELDOUT2_TASK_IDS = tuple(task["id"] for task in HELDOUT2_TASKS)
+WEBVOYAGER_TASKS += HELDOUT3B_TASKS
+WEBVOYAGER_TASKS += HELDOUT3A_TASKS
+HELDOUT3A_TASK_IDS = tuple(task["id"] for task in HELDOUT3A_TASKS)
+WEBVOYAGER_TASKS += HELDOUT3D_TASKS
+WEBVOYAGER_TASKS += HELDOUT3C_TASKS
+# The frozen heldout3 test set: all four blind-authored splits. See docs/HELDOUT3_PLAN.md.
+# Dropped by the pre-run rule on 13 Nov 2026: each failed a same-day live reproducer run.
+HELDOUT3_DROPPED_TASK_IDS = ("ho3d_spa_toolshop_pliers", "ho3d_form_parabank_login")
+HELDOUT3_TASK_IDS = tuple(
+    task_id
+    for task_id in (*HELDOUT3A_TASK_IDS, *HELDOUT3B_TASK_IDS, *HELDOUT3C_TASK_IDS, *HELDOUT3D_TASK_IDS)
+    if task_id not in HELDOUT3_DROPPED_TASK_IDS
+)
+
 # The three tasks the arms were tuned on. They stay inside the dev set.
 TUNED_PROBE_TASK_IDS = (
     "wv_wikipedia_search",
@@ -992,6 +1286,12 @@ HELD_OUT_TASK_IDS = (
 SPLIT_PROBE = "probe"
 SPLIT_DEV = "dev"
 SPLIT_HELD_OUT = "held-out"
+SPLIT_HELDOUT2 = "heldout2"
+SPLIT_HELDOUT3B = "heldout3b"
+SPLIT_HELDOUT3A = "heldout3a"
+SPLIT_HELDOUT3D = "heldout3d"
+SPLIT_HELDOUT3C = "heldout3c"
+SPLIT_HELDOUT3 = "heldout3"
 SPLIT_HONEST = "honest"
 # The scored set is held-out only. Dev is what we tune, and it is not scored.
 HONEST_TASK_IDS = HELD_OUT_TASK_IDS
@@ -1048,6 +1348,9 @@ def resolve_task_split(spec: str | None) -> str:
     """probe is the tuned trio. dev is the wider tune set.
 
     held-out is the scored set. honest scores held-out and not dev.
+    heldout2 is an independently authored, disjoint public task set.
+    heldout3a is a second independent public set. Its sites' registrable
+    names start with a through m.
     The default stays probe.
     """
     key = (spec or SPLIT_PROBE).strip().casefold().replace("_", "-")
@@ -1057,6 +1360,18 @@ def resolve_task_split(spec: str | None) -> str:
         return SPLIT_DEV
     if key in ("held-out", "heldout"):
         return SPLIT_HELD_OUT
+    if key == "heldout2":
+        return SPLIT_HELDOUT2
+    if key == "heldout3b":
+        return SPLIT_HELDOUT3B
+    if key in ("heldout3a", "heldout3-a"):
+        return SPLIT_HELDOUT3A
+    if key == "heldout3d":
+        return SPLIT_HELDOUT3D
+    if key == "heldout3c":
+        return SPLIT_HELDOUT3C
+    if key == "heldout3":
+        return SPLIT_HELDOUT3
     if key == "honest":
         return SPLIT_HONEST
     raise ValueError(f"unknown split {spec!r}")
@@ -1069,6 +1384,18 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
         return _tasks_in_order(DEV_TASK_IDS)
     if name == SPLIT_HELD_OUT:
         return _tasks_in_order(HELD_OUT_TASK_IDS)
+    if name == SPLIT_HELDOUT2:
+        return _tasks_in_order(HELDOUT2_TASK_IDS)
+    if name == SPLIT_HELDOUT3B:
+        return _tasks_in_order(HELDOUT3B_TASK_IDS)
+    if name == SPLIT_HELDOUT3A:
+        return _tasks_in_order(HELDOUT3A_TASK_IDS)
+    if name == SPLIT_HELDOUT3D:
+        return _tasks_in_order(HELDOUT3D_TASK_IDS)
+    if name == SPLIT_HELDOUT3C:
+        return _tasks_in_order(HELDOUT3C_TASK_IDS)
+    if name == SPLIT_HELDOUT3:
+        return _tasks_in_order(HELDOUT3_TASK_IDS)
     if name == SPLIT_HONEST:
         return _tasks_in_order(HONEST_TASK_IDS)
     return _tasks_in_order(TUNED_PROBE_TASK_IDS)

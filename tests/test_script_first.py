@@ -121,6 +121,9 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     prompt = prompt_for("script_first")
     assert "run_script" in prompt
     assert "page.evaluate" in prompt
+    allowed = next(line for line in prompt.splitlines() if line.startswith("- Allowed:"))
+    assert "page.locator" in allowed
+    assert ".first()/.nth()" in allowed
     assert "browser_run_code_unsafe is not a tool" in prompt
     assert "Main_Page" not in prompt
     assert "start page or a search-results page" in prompt
@@ -137,7 +140,7 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     assert isinstance(client, ScriptFirstClient)
     tools = client.tools_for_claude()
     names = [tool["name"] for tool in tools]
-    assert names == ["run_script"]
+    assert names == ["run_script", "task_failed"]
     assert "waitForTimeout" in tools[0]["description"]
     assert "finished page" in tools[0]["description"]
     assert "browser_run_code_unsafe" not in names
@@ -536,8 +539,8 @@ def _script_harness(tmp_path, replies, call_tool, max_steps):
             self._replies = list(replies)
             self.seen: list = []
 
-        async def create_message(self, messages, tools, system=None, max_tokens=4096):
-            del tools, system, max_tokens
+        async def create_message(self, messages, tools, system=None, max_tokens=4096, **kwargs):
+            del tools, system, max_tokens, kwargs
             self.seen.append(messages)
             return self._replies.pop(0), 1.0
 
@@ -956,7 +959,7 @@ def test_script_first_cache_breakpoint_is_sent_and_the_api_is_not_called(monkeyp
     )
     assert body["system"][0]["text"] == prompt
     assert body["system"][0]["cache_control"] == {"type": "ephemeral"}
-    assert body["tools"][-1]["name"] == "run_script"
+    assert body["tools"][-1]["name"] == "task_failed"
     assert body["tools"][-1]["cache_control"] == {"type": "ephemeral"}
     assert "cache_control" not in tools[0]
     assert task not in body["system"][0]["text"]
@@ -1010,7 +1013,7 @@ def test_script_first_cache_breakpoint_is_sent_and_the_api_is_not_called(monkeyp
         raise AssertionError("the request was not built")
     assert sent["url"] == "https://api.anthropic.com/v1/messages"
     assert sent["body"]["system"][0]["cache_control"] == {"type": "ephemeral"}
-    assert sent["body"]["tools"][-1]["name"] == "run_script"
+    assert sent["body"]["tools"][-1]["name"] == "task_failed"
     assert sent["body"]["tools"][-1]["cache_control"] == {"type": "ephemeral"}
     assert sent["body"]["system"][0]["text"] == prompt
     assert task not in sent["body"]["system"][0]["text"]

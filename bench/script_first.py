@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import shutil
 import tempfile
 import time
@@ -33,7 +34,7 @@ PASS = "PASS"
 FAIL = "FAIL"
 UNKNOWN = "UNKNOWN"
 
-# controls is the fingerprint's role/name list. model_visible_script_result strips it.
+# Controls also feed the cache fingerprint. Navigation hints are shown only on FAIL.
 _PAGE_EVIDENCE_JS = r"""() => {
   const link = document.querySelector('link[rel="canonical"]');
   const h1 = document.querySelector("h1");
@@ -95,6 +96,25 @@ _PAGE_EVIDENCE_JS = r"""() => {
     seen.add(pair);
     controls.push({ role, name });
   }
+  const links = [];
+  const seenHrefs = new Set();
+  const anchors = Array.from(document.querySelectorAll("a[href]"));
+  anchors.sort((a, b) => Number(!!b.closest("main, article, [role='main']")) - Number(!!a.closest("main, article, [role='main']")));
+  for (const node of anchors) {
+    if (links.length >= 40) break;
+    if (node.closest('[hidden], [aria-hidden="true"]')) continue;
+    if (!node.getClientRects().length) continue;
+    const style = getComputedStyle(node);
+    if (style.visibility === "hidden" || style.visibility === "collapse" || style.display === "none") continue;
+    const text = (node.innerText || "").replace(/\s+/g, " ").trim();
+    if (!text) continue;
+    let href;
+    try { href = new URL(node.getAttribute("href"), document.baseURI).href; }
+    catch { continue; }
+    if (/^(javascript|mailto):/i.test(href) || seenHrefs.has(href)) continue;
+    seenHrefs.add(href);
+    links.push([text.slice(0, 160), href]);
+  }
   return {
     url: location.href,
     title: document.title || "",
@@ -105,12 +125,14 @@ _PAGE_EVIDENCE_JS = r"""() => {
     headings: Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6")).slice(0, 400).map((node) => {
       return (node.innerText || node.textContent || "").replace(/\s+/g, " ").trim().slice(0, 160);
     }).filter(Boolean),
-    controls
+    controls,
+    links
   };
 }"""
 
 from bench.script_helpers import HelperCall, is_helper_call, parse_helper_call, run_helper, wrap_evaluate
-from bench.stagehand_local import _locator, context_browser
+from bench.stagehand_local import context_browser
+from bench.script_grammar import BrowserAction, GRAMMAR_HINT, action_kind, browser_locator, parse_browser_action
 from proxy.script import MAX_SCRIPT_CHARS, MAX_SCRIPT_LINES, ScriptAction, ScriptError, parse_script
 
 _BANNED = (
@@ -138,7 +160,7 @@ class TaskStep:
     line: int
     source: str
     function: str = ""
-    action: ScriptAction | None = None
+    action: ScriptAction | BrowserAction | None = None
     helper: HelperCall | None = None
 
 
@@ -280,7 +302,7 @@ def _parse_evaluate(text: str, line: int) -> TaskStep:
     if lowered.startswith("page.evaluatehandle") or (
         lowered.startswith("page.evaluate") and len(text) > len("page.evaluate") and text[len("page.evaluate")].isalnum()
     ):
-        raise ScriptError(f"line {line}: page.evaluate is the only evaluate form")
+        raise ScriptError(f"line {line}: page.evaluate is the only evaluate form; {GRAMMAR_HINT}")
     rest = text[len("page.evaluate") :].strip()
     if not rest.startswith("(") or not rest.endswith(")"):
         raise ScriptError(f"line {line}: page.evaluate needs one function")
@@ -293,22 +315,6 @@ def _parse_evaluate(text: str, line: int) -> TaskStep:
     if not function:
         raise ScriptError(f"line {line}: page.evaluate needs one function")
     return TaskStep(kind="evaluate", line=line, source=text, function=function)
-
-
-def _is_wait_statement(body: str) -> bool:
-    """True for a Playwright wait or settle line. page.evaluate is not a wait."""
-    compact = "".join(body.split()).casefold()
-    if compact.startswith("page.evaluate"):
-        return False
-    if compact.startswith("page.waitfor") or compact.startswith("page.wait_for"):
-        return True
-    if compact.startswith("page.setdefaulttimeout") or compact.startswith("page.setdefaultnavigationtimeout"):
-        return True
-    if ".waitfor(" in compact:
-        return True
-    if "networkidle" in compact and "goto" not in compact:
-        return True
-    return False
 
 
 def parse_task_script(source: str) -> list[TaskStep]:
@@ -325,7 +331,7 @@ def parse_task_script(source: str) -> list[TaskStep]:
         raise ScriptError(f"script is longer than {MAX_SCRIPT_CHARS} characters")
     banned = _banned_token(text)
     if banned:
-        raise ScriptError(f"{banned.strip()} is not part of this script")
+        raise ScriptError(f"{banned.strip()} is not part of this script; {GRAMMAR_HINT}")
     steps: list[TaskStep] = []
     for index, stmt in enumerate(_statements(text), 1):
         body = _normalize_stmt(stmt)
@@ -333,8 +339,8 @@ def parse_task_script(source: str) -> list[TaskStep]:
             returned = _normalize_stmt(body[len("return ") :])
             if returned.casefold().startswith("page.evaluate"):
                 body = returned
-        if _is_wait_statement(body):
-            continue
+            else:
+                raise ScriptError(f"line {index}: top-level return is not supported; {GRAMMAR_HINT}")
         if body.casefold().startswith("page.evaluate"):
             steps.append(_parse_evaluate(body, index))
             continue
@@ -342,10 +348,17 @@ def parse_task_script(source: str) -> list[TaskStep]:
         if is_helper_call(helper_body):
             steps.append(TaskStep(kind="helper", line=index, source=body, helper=parse_helper_call(body, index)))
             continue
-        body = " ".join(body.split())
-        actions = parse_script(body, allow_goto=True, max_lines=1)
-        action = actions[0]
-        kind = "goto" if action.op == "goto" else "locator"
+        try:
+            if body.startswith("page.goto"):
+                action = parse_script(" ".join(body.split()), allow_goto=True, max_lines=1)[0]
+                kind = "goto"
+            else:
+                action = parse_browser_action(body, index)
+                kind = action_kind(action)
+        except ScriptError as exc:
+            raise ScriptError(f"{exc}; {GRAMMAR_HINT}") from exc
+        if kind == "wait":
+            continue
         steps.append(TaskStep(kind=kind, line=index, source=body, action=action))
     if not steps:
         raise ScriptError("script has no actions")
@@ -377,6 +390,7 @@ class PageEvidence:
     text: str = ""
     selector_text: str = ""
     controls: tuple[str, ...] = ()
+    links: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -412,6 +426,19 @@ def _fold_token(value: str) -> str:
 
 def _norm_answer(value: str) -> str:
     return " ".join((value or "").split()).casefold()
+
+
+# Dash variants the runtime check folds to "-": hyphen, non-breaking hyphen,
+# figure dash, en dash, em dash, horizontal bar, minus sign.
+_DASH_FOLD = str.maketrans({c: "-" for c in "‐‑‒–—―−"})
+
+
+def _norm_runtime(value: str) -> str:
+    """_norm_answer plus dash folding, for runtime_verdict only (not the grade).
+
+    Non-breaking and other Unicode spaces already fold through str.split().
+    """
+    return _norm_answer((value or "").translate(_DASH_FOLD))
 
 
 def _phrase_at_boundary(marker: str, text: str) -> bool:
@@ -841,6 +868,44 @@ def claimed_from_payload(payload: dict | None) -> ClaimedEvidence:
     return _evidence_from_claim(claimed)
 
 
+# The description only. Markers and the expected answer are not read.
+# "find the page" opens a page. The other shapes ask for a value to return.
+_REPORT_VERB = re.compile(r"\b(?:report|identify)\b", re.IGNORECASE)
+_GIVE_OR_TELL = re.compile(
+    r"\b(?:give|tell)\s+(?:me\s+|us\s+)?(?:the|a|an|its|their|that|this)\b",
+    re.IGNORECASE,
+)
+_NAME_OR_STATE = re.compile(
+    r"\b(?:name|state)\s+(?:the|a|an|its|their)\b",
+    re.IGNORECASE,
+)
+_VALUE_QUESTION = re.compile(
+    r"\b(?:what|which|who)\b|\bhow\s+(?:many|much)\b",
+    re.IGNORECASE,
+)
+_FIND = re.compile(r"\bfind\b", re.IGNORECASE)
+_FIND_PAGE = re.compile(
+    r"\bfind\s+(?:the\s+|a\s+|an\s+)?(?:page|article|section|documentation|document)\b",
+    re.IGNORECASE,
+)
+
+
+def task_asks_value(description: str) -> bool:
+    """True when the task text asks for a value, not only a page to open."""
+    text = " ".join((description or "").split())
+    if not text:
+        return False
+    if text.endswith("?"):
+        return True
+    if _REPORT_VERB.search(text) or _GIVE_OR_TELL.search(text) or _NAME_OR_STATE.search(text):
+        return True
+    if _VALUE_QUESTION.search(text):
+        return True
+    if _FIND.search(text) and not _FIND_PAGE.search(text):
+        return True
+    return False
+
+
 def runtime_verdict(
     trusted: PageEvidence,
     claimed: ClaimedEvidence | None = None,
@@ -848,6 +913,7 @@ def runtime_verdict(
     script_ok: bool = True,
     script_error: str = "",
     start_url: str = "",
+    asks_value: bool = False,
 ) -> EvidenceVerdict:
     """The live check script_first runs on itself. No task markers, no model call.
 
@@ -878,24 +944,51 @@ def runtime_verdict(
     ):
         return EvidenceVerdict(FAIL, "claimed URL does not match the live page", scored)
     answer = (claimed.answer or "").strip()
+    if asks_value and not answer:
+        return EvidenceVerdict(
+            FAIL,
+            "the task asks for a value and the script returned no answer",
+            scored,
+        )
     returned_any = bool(answer or (claimed.key_text or "").strip() or any(v.strip() for v in claimed.values))
     if not returned_any:
         # The prompt asks every script to return an answer or a phrase from the page.
         if _http(start_url) and _same_page(live, start_url):
             return EvidenceVerdict(FAIL, "the script ended on the start page and returned nothing", live)
         return EvidenceVerdict(FAIL, "the script returned no answer or key_text", scored)
+    rule = ""
+    # The URL and title/h1 rules never pass a script that stayed on the start page.
+    moved = not (_http(start_url) and _same_page(live, start_url))
     if answer:
-        if not page_text.strip():
-            return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
-        if _norm_answer(answer) not in _norm_answer(page_text):
-            return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
+        if moved and _http(answer) and (_same_page(answer, live) or (canonical and _same_page(answer, canonical))):
+            # The answer is the live page's own URL: nothing to find in the text.
+            rule = "the answer is the live page URL"
+        else:
+            needle = _norm_runtime(answer)
+            in_text = bool(page_text.strip()) and needle in _norm_runtime(page_text)
+            if in_text and _norm_answer(answer) not in _norm_answer(page_text):
+                rule = "the answer is in the page text once dashes fold"
+            elif not in_text and moved and any(needle in _norm_runtime(part) for part in (trusted.title, trusted.h1) if part):
+                rule = "the answer is in the page title or h1"
+            elif not page_text.strip():
+                return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
+            elif not in_text:
+                return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
     problem = _returned_problem(claimed, page_text, scored)
     if problem is not None:
         return problem
+    if rule:
+        return EvidenceVerdict(PASS, f"the script finished and {rule}", scored)
     return EvidenceVerdict(PASS, "the script finished and its evidence is on the live page", scored)
 
 
-def script_runtime_verdict(result_text: str, page_url: str, start_url: str = "") -> tuple[EvidenceVerdict, dict]:
+def script_runtime_verdict(
+    result_text: str,
+    page_url: str,
+    start_url: str = "",
+    *,
+    asks_value: bool = False,
+) -> tuple[EvidenceVerdict, dict]:
     """Judge one run_script result without the task's markers."""
     from bench.harness import page_field
 
@@ -911,6 +1004,7 @@ def script_runtime_verdict(result_text: str, page_url: str, start_url: str = "")
         script_ok=ok is not False,
         script_error=error,
         start_url=start_url,
+        asks_value=asks_value,
     )
     return verdict, payload
 
@@ -1015,6 +1109,7 @@ def format_run_result(
     selector_text: str = "",
     claimed: dict | None = None,
     controls: list | tuple | None = None,
+    links: list | tuple | None = None,
 ) -> str:
     """JSON for the live page plus Stagehand-style goto prose.
 
@@ -1046,6 +1141,8 @@ def format_run_result(
             shown_controls.append({"role": str(item.get("role") or ""), "name": str(item.get("name") or "")})
     if shown_controls:
         payload["controls"] = shown_controls
+    if links:
+        payload["links"] = [list(pair) for pair in links[:40]]
     if claimed:
         kept = {}
         for key in ("url", "title", "h1", "answer", "key_text"):
@@ -1074,32 +1171,103 @@ def format_run_result(
     return "\n".join(lines)
 
 
-_HIDDEN_RESULT_KEYS = ("selector_text", "controls")
+_HIDDEN_RESULT_KEYS = ("selector_text",)
 
 
-def model_visible_script_result(result_text: str) -> str:
+def budget_script_result(result_text: str, limit: int) -> str:
+    """Keep repair lines first and trim only page text, never serialized JSON."""
+    lines = (result_text or "").splitlines()
+    repairs = [line for line in lines if line.startswith("END_STATE_FAILED:")]
+    rest = [line for line in lines if not line.startswith("END_STATE_FAILED:")]
+    if not rest:
+        return result_text
+    try:
+        payload = json.loads(rest[0])
+    except (ValueError, TypeError):
+        return result_text
+    if not isinstance(payload, dict) or not {"ok", "steps"} <= payload.keys():
+        return result_text
+
+    def render():
+        return "\n".join([*repairs, json.dumps(payload), *rest[1:]])
+
+    rendered = render()
+    if len(rendered) <= limit:
+        return rendered
+    text = payload.get("text", "")
+    text = text if isinstance(text, str) else ""
+    marker = "[text truncated]"
+    payload["text"] = marker
+    if len(render()) > limit:
+        raise ValueError("Script result metadata exceeds tool-result budget; refusing to cut JSON")
+    low, high = 0, len(text)
+    while low < high:
+        mid = (low + high + 1) // 2
+        payload["text"] = text[:mid] + marker
+        if len(render()) <= limit:
+            low = mid
+        else:
+            high = mid - 1
+    payload["text"] = text[:low] + marker
+    return render()
+
+
+def model_visible_script_result(result_text: str, *, failed: bool = False, limit: int | None = None) -> str:
     """The run_script result the model may see.
 
-    selector_text is the judge's own read of answer_equals_selector. controls
-    is the role/name list the cache fingerprint hashes. A model message
-    must not include either.
+    selector_text is judge-only. Failed results may include trusted links and
+    role/name controls; PASS and UNKNOWN results do not expose these hints.
     """
+    if limit is None:
+        from bench.harness import MAX_SNAPSHOT_CHARS
+
+        limit = MAX_SNAPSHOT_CHARS - 300
     lines = (result_text or "").splitlines()
     if not lines:
         return result_text or ""
-    first = lines[0].strip()
+    json_index = next((i for i, line in enumerate(lines) if line.startswith("{")), None)
+    if json_index is None:
+        return result_text
+    first = lines[json_index].strip()
     if not first.startswith("{"):
         return result_text
     try:
         payload = json.loads(first)
     except json.JSONDecodeError:
         return result_text
-    if not isinstance(payload, dict) or not any(key in payload for key in _HIDDEN_RESULT_KEYS):
+    if not isinstance(payload, dict):
         return result_text
     for key in _HIDDEN_RESULT_KEYS:
         payload.pop(key, None)
-    lines[0] = json.dumps(payload)
-    return "\n".join(lines)
+    if not failed:
+        payload.pop("links", None)
+        payload.pop("controls", None)
+    else:
+        for key, count in (("links", 40), ("controls", 30)):
+            items = payload.get(key)
+            if isinstance(items, list):
+                payload[key] = items[:count]
+            else:
+                payload.pop(key, None)
+        # Keep navigation hints ahead of page text. If the hints alone cannot
+        # fit, drop trailing entries (never cut a label/href or its JSON).
+        page_text = payload.get("text")
+        payload["text"] = "[text truncated]"
+        while True:
+            lines[json_index] = json.dumps(payload)
+            if len("\n".join(lines)) <= limit:
+                break
+            candidates = [key for key in ("links", "controls") if payload.get(key)]
+            if not candidates:
+                break  # The budgeter fails closed if other metadata cannot fit.
+            largest = max(candidates, key=lambda key: len(json.dumps(payload[key])))
+            payload[largest].pop()
+        if page_text is None:
+            payload.pop("text", None)
+        else:
+            payload["text"] = page_text
+    lines[json_index] = json.dumps(payload)
+    return budget_script_result("\n".join(lines), limit)
 
 
 async def _read_title(page) -> str:
@@ -1324,6 +1492,11 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
         text=text,
         selector_text=selector_text,
         controls=tuple(pairs),
+        links=tuple(
+            (item[0], item[1]) for item in data.get("links", [])
+            if isinstance(item, (list, tuple)) and len(item) == 2
+            and all(isinstance(value, str) for value in item)
+        )[:40],
     )
 
 
@@ -1331,7 +1504,7 @@ def _note_extract(extracted: list[str], claimed: dict, value) -> dict:
     parsed = _claim_from_value(value)
     if parsed:
         for key, item in parsed.items():
-            if item and not claimed.get(key):
+            if item:
                 claimed[key] = item
         if parsed.get("answer"):
             extracted.append(parsed["answer"])
@@ -1339,8 +1512,7 @@ def _note_extract(extracted: list[str], claimed: dict, value) -> dict:
     text = _coerce_extract(value)
     if text:
         extracted.append(text)
-        if not claimed.get("answer"):
-            claimed["answer"] = text
+        claimed["answer"] = text
     return claimed
 
 
@@ -1375,6 +1547,7 @@ async def _finish_page(
         selector_text=evidence.selector_text,
         claimed=claimed,
         controls=evidence.controls,
+        links=evidence.links,
     )
 
 
@@ -1400,7 +1573,33 @@ async def _run_step_on_page(page, step: TaskStep):
     if action.op == "goto":
         await page.goto(action.value, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
         return None
-    locator = _locator(page, action)
+    if action.finder == "page":
+        if action.op == "click":
+            await page.click(action.name, timeout=_ACTION_TIMEOUT_MS)
+        elif action.op == "fill":
+            await page.fill(action.name, action.value, timeout=_ACTION_TIMEOUT_MS)
+        elif action.op == "press":
+            await page.press(action.name, action.value, timeout=_ACTION_TIMEOUT_MS)
+        elif action.op == "goBack":
+            await page.go_back(wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+        elif action.op == "title":
+            return await asyncio.wait_for(page.title(), timeout=1.0)
+        elif action.op == "url":
+            return _page_url(page)
+        else:
+            raise ScriptError(f"line {step.line}: unsupported page action {action.op}")
+        return None
+    if action.finder == "keyboard":
+        # Keyboard methods have no Playwright timeout argument.
+        if action.op == "press":
+            pending = page.keyboard.press(action.value)
+        elif action.op == "type":
+            pending = page.keyboard.type(action.value)
+        else:
+            raise ScriptError(f"line {step.line}: unsupported keyboard action {action.op}")
+        await asyncio.wait_for(pending, timeout=_ACTION_TIMEOUT_MS / 1000)
+        return None
+    locator = browser_locator(page, action)
     if action.op == "click":
         await locator.click(timeout=_ACTION_TIMEOUT_MS)
     elif action.op == "fill":
@@ -1411,6 +1610,14 @@ async def _run_step_on_page(page, step: TaskStep):
         await locator.check(timeout=_ACTION_TIMEOUT_MS)
     elif action.op == "uncheck":
         await locator.uncheck(timeout=_ACTION_TIMEOUT_MS)
+    elif action.op == "selectOption":
+        await locator.select_option(action.value, timeout=_ACTION_TIMEOUT_MS)
+    elif action.op == "textContent":
+        return await locator.text_content(timeout=_ACTION_TIMEOUT_MS)
+    elif action.op == "innerText":
+        return await locator.inner_text(timeout=_ACTION_TIMEOUT_MS)
+    elif action.op == "getAttribute":
+        return await locator.get_attribute(action.value, timeout=_ACTION_TIMEOUT_MS)
     else:
         raise ScriptError(f"line {step.line}: unsupported action {action.op}")
     return None
@@ -1424,42 +1631,40 @@ async def run_on_page(
 ) -> str:
     """Run the whole script on a Playwright page. No settle between actions.
 
-    Goto waits for DOMContentLoaded. Wait lines were already dropped. An
-    evaluate return value is the script's claim. After the script the harness
-    reads the live URL, canonical link, h1, and main text itself.
+    Goto waits for DOMContentLoaded. Wait lines were already dropped.
+    Evaluate claims take precedence over top-level reads; reads are a fallback
+    only when no evaluate supplied an answer or key_text. After the script the
+    harness reads the live URL, canonical link, h1, and main text itself.
     """
     steps = parse_task_script(source)
     done = 0
     extracted: list[str] = []
     claimed: dict = {}
+    read_claimed: dict = {}
+    ok, error = True, ""
     try:
         for step in steps:
             value = await _run_step_on_page(page, step)
             done += 1
             if step.kind == "evaluate":
                 claimed = _note_extract(extracted, claimed, value)
+            elif step.kind == "read":
+                read_claimed = _note_extract(extracted, read_claimed, value)
     except ScriptError:
         raise
     except Exception as exc:
-        return await _finish_page(
-            page,
-            ok=False,
-            step_count=done,
-            error=str(exc),
-            extracted=extracted,
-            claimed=claimed,
-            end_markers=end_markers,
-            wait_for_commit=True,
-        )
+        ok, error = False, str(exc)
+    if not (claimed.get("answer") or claimed.get("key_text")):
+        claimed = {**read_claimed, **claimed}
     return await _finish_page(
         page,
-        ok=True,
-        step_count=len(steps),
-        error="",
+        ok=ok,
+        step_count=done,
+        error=error,
         extracted=extracted,
         claimed=claimed,
         end_markers=end_markers,
-        wait_for_commit=bool(steps) and steps[-1].kind != "goto",
+        wait_for_commit=not ok or (bool(steps) and steps[-1].kind != "goto"),
     )
 
 
@@ -1489,7 +1694,7 @@ async def run_on_mcp(call_tool, source: str) -> str:
     There is no snapshot and no settle.
     """
     steps = parse_task_script(source)
-    if any(step.kind in {"locator", "helper"} for step in steps):
+    if any(step.kind not in {"goto", "evaluate"} for step in steps):
         raise ScriptError("the MCP evaluate runner accepts page.goto and page.evaluate only")
     url = ""
     done = 0
@@ -1566,6 +1771,15 @@ class ScriptFirstClient:
                         }
                     },
                     "required": ["code"],
+                },
+            },
+            {
+                "name": "task_failed",
+                "description": "Stop the task when it cannot be completed and explain why.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"reason": {"type": "string"}},
+                    "required": ["reason"],
                 },
             }
         ]
