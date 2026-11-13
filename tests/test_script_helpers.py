@@ -134,80 +134,7 @@ def test_parser_accepts_name_helpers_and_rejects_a_claim_statement():
         assert page.log == []
 
 
-def test_click_fill_and_press_use_the_one_matching_control():
-    page = _Page(
-        {
-            ("role:link", "Go"): 0,
-            ("role:button", "Go"): 1,
-            ("role:textbox", "Query"): 1,
-            ("label", "Query"): 1,
-        }
-    )
-    script = """
-    page.goto("https://example.com/start");
-    cu.fill("Query", "maps");
-    cu.press("Query", "Enter");
-    cu.click("Go");
-    """
-    text = asyncio.run(run_on_page(page, script))
-    assert page.log[0] == ("goto", "https://example.com/start", "domcontentloaded")
-    assert page.log[1] == ("fill", "role:textbox", "Query", "maps", _ACTION_TIMEOUT_MS)
-    assert page.log[2] == ("press", "role:textbox", "Query", "Enter", _ACTION_TIMEOUT_MS)
-    assert page.log[3] == ("click", "role:button", "Go", _ACTION_TIMEOUT_MS)
-    assert "label" not in [item[1] for item in page.log if item[0] == "fill"]
-    payload = json.loads(text.splitlines()[0])
-    assert payload["ok"] is True
-    assert payload["url"] == "https://example.com/start"
-    assert payload["steps"] == 4
-
-
-def test_an_ambiguous_name_does_not_fall_through_to_another_role():
-    page = _Page({("role:link", "Go"): 2, ("role:button", "Go"): 1, ("text", "Go"): 1})
-    text = asyncio.run(run_on_page(page, 'cu.click("Go")'))
-    payload = json.loads(text.splitlines()[0])
-    assert payload["ok"] is False
-    assert payload["steps"] == 0
-    assert "2 matches for link named 'Go'" in payload["error"]
-    assert [item[0] for item in page.log] == ["evaluate"]
-    assert "canonical" in page.log[-1][1]
-    assert not any(item[0] == "click" for item in page.log)
-
-
-def test_click_uses_exact_text_and_fill_uses_a_placeholder():
-    page = _Page(
-        {
-            ("role:link", "Open"): 0,
-            ("role:button", "Open"): 0,
-            ("role:tab", "Open"): 0,
-            ("role:menuitem", "Open"): 0,
-            ("role:checkbox", "Open"): 0,
-            ("role:radio", "Open"): 0,
-            ("text", "Open"): 1,
-            ("role:textbox", "Notes"): 0,
-            ("role:searchbox", "Notes"): 0,
-            ("role:combobox", "Notes"): 0,
-            ("label", "Notes"): 0,
-            ("placeholder", "Notes"): 1,
-        }
-    )
-    text = asyncio.run(run_on_page(page, 'cu.click("Open"); cu.fill("Notes", "kept")'))
-    assert ("click", "text", "Open", _ACTION_TIMEOUT_MS) in page.log
-    assert ("fill", "placeholder", "Notes", "kept", _ACTION_TIMEOUT_MS) in page.log
-    assert json.loads(text.splitlines()[0])["ok"] is True
-
-
-def test_fill_uses_the_label_when_no_field_role_matches():
-    page = _Page(
-        {
-            ("role:textbox", "Query"): 0,
-            ("role:searchbox", "Query"): 0,
-            ("role:combobox", "Query"): 0,
-            ("label", "Query"): 1,
-        }
-    )
-    text = asyncio.run(run_on_page(page, 'page.goto("https://example.com/form"); cu.fill("Query", "maps")'))
-    assert ("fill", "label", "Query", "maps", _ACTION_TIMEOUT_MS) in page.log
-    assert json.loads(text.splitlines()[0])["ok"] is True
+# Name matching, ties, and fallbacks run on a real page in tests/test_script_resolve.py.
 
 
 def test_a_missing_control_is_recorded_and_the_page_is_still_read():
@@ -368,5 +295,5 @@ def test_prompts_name_the_helpers_and_omit_judge_fields():
         for secret in FORBIDDEN:
             assert secret not in text
     assert "visible name" in prompt
-    assert "does not settle or snapshot" in prompt
+    assert "waits for each control" in prompt
     assert "one control" in tool or "accessible name" in tool

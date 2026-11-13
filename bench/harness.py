@@ -1195,6 +1195,10 @@ class BenchmarkHarness:
             turn_limit = min(self.max_steps, SCRIPT_FIRST_HARD_CAP)
             if hasattr(self.mcp_client, "end_markers"):
                 self.mcp_client.end_markers = {}
+            # Chrome opens the start URL while the model writes. The prompt is unchanged.
+            preload = getattr(self.mcp_client, "preload", None)
+            if callable(preload):
+                preload(start_url)
 
         try:
             if cache is not None:

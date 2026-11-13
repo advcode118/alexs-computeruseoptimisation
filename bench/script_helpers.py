@@ -2,39 +2,24 @@
 
 script_first does not run the script as JavaScript. It parses each line and
 drives the Playwright page: page.goto, a getBy* action, or page.evaluate.
-These helpers are three more lines that the parser accepts, plus cu.claim inside
-page.evaluate.
+These helpers are four more lines that the parser accepts, plus cu.claim and
+cu.text inside page.evaluate.
 
-cu.click, cu.fill, and cu.press take an accessible name. They use the one
-control with that name. They do not choose a role for the model, and they do
-not read the judge's selector. cu.claim only shapes the object the script
-returns. The evidence judge still scores the live page.
+cu.click, cu.fill, and cu.press take a visible name, label, or placeholder;
+bench/script_resolve.py picks the best-matching control on the live page.
+cu.search types into the site's own search box and submits it. None of them
+reads the judge's selector. cu.claim only shapes the object the script
+returns, and cu.text reads the value shown next to a label. The evidence
+judge still scores the live page.
 """
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
 
 from proxy.script import ScriptError
 
-_CLICK = (
-    ("role", "link"),
-    ("role", "button"),
-    ("role", "tab"),
-    ("role", "menuitem"),
-    ("role", "checkbox"),
-    ("role", "radio"),
-    ("text", ""),
-)
-_TYPE = (
-    ("role", "textbox"),
-    ("role", "searchbox"),
-    ("role", "combobox"),
-    ("label", ""),
-    ("placeholder", ""),
-)
-_ARITY = {"click": 1, "fill": 2, "press": 2}
+_ARITY = {"click": 1, "fill": 2, "press": 2, "search": 1}
 _TEXT_KEYS = ("url", "title", "h1", "key_text", "answer")
 
 # Page-context function. wrap_evaluate puts this in scope only for a script
@@ -115,6 +100,73 @@ CLAIM_JS = """const cu = {
     if (rejected) out.rejected = true;
     return out;
   }
+};"""
+
+
+# cu.text(label): the value shown next to a label, a table header, a term,
+# or a heading. Defined beside cu.claim in the same page function.
+TEXT_JS = r"""cu.text = function (label) {
+  const norm = (s) => String(s == null ? "" : s).replace(/[\s ]+/g, " ").trim();
+  const low = (s) => norm(s).toLowerCase().replace(/[\s:*]+$/, "");
+  const want = low(label);
+  if (!want) return "";
+  const shown = (el) => !!el.getClientRects().length;
+  const tx = (el) => el ? norm(el.innerText != null ? el.innerText : el.textContent) : "";
+  const rest = (whole, head) => {
+    const i = whole.toLowerCase().indexOf(head);
+    if (i < 0) return "";
+    return norm(whole.slice(i + head.length).replace(/^[\s:=\-–—]+/, ""));
+  };
+  const cands = [];
+  for (const el of document.querySelectorAll("dt, th, td, label, strong, b, em, span, div, p, li, h1, h2, h3, h4, h5, h6, caption, legend, summary, figcaption")) {
+    const t = tx(el);
+    if (!t || t.length > 200 || !shown(el)) continue;
+    const l = low(t);
+    let rank = -1;
+    if (l === want) rank = 0;
+    else if (l.startsWith(want + ":") || l.startsWith(want + " :")) rank = 1;
+    else if (l.startsWith(want + " ") && el.children.length === 0) rank = 2;
+    if (rank >= 0) cands.push([rank, t.length, el]);
+  }
+  cands.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  for (const [rank, , el] of cands) {
+    const t = tx(el);
+    if (rank > 0) {
+      const v = rest(t, want);
+      if (v) return v;
+    }
+    const name = el.tagName;
+    if (name === "DT") {
+      let n = el.nextElementSibling;
+      while (n && n.tagName !== "DD") n = n.nextElementSibling;
+      if (n && tx(n)) return tx(n);
+    }
+    if (name === "TH" || name === "TD") {
+      const row = el.parentElement;
+      const cells = row ? Array.from(row.children) : [];
+      const i = cells.indexOf(el);
+      if (i >= 0 && i + 1 < cells.length && tx(cells[i + 1])) return tx(cells[i + 1]);
+      const table = el.closest("table");
+      if (table && name === "TH" && i >= 0) {
+        for (const r of table.querySelectorAll("tr")) {
+          if (r === row) continue;
+          const c = r.children[i];
+          if (c && c.tagName === "TD" && tx(c)) return tx(c);
+        }
+      }
+    }
+    if (name === "LABEL" && el.control && el.control.value) return norm(el.control.value);
+    const next = el.nextElementSibling;
+    if (next && tx(next)) return tx(next).slice(0, 300);
+    const parent = el.parentElement;
+    if (parent) {
+      const after = rest(tx(parent), low(t));
+      if (after && after.length <= 300) return after;
+      const pn = parent.nextElementSibling;
+      if (pn && tx(pn)) return tx(pn).slice(0, 300);
+    }
+  }
+  return "";
 };"""
 
 
@@ -219,16 +271,19 @@ def parse_helper_call(text: str, line: int) -> HelperCall:
 
 
 def references_claim(source: str) -> bool:
-    """True when a page.evaluate function calls the claim helper."""
+    """True when a page.evaluate function calls cu.claim or cu.text."""
     text = source or ""
-    return "cu.claim" in text or "cu['claim']" in text or 'cu["claim"]' in text
+    return any(
+        token in text
+        for token in ("cu.claim", "cu['claim']", 'cu["claim"]', "cu.text", "cu['text']", 'cu["text"]')
+    )
 
 
 def wrap_evaluate(function: str) -> str:
-    """Define cu.claim for this function. Other evaluate sources stay unchanged."""
+    """Define cu.claim and cu.text for this function. Other evaluate sources stay unchanged."""
     if not references_claim(function):
         return function
-    return "() => {\n" + CLAIM_JS + "\nconst __cuUser = " + function.strip() + ";\nreturn __cuUser();\n}"
+    return "() => {\n" + CLAIM_JS + "\n" + TEXT_JS + "\nconst __cuUser = " + function.strip() + ";\nreturn __cuUser();\n}"
 
 
 def _js_number(value: int | float) -> str:
@@ -311,60 +366,3 @@ def shape_claim(partial, *, url: str, title: str, h1: str) -> dict:
     return out
 
 
-def _call(fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs)
-    except TypeError:
-        kwargs.pop("exact", None)
-        return fn(*args, **kwargs)
-
-
-def _open(page, kind: str, role: str, name: str):
-    if kind == "role":
-        return _call(page.get_by_role, role, name=name, exact=True)
-    if kind == "text":
-        return _call(page.get_by_text, name, exact=True)
-    if kind == "label":
-        return _call(page.get_by_label, name, exact=True)
-    if kind == "placeholder":
-        return _call(page.get_by_placeholder, name, exact=True)
-    raise RuntimeError(f"unsupported finder {kind}")
-
-
-async def _count(locator) -> int:
-    count = getattr(locator, "count", None)
-    if not callable(count):
-        raise RuntimeError("the page cannot count controls")
-    value = count()
-    if asyncio.iscoroutine(value):
-        value = await value
-    return int(value)
-
-
-async def _act(locator, op: str, value: str, timeout_ms: int) -> None:
-    if op == "click":
-        result = locator.click(timeout=timeout_ms)
-    elif op == "fill":
-        result = locator.fill(value, timeout=timeout_ms)
-    elif op == "press":
-        result = locator.press(value, timeout=timeout_ms)
-    else:
-        raise ScriptError(f"unsupported helper {op}")
-    if asyncio.iscoroutine(result):
-        await result
-
-
-async def run_helper(page, call: HelperCall, *, timeout_ms: int) -> None:
-    """Act on the one control named by the call. A miss raises and does not click another."""
-    order = _CLICK if call.op == "click" else _TYPE
-    for kind, role in order:
-        locator = _open(page, kind, role, call.target)
-        count = await _count(locator)
-        if count == 0:
-            continue
-        if count != 1:
-            label = role or kind
-            raise RuntimeError(f"line {call.line}: {count} matches for {label} named {call.target!r}")
-        await _act(locator, call.op, call.value, timeout_ms)
-        return
-    raise RuntimeError(f"line {call.line}: no control named {call.target!r}")
