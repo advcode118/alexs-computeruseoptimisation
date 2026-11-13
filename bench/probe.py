@@ -963,6 +963,10 @@ async def run_claude_arm(
             ]
             row["repair_sent"] = result.repair_sent
             row["repair_reply"] = result.repair_reply
+            # Every script's self-check inputs and verdict, for offline replay.
+            row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
+            row["task_description"] = task.get("description") or ""
+            row["start_url"] = task.get("start_url") or ""
         if provider == "openai":
             from bench.openai_spend import price_usd
 

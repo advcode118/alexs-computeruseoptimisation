@@ -123,6 +123,8 @@ class StepMetrics:
     claimed_key_text: str = ""
     claimed_values: tuple[str, ...] = ()
     claimed_rejected: bool = False
+    # script_first only: what the runtime self-check saw and decided, for offline replay.
+    self_check: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -376,6 +378,21 @@ def claim_from_step(step) -> "ClaimedEvidence":
         values=tuple(step.claimed_values or ()),
         rejected=bool(step.claimed_rejected),
     )
+
+
+def self_check_record(payload: dict | None, page_url: str, start_url: str, verdict) -> dict:
+    """The runtime self-check's inputs and verdict for one script, for offline replay.
+
+    Logged on the probe row only. Controls are dropped to keep rows small.
+    """
+    data = {k: v for k, v in (payload or {}).items() if k != "controls"} if isinstance(payload, dict) else {}
+    return {
+        "payload": data,
+        "page_url": page_url or "",
+        "start_url": start_url or "",
+        "verdict": getattr(verdict, "verdict", ""),
+        "reason": getattr(verdict, "reason", ""),
+    }
 
 
 def claim_step_fields(returned: dict | None) -> dict:
@@ -984,6 +1001,7 @@ class BenchmarkHarness:
                     claimed_answer=claimed_answer,
                     page_text=page_text,
                     **claim_step_fields(returned),
+                    self_check=self_check_record(payload, page_url, start_url, verdict),
                 )
             )
             outcome["verdict"] = verdict
@@ -1405,6 +1423,7 @@ class BenchmarkHarness:
                     logged_answer = ""
                     logged_page_text = ""
                     logged_return: dict = {}
+                    logged_check: dict = {}
                     total_tool_ms += tool_ms
                     ignores.note_call(tool_name, tool_args if isinstance(tool_args, dict) else {})
                     ignores.note_result(tool_name, result_text)
@@ -1453,6 +1472,7 @@ class BenchmarkHarness:
                             end_state = verdict.verdict
                             failure = verdict.reason if verdict.verdict == FAIL else ""
                             logged_selector, logged_answer, logged_page_text, logged_return = logged_evidence(payload)
+                            logged_check = self_check_record(payload, page_url, start_url, verdict)
                             # The judge already read selector_text. The model must not.
                             repair_pending = False
                             if verdict.verdict == FAIL and repairs_sent < 1:
@@ -1529,6 +1549,7 @@ class BenchmarkHarness:
                             claimed_answer=logged_answer,
                             page_text=logged_page_text,
                             **claim_step_fields(logged_return),
+                            self_check=logged_check,
                         )
                     )
 
