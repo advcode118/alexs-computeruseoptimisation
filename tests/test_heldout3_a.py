@@ -44,7 +44,8 @@ def _canonical(task: dict) -> str:
     host = markers["host"]
     token = markers["url_contains"]
     if token.startswith("/"):
-        return "https://" + host + token
+        suffix = markers["path_suffix"]
+        return "https://" + host + (suffix if suffix.startswith(token) else token)
     path = markers["path_suffix"]
     if not path.startswith("/"):
         path = "/" + path
@@ -89,8 +90,12 @@ def test_heldout3a_split_lists_thirty_tasks():
         assert {"host", "url_contains", "path_suffix", "deny", "answer_in_text"} <= markers.keys()
         assert task["check_url_contains"] in markers["url_contains"]
         assert markers["answer_in_text"] == task["expected_answer"]
-        assert markers["path_suffix"] not in task["description"]
-        assert markers["path_suffix"] not in task["start_url"]
+        assert markers["path_suffix"] or markers["url_contains"].startswith("/")
+        if markers["path_suffix"]:
+            assert markers["path_suffix"] not in task["description"]
+            assert markers["path_suffix"] not in task["start_url"]
+        assert markers["url_contains"] not in task["description"]
+        assert markers["url_contains"] not in task["start_url"]
         assert task["expected_answer"] not in task["start_url"]
         assert not re.search(
             r"(?<!\w)" + re.escape(task["expected_answer"]) + r"(?!\w)",
@@ -139,12 +144,12 @@ def test_heldout3a_markers_accept_slash_and_fragment_and_reject_wrong_pages():
             ClaimedEvidence(answer=answer),
         )
         assert wrong.verdict == "FAIL", task["id"]
-        slashed = _slash_variant(url)
+        same_host = urlsplit(url)._replace(path="/not-the-right-page", query="", fragment="").geturl()
         assert evidence_verdict(
             markers,
-            PageEvidence(url=slashed, text=evidence.text),
+            PageEvidence(url=same_host, text=evidence.text),
             ClaimedEvidence(answer=answer),
-        ).verdict == "PASS", (task["id"], slashed)
+        ).verdict == "FAIL", (task["id"], same_host)
         if "#" not in url:
             hashed = url + "#section"
         else:
@@ -154,12 +159,38 @@ def test_heldout3a_markers_accept_slash_and_fragment_and_reject_wrong_pages():
             PageEvidence(url=hashed, text=evidence.text),
             ClaimedEvidence(answer=answer),
         ).verdict == "PASS", task["id"]
+        # The grader's path_suffix is strict. The live checker loads the
+        # slash-toggled form of each directory URL and requires that page to pass.
+        if not markers["path_suffix"]:
+            # A slash-tolerant marker: both forms pass, a sibling page fails.
+            assert evidence_verdict(
+                markers,
+                PageEvidence(url=_slash_variant(url), text=evidence.text),
+                ClaimedEvidence(answer=answer),
+            ).verdict == "PASS", task["id"]
+            sibling = url.rstrip("/").rsplit("/", 1)[0] + "/not-the-right-page"
+            assert evidence_verdict(
+                markers,
+                PageEvidence(url=sibling, text=evidence.text),
+                ClaimedEvidence(answer=answer),
+            ).verdict == "FAIL", (task["id"], sibling)
+            continue
         child = _slash_variant(url).rstrip("/") + "/not-a-child"
         assert evidence_verdict(
             markers,
             PageEvidence(url=child, text=evidence.text),
             ClaimedEvidence(answer=answer),
         ).verdict == "FAIL", (task["id"], child)
+
+
+def test_heldout3a_uses_at_most_three_tasks_per_site():
+    counts = {}
+    for task in tasks_for_split("heldout3a"):
+        names = {_registrable(urlsplit(task["start_url"]).netloc)}
+        names.update(_registrable(host) for host in _hosts(task))
+        for name in names:
+            counts[name] = counts.get(name, 0) + 1
+    assert max(counts.values()) <= 3, counts
 
 
 def test_heldout3a_dry_plan_lists_tasks_without_a_spend_ledger(monkeypatch):

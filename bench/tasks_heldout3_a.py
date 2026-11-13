@@ -38,7 +38,7 @@ HELDOUT3A_TASKS = [
         "end_markers": {
             "host": "docs.freebsd.org",
             "url_contains": "/books/handbook/jails",
-            "path_suffix": "/books/handbook/jails",
+            "path_suffix": "/books/handbook/jails/",
             "deny": ["/search"],
             "answer_in_text": "Chapter 17. Jails and Containers",
         },
@@ -56,7 +56,7 @@ HELDOUT3A_TASKS = [
         "end_markers": {
             "host": "ecma-international.org",
             "url_contains": "/publications-and-standards/standards/ecma-262",
-            "path_suffix": "/publications-and-standards/standards/ecma-262",
+            "path_suffix": "/publications-and-standards/standards/ecma-262/",
             "deny": ["/search", "/technical-committees/"],
             "answer_in_text": "ECMA-262",
         },
@@ -92,7 +92,7 @@ HELDOUT3A_TASKS = [
         "end_markers": {
             "host": "docs.julialang.org",
             "url_contains": "/en/v1/manual/missing",
-            "path_suffix": "/en/v1/manual/missing",
+            "path_suffix": "/en/v1/manual/missing/",
             "deny": ["/search"],
             "answer_in_text": "Missing Values",
         },
@@ -134,21 +134,21 @@ HELDOUT3A_TASKS = [
         },
     },
     {
-        "id": "ho3a_nav_lua_coroutines",
+        "id": "ho3a_nav_clojure_atoms",
         "description": (
-            "From the Lua website, open the documentation, then the current reference "
-            "manual, then the section about collaborative threads that can suspend "
-            "and later resume. Report that section's heading."
+            "From the Clojure home page, open the reference documentation, then the "
+            "page about the reference type that manages shared, synchronous, "
+            "independent state. Report that page's main heading."
         ),
-        "start_url": "https://www.lua.org/",
-        "expected_answer": "2.6 \u2013 Coroutines",
-        "check_url_contains": "#2.6",
+        "start_url": "https://clojure.org/",
+        "expected_answer": "Atoms",
+        "check_url_contains": "/reference/atoms",
         "end_markers": {
-            "host": "lua.org",
-            "url_contains": "#2.6",
-            "path_suffix": "/manual.html",
-            "deny": ["/search"],
-            "answer_in_text": "2.6 \u2013 Coroutines",
+            "host": "clojure.org",
+            "url_contains": "/reference/atoms",
+            "path_suffix": "/reference/atoms",
+            "deny": ["/search", "/api/"],
+            "answer_in_text": "Atoms",
         },
     },
     {
@@ -232,7 +232,7 @@ HELDOUT3A_TASKS = [
         "end_markers": {
             "host": "docs.julialang.org",
             "url_contains": "/en/v1/manual/integers-and-floating-point-numbers",
-            "path_suffix": "/en/v1/manual/integers-and-floating-point-numbers",
+            "path_suffix": "/en/v1/manual/integers-and-floating-point-numbers/",
             "deny": ["/search"],
             "answer_in_text": "9223372036854775807",
         },
@@ -284,7 +284,7 @@ HELDOUT3A_TASKS = [
         "end_markers": {
             "host": "imagemagick.org",
             "url_contains": "/formats",
-            "path_suffix": "/formats",
+            "path_suffix": "/formats/",
             "deny": ["/search"],
             "answer_in_text": "AAI Dune image",
         },
@@ -492,7 +492,7 @@ HELDOUT3A_TASKS = [
         "end_markers": {
             "host": "docs.freebsd.org",
             "url_contains": "/en/books/handbook",
-            "path_suffix": "/en/books/handbook",
+            "path_suffix": "/en/books/handbook/",
             "deny": ["/search", "/jails"],
             "answer_in_text": "FreeBSD Handbook",
         },
@@ -509,7 +509,7 @@ HELDOUT3A_TASKS = [
         "end_markers": {
             "host": "debian.org",
             "url_contains": "/doc/debian-policy",
-            "path_suffix": "/doc/debian-policy",
+            "path_suffix": "/doc/debian-policy/",
             "deny": ["/search", "devel-manuals"],
             "answer_in_text": "Debian Policy Manual",
         },
@@ -526,7 +526,7 @@ HELDOUT3A_TASKS = [
         "end_markers": {
             "host": "www.ietf.org",
             "url_contains": "/about/introduction",
-            "path_suffix": "/about/introduction",
+            "path_suffix": "/about/introduction/",
             "deny": ["/search"],
             "answer_in_text": "Introduction to the IETF",
         },

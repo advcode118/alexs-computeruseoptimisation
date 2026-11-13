@@ -23,7 +23,8 @@ def _open_url(task: dict) -> str:
     markers = task["end_markers"]
     token = markers["url_contains"]
     if token.startswith("/"):
-        return "https://" + markers["host"] + token
+        suffix = markers["path_suffix"]
+        return "https://" + markers["host"] + (suffix if suffix.startswith(token) else token)
     path = markers["path_suffix"]
     if not path.startswith("/"):
         path = "/" + path
@@ -40,6 +41,11 @@ async def _real_page(page, response) -> int:
         page.url, response.status if response else None
     )
     body = await page.locator("body").inner_text()
+    if len(body.strip()) <= 100:
+        # Client-rendered docs fill the body after the DOM is ready.
+        await page.wait_for_load_state("load")
+        await page.wait_for_timeout(2000)
+        body = await page.locator("body").inner_text()
     title = (await page.title()).casefold()
     assert len(body.strip()) > 100, (page.url, "empty/error page")
     assert not any(token in title for token in ("just a moment", "attention required", "access denied")), page.url
@@ -54,8 +60,10 @@ async def _real_page(page, response) -> int:
 async def _click(page, selector: str):
     link = page.locator(selector).first
     await link.wait_for(state="attached")
+    # A DOM click also reaches links inside a collapsed menu or sidebar.
+    # A new-tab link opens in this tab, so the checker keeps one page.
     async with page.expect_navigation(wait_until="domcontentloaded", timeout=45000):
-        await link.click()
+        await link.evaluate("element => { element.removeAttribute('target'); element.click(); }")
 
 
 async def _search(page, query: str, href_part: str):
@@ -88,20 +96,20 @@ async def _interact(page, task: dict):
         await _click(page, 'a[href$="/execve.2.html"]')
         return None
     if task_id == "ho3a_nav_freebsd_jails":
-        await _click(page, 'a[href="https://docs.freebsd.org/en/books/handbook/"]')
-        await _click(page, 'a[href*="/books/handbook/jails/"]')
+        await _click(page, 'a[href$="/en/books/handbook/" i]')
+        await _click(page, 'a[href$="/books/handbook/jails/"]')
         return None
     if task_id == "ho3a_nav_ecma_script":
         await _click(page, 'a[href*="/publications-and-standards/standards/"]')
         await _click(page, 'a[href*="/standards/ecma-262"]')
         return None
     if task_id == "ho3a_nav_llvm_parser":
-        await _click(page, 'a[href="https://llvm.org/docs/"]')
+        await _click(page, 'a[href="/docs/"]')
         await _click(page, 'a[href*="LangImpl02.html"]')
         return None
     if task_id == "ho3a_nav_julia_missing":
-        await _click(page, 'a[href="https://docs.julialang.org/"]')
-        await _click(page, 'a[href*="/manual/missing/"]')
+        await _click(page, 'a[href="https://docs.julialang.org"]')
+        await _click(page, 'a[href$="manual/missing/"]')
         return None
     if task_id == "ho3a_nav_cmake_library":
         await _click(page, 'a[href="https://cmake.org/documentation/"]')
@@ -114,10 +122,9 @@ async def _interact(page, task: dict):
         await _click(page, 'a[href*="onlinereport/haskell2010/"]')
         await _click(page, 'a[href*="haskellch3.html"]')
         return None
-    if task_id == "ho3a_nav_lua_coroutines":
-        await _click(page, 'a[href$="/docs.html"]')
-        await _click(page, 'a[href$="/manual/5.5/"]')
-        await _click(page, 'a[href*="manual.html#2.6"]')
+    if task_id == "ho3a_nav_clojure_atoms":
+        await _click(page, 'a[href="/reference/documentation"]')
+        await _click(page, 'a[href="atoms"]')
         return None
     if task_id == "ho3a_search_llvm_lexicon":
         await _search(page, "Lexicon", "Lexicon.html")
@@ -163,15 +170,18 @@ async def _interact(page, task: dict):
         await page.locator("#g2599-email").fill("ada@example.com")
         await page.locator("textarea[name='g2599-comment']").fill("Hello from the checker")
         await _submit_absent(page, task)
+        consent = page.locator(".fc-cta-do-not-consent, .fc-cta-consent").first
+        if await consent.is_visible():
+            await consent.click()
         async with page.expect_navigation(wait_until="domcontentloaded", timeout=30000):
             await page.locator("form button, form input[type=submit]").last.click()
         return None
     if task_id == "ho3a_title_freebsd_handbook":
-        await _click(page, 'a[href="https://docs.freebsd.org/en/books/handbook/"]')
+        await _click(page, 'a[href$="/en/books/handbook/" i]')
         return None
     if task_id == "ho3a_title_debian_policy":
-        await _click(page, 'a[href*="/doc/devel-manuals"]')
-        await _click(page, 'a[href$="/doc/debian-policy/"]')
+        await _click(page, 'a[href="devel-manuals"]')
+        await _click(page, 'a[href="debian-policy/"]')
         return None
     if task_id == "ho3a_title_ietf_intro":
         await _click(page, 'a[href*="/about/introduction"]')
@@ -185,6 +195,23 @@ def _slash_variant(url: str) -> str:
     parts = urlsplit(url)
     path = parts.path[:-1] or "/" if parts.path.endswith("/") else parts.path + "/"
     return parts._replace(path=path).geturl()
+
+
+def _is_directory_url(url: str) -> bool:
+    """A path whose last segment has no file extension, like /docs/intro or /docs/intro/."""
+    last = urlsplit(url).path.rstrip("/").rsplit("/", 1)[-1]
+    return "." not in last
+
+
+def _sibling_url(url: str) -> str:
+    parts = urlsplit(url)
+    parent = parts.path.rstrip("/").rsplit("/", 1)[0]
+    return parts._replace(path=parent + "/not-the-right-page", query="", fragment="").geturl()
+
+
+def _child_url(url: str) -> str:
+    parts = urlsplit(url)
+    return parts._replace(path=parts.path.rstrip("/") + "/not-a-child", query="", fragment="").geturl()
 
 
 async def _js_source_lacks_answer(browser, url: str, answer: str) -> None:
@@ -228,18 +255,38 @@ async def verify() -> None:
                         task["end_markers"], evidence, ClaimedEvidence(answer="not-the-right-value")
                     )
                     assert wrong_value.verdict == "FAIL", (task["id"], "wrong value passed", wrong_value)
-                    wrong_page = evidence_verdict(
-                        task["end_markers"],
-                        replace(evidence, url="https://example.com/not-the-right-page"),
-                        ClaimedEvidence(answer=answer),
-                    )
-                    assert wrong_page.verdict == "FAIL", (task["id"], "wrong page passed", wrong_page)
-                    slashed = evidence_verdict(
-                        task["end_markers"],
-                        replace(evidence, url=_slash_variant(evidence.url)),
-                        ClaimedEvidence(answer=answer),
-                    )
-                    assert slashed.verdict == "PASS", (task["id"], "slash variant failed", evidence.url, slashed)
+                    # The canonical href counts as the page too, so a wrong page drops it.
+                    for wrong_url in (
+                        "https://example.com/not-the-right-page",
+                        urlsplit(evidence.url)._replace(path="/not-the-right-page", query="", fragment="").geturl(),
+                        _child_url(evidence.url) if task["end_markers"]["path_suffix"] else _sibling_url(evidence.url),
+                    ):
+                        wrong_page = evidence_verdict(
+                            task["end_markers"],
+                            replace(evidence, url=wrong_url, canonical=""),
+                            ClaimedEvidence(answer=answer),
+                        )
+                        assert wrong_page.verdict == "FAIL", (task["id"], "wrong page passed", wrong_url, wrong_page)
+                    slash_check = "file URL"
+                    if _is_directory_url(evidence.url) and not task["id"].startswith("ho3a_form_"):
+                        # Ask the site itself: the toggled URL must load a page that passes.
+                        toggled = _slash_variant(evidence.url.split("#")[0])
+                        variant = await context.new_page()
+                        try:
+                            reply = await variant.goto(toggled, wait_until="domcontentloaded")
+                            if task["id"].startswith("ho3a_js_"):
+                                await variant.wait_for_timeout(1500)
+                            seen = await collect_page_evidence(variant)
+                        finally:
+                            await variant.close()
+                        status = reply.status if reply else 0
+                        if status >= 400:
+                            # The site has no page there, so no agent can finish on it.
+                            slash_check = f"HTTP {status}"
+                        else:
+                            slashed = evidence_verdict(task["end_markers"], seen, ClaimedEvidence(answer=answer))
+                            assert slashed.verdict == "PASS", (task["id"], "slash variant failed", toggled, seen.url, slashed)
+                            slash_check = "PASS"
                     if "#" not in evidence.url:
                         hashed = evidence_verdict(
                             task["end_markers"],
@@ -260,33 +307,47 @@ async def verify() -> None:
                         h1_check = "FAIL"
                     elif h1:
                         h1_check = "heading is the answer"
-                    print(f"{task['id']}: {start_status}, {page.url}, {verdict.verdict}, h1={h1_check}", flush=True)
-                    return task["id"], start_status, page.url, verdict.verdict, h1_check
+                    print(ascii(f"{task['id']}: {start_status}, {page.url}, {verdict.verdict}, h1={h1_check}, slash={slash_check}"), flush=True)
+                    return task["id"], start_status, page.url, verdict.verdict, h1_check, slash_check
+                except Exception as error:
+                    raise RuntimeError(task["id"], repr(error)) from error
                 finally:
                     await context.close()
 
         try:
-            rows = await asyncio.gather(*(check(task) for task in tasks_for_split("heldout3a")))
+            results = await asyncio.gather(
+                *(check(task) for task in tasks_for_split("heldout3a")), return_exceptions=True
+            )
         finally:
             await browser.close()
+
+    failed = [item for item in results if isinstance(item, BaseException)]
+    for item in failed:
+        print(ascii(f"FAILED: {item!r}")[:600], flush=True)
+    rows = [item for item in results if not isinstance(item, BaseException)]
+    print(f"heldout3a verify: {len(rows)} passed, {len(failed)} failed", flush=True)
+    if failed:
+        raise SystemExit(1)
 
     lines = [
         "# Heldout3a public-page verification", "",
         f"Verified {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} with local headless Chromium.", "",
         "This is page and marker validation, not an agent benchmark. No model calls and no bench probes were run.",
         "Each task was done in headless Chromium, then graded with evidence_verdict.",
-        "A wrong value and a wrong host failed for every task. Directory URLs also passed with the trailing slash toggled, and pages without a required fragment passed with an added fragment.",
+        "For every task a wrong value failed, and so did a wrong host, a wrong path on the right host, and a child path, or a sibling path where the marker is slash-tolerant (each with the canonical link removed).",
+        "Each directory URL outside the form tasks was loaded again with its trailing slash toggled. That page passed too, or the site answered with an HTTP error, so no agent can end there. Pages without a required fragment passed with an added fragment. The grader was not changed.",
         "Value answers are not the first h1. JavaScript tasks were absent from the no-script HTML.", "",
         "Reproduce: `python -m bench.verify_heldout3_a` (public network; no model calls).", "",
-        "| Task id | Start status | End URL | Verdict | First-h1 claim |",
-        "| --- | --- | --- | --- | --- |",
+        "| Task id | Start status | End URL | Verdict | First-h1 claim | Slash toggle |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     lines.extend(
-        f"| {task_id} | {status} | {url} | {verdict} | {negative} |"
-        for task_id, status, url, verdict, negative in rows
+        f"| {task_id} | {status} | {url} | {verdict} | {negative} | {slash} |"
+        for task_id, status, url, verdict, negative, slash in rows
     )
     lines.extend([
         "", "## Candidates dropped before finalization", "",
+        "- lua.org: the server closed repeat connections, so the Lua manual task was replaced by Clojure's reference.",
         "- ISO Open Browsing Platform: Cloudflare challenge in headless Chromium.",
         "- packages.debian.org search: an interstitial challenge page.",
         "- GNU libc manual and MicroPython docs: HTTP 403.",
