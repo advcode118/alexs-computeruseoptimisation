@@ -19,16 +19,17 @@ CASES = [
     ("has no digits", "Report how many seats remain.", "none", "Seat inventory", "Seats remaining: none"),
     ("has no digits", "Report the width of the cable.", "two metres", "Cable specifications", "Width: two metres"),
     ("has no digits", "Report the price of admission.", "Free", "Museum admission", "Price: Free"),
+    ("has no digits", "Report how much a ticket costs for visitors aged 12.", "12 credits", "Ticket prices", "Ticket price for children: 12 credits"),
     ("has no digits", "Report the name of the author of The Long Year.", "Mara Vale", "Book catalogue", "Author: Mara Vale"),
     ("document title", "Report the title of the first exhibition.", "Summer Light", "Collections Portal", "First exhibition: Summer Light"),
     ("document title", "Report the title of the selected article.", "夜の旅", "Reader Workspace", "Selected article: 夜の旅"),
-    ("table row", "Report the fare for the least expensive service.", "Local\t5 credits", "Fare guide", "Service\tFare\nLocal\t5 credits\nExpress\t9 credits"),
-    ("table row", "Report the French translation of the word for cat.", "chat\tcat", "Language guide", "French\tEnglish\nchat\tcat\nchien\tdog"),
-    ("table row for", "Report the colour of the TCP badge in the legend.", "blue", "Network legend", "Protocol\tPort\nTCP\t80\nBadge colour: blue"),
+    ("table row", "Report the entry for the least expensive service.", "Local\t5 credits", "Fare guide", "Service\tFare\nLocal\t5 credits\nExpress\t9 credits"),
+    ("table row", "Report the French translation of the word for cat.", "chat", "Language guide", "French\tEnglish\nchat\tcat\nchien\tdog"),
+    ("table row for", "Report the colour of the TCP badge in the legend.", "blue", "Network legend", "Protocol\tPort\nTCP\t80\nTCP badge colour: blue"),
 ]
 
 
-def marked_task(description, answer):
+def marked_task(description):
     return {
         "description": description, "start_url": START,
         "end_markers": {"host": "fixture.example", "answer_equals_selector": ".answer"},
@@ -37,7 +38,7 @@ def marked_task(description, answer):
 
 def assert_false_reject(description, answer, page, reason, *, earlier=()):
     claim = ClaimedEvidence(answer=answer)
-    task = marked_task(description, answer)
+    task = marked_task(description)
     # The fixture's selector value is recorded independently and stays judge-only.
     good, _ = grade_page_answer(task, page.url, page.text, selector_text=answer, claimed=claim)
     assert good
@@ -94,7 +95,7 @@ def test_report_measures_a_real_runtime_false_reject():
 
     description = "Report the price of admission."
     page = PageEvidence(url=LIVE, title="Admission", text="Price: Free")
-    task = marked_task(description, "Free")
+    task = marked_task(description)
     rows = []
     # One ordinary true accept plus one concrete quantity-digit false reject.
     for answer, body in [("8 credits", "Price: 8 credits"), ("Free", page.text)]:

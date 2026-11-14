@@ -582,6 +582,8 @@ def test_playwright_and_stagehand_record_the_same_claim(monkeypatch, tmp_path):
         blob = json.dumps(model.seen)
         assert ".titleline" not in blob
         assert "selector_text" not in blob
+        assert "page_answer_success" not in blob
+        assert "page_answer_reason" not in blob
         assert row["success"] is True
         assert row["success_reason"] == "the page evidence matches the markers"
         rows[arm] = row["success_reason"]
