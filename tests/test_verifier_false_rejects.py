@@ -1,8 +1,8 @@
 """Hand-written counterexamples, independent of any benchmark task catalog.
 
-These characterize unresolved false rejects, not desired rejection behaviour.
-Each answer passes the unchanged page/answer grader but fails runtime and thus
-final success. Keep the diagnosis explicit until a rule has a supported fix.
+Each answer passes the unchanged page/answer grader. The narrowed rules now
+accept the fixed ones (CASES and the form/heading cases); the rest still
+characterize unresolved false rejects and stay explicit until a supported fix.
 """
 from dataclasses import replace
 
@@ -14,7 +14,7 @@ from bench.script_first import ClaimedEvidence, EarlierPage, PageEvidence, runti
 START = "https://fixture.example/"
 LIVE = START + "entry"
 
-# rule, user request, independently correct answer, page title, body
+# rule PR #70 rejected it by, user request, independently correct answer, page title, body
 CASES = [
     ("has no digits", "Report how many seats remain.", "none", "Seat inventory", "Seats remaining: none"),
     ("has no digits", "Report the width of the cable.", "two metres", "Cable specifications", "Width: two metres"),
@@ -55,26 +55,48 @@ def assert_false_reject(description, answer, page, reason, *, earlier=()):
     return verdict
 
 
+def assert_now_accepted(description, answer, page, *, earlier=()):
+    claim = ClaimedEvidence(answer=answer)
+    task = marked_task(description)
+    good, _ = grade_page_answer(task, page.url, page.text, selector_text=answer, claimed=claim)
+    assert good
+    verdict = runtime_verdict(page, claim, task=description, start_url=START, asks_value=True, earlier=earlier)
+    assert verdict.verdict == "PASS", verdict.reason
+    final, _, _, _ = grade_observation(
+        task, page.url, page.text, selector_text=answer, claimed=claim, run_verdict=verdict.verdict,
+    )
+    assert final is True
+    # Incorrect answers remain incorrect.
+    bad, _ = grade_page_answer(task, page.url, page.text, selector_text=answer, answer="Unrelated value")
+    assert not bad
+
+
 @pytest.mark.parametrize("reason,description,answer,title,body", CASES)
-def test_concrete_false_reject(reason, description, answer, title, body):
-    assert_false_reject(description, answer, PageEvidence(url=LIVE, title=title, text=body), reason)
+def test_former_false_reject_is_now_accepted(reason, description, answer, title, body):
+    assert_now_accepted(description, answer, PageEvidence(url=LIVE, title=title, text=body))
 
 
-def test_repeated_confirmation_after_retry_is_not_proof_of_no_submission():
+def test_repeated_confirmation_after_retry_is_now_accepted():
+    # The earlier stopped script had already left the start page, so it may have submitted.
     body = "Your request was received.\nNew reference: BQ-72"
-    assert_false_reject(
+    assert_now_accepted(
         "Submit the revised request and report the confirmation message.",
         "Your request was received.", PageEvidence(url=LIVE, title="Request desk", text=body),
-        "before the form was submitted",
         earlier=(EarlierPage(url=LIVE, text="Your request was received.\nOld reference: BQ-71", stopped=True),),
     )
 
 
-def test_initial_page_heading_is_a_valid_answer_when_explicitly_requested():
-    assert_false_reject(
+def test_initial_page_heading_is_accepted_when_the_task_asks_for_no_move():
+    assert_now_accepted(
         "Report the main heading on the current page.", "Cedar Observatory",
         PageEvidence(url=START, title="Cedar Observatory", h1="Cedar Observatory", text="Cedar Observatory\nVisitor guide"),
-        "start page's own heading",
+    )
+
+
+def test_digitless_quantity_outside_the_number_words_is_still_rejected():
+    assert_false_reject(
+        "Report the price of admission.", "Complimentary",
+        PageEvidence(url=LIVE, title="Admission", text="Price: Complimentary"), "has no digits",
     )
 
 
@@ -94,11 +116,11 @@ def test_report_measures_a_real_runtime_false_reject():
     from bench.heldout3_report import build_report
 
     description = "Report the price of admission."
-    page = PageEvidence(url=LIVE, title="Admission", text="Price: Free")
+    page = PageEvidence(url=LIVE, title="Admission", text="Price: Complimentary")
     task = marked_task(description)
     rows = []
     # One ordinary true accept plus one concrete quantity-digit false reject.
-    for answer, body in [("8 credits", "Price: 8 credits"), ("Free", page.text)]:
+    for answer, body in [("8 credits", "Price: 8 credits"), ("Complimentary", page.text)]:
         current = replace(page, text=body)
         claim = ClaimedEvidence(answer=answer)
         verdict = runtime_verdict(current, claim, start_url=START, task=description, asks_value=True)

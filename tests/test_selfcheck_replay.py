@@ -21,8 +21,8 @@ def test_saved_correct_digitless_answer_is_a_real_false_reject():
     task = {"description": "Report the price of admission.", "end_markers": {"answer_equals_selector": ".price"}}
     check = {
         "page_url": "https://fixture.example/ticket", "start_url": "https://fixture.example/",
-        "payload": {"ok": True, "url": "https://fixture.example/ticket", "text": "Price: Free",
-                    "claimed": {"answer": "Free"}, "selector_text": "Free"},
+        "payload": {"ok": True, "url": "https://fixture.example/ticket", "text": "Price: Complimentary",
+                    "claimed": {"answer": "Complimentary"}, "selector_text": "Complimentary"},
     }
     assert grade_check(task, check) is True
     verdict = replay_check(task["description"], check)

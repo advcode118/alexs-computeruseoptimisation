@@ -74,6 +74,70 @@ def replay_check(description: str, check: dict, earlier: list | None = None):
     return verdict
 
 
+def rule_hits(description: str, check: dict, earlier: list | None = None):
+    """The plain check alone (no precision rules), and every precision rule that fires on the saved inputs.
+
+    The plain verdict is the self-check before the precision rules existed.
+    Rules are only listed when that plain verdict is PASS, as only then can they decide.
+    """
+    from bench.script_first import (
+        PASS,
+        _earlier_page,
+        claimed_from_payload,
+        precision_hits,
+        script_runtime_verdict,
+        task_asks_value,
+        trusted_from_payload,
+    )
+
+    payload = dict(check.get("payload") or {})
+    payload.pop("selector_text", None)
+    asks = task_asks_value(description)
+    plain, _ = script_runtime_verdict(
+        json.dumps(payload), check.get("page_url") or "", check.get("start_url") or "", asks_value=asks, task=""
+    )
+    if plain.verdict != PASS:
+        return plain, []
+    earlier_pages = tuple(
+        _earlier_page(dict(item.get("payload") or {})) for item in earlier or []
+    )
+    hits = precision_hits(
+        trusted_from_payload(payload, url=check.get("page_url") or ""),
+        claimed_from_payload(payload),
+        task=description,
+        start_url=check.get("start_url") or "",
+        asks_value=asks,
+        earlier=earlier_pages,
+    )
+    return plain, [name for name, _reason in hits]
+
+
+def by_rule(units: list[dict]) -> dict:
+    """Per precision rule, on graded scripts the plain check passes.
+
+    false_rejects: the rule fires on a script the independent grade passes.
+    caught_false_accepts: the rule fires on a script the independent grade fails.
+    The *_alone counts are scripts where no other rule fires, so dropping this rule alone flips them.
+    """
+    table: dict[str, dict[str, int]] = {}
+    for unit in units:
+        if unit["graded"] is None or unit.get("plain") != "PASS":
+            continue
+        hits = unit.get("hits") or []
+        for name in dict.fromkeys(hits):
+            row = table.setdefault(
+                name, {"false_rejects": 0, "false_rejects_alone": 0, "caught_false_accepts": 0, "caught_alone": 0}
+            )
+            alone = len(set(hits)) == 1
+            if unit["graded"]:
+                row["false_rejects"] += 1
+                row["false_rejects_alone"] += alone
+            else:
+                row["caught_false_accepts"] += 1
+                row["caught_alone"] += alone
+    return dict(sorted(table.items()))
+
+
 def confusion(units: list[dict], key: str) -> dict:
     counts = Counter()
     for unit in units:
@@ -121,6 +185,7 @@ def build_units(rows: list[dict], tasks: dict[str, dict]) -> list[dict]:
         description = row.get("task_description") or task.get("description") or ""
         for index, check in enumerate(row["self_checks"]):
             new = replay_check(description, check, row["self_checks"][:index])
+            plain, hits = rule_hits(description, check, row["self_checks"][:index])
             units.append(
                 {
                     "file": row["_file"],
@@ -133,6 +198,9 @@ def build_units(rows: list[dict], tasks: dict[str, dict]) -> list[dict]:
                     "after": new.verdict,
                     "after_reason": new.reason,
                     "graded": grade_check(task, check),
+                    "plain": plain.verdict,
+                    "hits": hits,
+                    "row_success": row.get("success"),
                 }
             )
     return units
@@ -153,6 +221,8 @@ def main(argv: list[str] | None = None) -> int:
         "before": confusion(units, "before"),
         "after": confusion(units, "after"),
         "new_fails_by_check": by_check(units),
+        "plain": confusion(units, "plain"),
+        "by_rule": by_rule(units),
     }
     print(json.dumps(out, indent=2))
     for unit in units:
