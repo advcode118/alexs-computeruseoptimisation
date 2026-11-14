@@ -9,6 +9,7 @@ and is not a tool.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import re
 import shutil
@@ -130,7 +131,18 @@ _PAGE_EVIDENCE_JS = r"""() => {
   };
 }"""
 
-from bench.script_helpers import HelperCall, is_helper_call, parse_helper_call, run_helper, wrap_evaluate
+from bench.script_helpers import HelperCall, is_helper_call, parse_helper_call, wrap_evaluate
+from bench.script_resolve import (
+    FIND_CAP_S,
+    act_on,
+    miss_error,
+    mark_locator,
+    resolve,
+    run_helper,
+    select_option,
+    settle,
+    side_effect_free,
+)
 from bench.stagehand_local import context_browser
 from bench.script_grammar import BrowserAction, GRAMMAR_HINT, action_kind, browser_locator, parse_browser_action
 from proxy.script import MAX_SCRIPT_CHARS, MAX_SCRIPT_LINES, ScriptAction, ScriptError, parse_script
@@ -2445,12 +2457,196 @@ def _page_url(page) -> str:
     return url if isinstance(url, str) else ""
 
 
+_EVAL_RETRY_S = 2.0
+_SETTLE_AFTER_GOTO_MS = 600
+# Ops that change the page. The runner settles after each one.
+_ACTION_OPS = {
+    "click", "dblclick", "fill", "press", "check", "uncheck", "selectOption", "type",
+    "pressSequentially", "clear", "goBack", "goForward", "reload",
+}
+
+
+def _is_real_page(page) -> bool:
+    wait = getattr(page, "wait_for_load_state", None)
+    return callable(wait) and inspect.iscoroutinefunction(wait)
+
+
+def _empty_claim(value) -> bool:
+    """True for a page function that found nothing yet: no answer, key_text, or values."""
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip() or value.strip() in {"undefined", "null"}
+    if isinstance(value, dict):
+        if value.get("rejected"):
+            return False
+        answer = value.get("answer")
+        key = value.get("key_text")
+        values = value.get("values")
+        has_values = isinstance(values, list) and any(str(item).strip() for item in values if item is not None)
+        return not (str(answer or "").strip() or str(key or "").strip() or has_values)
+    return False
+
+
+async def _evaluate_step(page, step: TaskStep):
+    """Run one page function. A read-only one runs again while the page is still
+    changing: when it throws, or when it found nothing, for up to two seconds.
+    """
+    source = wrap_evaluate(step.function)
+    if not _is_real_page(page) or not side_effect_free(step.function):
+        return await asyncio.wait_for(page.evaluate(source), timeout=_EVALUATE_TIMEOUT_S)
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _EVAL_RETRY_S
+    while True:
+        try:
+            value = await asyncio.wait_for(page.evaluate(source), timeout=_EVALUATE_TIMEOUT_S)
+        except Exception:
+            if loop.time() >= deadline:
+                raise
+            await settle(page, cap_ms=500)
+            await asyncio.sleep(0.2)
+            continue
+        if not _empty_claim(value) or loop.time() >= deadline:
+            return value
+        await asyncio.sleep(0.35)
+        await settle(page, cap_ms=400)
+
+
+def _plain_name(selector: str) -> str:
+    """A page.click("Submit order") selector that is really a visible name."""
+    text = (selector or "").strip()
+    for prefix in ("text=", "text:"):
+        if text.casefold().startswith(prefix):
+            return text[len(prefix):].strip().strip("\"'")
+    if re.fullmatch(r"[\w][\w\s'’,.!?&-]*", text) and (" " in text or text[:1].isupper()):
+        return text
+    return ""
+
+
+def _resolve_op(op: str) -> str:
+    if op in {"fill", "type", "pressSequentially", "clear", "press"}:
+        return "fill" if op != "press" else "press"
+    if op == "selectOption":
+        return "fill"
+    if op in {"check", "uncheck"}:
+        return "check"
+    return "click"
+
+
+async def _count(locator) -> int | None:
+    count = getattr(locator, "count", None)
+    if not callable(count) or not inspect.iscoroutinefunction(count):
+        return None
+    try:
+        return int(await count())
+    except Exception:
+        return None
+
+
+async def _pick(page, locator, action: BrowserAction, *, name: str = "", op: str = ""):
+    """The one element a locator line means.
+
+    Several matches: the first visible one. None yet: look again while the
+    page renders, then fall back to the best control with that visible name.
+    """
+    if not _is_real_page(page):
+        return locator
+    n = await _count(locator)
+    if n is None:
+        return locator
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + (FIND_CAP_S if action.op not in READ_ONLY_OPS else FIND_CAP_S / 2)
+    while n == 0 and loop.time() < deadline:
+        await asyncio.sleep(0.25)
+        n = await _count(locator) or 0
+    if n == 1:
+        return locator
+    if n and n > 1:
+        if action.positions:
+            return locator
+        from bench.script_resolve import STRICT_MATCH
+        visible = []
+        for index in range(min(n, 25)):
+            candidate = locator.nth(index)
+            try:
+                if await candidate.is_visible():
+                    if not STRICT_MATCH:
+                        return candidate
+                    visible.append(candidate)
+            except Exception:
+                continue
+        if STRICT_MATCH:
+            if len(visible) == 1 and n <= 25:
+                return visible[0]
+            raise RuntimeError(f"line {action.line}: ambiguous locator {_describe(action)} ({n} matches); use a unique or explicitly positioned locator")
+        return locator.first
+    target = name or action.name or ""
+    pattern = action.pattern
+    if action.op in READ_ONLY_OPS or not (target or pattern):
+        raise RuntimeError(f"line {action.line}: nothing on the page matches {_describe(action)}")
+    mark, info = await resolve(
+        page,
+        target,
+        _resolve_op(op or action.op),
+        pattern=pattern.pattern if pattern else "",
+        flags="i" if pattern and "i" in pattern.flags else "",
+        cap_s=0.5,
+    )
+    if not mark:
+        raise miss_error(action.line, "element", target, info)
+    return mark_locator(page, mark)
+
+
+READ_ONLY_OPS = {"textContent", "innerText", "getAttribute"}
+
+
+def _describe(action: BrowserAction) -> str:
+    if action.finder == "role":
+        return f"role {action.role} named {action.name!r}" if action.name else f"role {action.role}"
+    return f"{action.finder} {action.name!r}"
+
+
+def _option_value(action: BrowserAction):
+    if action.option:
+        try:
+            return json.loads(action.option)
+        except ValueError:
+            return action.value
+    return action.value
+
+
+async def _locator_step(page, locator, action: BrowserAction, *, name: str = ""):
+    op = action.op
+    target = await _pick(page, locator, action, name=name, op=op)
+    timeout = _ACTION_TIMEOUT_MS
+    if op in {"click", "fill", "press", "check", "uncheck"}:
+        await act_on(page, target, op, action.value, timeout_ms=timeout)
+    elif op == "selectOption":
+        await select_option(target, _option_value(action), timeout)
+    elif op == "dblclick":
+        await target.dblclick(timeout=timeout)
+    elif op == "hover":
+        await target.hover(timeout=timeout)
+    elif op == "focus":
+        await target.focus(timeout=timeout)
+    elif op == "clear":
+        await target.fill("", timeout=timeout)
+    elif op in {"type", "pressSequentially"}:
+        await act_on(page, target, "fill", action.value, timeout_ms=timeout)
+    elif op == "textContent":
+        return await target.text_content(timeout=timeout)
+    elif op == "innerText":
+        return await target.inner_text(timeout=timeout)
+    elif op == "getAttribute":
+        return await target.get_attribute(action.value, timeout=timeout)
+    else:
+        raise ScriptError(f"line {action.line}: unsupported action {op}")
+    return None
+
+
 async def _run_step_on_page(page, step: TaskStep):
     if step.kind == "evaluate":
-        return await asyncio.wait_for(
-            page.evaluate(wrap_evaluate(step.function)),
-            timeout=_EVALUATE_TIMEOUT_S,
-        )
+        return await _evaluate_step(page, step)
     if step.kind == "helper":
         if step.helper is None:
             raise ScriptError(f"line {step.line}: missing helper")
@@ -2463,18 +2659,27 @@ async def _run_step_on_page(page, step: TaskStep):
         await page.goto(action.value, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
         return None
     if action.finder == "page":
-        if action.op == "click":
-            await page.click(action.name, timeout=_ACTION_TIMEOUT_MS)
-        elif action.op == "fill":
-            await page.fill(action.name, action.value, timeout=_ACTION_TIMEOUT_MS)
-        elif action.op == "press":
-            await page.press(action.name, action.value, timeout=_ACTION_TIMEOUT_MS)
-        elif action.op == "goBack":
+        if action.op == "goBack":
             await page.go_back(wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+        elif action.op == "goForward":
+            await page.go_forward(wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+        elif action.op == "reload":
+            await page.reload(wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
         elif action.op == "title":
             return await asyncio.wait_for(page.title(), timeout=1.0)
         elif action.op == "url":
             return _page_url(page)
+        elif not _is_real_page(page) and action.op in {"click", "fill", "press"}:
+            if action.op == "click":
+                await page.click(action.name, timeout=_ACTION_TIMEOUT_MS)
+            elif action.op == "fill":
+                await page.fill(action.name, action.value, timeout=_ACTION_TIMEOUT_MS)
+            else:
+                await page.press(action.name, action.value, timeout=_ACTION_TIMEOUT_MS)
+        elif action.name is not None:
+            # page.click(selector) and friends act through a locator, so the
+            # same lookup, first-visible choice, and name fallback apply.
+            return await _locator_step(page, page.locator(action.name), action, name=_plain_name(action.name))
         else:
             raise ScriptError(f"line {step.line}: unsupported page action {action.op}")
         return None
@@ -2488,28 +2693,44 @@ async def _run_step_on_page(page, step: TaskStep):
             raise ScriptError(f"line {step.line}: unsupported keyboard action {action.op}")
         await asyncio.wait_for(pending, timeout=_ACTION_TIMEOUT_MS / 1000)
         return None
-    locator = browser_locator(page, action)
-    if action.op == "click":
-        await locator.click(timeout=_ACTION_TIMEOUT_MS)
-    elif action.op == "fill":
-        await locator.fill(action.value, timeout=_ACTION_TIMEOUT_MS)
-    elif action.op == "press":
-        await locator.press(action.value, timeout=_ACTION_TIMEOUT_MS)
-    elif action.op == "check":
-        await locator.check(timeout=_ACTION_TIMEOUT_MS)
-    elif action.op == "uncheck":
-        await locator.uncheck(timeout=_ACTION_TIMEOUT_MS)
-    elif action.op == "selectOption":
-        await locator.select_option(action.value, timeout=_ACTION_TIMEOUT_MS)
-    elif action.op == "textContent":
-        return await locator.text_content(timeout=_ACTION_TIMEOUT_MS)
-    elif action.op == "innerText":
-        return await locator.inner_text(timeout=_ACTION_TIMEOUT_MS)
-    elif action.op == "getAttribute":
-        return await locator.get_attribute(action.value, timeout=_ACTION_TIMEOUT_MS)
-    else:
-        raise ScriptError(f"line {step.line}: unsupported action {action.op}")
-    return None
+    return await _locator_step(page, browser_locator(page, action), action)
+
+
+def _changes_page(step: TaskStep) -> bool:
+    if step.kind == "helper":
+        return True
+    if step.kind == "evaluate":
+        return not side_effect_free(step.function)
+    if step.kind == "keyboard":
+        return True
+    action = step.action
+    return action is not None and action.op in _ACTION_OPS
+
+
+def _same_url(left: str, right: str) -> bool:
+    return (left or "").rstrip("/") == (right or "").rstrip("/") and bool(left)
+
+
+async def _use_preload(page, steps: list[TaskStep], preload) -> int:
+    """Use the start page Chrome opened while the model wrote. Returns steps skipped.
+
+    A first goto of that same URL is skipped once the preload has landed there.
+    Any other first step waits for the preload, so it starts on the start page.
+    """
+    if preload is None:
+        return 0
+    url, task = preload
+    first = steps[0]
+    goto = first.action.value if first.kind == "goto" and first.action is not None else ""
+    if goto and not _same_url(goto, url):
+        return 0
+    try:
+        landed = await asyncio.wait_for(asyncio.shield(task), timeout=_NAV_TIMEOUT_MS / 1000)
+    except Exception:
+        return 0
+    if goto and landed and _same_url(_page_url(page), goto):
+        return 1
+    return 0
 
 
 async def run_on_page(
@@ -2517,13 +2738,16 @@ async def run_on_page(
     source: str,
     *,
     end_markers: dict | None = None,
+    preload=None,
 ) -> str:
-    """Run the whole script on a Playwright page. No settle between actions.
+    """Run the whole script on a Playwright page.
 
-    Goto waits for DOMContentLoaded. Wait lines were already dropped.
-    Evaluate claims take precedence over top-level reads; reads are a fallback
-    only when no evaluate supplied an answer or key_text. After the script the
-    harness reads the live URL, canonical link, h1, and main text itself.
+    Goto waits for DOMContentLoaded. Wait lines were already dropped. After a
+    step that changes the page the runner waits for a navigation it started
+    and for the DOM to go quiet, both capped. Evaluate claims take precedence
+    over top-level reads; reads are a fallback only when no evaluate supplied
+    an answer or key_text. After the script the harness reads the live URL,
+    canonical link, h1, and main text itself.
     """
     steps = parse_task_script(source)
     done = 0
@@ -2531,10 +2755,19 @@ async def run_on_page(
     claimed: dict = {}
     read_claimed: dict = {}
     ok, error = True, ""
+    real = _is_real_page(page)
     try:
-        for step in steps:
+        skip = await _use_preload(page, steps, preload)
+        done += skip
+        previous = steps[0].kind if skip else ""
+        for step in steps[skip:]:
+            if real and previous == "goto" and step.kind in {"evaluate", "read"}:
+                await settle(page, cap_ms=_SETTLE_AFTER_GOTO_MS)
             value = await _run_step_on_page(page, step)
             done += 1
+            if real and _changes_page(step):
+                await settle(page)
+            previous = step.kind
             if step.kind == "evaluate":
                 claimed = _note_extract(extracted, claimed, value)
             elif step.kind == "read":
@@ -2553,7 +2786,8 @@ async def run_on_page(
         extracted=extracted,
         claimed=claimed,
         end_markers=end_markers,
-        wait_for_commit=not ok or (bool(steps) and steps[-1].kind != "goto"),
+        # A real page already settled after its last action.
+        wait_for_commit=not ok or (not real and bool(steps) and steps[-1].kind != "goto"),
     )
 
 
@@ -2630,6 +2864,7 @@ class ScriptFirstClient:
         self._context = None
         self._profile_dir: str | None = None
         self._launch_task: asyncio.Task | None = None
+        self._preload: tuple[str, asyncio.Task] | None = None
 
     def tools_for_claude(self) -> list[dict]:
         return [
@@ -2638,19 +2873,16 @@ class ScriptFirstClient:
                 "description": (
                     "Run one Playwright script that finishes the whole task in this call. "
                     "The end URL must already be the finished page, not a search-results URL. "
-                    "End with page.evaluate(() => ({url: location.href, title: document.title, "
-                    "h1: document.querySelector('h1')?.innerText, key_text: '', values: [], answer: ''})). "
-                    "Put a phrase that is on the page in key_text, the asked-for values in values, "
-                    "and the requested value in answer. cu.claim inside page.evaluate returns that object. "
-                    "cu.click, cu.fill, and cu.press take an accessible name and act on the one control with that name. "
+                    "cu.click, cu.fill, and cu.press take a visible name, label, or placeholder and act on one control, "
+                    "the best match; cu.search types into the site's search box and submits. "
+                    "The runner waits for controls and for the page to settle; do not call page.waitForTimeout, "
+                    "page.waitForLoadState, or networkidle. "
+                    "Other allowed lines: page.goto, page.locator, page.getByRole, page.getByLabel, "
+                    "page.getByText, page.getByPlaceholder, and page.evaluate with a page-context function. "
+                    "End with page.evaluate(() => cu.claim({key_text: 'a phrase on the page', answer: 'the asked value'})); "
+                    "cu.claim adds url, title, and h1, and cu.text('Label') reads the value next to a label. "
                     "The runner checks the returned object against the live page. "
-                    "Do not call page.waitForTimeout, page.waitForLoadState, or networkidle. "
-                    "Allowed lines are page.goto, page.getByRole, page.getByLabel, "
-                    "page.getByText, page.getByPlaceholder, cu.click, cu.fill, cu.press, "
-                    "and page.evaluate with a page-context function. The runner does not settle or snapshot "
-                    "between actions and drops wait lines. "
                     "browser_run_code_unsafe is not available. "
-                    "The runner reads the live page itself after the script. "
                     "Call this once. A second call is only for END_STATE_FAILED."
                 ),
                 "input_schema": {
@@ -2693,6 +2925,28 @@ class ScriptFirstClient:
     async def start(self) -> None:
         await self.begin_launch()
 
+    def preload(self, url: str) -> None:
+        """Open the task's start URL while the model is still writing.
+
+        Only the first script can use it, and only by starting there. The
+        URL the judge scores is still the page the script leaves open.
+        """
+        if not _http(url) or self._preload is not None:
+            return
+        launch = self.begin_launch()
+
+        async def land() -> bool:
+            await launch
+            if self._page is None:
+                return False
+            try:
+                await self._page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+            except Exception:
+                return False
+            return True
+
+        self._preload = (url, asyncio.ensure_future(land()))
+
     async def _open_browser(self) -> None:
         if self._page is not None:
             return
@@ -2726,6 +2980,9 @@ class ScriptFirstClient:
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
 
     async def stop(self) -> None:
+        preload, self._preload = self._preload, None
+        if preload is not None and preload[1] is not None and not preload[1].done():
+            preload[1].cancel()
         if not self._owns_page:
             self._page = None
             return
@@ -2787,8 +3044,14 @@ class ScriptFirstClient:
         if name != "run_script":
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""
+        # Only the first script starts from the preloaded start page.
+        preload = self._preload
+        if preload is not None:
+            self._preload = ("", None)
+            if preload[1] is None:
+                preload = None
         try:
-            text = await run_on_page(self._page, code, end_markers=self.end_markers)
+            text = await run_on_page(self._page, code, end_markers=self.end_markers, preload=preload)
         except ScriptError as exc:
             text = format_run_result(ok=False, url=_page_url(self._page), step_count=0, error=str(exc))
         elapsed_ms = (time.perf_counter() - start) * 1000

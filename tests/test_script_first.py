@@ -129,8 +129,8 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     assert "Main_Page" not in prompt
     assert "start page or a search-results page" in prompt
     assert "END_STATE_FAILED" in prompt
+    assert "waits for each control" in prompt
     assert "continues from there" in prompt
-    assert "does not settle or snapshot" in prompt
     assert "waitForTimeout" in prompt
     assert "The first script must finish" in prompt
     assert "Special:Search" not in prompt

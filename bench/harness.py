@@ -1233,6 +1233,10 @@ class BenchmarkHarness:
             repair_budget_s = repair_mode["budget_s"]
             if hasattr(self.mcp_client, "end_markers"):
                 self.mcp_client.end_markers = {}
+            # Chrome opens the start URL while the model writes. The prompt is unchanged.
+            preload = getattr(self.mcp_client, "preload", None)
+            if callable(preload):
+                preload(start_url)
             if hasattr(self.mcp_client, "look_task"):
                 self.mcp_client.look_task = task_description
 

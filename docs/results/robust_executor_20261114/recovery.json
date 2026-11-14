@@ -1,0 +1,343 @@
+{
+  "budget": {
+    "original_start": 5.60886,
+    "recovered_first_signature_index": 2609,
+    "resume_total": 5.711918,
+    "ceiling": 6.60886,
+    "spent_before_resume": 0.103058
+  },
+  "runs": [
+    {
+      "file": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-456e4ade-92454b18595e5531\\bench\\runs\\partial_A2_heldout2_221225.jsonl",
+      "n": 6,
+      "first_pass": 1,
+      "final_pass": 1,
+      "wrong_accepts": 0,
+      "script_calls": 1,
+      "model_calls": 6,
+      "mean_s": 2.8894417000071067,
+      "median_s": 2.7067425999994157,
+      "p90_s": 3.7429429000185337,
+      "usd": 0.001091
+    },
+    {
+      "file": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-456e4ade-92454b18595e5531\\bench\\runs\\probe_20261113_210925.jsonl",
+      "n": 20,
+      "first_pass": 10,
+      "final_pass": 14,
+      "wrong_accepts": 2,
+      "script_calls": 29,
+      "model_calls": 32,
+      "mean_s": 6.753959104999376,
+      "median_s": 4.801968150015455,
+      "p90_s": 12.078306779981359,
+      "usd": 0.008362
+    },
+    {
+      "file": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-456e4ade-92454b18595e5531\\bench\\runs\\probe_20261113_211214.jsonl",
+      "n": 50,
+      "first_pass": 28,
+      "final_pass": 38,
+      "wrong_accepts": 3,
+      "script_calls": 70,
+      "model_calls": 75,
+      "mean_s": 5.339769584001624,
+      "median_s": 4.154802900011418,
+      "p90_s": 8.983398709987524,
+      "usd": 0.016308
+    },
+    {
+      "file": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-456e4ade-92454b18595e5531\\bench\\runs\\probe_20261113_213141.jsonl",
+      "n": 20,
+      "first_pass": 7,
+      "final_pass": 15,
+      "wrong_accepts": 2,
+      "script_calls": 32,
+      "model_calls": 34,
+      "mean_s": 5.342375754992827,
+      "median_s": 5.154283199997735,
+      "p90_s": 8.533053909993033,
+      "usd": 0.008184
+    },
+    {
+      "file": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-456e4ade-92454b18595e5531\\bench\\runs\\probe_20261113_214621.jsonl",
+      "n": 20,
+      "first_pass": 13,
+      "final_pass": 17,
+      "wrong_accepts": 2,
+      "script_calls": 26,
+      "model_calls": 27,
+      "mean_s": 6.127241045011033,
+      "median_s": 4.56242215000384,
+      "p90_s": 13.102969080014738,
+      "usd": 0.006223
+    },
+    {
+      "file": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-456e4ade-92454b18595e5531\\bench\\runs\\probe_20261113_214914.jsonl",
+      "n": 50,
+      "first_pass": 27,
+      "final_pass": 37,
+      "wrong_accepts": 5,
+      "script_calls": 68,
+      "model_calls": 72,
+      "mean_s": 6.812633465994732,
+      "median_s": 6.251832749971072,
+      "p90_s": 10.41086442997912,
+      "usd": 0.016877
+    },
+    {
+      "file": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-456e4ade-92454b18595e5531\\bench\\runs\\probe_20261113_221244.jsonl",
+      "n": 50,
+      "first_pass": 29,
+      "final_pass": 38,
+      "wrong_accepts": 4,
+      "script_calls": 68,
+      "model_calls": 71,
+      "mean_s": 5.591088875996648,
+      "median_s": 4.03797140000097,
+      "p90_s": 10.886568409999018,
+      "usd": 0.017262
+    },
+    {
+      "file": "C:\\Users\\epicd\\AppData\\Local\\Temp\\claude\\2f9ed140d0fe6502\\2f7abe0f-6d7d-45cc-8d42-69d3e8a73575\\scratchpad\\base\\bench\\runs\\probe_20261113_215659.jsonl",
+      "n": 20,
+      "first_pass": 10,
+      "final_pass": 15,
+      "wrong_accepts": 0,
+      "script_calls": 31,
+      "model_calls": 33,
+      "mean_s": 9.235406644998875,
+      "median_s": 5.9612922000087565,
+      "p90_s": 17.097876849997572,
+      "usd": 0.010331
+    },
+    {
+      "file": "C:\\Users\\epicd\\AppData\\Local\\Temp\\claude\\2f9ed140d0fe6502\\2f7abe0f-6d7d-45cc-8d42-69d3e8a73575\\scratchpad\\base\\bench\\runs\\probe_20261113_220037.jsonl",
+      "n": 50,
+      "first_pass": 22,
+      "final_pass": 36,
+      "wrong_accepts": 5,
+      "script_calls": 77,
+      "model_calls": 79,
+      "mean_s": 7.792980347996927,
+      "median_s": 6.244542000000365,
+      "p90_s": 12.937832800019539,
+      "usd": 0.017537
+    },
+    {
+      "file": "C:\\Users\\epicd\\AppData\\Local\\Temp\\claude\\2f9ed140d0fe6502\\2f7abe0f-6d7d-45cc-8d42-69d3e8a73575\\scratchpad\\base3\\bench\\runs\\probe_20261113_221300.jsonl",
+      "n": 40,
+      "first_pass": 17,
+      "final_pass": 26,
+      "wrong_accepts": 4,
+      "script_calls": 63,
+      "model_calls": 70,
+      "mean_s": 7.846331265001936,
+      "median_s": 6.616359699997702,
+      "p90_s": 12.938331310023207,
+      "usd": 0.017202
+    }
+  ],
+  "dev3_first_script_parse": [
+    {
+      "task_id": "dev3_nav_ffmpeg_ffprobe",
+      "parsed": true,
+      "steps": 3
+    },
+    {
+      "task_id": "dev3_nav_mit_hamlet",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_nav_fish_tutorial",
+      "parsed": true,
+      "steps": 3
+    },
+    {
+      "task_id": "dev3_nav_godot_gdscript",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_nav_mysql_json",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_nav_commonmark_030",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_nav_freedesktop_desktop_entry",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_nav_erlang_getting_started",
+      "parsed": true,
+      "steps": 3
+    },
+    {
+      "task_id": "dev3_nav_mslearn_keywords",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_nav_express_middleware",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_value_commonmark_028",
+      "parsed": true,
+      "steps": 3
+    },
+    {
+      "task_id": "dev3_value_ffmpeg_codename",
+      "parsed": true,
+      "steps": 4
+    },
+    {
+      "task_id": "dev3_value_mysql_mediumint",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_value_colorhexa_websafe",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_value_fileformat_snowman",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_value_exif_gpsaltref",
+      "parsed": true,
+      "steps": 3
+    },
+    {
+      "task_id": "dev3_value_crummy_bs3",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_value_eso_vlt_at",
+      "parsed": true,
+      "steps": 1
+    },
+    {
+      "task_id": "dev3_value_khronos_gl46",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_value_mslearn_decimal",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_search_metacpan_moose",
+      "parsed": true,
+      "steps": 5
+    },
+    {
+      "task_id": "dev3_search_hex_plug",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_search_archlinux_nginx",
+      "parsed": true,
+      "steps": 3
+    },
+    {
+      "task_id": "dev3_search_godot_signals",
+      "parsed": true,
+      "steps": 5
+    },
+    {
+      "task_id": "dev3_search_fileformat_heart",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_search_erlang_lists",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_form_demoqa_textbox",
+      "parsed": true,
+      "steps": 5
+    },
+    {
+      "task_id": "dev3_form_demoqa_practice",
+      "parsed": true,
+      "steps": 7
+    },
+    {
+      "task_id": "dev3_form_formy_complete",
+      "parsed": true,
+      "steps": 6
+    },
+    {
+      "task_id": "dev3_form_blazedemo_purchase",
+      "parsed": false,
+      "error": "script has more than 12 actions"
+    },
+    {
+      "task_id": "dev3_form_aito_contact",
+      "parsed": true,
+      "steps": 8
+    },
+    {
+      "task_id": "dev3_form_guru99_register",
+      "parsed": true,
+      "steps": 9
+    },
+    {
+      "task_id": "dev3_title_adaic_protected",
+      "parsed": true,
+      "steps": 3
+    },
+    {
+      "task_id": "dev3_title_mit_romeo",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_title_die_nl",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_title_babel_typescript",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_spa_devdocs_flat",
+      "parsed": true,
+      "steps": 4
+    },
+    {
+      "task_id": "dev3_spa_elm_repeat",
+      "parsed": true,
+      "steps": 2
+    },
+    {
+      "task_id": "dev3_spa_letcode_total",
+      "parsed": true,
+      "steps": 3
+    },
+    {
+      "task_id": "dev3_spa_demoqa_origin",
+      "parsed": true,
+      "steps": 3
+    }
+  ]
+}
