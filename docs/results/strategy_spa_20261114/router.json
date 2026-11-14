@@ -1,0 +1,2378 @@
+[
+  {
+    "split": "dev",
+    "task_id": "wv_wikipedia_search",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 252542,
+      "text_chars": 13648,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 247.87560000550002
+    }
+  },
+  {
+    "split": "dev",
+    "task_id": "wv_wikipedia_link",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 252542,
+      "text_chars": 13648,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 246.04370002634823
+    }
+  },
+  {
+    "split": "dev",
+    "task_id": "wv_arxiv_search",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 37290,
+      "text_chars": 5863,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 131.26629998441786
+    }
+  },
+  {
+    "split": "dev",
+    "task_id": "wv_github_repo",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 525329,
+      "text_chars": 7666,
+      "scripts": 13,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 102.91950003011152
+    }
+  },
+  {
+    "split": "dev",
+    "task_id": "wv_python_docs",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 19627,
+      "text_chars": 3186,
+      "scripts": 11,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 129.17359999846667
+    }
+  },
+  {
+    "split": "dev",
+    "task_id": "wv_mdn_search",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 118703,
+      "text_chars": 5920,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 184.66329999500886
+    }
+  },
+  {
+    "split": "dev",
+    "task_id": "wv_hackernews_top",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 34203,
+      "text_chars": 4141,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 745.4093999695033
+    }
+  },
+  {
+    "split": "dev",
+    "task_id": "wv_bbc_weather",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 342298,
+      "text_chars": 3831,
+      "scripts": 116,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": false,
+      "error": "",
+      "ms": 186.5997999557294
+    }
+  },
+  {
+    "split": "dev",
+    "task_id": "wv_npm_search",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 403,
+      "html_chars": 5712,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": true,
+      "error": "",
+      "ms": 51.11479997867718
+    }
+  },
+  {
+    "split": "dev",
+    "task_id": "wv_stackoverflow_question",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 403,
+      "html_chars": 5752,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": true,
+      "error": "",
+      "ms": 1162.7777999965474
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_ffmpeg_ffprobe",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 10006,
+      "text_chars": 1693,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 178.79010003525764
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_mit_hamlet",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 4831,
+      "text_chars": 1460,
+      "scripts": 2,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 304.14880003081635
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_fish_tutorial",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 25794,
+      "text_chars": 4014,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 179.35679998481646
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_godot_gdscript",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 1334096,
+      "text_chars": 161945,
+      "scripts": 14,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 283.37700001429766
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_mysql_json",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 403,
+      "html_chars": 3987,
+      "text_chars": 486,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 77.30499998433515
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_commonmark_030",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 9294,
+      "text_chars": 3896,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 172.32620000140741
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_freedesktop_desktop_entry",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 27506,
+      "text_chars": 2886,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 112.13999998290092
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_erlang_getting_started",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 548,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": true,
+      "error": "",
+      "ms": 254.0036999853328
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_mslearn_keywords",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 59246,
+      "text_chars": 4143,
+      "scripts": 8,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 102.4561999947764
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_nav_express_middleware",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 88838,
+      "text_chars": 3073,
+      "scripts": 13,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 105.62149999896064
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_commonmark_028",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 9294,
+      "text_chars": 3896,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 20.18829999724403
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_ffmpeg_codename",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 27537,
+      "text_chars": 8331,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 181.93600000813603
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_mysql_mediumint",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 403,
+      "html_chars": 3987,
+      "text_chars": 486,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 41.6999000008218
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_colorhexa_websafe",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'look up'",
+    "signals": {
+      "status": 403,
+      "html_chars": 5652,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": true,
+      "error": "",
+      "ms": 72.17769999988377
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_fileformat_snowman",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 3044,
+      "text_chars": 396,
+      "scripts": 3,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 157.51210000598803
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_exif_gpsaltref",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 12089,
+      "text_chars": 6150,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 550.5317999632098
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_crummy_bs3",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 73737,
+      "text_chars": 54543,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 760.9284999780357
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_eso_vlt_at",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 0,
+      "html_chars": 0,
+      "text_chars": 0,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.",
+      "ms": 281.2639999901876
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_khronos_gl46",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 55400,
+      "text_chars": 9551,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 506.83799997204915
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_value_mslearn_decimal",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 59246,
+      "text_chars": 4143,
+      "scripts": 8,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 97.0755000016652
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_search_metacpan_moose",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 16160,
+      "text_chars": 725,
+      "scripts": 3,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 103.71549997944385
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_search_hex_plug",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 93018,
+      "text_chars": 5078,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 321.7653000028804
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_search_archlinux_nginx",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 66936,
+      "text_chars": 12698,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 419.0220000455156
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_search_godot_signals",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 1334096,
+      "text_chars": 161945,
+      "scripts": 14,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 309.24079997930676
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_search_fileformat_heart",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 3381,
+      "text_chars": 178,
+      "scripts": 3,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 226.3706999947317
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_search_erlang_lists",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 548,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": true,
+      "error": "",
+      "ms": 201.65840000845492
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_form_demoqa_textbox",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'submit'",
+    "signals": {
+      "status": 200,
+      "html_chars": 436,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 2050.617200031411
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_form_demoqa_practice",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Fill in'",
+    "signals": {
+      "status": 200,
+      "html_chars": 436,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 2068.500399996992
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_form_formy_complete",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'form'",
+    "signals": {
+      "status": 200,
+      "html_chars": 5893,
+      "text_chars": 418,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 316.85549998655915
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_form_blazedemo_purchase",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'purchase'",
+    "signals": {
+      "status": 200,
+      "html_chars": 4472,
+      "text_chars": 338,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 317.99769995268434
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_form_aito_contact",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'form'",
+    "signals": {
+      "status": 200,
+      "html_chars": 10200,
+      "text_chars": 0,
+      "scripts": 14,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 159.4528999994509
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_form_guru99_register",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Register'",
+    "signals": {
+      "status": 200,
+      "html_chars": 37033,
+      "text_chars": 4071,
+      "scripts": 12,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 310.47849997412413
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_title_adaic_protected",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 41636,
+      "text_chars": 15286,
+      "scripts": 2,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 157.7211000258103
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_title_mit_romeo",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 4831,
+      "text_chars": 1460,
+      "scripts": 2,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 375.1619000104256
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_title_die_nl",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 403,
+      "html_chars": 5682,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": true,
+      "error": "",
+      "ms": 87.25089998915792
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_title_babel_typescript",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 56263,
+      "text_chars": 4591,
+      "scripts": 7,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 264.7405000170693
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_spa_devdocs_flat",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 28798,
+      "text_chars": 105,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": false,
+      "error": "",
+      "ms": 366.5828999946825
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_spa_elm_repeat",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 571,
+      "text_chars": 0,
+      "scripts": 3,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 337.62529998784885
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_spa_letcode_total",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 2951,
+      "text_chars": 0,
+      "scripts": 5,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 386.473799997475
+    }
+  },
+  {
+    "split": "dev3",
+    "task_id": "dev3_spa_demoqa_origin",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "app shell + cue 'tabs'",
+    "signals": {
+      "status": 200,
+      "html_chars": 436,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 2061.011600017082
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_mdn_array_map",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 118703,
+      "text_chars": 5920,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 69.54779999796301
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_github_rust",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 525671,
+      "text_chars": 7810,
+      "scripts": 13,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 85.74140002019703
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_arxiv_attention",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 37290,
+      "text_chars": 5863,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 45.92210002010688
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_wiki_eiffel_city",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 252542,
+      "text_chars": 13648,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 171.1671999655664
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_nodejs_fs_docs",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 18743,
+      "text_chars": 3008,
+      "scripts": 2,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 128.23859998025
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_httpbin_customer_form",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'form'",
+    "signals": {
+      "status": 200,
+      "html_chars": 8630,
+      "text_chars": 988,
+      "scripts": 4,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 353.5721999942325
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_pypi_requests",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 27822,
+      "text_chars": 1952,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 42.79729997506365
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_rust_book_borrowing",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'book'",
+    "signals": {
+      "status": 200,
+      "html_chars": 22483,
+      "text_chars": 1154,
+      "scripts": 14,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 78.4486000193283
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_w3c_selectors_4",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 403,
+      "html_chars": 5676,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": true,
+      "error": "",
+      "ms": 59.13840001448989
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_iana_status_451",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 6251,
+      "text_chars": 1258,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 247.45929997880012
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_rfc9110_get_section",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 187054,
+      "text_chars": 2287,
+      "scripts": 6,
+      "app_root": true,
+      "needs_js": true,
+      "refresh": false,
+      "error": "",
+      "ms": 113.89079998480156
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_schema_person",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 8228,
+      "text_chars": 1440,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 450.05280000623316
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_cppreference_vector",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 126148,
+      "text_chars": 4834,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 178.06830001063645
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_sqlite_vacuum",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 34549,
+      "text_chars": 16735,
+      "scripts": 2,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 1275.004600000102
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_k8s_pod",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 499690,
+      "text_chars": 26227,
+      "scripts": 11,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 197.97879998805
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_nav_py_inputoutput",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 37295,
+      "text_chars": 7104,
+      "scripts": 13,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 123.18519997643307
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_nav_py_sqlite3",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 73552,
+      "text_chars": 13607,
+      "scripts": 13,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 140.7537999912165
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_nav_rust_result",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'book'",
+    "signals": {
+      "status": 200,
+      "html_chars": 22483,
+      "text_chars": 1154,
+      "scripts": 14,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 36.8958999752067
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_nav_k8s_service",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 499690,
+      "text_chars": 26227,
+      "scripts": 11,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 122.64379998669028
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_nav_go_spec",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 47872,
+      "text_chars": 12528,
+      "scripts": 11,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 328.48680001916364
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_nav_pg_select",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 25424,
+      "text_chars": 3652,
+      "scripts": 2,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 500.8942999993451
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_nav_sqlite_pragma",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 34549,
+      "text_chars": 16735,
+      "scripts": 2,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 484.85940002137795
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_nav_css_flex",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 325474,
+      "text_chars": 27872,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 118.00390004646033
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_form_selenium_received",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'form'",
+    "signals": {
+      "status": 200,
+      "html_chars": 4988,
+      "text_chars": 276,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 190.79550000606105
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_form_internet_secure",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Submit'",
+    "signals": {
+      "status": 200,
+      "html_chars": 2732,
+      "text_chars": 277,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 327.89559999946505
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_form_internet_email",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Submit'",
+    "signals": {
+      "status": 200,
+      "html_chars": 2376,
+      "text_chars": 101,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 298.7272000173107
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_form_testpages_comments",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Submit'",
+    "signals": {
+      "status": 200,
+      "html_chars": 191026,
+      "text_chars": 5728,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 729.9360999604687
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_form_w3schools_action",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'submit'",
+    "signals": {
+      "status": 200,
+      "html_chars": 246992,
+      "text_chars": 14326,
+      "scripts": 25,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 132.28900003014132
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_form_httpbin_phone",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'form'",
+    "signals": {
+      "status": 200,
+      "html_chars": 8630,
+      "text_chars": 988,
+      "scripts": 4,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 371.9205999514088
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_find_wiki_gold",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 252542,
+      "text_chars": 13648,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 152.48600003542379
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_find_wiki_wall",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 252542,
+      "text_chars": 13648,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 138.7371000018902
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_find_pypi_urllib3",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 27822,
+      "text_chars": 1952,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 36.744599987287074
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_find_npm_jest",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 403,
+      "html_chars": 5712,
+      "text_chars": 0,
+      "scripts": 1,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": true,
+      "error": "",
+      "ms": 27.621300017926842
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_find_mdn_promise_all",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 118703,
+      "text_chars": 5920,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 115.15329999383539
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_find_arxiv_resnet",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 37290,
+      "text_chars": 5863,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 74.5261000120081
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_find_crates_serde",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 5395,
+      "text_chars": 0,
+      "scripts": 2,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": false,
+      "error": "",
+      "ms": 156.62839997094125
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_page_wp_news",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 166462,
+      "text_chars": 2535,
+      "scripts": 18,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 868.4669000213034
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_page_github_blog",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 319795,
+      "text_chars": 16373,
+      "scripts": 25,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 184.0144000016153
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_page_so_blog",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 137797,
+      "text_chars": 16006,
+      "scripts": 7,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 219.2094999481924
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_page_jquery_blog",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 115452,
+      "text_chars": 29995,
+      "scripts": 3,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 100.99629999604076
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_page_wp_core",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 1466231,
+      "text_chars": 97762,
+      "scripts": 178,
+      "app_root": false,
+      "needs_js": true,
+      "refresh": false,
+      "error": "",
+      "ms": 3049.483299953863
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_table_iana_https",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 6251,
+      "text_chars": 1258,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 82.12890004506335
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_table_wiki_http_201",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 252542,
+      "text_chars": 13648,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 159.77839997503906
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_table_calling_codes",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 252542,
+      "text_chars": 13648,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 170.06780003430322
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_table_html_tr",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 252542,
+      "text_chars": 13648,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 173.11969998991117
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_table_unicode_euro",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 46988,
+      "text_chars": 8252,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 1530.318700009957
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_open_go_fmt",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 34306,
+      "text_chars": 2051,
+      "scripts": 4,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 202.72499998100102
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_open_rust_vec",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 58268,
+      "text_chars": 20658,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 51.10739998053759
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_open_redis_get",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 1499925,
+      "text_chars": 82577,
+      "scripts": 56,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 612.6233999966644
+    }
+  },
+  {
+    "split": "held-out",
+    "task_id": "ho_open_django_queries",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 54556,
+      "text_chars": 10519,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 177.6036000228487
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_nav_gutenberg_shelley",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 30561,
+      "text_chars": 3519,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 690.6568999984302
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_nav_standardebooks_austen",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 33709,
+      "text_chars": 2351,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 602.007900015451
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_nav_cc_attribution",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 39629,
+      "text_chars": 4229,
+      "scripts": 7,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 485.8190000522882
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_nav_apache_license",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 52700,
+      "text_chars": 4993,
+      "scripts": 24,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 152.52329997019842
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_nav_nginx_beginner",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 14042,
+      "text_chars": 3688,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 1180.6869000429288
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_nav_git_branching",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'book'",
+    "signals": {
+      "status": 200,
+      "html_chars": 121588,
+      "text_chars": 3777,
+      "scripts": 8,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 109.44010003004223
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_nav_curl_manual",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 8507,
+      "text_chars": 2187,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 287.5431000138633
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_nav_pytest_setup",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 31957,
+      "text_chars": 5245,
+      "scripts": 7,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 168.26800000853837
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_value_iban_japan",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 46777,
+      "text_chars": 7686,
+      "scripts": 11,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 157.43669995572418
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_value_color_rebecca",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 219146,
+      "text_chars": 9999,
+      "scripts": 22,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 92.08500001113862
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_value_dns_type",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 1499863,
+      "text_chars": 212319,
+      "scripts": 3,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 392.06770004238933
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_value_sqlite_busy",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 34549,
+      "text_chars": 16735,
+      "scripts": 2,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 629.2258000466973
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_value_si_deka",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 136995,
+      "text_chars": 14129,
+      "scripts": 12,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 604.9198999535292
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_value_rfc_status",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 187054,
+      "text_chars": 2287,
+      "scripts": 6,
+      "app_root": true,
+      "needs_js": true,
+      "refresh": false,
+      "error": "",
+      "ms": 86.41609997721389
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_title_gutenberg_carroll",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "no cue and not an app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 30561,
+      "text_chars": 3519,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 380.67689997842535
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_title_standardebooks_wells",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'book'",
+    "signals": {
+      "status": 200,
+      "html_chars": 33709,
+      "text_chars": 2351,
+      "scripts": 0,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 404.27429997362196
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_search_sphinx_toctree",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 29935,
+      "text_chars": 5645,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 252.5510999839753
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_search_flask_blueprints",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'search'",
+    "signals": {
+      "status": 200,
+      "html_chars": 39686,
+      "text_chars": 6925,
+      "scripts": 5,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 166.18649999145418
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_form_expand_ticket",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'Fill'",
+    "signals": {
+      "status": 200,
+      "html_chars": 13147,
+      "text_chars": 661,
+      "scripts": 17,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 331.13379997666925
+    }
+  },
+  {
+    "split": "heldout2",
+    "task_id": "ho2_form_calculator_sum",
+    "dynamic": false,
+    "claimed": false,
+    "reason": "other kind 'submit'",
+    "signals": {
+      "status": 200,
+      "html_chars": 188800,
+      "text_chars": 5470,
+      "scripts": 6,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 232.52190003404394
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_spa_deps_react_dependency",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 1308,
+      "text_chars": 0,
+      "scripts": 4,
+      "app_root": true,
+      "needs_js": true,
+      "refresh": false,
+      "error": "",
+      "ms": 140.95289999386296
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_spa_deps_requests_urllib3",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 1308,
+      "text_chars": 0,
+      "scripts": 4,
+      "app_root": true,
+      "needs_js": true,
+      "refresh": false,
+      "error": "",
+      "ms": 73.3016999438405
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_js_cypress_todo_left",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "cue 'to-do'",
+    "signals": {
+      "status": 200,
+      "html_chars": 4806,
+      "text_chars": 326,
+      "scripts": 11,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 227.19800000777468
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_js_knockout_clicks",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "cue 'click'",
+    "signals": {
+      "status": 200,
+      "html_chars": 11402,
+      "text_chars": 2549,
+      "scripts": 15,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 251.76059996010736
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_js_htmx_toyota_models",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "cue 'change the live demo's make to'",
+    "signals": {
+      "status": 200,
+      "html_chars": 12991,
+      "text_chars": 1204,
+      "scripts": 9,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 588.4636000264436
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_js_htmx_tab_two",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "cue 'tabs'",
+    "signals": {
+      "status": 200,
+      "html_chars": 16306,
+      "text_chars": 2363,
+      "scripts": 9,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 494.3513000034727
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_spa_docsify_serve",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 7934,
+      "text_chars": 0,
+      "scripts": 15,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 216.90790000138804
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_spa_naiveui_beatles",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "app shell + cue 'Tabs'",
+    "signals": {
+      "status": 404,
+      "html_chars": 5706,
+      "text_chars": 0,
+      "scripts": 7,
+      "app_root": true,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 240.65489997155964
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_js_jqueryui_section_three",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "cue 'accordion'",
+    "signals": {
+      "status": 200,
+      "html_chars": 2182,
+      "text_chars": 1308,
+      "scripts": 3,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 96.19989997008815
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_spa_artifacthub_nginx_app",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "app shell",
+    "signals": {
+      "status": 200,
+      "html_chars": 7078,
+      "text_chars": 0,
+      "scripts": 2,
+      "app_root": true,
+      "needs_js": true,
+      "refresh": false,
+      "error": "",
+      "ms": 200.53400000324473
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_js_jqueryui_tab_three",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "cue 'tabs'",
+    "signals": {
+      "status": 200,
+      "html_chars": 3136,
+      "text_chars": 2307,
+      "scripts": 3,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 42.931600008159876
+    }
+  },
+  {
+    "split": "dev4spa",
+    "task_id": "dev4spa_js_shoelace_advanced",
+    "dynamic": true,
+    "claimed": true,
+    "reason": "cue 'tab'",
+    "signals": {
+      "status": 200,
+      "html_chars": 285525,
+      "text_chars": 27134,
+      "scripts": 9,
+      "app_root": false,
+      "needs_js": false,
+      "refresh": false,
+      "error": "",
+      "ms": 1780.1808000076562
+    }
+  }
+]
