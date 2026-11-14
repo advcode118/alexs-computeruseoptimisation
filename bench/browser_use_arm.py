@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 
 from bench.arms import ARM_BROWSER_USE, prompt_for
@@ -367,12 +368,16 @@ async def run_browser_use_task(
         agent_cls, browser_cls, llm_cls = loader() if loader is not None else load_browser_use() if provider != "openai" else load_browser_use(provider)
         browser = browser_cls(LOCAL_BROWSER, headless=headless, keep_alive=True)
         llm = _chat_model(llm_cls, chosen, api_key, chosen_effort)
+        # CU_BU_MODE=ultrafast runs browser-use's own fast mode as a control. Unset keeps its default.
+        mode = os.environ.get("CU_BU_MODE", "").strip()
+        extra = {"mode": mode} if mode else {}
         agent = agent_cls(
             task_text(task),
             llm=llm,
             browser=browser,
             web_search=False,
             extend_system_message=prompt_for(ARM_BROWSER_USE),
+            **extra,
         )
         result = await agent.run(max_steps=BROWSER_USE_MAX_STEPS)
         url, text, selector_text = await read_page(browser, selector=_task_selector(task))
