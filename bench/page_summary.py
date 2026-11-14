@@ -7,8 +7,7 @@ labels instead of guessing them. No browser and no model call is used here.
 Every failure (timeout, block, non-HTML, a JavaScript shell with no content)
 returns an empty summary, and the caller keeps today's blind path.
 
-CU_PAGE_SUMMARY=0 turns the summary off, so before and after runs use the same
-code. It is on by default.
+CU_PAGE_SUMMARY=1 opts in, so off/on runs use the same code. It is off by default.
 """
 
 from __future__ import annotations
@@ -17,7 +16,6 @@ import asyncio
 import gzip
 import os
 import re
-import ssl
 import threading
 import time
 import urllib.error
@@ -91,8 +89,8 @@ _SEARCH_NAMES = frozenset({"q", "s", "query", "search", "searchtext", "search_qu
 
 
 def enabled() -> bool:
-    """On unless CU_PAGE_SUMMARY is 0, off, false or no."""
-    return os.environ.get(ENV_SWITCH, "1").strip().lower() not in {"0", "off", "false", "no"}
+    """Explicit opt-in until repeated measurements justify a default change."""
+    return os.environ.get(ENV_SWITCH, "0").strip().lower() in {"1", "on", "true", "yes"}
 
 
 @dataclass
@@ -630,15 +628,7 @@ def fetch_html(url: str, timeout: float = FETCH_TIMEOUT_S) -> Fetched:
     result = Fetched(url=url)
     request = urllib.request.Request(url, headers=_HEADERS)
     try:
-        try:
-            response = urllib.request.urlopen(request, timeout=timeout)
-        except urllib.error.URLError as exc:
-            # Python's own certificate store lacks some chains a browser completes.
-            # The page is only read, never sent anything, so it is read without the check.
-            if not isinstance(getattr(exc, "reason", None), ssl.SSLCertVerificationError):
-                raise
-            response = urllib.request.urlopen(request, timeout=timeout, context=ssl._create_unverified_context())
-        with response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             result.status = response.status
             result.final_url = response.geturl()
             content_type = response.headers.get("Content-Type", "")
@@ -684,13 +674,26 @@ def start_summary(url: str, task: str, timeout: float = FETCH_TIMEOUT_S) -> asyn
     """
     loop = asyncio.get_running_loop()
     future: asyncio.Future = loop.create_future()
+    started = time.perf_counter()
+
+    def expire() -> None:
+        if not future.done():
+            future.set_result(Summary(status="timeout", ms=(time.perf_counter() - started) * 1000))
+
+    # One deadline from launch, including redirects, reading and parsing; not
+    # another timeout starting when the first model call is ready to wait.
+    deadline = loop.call_later(timeout, expire)
+    future.add_done_callback(lambda _future: deadline.cancel())
 
     def work() -> None:
         summary = build_summary(url, task, timeout)
 
         def deliver() -> None:
             if not future.done():
-                future.set_result(summary)
+                if time.perf_counter() - started >= timeout:
+                    expire()
+                else:
+                    future.set_result(summary)
 
         try:
             loop.call_soon_threadsafe(deliver)

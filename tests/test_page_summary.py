@@ -130,7 +130,9 @@ def test_switch(monkeypatch):
     monkeypatch.setenv(ps.ENV_SWITCH, "1")
     assert ps.enabled()
     monkeypatch.delenv(ps.ENV_SWITCH)
-    assert ps.enabled()
+    assert not ps.enabled()
+    monkeypatch.setenv(ps.ENV_SWITCH, "typo")
+    assert not ps.enabled()
 
 
 def test_other_arms_never_fetch(monkeypatch):
@@ -163,6 +165,49 @@ def test_start_summary_never_raises_on_a_bad_url(monkeypatch):
         assert summary.text == "" and "OSError" in summary.status
 
     asyncio.run(go())
+
+
+def test_fetch_certificate_failure_falls_back_without_insecure_retry(monkeypatch):
+    import ssl
+    import urllib.error
+
+    calls = []
+
+    def refuse(request, **kwargs):
+        calls.append(kwargs)
+        raise urllib.error.URLError(ssl.SSLCertVerificationError("untrusted certificate"))
+
+    monkeypatch.setattr(ps.urllib.request, "urlopen", refuse)
+    result = ps.build_summary("https://x.example.test/", "task")
+    assert not result.text
+    assert len(calls) == 1 and "context" not in calls[0]
+
+
+def test_deadline_runs_from_launch_and_discards_late_summary(monkeypatch):
+    import threading
+
+    release = threading.Event()
+
+    def slow_build(*_args):
+        release.wait(2)
+        return ps.Summary(status="ok", text="late")
+
+    monkeypatch.setattr(ps, "build_summary", slow_build)
+
+    async def go():
+        future = ps.start_summary("https://x.example.test/", "task", timeout=0.02)
+        # The consumer can arrive after the deadline; it must not get another
+        # 1.5 seconds of waiting or an already-expired successful response.
+        await asyncio.sleep(0.06)
+        assert future.done()
+        release.set()
+        summary = await ps.await_summary(future)
+        assert summary.status == "timeout" and not summary.text
+
+    try:
+        asyncio.run(go())
+    finally:
+        release.set()
 
 
 @pytest.mark.parametrize("name", ["docs_home.html", "login.html", "blog_index.html"])
