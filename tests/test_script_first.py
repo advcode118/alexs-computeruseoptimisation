@@ -11,6 +11,7 @@ from bench.arms import (
     ARMS,
     SCRIPT_FIRST_HARD_CAP,
     SCRIPT_FIRST_MAX_CALLS,
+    SCRIPT_FIRST_MAX_REPAIRS,
     SCRIPT_FIRST_MAX_SCRIPTS,
     arm_needs_claude,
     build_client,
@@ -128,14 +129,15 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     assert "Main_Page" not in prompt
     assert "start page or a search-results page" in prompt
     assert "END_STATE_FAILED" in prompt
-    assert "one corrected script" in prompt
+    assert "continues from there" in prompt
     assert "does not settle or snapshot" in prompt
     assert "waitForTimeout" in prompt
     assert "The first script must finish" in prompt
     assert "Special:Search" not in prompt
     assert "one script" in prompt.casefold()
-    assert 3 < SCRIPT_FIRST_MAX_CALLS <= SCRIPT_FIRST_HARD_CAP <= 6
-    assert SCRIPT_FIRST_MAX_SCRIPTS == 2
+    assert 3 < SCRIPT_FIRST_MAX_CALLS <= SCRIPT_FIRST_HARD_CAP
+    # One first script plus the grounded repairs.
+    assert SCRIPT_FIRST_MAX_SCRIPTS == 1 + SCRIPT_FIRST_MAX_REPAIRS == 4
     client = build_client("script_first")
     assert isinstance(client, ScriptFirstClient)
     tools = client.tools_for_claude()
@@ -727,7 +729,7 @@ def test_script_first_stops_when_the_finished_url_is_already_open(tmp_path):
     assert result.steps[-1].page_url == "https://en.wikipedia.org/wiki/Ada_Lovelace"
 
 
-def test_script_first_refuses_a_third_script_and_still_accepts_the_answer(tmp_path):
+def test_script_first_stops_when_a_repair_fails_the_same_way(tmp_path):
     async def call_tool(name, arguments, nth):
         del name, arguments
         return format_run_result(ok=True, url="https://news.ycombinator.com/", step_count=nth), 1.0
@@ -745,9 +747,9 @@ def test_script_first_refuses_a_third_script_and_still_accepts_the_answer(tmp_pa
             start_url="https://news.ycombinator.com/",
         )
     )
-    assert client.calls == SCRIPT_FIRST_MAX_SCRIPTS == 2
-    assert len(model.seen) == 4
-    assert "Do not call run_script again" in json.dumps(model.seen)
+    # Three scripts ended on the same page with the same reason: no fourth model call.
+    assert client.calls == 3 < SCRIPT_FIRST_MAX_SCRIPTS
+    assert len(model.seen) == 3
     assert result.success is False
     assert result.end_state == "FAIL"
     assert result.success_reason != "Max steps reached"
@@ -772,7 +774,8 @@ def test_script_first_stops_when_the_repair_stays_on_main_page(tmp_path):
             check_url_contains="Ada_Lovelace",
         )
     )
-    assert client.calls == 2
+    # The same start-page failure three times in a row ends the repairs.
+    assert client.calls == 3
     assert result.success is False
     assert "start page" in result.success_reason
 
