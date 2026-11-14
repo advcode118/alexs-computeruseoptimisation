@@ -154,6 +154,7 @@ class TaskResult:
     # script_first tier that answered: cache_hit, patched, or fresh.
     tier: str = ""
     model_calls: int = 0
+    strategy: str = ""
     # Actions the last script ran.
     script_steps: int = 0
     # OpenAI cached input tokens. Claude stays at 0; those reads use the recorded rate.
@@ -1206,6 +1207,7 @@ class BenchmarkHarness:
         passing_code = ""
         passing_verdict = None
         cache = self.script_cache if self.arm == "script_first" else None
+        strategy = ""
         if self.arm == "script_first":
             from bench.arms import SCRIPT_FIRST_HARD_CAP, script_first_repair_mode
             from bench.script_first import (
@@ -1237,7 +1239,29 @@ class BenchmarkHarness:
                 self.mcp_client.look_task = task_description
 
         try:
-            if cache is not None:
+            if self.arm == "script_first":
+                from bench.strategy_search import enabled, run_search
+
+                if enabled(task_description):
+                    self._begin_browser_launch()
+                    await self._wait_for_browser()
+                    searched = await run_search(self.mcp_client._page, self.anthropic, task_description, start_url, provider=self.provider)
+                    strategy = "search" if searched.success else "search_fallback"
+                    steps.extend(searched.steps)
+                    model_calls += searched.model_calls
+                    total_model_ms += searched.model_ms
+                    total_tool_ms += searched.tool_ms
+                    total_input_tokens += searched.usage.get("input_tokens", 0)
+                    total_output_tokens += searched.usage.get("output_tokens", 0)
+                    total_cached_tokens += searched.usage.get("cached_tokens", 0)
+                    total_cache_write_30m_tokens += searched.usage.get("cache_write_30m_tokens", 0)
+                    total_cache_write_12h_tokens += searched.usage.get("cache_write_12h_tokens", 0)
+                    if searched.success:
+                        tier, success, end_state = "search", True, PASS
+                        success_reason = searched.reason
+                        script_steps = searched.actions
+                        last_url = steps[-1].page_url
+            if cache is not None and not tier:
                 # A cached script runs before any model write, so Chrome has to
                 # be up first. A miss leaves the launch for the fresh model call.
                 if cache.lookup(task_description, start_url) is not None:
@@ -1764,6 +1788,7 @@ class BenchmarkHarness:
             end_state=end_state,
             tier=tier,
             model_calls=model_calls,
+            strategy=strategy,
             script_steps=script_steps,
             total_cached_tokens=total_cached_tokens,
             total_cache_write_30m_tokens=total_cache_write_30m_tokens,
@@ -1818,6 +1843,7 @@ class BenchmarkHarness:
                 "end_state": result.end_state,
                 "tier": result.tier,
                 "model_calls": result.model_calls,
+                "strategy": result.strategy,
                 "script_steps": result.script_steps,
                 "error": result.error,
                 "claimed_answer": result.steps[-1].claimed_answer if result.steps else "",

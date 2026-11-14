@@ -955,6 +955,7 @@ async def run_claude_arm(
             "replay_hit": result.replay_hits > 0 or result.tier == "cache_hit",
             "tier": result.tier,
             "model_calls": result.model_calls,
+            "strategy": result.strategy,
             "script_steps": result.script_steps,
             "claude": True,
             "claimed_answer": claimed_answer,
