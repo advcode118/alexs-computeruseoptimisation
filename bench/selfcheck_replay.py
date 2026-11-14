@@ -37,20 +37,21 @@ def load_rows(paths: list[str]) -> list[dict]:
     return rows
 
 
-def grade_check(task: dict, check: dict) -> bool:
-    """Would the shared grader pass this script's end state if the run stopped there."""
-    from bench.probe import grade_observation
+def grade_check(task: dict, check: dict) -> bool | None:
+    """Independent page/answer grade, or None when a dynamic label was not saved."""
+    from bench.probe import grade_page_answer
     from bench.script_first import claimed_from_payload
 
     payload = check.get("payload") or {}
+    if (task.get("end_markers") or {}).get("answer_equals_selector") and not payload.get("selector_text"):
+        return None
     claim = claimed_from_payload(payload)
-    ok, _reason, _sub, _subr = grade_observation(
+    ok, _reason = grade_page_answer(
         task,
         check.get("page_url") or "",
         payload.get("text") or "",
         selector_text=payload.get("selector_text") or "",
         answer=claim.answer,
-        run_verdict="PASS",
         claimed=claim,
     )
     return bool(ok)
@@ -73,13 +74,81 @@ def replay_check(description: str, check: dict, earlier: list | None = None):
     return verdict
 
 
+def rule_hits(description: str, check: dict, earlier: list | None = None):
+    """The plain check alone (no precision rules), and every precision rule that fires on the saved inputs.
+
+    The plain verdict is the self-check before the precision rules existed.
+    Rules are only listed when that plain verdict is PASS, as only then can they decide.
+    """
+    from bench.script_first import (
+        PASS,
+        _earlier_page,
+        claimed_from_payload,
+        precision_hits,
+        script_runtime_verdict,
+        task_asks_value,
+        trusted_from_payload,
+    )
+
+    payload = dict(check.get("payload") or {})
+    payload.pop("selector_text", None)
+    asks = task_asks_value(description)
+    plain, _ = script_runtime_verdict(
+        json.dumps(payload), check.get("page_url") or "", check.get("start_url") or "", asks_value=asks, task=""
+    )
+    if plain.verdict != PASS:
+        return plain, []
+    earlier_pages = tuple(
+        _earlier_page(dict(item.get("payload") or {})) for item in earlier or []
+    )
+    hits = precision_hits(
+        trusted_from_payload(payload, url=check.get("page_url") or ""),
+        claimed_from_payload(payload),
+        task=description,
+        start_url=check.get("start_url") or "",
+        asks_value=asks,
+        earlier=earlier_pages,
+    )
+    return plain, [name for name, _reason in hits]
+
+
+def by_rule(units: list[dict]) -> dict:
+    """Per precision rule, on graded scripts the plain check passes.
+
+    false_rejects: the rule fires on a script the independent grade passes.
+    caught_false_accepts: the rule fires on a script the independent grade fails.
+    The *_alone counts are scripts where no other rule fires, so dropping this rule alone flips them.
+    """
+    table: dict[str, dict[str, int]] = {}
+    for unit in units:
+        if unit["graded"] is None or unit.get("plain") != "PASS":
+            continue
+        hits = unit.get("hits") or []
+        for name in dict.fromkeys(hits):
+            row = table.setdefault(
+                name, {"false_rejects": 0, "false_rejects_alone": 0, "caught_false_accepts": 0, "caught_alone": 0}
+            )
+            alone = len(set(hits)) == 1
+            if unit["graded"]:
+                row["false_rejects"] += 1
+                row["false_rejects_alone"] += alone
+            else:
+                row["caught_false_accepts"] += 1
+                row["caught_alone"] += alone
+    return dict(sorted(table.items()))
+
+
 def confusion(units: list[dict], key: str) -> dict:
     counts = Counter()
     for unit in units:
+        if unit["graded"] is None:
+            continue
         counts[(unit[key] == "PASS", unit["graded"])] += 1
     tp, fp = counts[(True, True)], counts[(True, False)]
     fn, tn = counts[(False, True)], counts[(False, False)]
     return {
+        "graded_scripts": tp + fp + fn + tn,
+        "ungraded_scripts": sum(unit["graded"] is None for unit in units),
         "self_pass_graded_pass": tp,
         "self_pass_graded_fail": fp,
         "self_fail_graded_pass": fn,
@@ -100,7 +169,7 @@ def by_check(units: list[dict]) -> dict:
     """For scripts the old check passed and the new one does not: caught false accepts and rejected true passes."""
     table: dict[str, dict[str, int]] = {}
     for unit in units:
-        if unit["before"] != "PASS" or unit["after"] == "PASS":
+        if unit["graded"] is None or unit["before"] != "PASS" or unit["after"] == "PASS":
             continue
         row = table.setdefault(check_name(unit["after_reason"]), {"caught_false_accept": 0, "rejected_true_pass": 0})
         row["rejected_true_pass" if unit["graded"] else "caught_false_accept"] += 1
@@ -116,6 +185,7 @@ def build_units(rows: list[dict], tasks: dict[str, dict]) -> list[dict]:
         description = row.get("task_description") or task.get("description") or ""
         for index, check in enumerate(row["self_checks"]):
             new = replay_check(description, check, row["self_checks"][:index])
+            plain, hits = rule_hits(description, check, row["self_checks"][:index])
             units.append(
                 {
                     "file": row["_file"],
@@ -128,6 +198,9 @@ def build_units(rows: list[dict], tasks: dict[str, dict]) -> list[dict]:
                     "after": new.verdict,
                     "after_reason": new.reason,
                     "graded": grade_check(task, check),
+                    "plain": plain.verdict,
+                    "hits": hits,
+                    "row_success": row.get("success"),
                 }
             )
     return units
@@ -148,11 +221,13 @@ def main(argv: list[str] | None = None) -> int:
         "before": confusion(units, "before"),
         "after": confusion(units, "after"),
         "new_fails_by_check": by_check(units),
+        "plain": confusion(units, "plain"),
+        "by_rule": by_rule(units),
     }
     print(json.dumps(out, indent=2))
     for unit in units:
         show = (
-            (args.show == "fp" and unit["after"] == "PASS" and not unit["graded"])
+            (args.show == "fp" and unit["after"] == "PASS" and unit["graded"] is False)
             or (args.show == "fn" and unit["after"] != "PASS" and unit["graded"])
             or (args.show == "changed" and (unit["after"] == "PASS") != (unit["before"] == "PASS"))
         )
