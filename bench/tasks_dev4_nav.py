@@ -46,10 +46,10 @@ DEV4_NAV_TASKS = [
         "Alt+J", "www.nano-editor.org", "/dist/latest/cheatsheet.html", path_suffix="/cheatsheet.html",
     ),
     _task(
-        "dev4nav_value_openssh_90",
-        "On the OpenSSH website, open the release notes and report the release date of OpenSSH 9.0, as written there.",
-        "https://www.openssh.com/",
-        "2022-04-08", ("openssh.org", "openssh.com"), "/releasenotes.html", path_suffix="/releasenotes.html",
+        "dev4nav_value_7zip_keylength",
+        "On the 7-Zip website, open the page about the 7z archive format and report the length of the cipher key its AES encryption uses.",
+        "https://www.7-zip.org/",
+        "256 bits", "www.7-zip.org", "/7z.html", path_suffix="/7z.html",
     ),
     _task(
         "dev4nav_value_gradle_java21",

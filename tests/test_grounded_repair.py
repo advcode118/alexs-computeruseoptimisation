@@ -313,8 +313,8 @@ def test_repair_hint_follows_the_fail_reason():
         return grounded_repair_request(reason, code=GOTO, payload={"ok": True, "steps": 1}, snapshot="url: x",
                                        repair_number=1, max_repairs=3)
 
-    assert "copy them exactly from that text" in ask("returned evidence is not on the page")
-    assert "copy them exactly from that text" in ask("answer is not in the page text")
+    assert "next to its label" in ask("returned evidence is not on the page")
+    assert "next to its label" in ask("answer is not in the page text")
     assert "Put the asked value in answer" in ask("the task asks for a value and the script returned no answer")
     assert "as strings" in ask("returned value is not text")
     assert "leave the start page" in ask("the script ended on the start page and returned nothing")

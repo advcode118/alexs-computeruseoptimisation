@@ -95,7 +95,7 @@ def plan_openai_probe(
     for cell in cells:
         if cell["model"] not in models:
             models.append(cell["model"])
-    tasks = _tasks(split, one_task=request["one_task"], only_kind=only_kind)
+    tasks = _tasks(split, one_task=request["one_task"])
     ledger = OpenAISpendLedger.read()
     return {
         "execute": False,
@@ -302,7 +302,7 @@ async def execute_openai_probe(
         one_task=one_task,
     )
     cells = sweep_cells() if request["sweep"] else ({"model": request["model"], "effort": request["effort"]},)
-    tasks = _tasks(split, one_task=request["one_task"])
+    tasks = _tasks(split, one_task=request["one_task"], only_kind=only_kind)
     ledger = OpenAISpendLedger.read(spend_path or default_openai_spend_path())
     opening_allowance = ledger.cover_unrecorded_call()
     if not ledger.allows_project():

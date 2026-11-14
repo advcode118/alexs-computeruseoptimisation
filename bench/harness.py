@@ -123,6 +123,8 @@ class StepMetrics:
     claimed_key_text: str = ""
     claimed_values: tuple[str, ...] = ()
     claimed_rejected: bool = False
+    # script_first only: what the runtime self-check saw and decided, for offline replay.
+    self_check: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -380,6 +382,21 @@ def claim_from_step(step) -> "ClaimedEvidence":
         values=tuple(step.claimed_values or ()),
         rejected=bool(step.claimed_rejected),
     )
+
+
+def self_check_record(payload: dict | None, page_url: str, start_url: str, verdict) -> dict:
+    """The runtime self-check's inputs and verdict for one script, for offline replay.
+
+    Logged on the probe row only. Controls are dropped to keep rows small.
+    """
+    data = {k: v for k, v in (payload or {}).items() if k != "controls"} if isinstance(payload, dict) else {}
+    return {
+        "payload": data,
+        "page_url": page_url or "",
+        "start_url": start_url or "",
+        "verdict": getattr(verdict, "verdict", ""),
+        "reason": getattr(verdict, "reason", ""),
+    }
 
 
 def claim_step_fields(returned: dict | None) -> dict:
@@ -969,6 +986,7 @@ class BenchmarkHarness:
                 page_url,
                 start_url,
                 asks_value=task_asks_value(task_description),
+                task=task_description,
             )
             selector_text, claimed_answer, page_text, returned = logged_evidence(payload)
             steps.append(
@@ -988,6 +1006,7 @@ class BenchmarkHarness:
                     claimed_answer=claimed_answer,
                     page_text=page_text,
                     **claim_step_fields(returned),
+                    self_check=self_check_record(payload, page_url, start_url, verdict),
                 )
             )
             outcome["verdict"] = verdict
@@ -1172,6 +1191,8 @@ class BenchmarkHarness:
         repair_reply = "none"
         refusal_extended = False
         previous_payload: dict | None = None
+        # Every earlier script payload in this run, for the self-check.
+        earlier_payloads: list[dict] = []
         # script_first's grounded repair loop: scripts already run, and the last FAIL's outcome.
         seen_scripts: set[str] = set()
         last_fail_key: tuple | None = None
@@ -1470,6 +1491,7 @@ class BenchmarkHarness:
                     logged_answer = ""
                     logged_page_text = ""
                     logged_return: dict = {}
+                    logged_check: dict = {}
                     total_tool_ms += tool_ms
                     ignores.note_call(tool_name, tool_args if isinstance(tool_args, dict) else {})
                     ignores.note_result(tool_name, result_text)
@@ -1514,9 +1536,14 @@ class BenchmarkHarness:
                                 page_url,
                                 start_url,
                                 asks_value=task_asks_value(task_description),
+                                task=task_description,
+                                earlier=earlier_payloads,
                             )
-                            if nav_read is not None and verdict.verdict == PASS:
-                                # The nav specialist reads the value off the live page in place of the script's extraction.
+                            if nav_read is not None and (
+                                verdict.verdict == PASS or strategy_nav.read_can_fix(verdict)
+                            ):
+                                # The nav specialist reads the value off the live page in place of the
+                                # script's extraction, or in place of a repair script after an imprecise answer.
                                 read = await nav_read(
                                     page=getattr(self.mcp_client, "_page", None),
                                     model=self.anthropic,
@@ -1525,8 +1552,10 @@ class BenchmarkHarness:
                                     verdict=verdict,
                                     page_url=page_url,
                                     start_url=start_url,
+                                    earlier=tuple(earlier_payloads),
                                 )
-                                verdict, payload, strategy = read.verdict, read.payload, read.label
+                                verdict, payload = read.verdict, read.payload
+                                strategy = read.label if strategy == "nav:no_pass" else f"{strategy}+{read.label}"
                                 model_calls += read.model_calls
                                 total_model_ms += read.model_ms
                                 tool_ms += read.tool_ms
@@ -1536,6 +1565,7 @@ class BenchmarkHarness:
                                 total_cached_tokens += int(read.usage.get("cached_tokens") or 0)
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
+                            earlier_payloads.append(payload)
                             script_steps = int(payload.get("steps") or 0)
                             if verdict.verdict == PASS:
                                 args = tool_args if isinstance(tool_args, dict) else {}
@@ -1546,6 +1576,7 @@ class BenchmarkHarness:
                             script_turns.append([verdict.verdict, round((time.perf_counter() - wall_start) * 1000)])
                             failure = verdict.reason if verdict.verdict == FAIL else ""
                             logged_selector, logged_answer, logged_page_text, logged_return = logged_evidence(payload)
+                            logged_check = self_check_record(payload, page_url, start_url, verdict)
                             # The judge already read selector_text. The model must not.
                             repair_pending = False
                             grounded = ""
@@ -1664,6 +1695,7 @@ class BenchmarkHarness:
                             claimed_answer=logged_answer,
                             page_text=logged_page_text,
                             **claim_step_fields(logged_return),
+                            self_check=logged_check,
                         )
                     )
 

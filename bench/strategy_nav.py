@@ -612,7 +612,8 @@ def _with_answer(payload: dict, answer: str) -> dict:
     return updated
 
 
-def _recheck(payload: dict, page_url: str, start_url: str, description: str) -> EvidenceVerdict:
+def _recheck(payload: dict, page_url: str, start_url: str, description: str, earlier=()) -> EvidenceVerdict:
+    """The same self-check the script got, on the read answer (the strict one included)."""
     from bench.script_first import claimed_from_payload
 
     return runtime_verdict(
@@ -621,7 +622,34 @@ def _recheck(payload: dict, page_url: str, start_url: str, description: str) -> 
         script_ok=payload.get("ok") is not False,
         start_url=start_url,
         asks_value=True,
+        task=description,
+        earlier=tuple(earlier),
     )
+
+
+# Self-check FAIL reasons about where the script is, not what it read. Reading cannot fix those.
+_NAV_REASONS = (
+    "start page",
+    "error page",
+    "search results page",
+    "stopped before it finished",
+    "did not end on a web page",
+    "claimed url does not match",
+    "empty evidence",
+    "denied",
+    "wrong host",
+    "page text was not read",
+    "before the form was submitted",
+    "returned value is not text",
+)
+
+
+def read_can_fix(verdict: EvidenceVerdict) -> bool:
+    """A FAIL about the extraction (wrong cell, heading, label, part of a value, not on the page)."""
+    if verdict.verdict != FAIL:
+        return False
+    reason = (verdict.reason or "").casefold()
+    return bool(reason) and not any(part in reason for part in _NAV_REASONS)
 
 
 async def read_after_pass(
@@ -633,13 +661,36 @@ async def read_after_pass(
     verdict: EvidenceVerdict,
     page_url: str,
     start_url: str,
+    earlier=(),
 ) -> ReadOutcome:
-    """Replace the script's extraction with a read by selection. Never raises."""
+    """Replace the script's extraction with a read by selection. Never raises.
+
+    After a PASS the read answer replaces the script's (unsure: the script's stays).
+    After a FAIL that read_can_fix, a read answer that passes the self-check turns it
+    into a PASS without a repair script (unsure: the FAIL and its repair stay).
+    """
+    from bench.script_first import claimed_from_payload
+
+    rescue = verdict.verdict == FAIL
+    outcome = await _read(page, model, description, payload, verdict, page_url, start_url, earlier, rescue)
+    if rescue:
+        if outcome.verdict.verdict == PASS and outcome.payload is not payload:
+            outcome.label = outcome.label.replace("nav:", "nav:rescue_", 1)
+        else:
+            outcome.label = outcome.label.replace("nav:", "nav:rescue_none_", 1)
+            outcome.verdict, outcome.payload = verdict, payload
+    return outcome
+
+
+async def _read(page, model, description, payload, verdict, page_url, start_url, earlier, rescue) -> ReadOutcome:
     from bench.script_first import claimed_from_payload
 
     prior = claimed_from_payload(payload).answer
     keep = ReadOutcome(verdict=verdict, payload=payload, label="nav:kept")
-    if read_mode() == "suspect":
+    if rescue and not read_can_fix(verdict):
+        keep.label = "nav:not_fixable"
+        return keep
+    if read_mode() == "suspect" and not rescue:
         why = suspicious(prior, payload, description)
         if not why:
             keep.label = "nav:trusted"
@@ -709,7 +760,7 @@ async def read_after_pass(
             return outcome
         outcome.label = "nav:read"
     updated = _with_answer(payload, value)
-    again = _recheck(updated, page_url, start_url, description)
+    again = _recheck(updated, page_url, start_url, description, earlier)
     if again.verdict != PASS:
         outcome.label = "nav:recheck_fail"
         outcome.note = again.reason
@@ -729,6 +780,7 @@ __all__ = [
     "claims",
     "enabled",
     "read_after_pass",
+    "read_can_fix",
     "suspicious",
     "title_without_model",
 ]

@@ -193,3 +193,31 @@ def test_site_name_words_do_not_steer_the_view():
     assert any("Japan JPY" == line.text for line in view.lines)
     terms = sn.page_weights(sn.page_lines(page), sn.key_terms("Open example-codes.com's table and report the code for Japan."), "List", page["url"])
     assert "example-codes.com" not in dict(terms)
+
+
+def test_rescue_turns_an_imprecise_fail_into_a_pass_without_a_repair_script():
+    view = sn.build_view(TABLE_PAGE, TASK, prior_answer="Java")
+    number = next(i for i, line in enumerate(view.lines, 1) if line.raw.startswith("21\t"))
+    failed = EvidenceVerdict(FAIL, "the answer is a heading on the page (Java), not the asked value", TABLE_PAGE["url"])
+    assert sn.read_can_fix(failed)
+    out = asyncio.run(sn.read_after_pass(page=FakePage(TABLE_PAGE), model=FakeModel({"line": number, "value": "8.5"}),
+                                         description=TASK, payload=_payload("Java"), verdict=failed,
+                                         page_url=TABLE_PAGE["url"], start_url="https://docs.example.org/"))
+    assert out.label == "nav:rescue_read" and out.verdict.verdict == PASS
+    assert claimed_from_payload(out.payload).answer == "8.5"
+    # No line holds it: the FAIL and its repair stay.
+    out = asyncio.run(sn.read_after_pass(page=FakePage(TABLE_PAGE), model=FakeModel({"line": 0, "value": "", "missing": "x"}),
+                                         description=TASK, payload=_payload("Java"), verdict=failed,
+                                         page_url=TABLE_PAGE["url"], start_url="https://docs.example.org/"))
+    assert out.label == "nav:rescue_none_missing" and out.verdict is failed
+
+
+def test_navigation_failures_are_left_to_the_repair_loop():
+    for reason in (
+        "the script is still on the start page; follow the link to the page the task asks for",
+        "the script ended on a search results page; open the matching result",
+        "the live page is an error page (404); open the real page",
+        "the script stopped before it finished (timeout)",
+    ):
+        assert not sn.read_can_fix(EvidenceVerdict(FAIL, reason, ""))
+    assert not sn.read_can_fix(EvidenceVerdict(PASS, "ok", ""))
