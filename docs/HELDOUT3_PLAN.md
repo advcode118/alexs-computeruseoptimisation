@@ -127,6 +127,8 @@ Not final: 3 of 16 runs are done. The rest come later, using the manifest and th
 **Deviations so far (13 Nov):**
 - The first launch of Luna's first script_first run was cut off after 1 row by a session time limit. That file was set aside unread as an infrastructure abort, and the run was redone in full.
 - The user had limited time, so Luna's second script_first run was moved from position 6 to position 3. The other 13 runs keep their pre-registered order.
+- Sol's first script_first run was done on 13 Nov before the remaining Luna runs, at the user's request.
+- **Machine load.** The runs resumed at 21:05 on 13 Nov share the machine with other agents' work (test-suite runs and short script_first dev probes), at the user's request. A timing test in the repo fails under that load, so wall times from these runs are inflated by an unknown amount. Pass rates and dollars are not affected. The time comparison will be reported twice: over all runs, and over the runs made on a quiet machine (the first four) only.
 
 **Interim look (Luna; script_first × 2, browser_use × 1; not a claim):**
 - The pass-rate gap (script_first − browser_use, run 1) is −42 pp, CI [−51, −33], which is labelled behind.
