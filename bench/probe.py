@@ -859,7 +859,7 @@ async def run_claude_arm(
     started = time.perf_counter()
     # script_first starts at one script plus a completion turn. The harness
     # adds a turn only for a repair or a refused extra script, stops at
-    # SCRIPT_FIRST_HARD_CAP, and runs at most one repair script.
+    # SCRIPT_FIRST_HARD_CAP, and runs at most SCRIPT_FIRST_MAX_REPAIRS repair scripts.
     max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
     openai_model = None
     openai_effort = None
@@ -966,6 +966,7 @@ async def run_claude_arm(
             ]
             row["repair_sent"] = result.repair_sent
             row["repair_reply"] = result.repair_reply
+            row["script_turns"] = result.script_turns
         if provider == "openai":
             from bench.openai_spend import price_usd
 
