@@ -87,18 +87,19 @@ DEV4_SPA_TASKS = [
         "https://jqueryui.com/resources/demos/accordion/default.html",
         "List item one", "jqueryui.com", "/accordion/default.html",
     ),
-    # Values that exist only once the app has rendered.
+    # A value that exists only once the app has rendered.
     _task(
         "dev4spa_spa_artifacthub_nginx_app",
         "On Artifact Hub, open the Bitnami nginx Helm chart at chart version 15.0.0 and report the application version that chart release packages.",
         "https://artifacthub.io/packages/helm/bitnami/nginx/15.0.0",
         "1.25.0", "artifacthub.io", "/nginx/15.0.0",
     ),
+    # jQuery tabs: the panel text is hidden until its tab is chosen.
     _task(
-        "dev4spa_spa_bundlephobia_reactdom",
-        "On Bundlephobia, open the size report for react-dom version 18.2.0 and report its minified plus gzipped size.",
-        "https://bundlephobia.com/package/react-dom@18.2.0",
-        "41.7", "bundlephobia.com", "/package/react-dom@18.2.0",
+        "dev4spa_js_jqueryui_tab_three",
+        "On the jQuery UI default tabs demo, open the Aenean lacinia tab and report the first sentence of its text.",
+        "https://jqueryui.com/resources/demos/tabs/default.html",
+        "Mauris eleifend est et turpis", "jqueryui.com", "/tabs/default.html",
     ),
     # Web-component tabs behind a page-load dialog.
     _task(

@@ -21,7 +21,7 @@ from bench.script_first import ClaimedEvidence, collect_page_evidence, evidence_
 from bench.tasks import tasks_for_split
 
 # The answer is there once the app renders; no click needed. Checked with JavaScript off instead.
-RENDER_ONLY = ("dev4spa_spa_artifacthub_nginx_app", "dev4spa_spa_bundlephobia_reactdom")
+RENDER_ONLY = ("dev4spa_spa_artifacthub_nginx_app",)
 
 # A plausible wrong value. Claimed on the end page, it must grade FAIL.
 WRONG = {
@@ -35,7 +35,7 @@ WRONG = {
     "dev4spa_spa_naiveui_beatles": "Wonderwall",
     "dev4spa_js_jqueryui_section_three": "List item two",
     "dev4spa_spa_artifacthub_nginx_app": "1.24.0",
-    "dev4spa_spa_bundlephobia_reactdom": "129.8",
+    "dev4spa_js_jqueryui_tab_three": "Proin elit arcu, rutrum commodo",
     "dev4spa_js_shoelace_advanced": "This is the general tab panel",
 }
 
@@ -78,6 +78,8 @@ async def _interact(page, task: dict) -> None:
         await page.get_by_text("the Beatles", exact=True).first.click()
     elif task_id == "dev4spa_js_jqueryui_section_three":
         await page.get_by_text("Section 3", exact=True).click()
+    elif task_id == "dev4spa_js_jqueryui_tab_three":
+        await page.get_by_role("tab", name="Aenean lacinia").click()
     elif task_id in RENDER_ONLY:
         pass
     elif task_id == "dev4spa_js_shoelace_advanced":
