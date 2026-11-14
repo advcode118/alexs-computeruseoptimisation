@@ -138,6 +138,7 @@ from bench.tasks import (
     HELD_OUT_TASK_IDS,
     SPLIT_DEV3,
     SPLIT_DEV4NAV,
+    SPLIT_DEV4_FORM,
     SPLIT_HELDOUT2,
     SPLIT_HELDOUT3B,
     SPLIT_HELDOUT3A,
@@ -231,13 +232,21 @@ BOX_COMMANDS = (
 def probe_tasks(split: str | None = None, only_kind: str = "") -> list[dict]:
     """Tasks for this split. The default is the three tuned probe tasks.
 
-    only_kind is a comma list of task-type words (the second word of the id).
+    only_kind (--only-kind, or CU_PROBE_ONLY_KIND when it is empty) is a comma
+    list of task-type words: the second word of the task id.
     """
     tasks = tasks_for_split(split)
-    kinds = {part.strip().casefold() for part in (only_kind or "").split(",") if part.strip()}
+    spec = only_kind or os.environ.get("CU_PROBE_ONLY_KIND", "")
+    kinds = {part.strip().casefold() for part in spec.split(",") if part.strip()}
     if kinds:
-        tasks = [task for task in tasks if (task["id"].split("_") + ["", ""])[1].casefold() in kinds]
+        tasks = [task for task in tasks if task_kind(task["id"]) in kinds]
     return tasks
+
+
+def task_kind(task_id: str) -> str:
+    """The task type: the second word of the task id."""
+    parts = task_id.split("_")
+    return parts[1].casefold() if len(parts) > 1 else ""
 
 
 def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
@@ -393,7 +402,7 @@ def plan_probe(
     try:
         spent = SpendLedger.load().running_total_usd
     except LedgerMissing:
-        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_DEV4NAV, SPLIT_VAL3):
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_DEV4NAV, SPLIT_DEV4_FORM, SPLIT_VAL3):
             raise
         # Listing the new catalog needs no spend authority. Unknown is not
         # zero; live execution and existing splits retain strict ledger checks.
@@ -1008,6 +1017,11 @@ async def run_claude_arm(
             if result.strategy:
                 row["strategy"] = result.strategy
                 row["strategy_reads"] = result.strategy_reads
+                row["strategy_reason"] = result.strategy_reason
+                row["strategy_steps"] = [
+                    {"action": step.tool_args, "result": step.snapshot_text}
+                    for step in result.steps if step.tool_name == "form_step"
+                ]
         if provider == "openai":
             from bench.openai_spend import price_usd
 
@@ -1629,6 +1643,7 @@ def main(argv: list[str] | None = None) -> int:
             "heldout3 is a, b, c and d together, the frozen test set. "
             "dev3 is a forty-task public tune set. "
             "dev4nav is the nav read step's twelve-task check set. "
+            "dev4form is the form specialist's twelve fresh form tasks. "
             "val3 is the forty-task validation set, an aggregate-only gate. "
             "Printing the plan does not run it."
         ),
