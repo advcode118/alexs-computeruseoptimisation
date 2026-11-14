@@ -4,6 +4,19 @@ Draft contribution against `t3/tip3`. Runtime baseline: `56fbcab`; the merged
 `bec55ab` update is documentation only. First measured specialist: `14d0533`.
 Final candidate: `f023565` (adds adjacent-label transparent checkbox observation).
 
+## Recommendation: park integration
+
+Retain this draft as an opt-in experimental candidate, but **park integration
+and default enablement**. The final pair improves the shared grade from 10/12
+to 11/12 and median wall time from 11.08s to 4.99s. Strict task compliance is
+still 10/12, with one manually identified false accept (8.3%). The requested
+90% accuracy / under-5% false-accept bar is not met, and this authored,
+previously exercised development set cannot establish generalization.
+
+The queued final benchmark and suite were recovered from their completed saved
+outputs; neither was relaunched during compact continuation. No further API
+spend was incurred. Useful mechanisms and remaining failure causes are below.
+
 ## Mechanism
 
 1. `CU_SF_STRATEGY=spa` enables a cheap router: interaction language plus a
@@ -50,6 +63,16 @@ actions, model choices, and the specialist's own outcome separately from fallbac
 - Specialist calls have no answer-key access; local browser tests tripwire
   `markers_for_task` throughout both specialist success and generic fallback.
 
+## Router audit
+
+On all **132** permitted development/older task descriptions and live start
+URLs: **16 true positives, 116 true negatives, 0 false positives, 0 misses**.
+Precision and recall were both **100%** on this development pool. HTTP fetch
+median was **194 ms**, with one fetch error; the text-cue/fallback path kept
+classification correct. This is a development audit, not an unseen gate result.
+The router sees description and HTML signals only; task ids supply audit labels
+outside the implementation.
+
 ## Evidence
 
 The dev3 checkpoint passed **3/4 off and 3/4 on**, with no false accepts in
@@ -68,6 +91,8 @@ grade FAIL; this does not detect every wording/formatting mistake (see below).
 | dev3 | On | 3/4 | 0/4 | 7.57 / 10.13 / 18.53 | 2.5 / 3.50 | 0.001411 |
 | dev4spa, first model contact | Off | 10/12 | 0/12 | 10.55 / 11.87 / 20.97 | 3 / 2.75 | 0.001004 |
 | dev4spa, first model contact | On | 10/12 | 0/12 | 5.58 / 8.32 / 19.04 | 2 / 2.50 | 0.000737 |
+| dev4spa, final post-fix | Off | 10/12 | 0/12 | 11.08 / 12.40 / 21.11 | 2.5 / 2.67 | 0.000915 |
+| dev4spa, final post-fix | On | 11/12 | 0/12 | 4.99 / 8.17 / 15.57 | 2 / 2.42 | 0.000364 |
 
 At first contact, the specialist accepted 13/16 tasks directly; all 13 passed
 the shared grader. Its three handbacks also failed in generic fallback. In
@@ -75,6 +100,20 @@ dev4spa, it rescued the web-component tabs task but lost the to-do counter task.
 First checkpoint spend: **$0.029256**. No accuracy gain is established by these
 first-contact pairs. On dev4spa the median fell 47%, but this is one small pair
 on a shared machine, not a reliable deployment-speed estimate.
+
+Final dev4spa: **10 specialist acceptances + 1 successful generic fallback =
+11/12 graded passes**. The to-do action now works, but its correct changed
+counter sits in an application footer and is rejected as chrome; generic
+fallback rescues it. Component-title rejection remains the other handback and
+does not recover. The four-versus-three-word formatting miss persists: **10/12
+strict compliance**, not 11/12. That is one manually identified false accept
+(8.3% of tasks) despite zero grader-defined false accepts. The 90% accuracy and
+under-5% false-accept targets are therefore **not demonstrated under strict task
+compliance**. This stays opt-in. Dev3 was not remeasured after the checkbox-only
+fix; its first pair is the available evidence, not a final-code rerun.
+
+Total probe spend: **$0.044604**; dev-h ledger **$5.881834 → $5.926438**. No other
+model/API probes were run. No protected gate was opened or executed.
 
 ### First-contact per-task record
 
@@ -100,6 +139,27 @@ specialist action list (including repeated click counts).
 | artifacthub_nginx_app | P; 5.93; 2 | P; 4.00; 1 |
 | jqueryui_tab_three | P; 3.32; 1 | P; 4.54; 2 |
 | shoelace_advanced | F; 20.97; 3 | P; 7.74; 2 |
+
+### Final dev4spa per-task record
+
+Cells are **grade; seconds; model calls; logged tool groups**. A successful
+specialist is one aggregate tool group containing its actual action list;
+tool groups are not interchangeable with individual browser interactions.
+
+| Task suffix | Off | On | Specialist browser interactions |
+|---|---|---|---|
+| deps_react_dependency | P; 13.09; 3; 3 | P; 7.78; 2; 1 | 1 click |
+| deps_requests_urllib3 | P; 12.07; 3; 3 | P; 4.42; 2; 1 | 1 click |
+| cypress_todo_left | P; 7.86; 3; 3 | P; 15.57; 4; 2 | 1 check, then generic fallback |
+| knockout_clicks | F; 32.84; 4; 4 | P; 5.01; 2; 1 | 3 repeated clicks |
+| htmx_toyota_models | P; 18.83; 4; 4 | P; 4.96; 2; 1 | 1 select |
+| htmx_tab_two | P; 5.89; 2; 2 | P; 6.50; 2; 1 | 1 click; formatting miss |
+| docsify_serve | P; 5.92; 2; 2 | P; 4.95; 2; 1 | 1 click |
+| naiveui_beatles | F; 11.65; 4; 3 | F; 28.03; 6; 4 | 1 click, then generic fallback |
+| jqueryui_section_three | P; 10.52; 2; 2 | P; 4.70; 2; 1 | 1 click |
+| artifacthub_nginx_app | P; 5.62; 2; 2 | P; 4.31; 1; 1 | Rendered read only |
+| jqueryui_tab_three | P; 3.40; 1; 1 | P; 3.75; 2; 1 | 1 click |
+| shoelace_advanced | P; 21.11; 2; 2 | P; 8.01; 2; 1 | 1 click, overlay dismissal on interception |
 
 ### What worked, and what did not
 
@@ -134,9 +194,11 @@ specialist action list (including repeated click counts).
   identical stochastic outcome to a separate off run. No default enablement
   is justified by these measurements.
 
-Paired rows and the router audit are saved under
-`docs/results/strategy_spa_20261114/`. Final-pair and final-check results follow
-when the remaining serialized jobs finish.
+Paired rows and the router audit are committed under
+`docs/results/strategy_spa_20261114/`. The planned measurements are complete.
+Further work needs better content-region attribution, exact output-format
+validation, navigation depth/re-observation, and an independent gate before
+considering default enablement.
 
 ## Reproduction
 
@@ -157,10 +219,40 @@ Opening dev-h ledger: **$5.881834** (inherited project spend, not this specialis
 bill). This contribution has a maximum **$1 increment**. Parent's recovered
 project total across ledgers was approximately $7.19 before these runs.
 
-Focused check: `python -m pytest -q tests/test_strategy_spa.py tests/test_dev4_spa.py tests/test_script_cache.py`.
+## Checks
+
+Final candidate: **840 passed, 1 skipped in 46.42s**. This is the full permitted
+collection through the managed wrapper (this job requested one slot), excluding
+the protected gate tests. The shared wrapper remains configured for two slots.
+The final checkbox regression also passed its focused run: **8 passed in 9.12s**.
+The broader focused set before that last fix gave **22 passed in 7.35s**.
+
+Focused command: `python -m pytest -q tests/test_strategy_spa.py tests/test_dev4_spa.py tests/test_script_cache.py`.
 
 Full permitted test collection:
 
 ```sh
 CU_PROBE_SLOTS=1 sh C:/Users/epicd/.cu-optimisation/probe_slot.sh python -m pytest -q --ignore-glob='tests/test_heldout3*' --ignore-glob='tests/test_val3*'
 ```
+
+### Test-count reconciliation and ancestry
+
+- Fresh `git fetch github t3/tip3 t3/strategy-spa` resolves tip3 to
+  `bec55abe93c7b26f206142e21827e50ad362b8cd`. That exact commit is an ancestor
+  of measured/report head `7e2df498f2977ce92e0a3dd26f92858069ab122a`; there are
+  zero tip3 commits missing from this branch. No integration merge was made.
+- Against that tip3 tree, the only test changes are two added SPA test files:
+  eight strategy cases and two catalog cases. No baseline test or pytest
+  collection configuration was removed or changed.
+- Collection-only, with the same protected-file exclusions and the two SPA
+  files additionally excluded, gives **831 baseline test items** in 0.41s.
+  Adding the ten SPA cases gives **841 items = 840 passed + 1 skipped** in the
+  completed suite.
+- The reported tip3 baseline is 876 passes. The apparent 36-pass deficit is
+  reconciled by **876 - 46 excluded protected cases + 10 new SPA cases = 840**
+  (one skip in both totals). The 46 is inferred from the baseline count and
+  the permitted collection, not by opening or collecting the protected tests.
+  This is a narrower collection, not lost baseline coverage or an ancestry gap.
+
+The recovery manifest in `docs/results/strategy_spa_20261114/manifest.json`
+records row counts, hashes, spend, ancestry, and the saved completion sources.

@@ -12,6 +12,8 @@ and reproduction commands. The JSONL files are the unmodified rows returned by
 - `router.json`: model-free HTTP router audit, including the allowed older
   splits as negatives. Classification labels are used only for audit, never
   passed to the strategy.
+- `manifest.json`: compact recovery record with hashes of the evidence files,
+  paired aggregates, completed-job provenance, and test/ancestry reconciliation.
 
 All model runs use `gpt-6-luna`, medium effort, `script_first` only, the dev-h
 ledger, and the single managed probe slot. `strategy_detail` records a
