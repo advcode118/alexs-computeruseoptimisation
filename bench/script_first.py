@@ -1081,7 +1081,8 @@ def _wrong_row_label(answer: str, task: str, page_text: str = "") -> str:
             words = re.findall(r"[a-z0-9]+", _norm_runtime(cell))
             if words and all(word in known for word in words) and any(len(w) >= 3 or w.isdigit() for w in words):
                 return ""
-        labels.append(cells[0] if cells else line)
+        label = cells[0] if cells else ""
+        labels.append(label if any(ch.isalnum() for ch in label) else "(no label)")
     return labels[0]
 
 
