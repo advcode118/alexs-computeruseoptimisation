@@ -391,7 +391,7 @@ def plan_probe(
     try:
         spent = SpendLedger.load().running_total_usd
     except LedgerMissing:
-        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_VAL3):
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_VAL3, "dev4search"):
             raise
         # Listing the new catalog needs no spend authority. Unknown is not
         # zero; live execution and existing splits retain strict ledger checks.
@@ -964,6 +964,7 @@ async def run_claude_arm(
             "expected_value": selector_text,
         }
         if arm == ARM_SCRIPT_FIRST:
+            row["search_trace"] = [step.tool_args for step in result.steps if step.tool_name == "search_strategy"]
             row["scripts"] = [
                 step.tool_args["code"]
                 for step in result.steps

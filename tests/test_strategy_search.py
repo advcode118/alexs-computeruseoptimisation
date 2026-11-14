@@ -83,6 +83,7 @@ def test_native_search_submits_real_form_filters_and_opens_result():
     assert any("q=Quartz" in u and "channel=stable" in u for u in requests)
     assert url == START + "stable"
     assert result.model_calls == 2 and result.usage["input_tokens"] == 200
+    assert result.steps[0].tool_args["actions"] == 5
     assert model.inputs[1]["results"][0]["url"] == START + "stable"
 
 

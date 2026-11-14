@@ -17,6 +17,18 @@ def test_only_kind_filter_and_registration():
         probe_tasks("dev4search", only_kind="missing")
 
 
+def test_dry_plan_needs_no_ledger(monkeypatch):
+    from bench.probe import LedgerMissing, SpendLedger, plan_probe
+
+    def missing(*args):
+        raise LedgerMissing("offline")
+
+    monkeypatch.setattr(SpendLedger, "load", missing)
+    plan = plan_probe(split="dev4search", only_kind="search")
+    assert plan["tasks"] == [t["id"] for t in DEV4_SEARCH_TASKS]
+    assert plan["execute"] is False and plan["project_spent_usd"] is None
+
+
 def test_catalog_and_grader_reject_start_results_and_wrong_destination():
     tasks = DEV4_SEARCH_TASKS
     assert len(tasks) == len({t["id"] for t in tasks}) == 12

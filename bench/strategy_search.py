@@ -201,7 +201,8 @@ async def run_search(page, model, task: str, start_url: str, *, provider="openai
             pass
     elapsed = (time.perf_counter() - started) * 1000
     outcome.tool_ms = max(0, elapsed - outcome.model_ms)
-    trace.update(success=outcome.success, reason=outcome.reason)
+    trace.update(success=outcome.success, reason=outcome.reason, actions=outcome.actions,
+                 model_calls=outcome.model_calls, wall_ms=elapsed)
     outcome.steps.append(StepMetrics(
         step_number=1, tool_name="search_strategy", tool_args=trace,
         tool_result_size=0, snapshot_tokens=0, model_time_ms=outcome.model_ms,

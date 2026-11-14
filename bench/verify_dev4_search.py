@@ -26,12 +26,12 @@ ROUTES = [
     ('input[name="search"]', "Help:Namespaces", None),
     ('input[name="q"]', "selectors", None),
     ('input[name="q"]', "requests responses", None),
-    ('input[name="q"]', "units quantities", None),
-    ('input[name="q"]', "data tables", None),
-    ('input[data-md-component="search-query"]', "validators", 'label[for="__search"]'),
-    ('input[data-md-component="search-query"]', "serialization", 'label[for="__search"]'),
-    ('input[data-md-component="search-query"]', "background tasks", 'label[for="__search"]'),
-    ('input[data-md-component="search-query"]', "cors", 'label[for="__search"]'),
+    ('input[name="q"]', "units quantities", 'button[aria-label="Search"]:visible'),
+    ('input[name="q"]', "data tables", 'button[aria-label="Search"]:visible'),
+    ('input[type="search"]', "validators", 'button[aria-label="Search"]:visible'),
+    ('input[type="search"]', "serialization", 'button[aria-label="Search"]:visible'),
+    ('input', "background tasks", 'button.md-search__button'),
+    ('input', "cors", 'button.md-search__button'),
 ]
 
 
@@ -53,8 +53,9 @@ async def check(browser, task, route):
         if "ubuntu" in task["id"]:
             await page.locator('select[name="suite"]').first.select_option("noble")
         await field.fill(query)
-        if not trigger:
-            await field.press("Enter")
+        if not trigger or "astropy" in task["id"]:
+            async with page.expect_navigation(wait_until="domcontentloaded"):
+                await field.evaluate("e => e.form.requestSubmit()")
         path = task["end_markers"]["path_suffix"]
         await page.wait_for_function("path => location.pathname.endsWith(path) || [...document.querySelectorAll('a[href]')].some(a => a.href.includes(path) && a.getClientRects().length)", arg=path)
         evidence = await collect_page_evidence(page)
@@ -64,6 +65,7 @@ async def check(browser, task, route):
             assert not _grade(task, evidence, answer), "results passed"
             href = await page.evaluate("path => [...document.querySelectorAll('a[href]')].find(a => a.href.includes(path) && a.getClientRects().length).getAttribute('href')", path)
             await page.locator('a[href=' + json.dumps(href) + ']:visible').first.click()
+            await page.wait_for_url(lambda u: str(u).split("#")[0].endswith(path))
         await page.wait_for_load_state("domcontentloaded")
         await page.wait_for_function("() => document.body.innerText.length > 100")
         await _real_page(page)
