@@ -35,10 +35,36 @@ ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
 BASELINE_ARMS = (ARM_PLAYWRIGHT, ARM_BROWSER_USE)
 SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST, ARM_ENDPOINT, ARM_BROWSER_USE)
 # One script and a completion turn. A repair may use the spare calls.
-# Moving the page does not add a turn. The harness will not run a third script.
+# Moving the page does not add a turn.
 SCRIPT_FIRST_MAX_CALLS = 4
-SCRIPT_FIRST_MAX_SCRIPTS = 2
-SCRIPT_FIRST_HARD_CAP = 6
+# A FAIL gets a grounded repair: the live page, the failed step, and how far
+# the script got. Up to SCRIPT_FIRST_MAX_REPAIRS of them, each continuing from
+# the current page, while the task is under SCRIPT_FIRST_REPAIR_BUDGET_S of
+# wall time. A first script that passes never reaches any of this.
+SCRIPT_FIRST_MAX_REPAIRS = 3
+SCRIPT_FIRST_REPAIR_BUDGET_S = 30.0
+SCRIPT_FIRST_MAX_SCRIPTS = 1 + SCRIPT_FIRST_MAX_REPAIRS
+SCRIPT_FIRST_HARD_CAP = SCRIPT_FIRST_MAX_SCRIPTS + 2
+
+
+def script_first_repair_mode() -> dict:
+    """How script_first repairs, read from the environment at the start of each task.
+
+    CU_SF_REPAIR=blind restores tip2: one repair that carries only the reason
+    and the URL, tip2's prompt lines, and tip2's stop rules. It exists so one
+    checkout can measure before and after. CU_SF_MAX_REPAIRS caps the grounded
+    repairs (0..SCRIPT_FIRST_MAX_REPAIRS).
+    """
+    import os
+
+    legacy = os.environ.get("CU_SF_REPAIR", "") == "blind"
+    if legacy:
+        return {"legacy": True, "max_repairs": 1, "budget_s": float("inf")}
+    max_repairs = SCRIPT_FIRST_MAX_REPAIRS
+    raw = os.environ.get("CU_SF_MAX_REPAIRS", "")
+    if raw.strip().isdigit():
+        max_repairs = min(SCRIPT_FIRST_MAX_REPAIRS, int(raw))
+    return {"legacy": False, "max_repairs": max_repairs, "budget_s": SCRIPT_FIRST_REPAIR_BUDGET_S}
 
 # The proxy arms can still finish through decide(), replay, or a locator
 # script when no_model_only is requested. The competitive probe does not.
@@ -94,10 +120,21 @@ Guidelines:
 - Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle. The runner drops those lines and does not settle or snapshot between actions.
 - Do not click, type, or snapshot one element at a time.
 - browser_run_code_unsafe is not a tool. Do not ask for it.
-- If the tool result says END_STATE_FAILED, send one corrected script that lands on the finished page. Do not send a second repair.
+- If the tool result says END_STATE_FAILED, it shows the live page, the step that failed, and how far the script got. The browser stays on that page. Send one script that continues from there (or page.goto to start over), using the names and links shown.
 - If the result already satisfies the task, the run stops. Do not call run_script again and do not send a separate completion turn. If it cannot be done, call task_failed({reason: string}).
 
-Be efficient - one script, at most one repair, then stop."""
+Be efficient - one script that finishes the task. A repair only after END_STATE_FAILED."""
+
+_GROUNDED_REPAIR_LINE = "- If the tool result says END_STATE_FAILED, it shows the live page, the step that failed, and how far the script got. The browser stays on that page. Send one script that continues from there (or page.goto to start over), using the names and links shown.\n"
+_BLIND_REPAIR_LINE = "- If the tool result says END_STATE_FAILED, send one corrected script that lands on the finished page. Do not send a second repair.\n"
+_GROUNDED_CLOSING = "Be efficient - one script that finishes the task. A repair only after END_STATE_FAILED."
+_BLIND_CLOSING = "Be efficient - one script, at most one repair, then stop."
+assert _GROUNDED_REPAIR_LINE in _SCRIPT_FIRST_PROMPT and _GROUNDED_CLOSING in _SCRIPT_FIRST_PROMPT
+
+# Only with CU_SF_LOOK=1 (exploratory). The default prompt above is unchanged.
+_SCRIPT_FIRST_LOOK_LINE = """
+
+If you know the URL but not the page's field names, buttons, or where the value sits, you may call look(url) once first. Otherwise write the script directly."""
 
 _ENDPOINT_PROMPT = """A direct read of the task start URL uses no model.
 
@@ -142,6 +179,14 @@ def prompt_for(arm: str) -> str:
     if arm == ARM_STAGEHAND:
         return _STAGEHAND_PROMPT
     if arm == ARM_SCRIPT_FIRST:
+        from bench.script_first import look_enabled
+
+        if script_first_repair_mode()["legacy"]:
+            return _SCRIPT_FIRST_PROMPT.replace(_GROUNDED_REPAIR_LINE, _BLIND_REPAIR_LINE).replace(
+                _GROUNDED_CLOSING, _BLIND_CLOSING
+            )
+        if look_enabled():
+            return _SCRIPT_FIRST_PROMPT + _SCRIPT_FIRST_LOOK_LINE
         return _SCRIPT_FIRST_PROMPT
     if arm == ARM_ENDPOINT:
         return _ENDPOINT_PROMPT
