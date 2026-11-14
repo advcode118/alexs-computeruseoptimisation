@@ -748,6 +748,26 @@ def grade_observation(
     )
 
 
+def grade_page_answer(
+    task: dict,
+    url: str,
+    text: str,
+    *,
+    selector_text: str = "",
+    answer: str = "",
+    claimed=None,
+) -> tuple[bool, str]:
+    """Post-run page/answer grade, independent of runtime/completion gating.
+
+    Use the identical marker and shared evidence checks as the final grade.
+    This diagnostic must never feed back into the run or its model messages.
+    """
+    ok, reason, _shared, _shared_reason = grade_observation(
+        task, url, text, selector_text=selector_text, answer=answer, claimed=claimed,
+    )
+    return ok, reason
+
+
 def empty_row(
     arm: str,
     task_id: str,
@@ -918,6 +938,10 @@ async def run_claude_arm(
         run_verdict = end_state if arm == ARM_SCRIPT_FIRST else None
         claimed = claim_from_step(last) if arm == ARM_SCRIPT_FIRST and last is not None else None
         completed = None if arm == ARM_SCRIPT_FIRST else result.success
+        page_answer_ok, page_answer_reason = grade_page_answer(
+            task, final_url, graded_text, selector_text=selector_text,
+            answer=claimed_answer, claimed=claimed,
+        )
         success, reason, substring_ok, substring_reason = grade_observation(
             task,
             final_url,
@@ -936,6 +960,8 @@ async def run_claude_arm(
             "success": success,
             "success_reason": reason,
             "end_state": end_state,
+            "page_answer_success": page_answer_ok,
+            "page_answer_reason": page_answer_reason,
             "substring_success": substring_ok,
             "substring_reason": substring_reason,
             "skipped": False,

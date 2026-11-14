@@ -221,13 +221,15 @@ def test_hybrid_falls_back_unless_end_state_is_pass():
 
 
 def test_self_check_precision_and_recall():
-    # One task, four runs: precision 1/2, recall 1/2.
+    # Final success cannot be true when runtime rejects a correct page/answer.
+    # The independently saved label makes that false reject measurable.
     files = []
     ends = [("PASS", True), ("PASS", False), ("FAIL", True), ("FAIL", False)]
-    for end_state, success in ends:
+    for end_state, page_answer_success in ends:
         files.append(
             [
-                _row(SCRIPT, "zz-check", success, end_state=end_state, model="m"),
+                _row(SCRIPT, "zz-check", page_answer_success and end_state == "PASS",
+                     end_state=end_state, model="m", page_answer_success=page_answer_success),
                 _row(BROWSER, "zz-check", False, model="m"),
             ]
         )
@@ -236,7 +238,53 @@ def test_self_check_precision_and_recall():
     assert check["precision"]["estimate"] == pytest.approx(0.5)
     assert check["recall"]["estimate"] == pytest.approx(0.5)
     assert check["precision"]["ci95"][0] == pytest.approx(0.5)
+    assert check["recall"]["ci95"] == [0.5, 0.5]
+    assert check["false_rejects"] == 1
+    assert check["independently_graded_rows"] == 4
+    assert check["rows_missing_independent_grade"] == 0
     assert report["bars"][BAR_SELF_CHECK] == "not met"
+
+
+def test_legacy_rows_have_no_recall_ground_truth():
+    files = [[_row(SCRIPT, "old", True, end_state="PASS"), _row(BROWSER, "old", True)]]
+    report = build_report(files, sites={}, n_resamples=20)
+    check = report["models"]["m"]["self_check"]
+    assert check["precision"]["estimate"] == 1.0
+    assert check["recall"] == {"estimate": None, "ci95": None}
+    assert check["rows_missing_independent_grade"] == 1
+    assert "self_check_recall: N/A" in render_report(report)
+
+
+def test_mixed_rows_use_only_independent_recall_labels():
+    files = []
+    for end, success, extra in [
+        ("PASS", True, {}),
+        ("PASS", True, {"page_answer_success": True}),
+        ("FAIL", False, {"page_answer_success": True}),
+        ("UNKNOWN", False, {"page_answer_success": True}),
+        ("PASS", False, {"page_answer_success": False}),
+        ("PASS", True, {"page_answer_success": "true"}),
+    ]:
+        files.append([_row(SCRIPT, "mixed", success, end_state=end, **extra), _row(BROWSER, "mixed", True)])
+    report = build_report(files, sites={}, n_resamples=20)
+    check = report["models"]["m"]["self_check"]
+    assert check["recall"]["estimate"] == pytest.approx(1 / 3)
+    assert check["recall"]["ci95"] == pytest.approx([1 / 3, 1 / 3])
+    assert check["false_rejects"] == 2
+    assert check["independently_graded_rows"] == 4
+    assert check["rows_missing_independent_grade"] == 2
+    assert report["models"]["m"]["pass_rate"][SCRIPT]["estimate"] == 0.5
+
+
+def test_independent_failures_only_have_undefined_recall():
+    report = build_report([[
+        _row(SCRIPT, "wrong", False, end_state="FAIL", page_answer_success=False),
+        _row(BROWSER, "wrong", True),
+    ]], sites={}, n_resamples=10)
+    check = report["models"]["m"]["self_check"]
+    assert check["recall"]["estimate"] is None
+    assert check["independently_graded_rows"] == 1
+    assert check["independent_passes"] == 0
 
 
 def test_decision_labels_for_exact_intervals():

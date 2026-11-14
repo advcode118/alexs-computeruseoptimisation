@@ -37,20 +37,21 @@ def load_rows(paths: list[str]) -> list[dict]:
     return rows
 
 
-def grade_check(task: dict, check: dict) -> bool:
-    """Would the shared grader pass this script's end state if the run stopped there."""
-    from bench.probe import grade_observation
+def grade_check(task: dict, check: dict) -> bool | None:
+    """Independent page/answer grade, or None when a dynamic label was not saved."""
+    from bench.probe import grade_page_answer
     from bench.script_first import claimed_from_payload
 
     payload = check.get("payload") or {}
+    if (task.get("end_markers") or {}).get("answer_equals_selector") and not payload.get("selector_text"):
+        return None
     claim = claimed_from_payload(payload)
-    ok, _reason, _sub, _subr = grade_observation(
+    ok, _reason = grade_page_answer(
         task,
         check.get("page_url") or "",
         payload.get("text") or "",
         selector_text=payload.get("selector_text") or "",
         answer=claim.answer,
-        run_verdict="PASS",
         claimed=claim,
     )
     return bool(ok)
@@ -76,10 +77,14 @@ def replay_check(description: str, check: dict, earlier: list | None = None):
 def confusion(units: list[dict], key: str) -> dict:
     counts = Counter()
     for unit in units:
+        if unit["graded"] is None:
+            continue
         counts[(unit[key] == "PASS", unit["graded"])] += 1
     tp, fp = counts[(True, True)], counts[(True, False)]
     fn, tn = counts[(False, True)], counts[(False, False)]
     return {
+        "graded_scripts": tp + fp + fn + tn,
+        "ungraded_scripts": sum(unit["graded"] is None for unit in units),
         "self_pass_graded_pass": tp,
         "self_pass_graded_fail": fp,
         "self_fail_graded_pass": fn,
@@ -100,7 +105,7 @@ def by_check(units: list[dict]) -> dict:
     """For scripts the old check passed and the new one does not: caught false accepts and rejected true passes."""
     table: dict[str, dict[str, int]] = {}
     for unit in units:
-        if unit["before"] != "PASS" or unit["after"] == "PASS":
+        if unit["graded"] is None or unit["before"] != "PASS" or unit["after"] == "PASS":
             continue
         row = table.setdefault(check_name(unit["after_reason"]), {"caught_false_accept": 0, "rejected_true_pass": 0})
         row["rejected_true_pass" if unit["graded"] else "caught_false_accept"] += 1
@@ -152,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(out, indent=2))
     for unit in units:
         show = (
-            (args.show == "fp" and unit["after"] == "PASS" and not unit["graded"])
+            (args.show == "fp" and unit["after"] == "PASS" and unit["graded"] is False)
             or (args.show == "fn" and unit["after"] != "PASS" and unit["graded"])
             or (args.show == "changed" and (unit["after"] == "PASS") != (unit["before"] == "PASS"))
         )
