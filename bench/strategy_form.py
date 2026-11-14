@@ -297,9 +297,11 @@ SCHEMA_JS = r"""(args) => {
     if (!text) text = clean(el.getAttribute('name') || el.id || '');
     if (!text) continue;
     text = text.slice(0, 80);
-    const form = formKey(el);
     const isLink = tag === 'a' && !el.getAttribute('role') && !/\bbtn\b|button/i.test(el.className || '');
-    const submits = (tag === 'button' && (type === 'submit' || (!type && form >= 0))) || (tag === 'input' && (type === 'submit' || type === 'image'));
+    // A submit counts only with a real native owner (el.form), never an orphan or a broken form= id.
+    const nativeType = (tag === 'button' && (type === 'submit' || !type)) || (tag === 'input' && (type === 'submit' || type === 'image'));
+    const submits = nativeType && !!el.form && forms.indexOf(el.form) >= 0;
+    const form = submits ? forms.indexOf(el.form) : formKey(el);
     const key = (isLink ? 'link' : 'button') + '|' + text.toLowerCase() + '|' + form;
     if (seen.has(key)) continue;
     seen.add(key);

@@ -199,3 +199,34 @@ def test_preview_cannot_stand_in_for_form_submission(native_submit):
                 await browser.close()
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("mode", ["orphan", "invalid_form_owner", "valid_external_owner"])
+def test_submit_needs_a_real_native_form_owner(mode):
+    """A type=submit button with no native owner (orphan, or form= naming no form) is not a submit."""
+    async def run():
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch()
+            try:
+                page = await browser.new_page()
+                field = "<label>Name<input required></label>"
+                attr = {"orphan": "", "invalid_form_owner": 'form="missing"', "valid_external_owner": 'form="real"'}[mode]
+                button = f"""<button type="submit" {attr}
+                    onclick="document.querySelector('output').textContent='Preview ready'">Preview</button>"""
+                body = field + button if mode == "orphan" else f'<form id="real">{field}{button}</form>'
+                html = body + """<output></output><script>window.submits = 0;
+                  document.addEventListener('submit', e => { e.preventDefault(); window.submits++;
+                    document.querySelector('output').textContent='Request saved'; });</script>"""
+                await page.route("https://fixture.example/**", lambda route: route.fulfill(body=html, content_type="text/html"))
+                valid = mode == "valid_external_owner"
+                model = Model([
+                    reply("form_step", {"action": "fill", "fields": [{"n": 1, "value": "Sam"}], "press": 2}),
+                    reply("form_step", {"action": "done", "answer": "Request saved" if valid else "Preview ready"}),
+                ])
+                outcome = await form.run_form_strategy(page, model, "Submit the form and report the confirmation.", URL)
+                assert outcome.passed is valid, outcome.reason
+                assert await page.evaluate("window.submits") == int(valid)
+            finally:
+                await browser.close()
+
+    asyncio.run(run())
