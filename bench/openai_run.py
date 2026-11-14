@@ -43,8 +43,10 @@ def _key_is_set() -> bool:
     return bool(os.environ.get("OPENAI_API_KEY", "").strip())
 
 
-def _tasks(split: str, *, one_task: bool) -> list[dict]:
-    catalog = tasks_for_split(split)
+def _tasks(split: str, *, one_task: bool, only_kind: str = "") -> list[dict]:
+    from bench.probe import probe_tasks
+
+    catalog = probe_tasks(split, only_kind)
     if not one_task:
         return catalog
     wanted = set(sweep_task_ids([task["id"] for task in catalog]))
@@ -283,6 +285,7 @@ async def execute_openai_probe(
     no_model_only: bool,
     warm_replay: bool,
     honest: bool,
+    only_kind: str = "",
 ) -> list[dict]:
     """Run the matrix. Stops at $5 per cell, $15 per sweep, and $20 on the ledger."""
     import os
@@ -299,7 +302,7 @@ async def execute_openai_probe(
         one_task=one_task,
     )
     cells = sweep_cells() if request["sweep"] else ({"model": request["model"], "effort": request["effort"]},)
-    tasks = _tasks(split, one_task=request["one_task"])
+    tasks = _tasks(split, one_task=request["one_task"], only_kind=only_kind)
     ledger = OpenAISpendLedger.read(spend_path or default_openai_spend_path())
     opening_allowance = ledger.cover_unrecorded_call()
     if not ledger.allows_project():

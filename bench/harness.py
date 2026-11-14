@@ -165,6 +165,9 @@ class TaskResult:
     repair_reply: str = "none"
     # script_first: one entry per script that ran: [self-check verdict, wall ms since the task started].
     script_turns: list = field(default_factory=list)
+    # CU_SF_STRATEGY: the specialist that handled this row, and how ("nav:read"). Empty when none did.
+    strategy: str = ""
+    strategy_reads: list = field(default_factory=list)
 
 
 def estimate_tokens(text: str) -> int:
@@ -1197,6 +1200,9 @@ class BenchmarkHarness:
         same_fail_count = 0
         script_turns: list = []
         looks = 0
+        strategy = ""
+        strategy_reads: list = []
+        nav_read = None
         end_state = ""
         last_verdict = None
         markers: dict = {}
@@ -1212,6 +1218,7 @@ class BenchmarkHarness:
                 FAIL,
                 PASS,
                 UNKNOWN,
+                claimed_from_payload,
                 drop_old_snapshots,
                 grounded_repair_request,
                 model_visible_script_result,
@@ -1235,6 +1242,11 @@ class BenchmarkHarness:
                 self.mcp_client.end_markers = {}
             if hasattr(self.mcp_client, "look_task"):
                 self.mcp_client.look_task = task_description
+            from bench import strategy_nav
+
+            if strategy_nav.enabled() and strategy_nav.claims(task_description):
+                nav_read = strategy_nav.read_after_pass
+                strategy = "nav:no_pass"
 
         try:
             if cache is not None:
@@ -1530,6 +1542,44 @@ class BenchmarkHarness:
                                 task=task_description,
                                 earlier=earlier_payloads,
                             )
+                            if nav_read is not None and (
+                                verdict.verdict == PASS or strategy_nav.read_can_fix(verdict)
+                            ):
+                                # The nav specialist reads the value off the live page in place of the
+                                # script's extraction, or in place of a repair script after an imprecise answer.
+                                read = await nav_read(
+                                    page=getattr(self.mcp_client, "_page", None),
+                                    model=self.anthropic,
+                                    description=task_description,
+                                    payload=payload,
+                                    verdict=verdict,
+                                    page_url=page_url,
+                                    start_url=start_url,
+                                    earlier=tuple(earlier_payloads),
+                                )
+                                strategy_reads.append({
+                                    "label": read.label,
+                                    "before_verdict": verdict.verdict,
+                                    "before_answer": claimed_from_payload(payload).answer,
+                                    "after_verdict": read.verdict.verdict,
+                                    "after_answer": claimed_from_payload(read.payload).answer,
+                                    "model_calls": read.model_calls,
+                                    "model_ms": read.model_ms,
+                                    "tool_ms": read.tool_ms,
+                                    "usage": read.usage,
+                                    "note": read.note,
+                                })
+                                verdict, payload = read.verdict, read.payload
+                                strategy = read.label if strategy == "nav:no_pass" else f"{strategy}+{read.label}"
+                                model_calls += read.model_calls
+                                total_model_ms += read.model_ms
+                                tool_ms += read.tool_ms
+                                total_tool_ms += read.tool_ms
+                                total_input_tokens += int(read.usage.get("input_tokens") or 0)
+                                total_output_tokens += int(read.usage.get("output_tokens") or 0)
+                                total_cached_tokens += int(read.usage.get("cached_tokens") or 0)
+                                total_cache_write_30m_tokens += int(read.usage.get("cache_write_30m_tokens") or 0)
+                                total_cache_write_12h_tokens += int(read.usage.get("cache_write_12h_tokens") or 0)
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
                             earlier_payloads.append(payload)
@@ -1771,6 +1821,8 @@ class BenchmarkHarness:
             repair_sent=repairs_sent > 0,
             repair_reply=repair_reply,
             script_turns=script_turns,
+            strategy=strategy,
+            strategy_reads=strategy_reads,
         )
 
     def _empty_result(
