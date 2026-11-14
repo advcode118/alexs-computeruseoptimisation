@@ -27,10 +27,21 @@ The implementation uses DOM structure and general field/widget conventions, with
 
 - Local browser adversarial fixtures cover native text/email/number/date/select/radio/checkbox fields, unrelated required fields, delayed processing, stale results, validation errors, wrong controls and nonexistent field numbers.
 - Harness tests cover opt-in isolation, fallback usage accounting and no marker access before completion.
+- Model-free public-page replay on six dev3 forms plus two older forms: **6/8 self-pass, 6/8 graded pass, 0 false accepts**. The two failures were the hand-written stand-in's label matching on flight booking and the sum calculator; these are diagnostic-plan failures, not paid-model measurements. No fresh dev4form specialist replay was used for tuning before its agent checkpoint.
 - The permitted description catalog contains 132 distinct tasks. Router: **27 true positives, 105 true negatives, 0 false positives, 0 false negatives**. Precision/recall are 100% on this development catalog only. The older `ho_httpbin_customer_form` is semantically a form despite its nonstandard second-word label; treating its ID literally instead gives 26 TP, 1 FP, 0 FN, 105 TN.
 - Fixed the inherited `--only-kind` filter to apply to OpenAI probes as well as the other probe entry point; a regression test checks the six dev3 forms.
+- Broad permitted suite, through the single-slot wrapper: `python -m pytest -q --ignore-glob=tests/test_heldout3* --ignore-glob=tests/test_val3*` → **853 passed, 1 skipped in 50.01s**. Focused form/cache tests also passed; the OpenAI provider tests passed 13/13. The optional gstack checker could not resolve this repository's GitHub base because it assumes the read-only `origin` remote; its readiness status is not claimed.
 
 ## Limits to evaluate
+
+| Brief idea | Decision and evidence |
+|---|---|
+| Observe fields first, several forms and label sources | Kept: local real-browser schema/readback test exercises labels, native types and unrelated forms. |
+| Model chooses data, deterministic filler executes it | Kept: schema numbers only; malformed/unknown fields and ambiguous options reject; model-free public replay passes 6/8. |
+| Submit, wait, read new text | Kept: delayed-processing fixture passes; stale confirmations and unrelated navigation reject. |
+| Honest errors and correction | Kept: native and server validation errors reject; bounded correction uses the next observed schema. |
+| Multi-step forms and forms behind controls | Bounded support: navigation clicks are allowed, but cannot independently certify completion; five model calls and three fill attempts cap the specialist. Long checkout support is not established. |
+| Generic fallback | Kept: disabled/unclaimed tasks avoid browser access; failed specialist usage is retained and generic script execution is tested. |
 
 The 40-second budget is checked between model calls so a billable in-flight response is not discarded; an individual call/action can exceed it. Up to five calls and three fill attempts include navigation and multi-step work. Generic fallback adds its own cost. The standalone model-free replay script contains explicit plans and answers and is diagnostic only, never imported by the live specialist.
 
@@ -38,4 +49,4 @@ Freshness is evidence of an observed post-click change, not a transaction receip
 
 ## Measurement
 
-Alternating comparisons and the broad test result are pending. No performance or accuracy improvement is claimed until the saved rows are summarized.
+Alternating comparisons are pending. No performance or accuracy improvement is claimed until the saved rows are summarized.

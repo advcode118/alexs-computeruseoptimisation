@@ -164,3 +164,24 @@ def test_fallback_keeps_usage_and_generic_path(tmp_path, monkeypatch):
     result = asyncio.run(harness.run_task("wv_wikipedia_search", DESCRIPTION, START))
     assert result.success and result.strategy == "form:fallback"
     assert result.model_calls == 2 and result.total_input_tokens == 10
+
+
+def test_correct_native_validation_then_submit():
+    async def run():
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch()
+            page = await browser.new_page()
+            html = '''<form onsubmit="event.preventDefault(); document.querySelector('output').textContent='Request saved'">
+              <label>Email<input type="email" required></label><button>Send</button></form><output></output>'''
+            await page.route("https://fixture.test/**", lambda route: route.fulfill(body=html, content_type="text/html"))
+            model = Model([
+                {"action": "fill", "fields": [{"n": 1, "value": "not-an-email"}], "press": 2},
+                {"action": "fill", "fields": [{"n": 1, "value": "sam@example.test"}], "press": 2},
+                {"action": "done", "answer": "Request saved"},
+            ])
+            outcome = await form.run_form_strategy(page, model, "Submit the form and report the result.", "https://fixture.test/")
+            assert outcome.passed and outcome.model_calls == 3
+            assert "BROWSER BLOCKED" in outcome.steps[0].result
+            assert "Request saved" not in outcome.steps[0].result
+            await browser.close()
+    asyncio.run(run())
