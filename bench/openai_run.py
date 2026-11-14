@@ -75,6 +75,7 @@ def plan_openai_probe(
     no_model_only: bool,
     warm_replay: bool,
     honest: bool,
+    only_kind: str = "",
 ) -> dict:
     """The plan only. No browser, no client, no ledger write."""
     if honest:
@@ -95,7 +96,7 @@ def plan_openai_probe(
     for cell in cells:
         if cell["model"] not in models:
             models.append(cell["model"])
-    tasks = _tasks(split, one_task=request["one_task"])
+    tasks = _tasks(split, one_task=request["one_task"], only_kind=only_kind)
     ledger = OpenAISpendLedger.read()
     return {
         "execute": False,

@@ -25,6 +25,7 @@ from bench.tasks_heldout3_c import HELDOUT3C_TASK_IDS, HELDOUT3C_TASKS
 from bench.tasks_dev3 import DEV3_TASK_IDS, DEV3_TASKS
 from bench.tasks_dev4_nav import DEV4_NAV_TASK_IDS, DEV4_NAV_TASKS
 from bench.tasks_dev4_form import DEV4_FORM_TASK_IDS, DEV4_FORM_TASKS
+from bench.tasks_dev4_spa import DEV4_SPA_TASK_IDS, DEV4_SPA_TASKS
 from bench.tasks_val3 import VAL3_TASK_IDS, VAL3_TASKS
 
 FIXTURE_DIR = Path(__file__).parent.parent / "loop" / "fixture"
@@ -1209,6 +1210,8 @@ WEBVOYAGER_TASKS += DEV3_TASKS
 WEBVOYAGER_TASKS += DEV4_NAV_TASKS
 # dev4form is the form specialist's fresh tune set. See bench/tasks_dev4_form.py.
 WEBVOYAGER_TASKS += DEV4_FORM_TASKS
+# dev4spa is the spa specialist's tune set, never scored. See bench/tasks_dev4_spa.py.
+WEBVOYAGER_TASKS += DEV4_SPA_TASKS
 WEBVOYAGER_TASKS += VAL3_TASKS
 # The frozen heldout3 test set: all four blind-authored splits. See docs/HELDOUT3_PLAN.md.
 # Dropped by the pre-run rule on 13 Nov 2026: each failed a same-day live reproducer run.
@@ -1306,6 +1309,7 @@ SPLIT_HELDOUT3 = "heldout3"
 SPLIT_DEV3 = "dev3"
 SPLIT_DEV4NAV = "dev4nav"
 SPLIT_DEV4_FORM = "dev4form"
+SPLIT_DEV4SPA = "dev4spa"
 SPLIT_VAL3 = "val3"
 SPLIT_HONEST = "honest"
 # The scored set is held-out only. Dev is what we tune, and it is not scored.
@@ -1368,6 +1372,7 @@ def resolve_task_split(spec: str | None) -> str:
     names start with a through m.
     dev3 is a forty-task public tune set, not scored.
     dev4nav is the nav read step's twelve-task first-contact set.
+    dev4spa is the spa specialist's twelve-task tune set, not scored.
     val3 is a forty-task validation set on n-z sites, disjoint from all of
     those. It is an aggregate-only gate.
     The default stays probe.
@@ -1397,6 +1402,8 @@ def resolve_task_split(spec: str | None) -> str:
         return SPLIT_DEV4NAV
     if key == "dev4form":
         return SPLIT_DEV4_FORM
+    if key == "dev4spa":
+        return SPLIT_DEV4SPA
     if key == "val3":
         return SPLIT_VAL3
     if key == "honest":
@@ -1429,6 +1436,8 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
         return _tasks_in_order(DEV4_NAV_TASK_IDS)
     if name == SPLIT_DEV4_FORM:
         return _tasks_in_order(DEV4_FORM_TASK_IDS)
+    if name == SPLIT_DEV4SPA:
+        return _tasks_in_order(DEV4_SPA_TASK_IDS)
     if name == SPLIT_VAL3:
         return _tasks_in_order(VAL3_TASK_IDS)
     if name == SPLIT_HONEST:
