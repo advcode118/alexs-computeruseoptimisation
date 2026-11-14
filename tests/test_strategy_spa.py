@@ -59,6 +59,7 @@ def test_hidden_label_late_controls_state_diff_and_stale_ids():
     async def check(page):
         await page.set_content('''<label for="done">Pay utility bill</label>
             <input id="done" type="checkbox" style="opacity:0" onchange="out.innerText=this.checked?'1 item left':'2 items left'">
+            <div><input id="adjacent" type="checkbox" style="opacity:0"><label>Buy supplies</label></div>
             <p id="out">2 items left</p><div id="links"></div><div id="results"></div>
             <script>links.innerHTML=Array.from({length:180},(_,i)=>`<a href="#">Navigation ${i}</a>`).join(' ')</script>''')
         net = spa.NetworkWatch(page)
@@ -71,6 +72,10 @@ def test_hidden_label_late_controls_state_diff_and_stale_ids():
             after = await spa.observe(page)
             assert "1 item left" in spa.new_lines(before, after)
             assert next(c for c in after.controls if c["id"] == box["id"])["state"] == "checked"
+            adjacent = next(c for c in after.controls if c["name"] == "Buy supplies")
+            assert adjacent["role"] == "checkbox"
+            result = await spa.run_actions(page, net, [{"do": "check", "id": adjacent["id"]}])
+            assert not result.error and await page.locator("#adjacent").is_checked()
             await page.evaluate("results.innerHTML='<a href=\"#flat\">Array.flat</a>'")
             view = await spa.observe(page, task="Open Array.flat")
             assert any(c["name"] == "Array.flat" for c in view.controls)

@@ -226,6 +226,10 @@ _OBSERVE_JS = r"""({cap, terms}) => {
     const by = el.getAttribute("aria-labelledby");
     if (!n && by) n = by.split(/\s+/).map((id) => { const x = document.getElementById(id); return x ? x.innerText : ""; }).join(" ");
     if (!n && el.labels && el.labels.length) n = Array.from(el.labels).map((l) => l.innerText).join(" ");
+    // Some styled checkboxes put an unassociated label immediately after the input.
+    if (!n && ["checkbox", "radio"].includes(el.type) && el.nextElementSibling?.tagName === "LABEL") {
+      n = el.nextElementSibling.innerText;
+    }
     const tag = el.tagName.toLowerCase();
     if (!n && !["input", "textarea", "select"].includes(tag)) n = el.innerText || el.textContent || "";
     if (!n) n = el.getAttribute("placeholder") || el.getAttribute("title") || el.getAttribute("alt") || "";
@@ -268,7 +272,9 @@ _OBSERVE_JS = r"""({cap, terms}) => {
   const controls = [];
   for (const el of all) {
     // A styled checkbox may be transparent; its visible label is the pointer target.
-    const label = el.labels && Array.from(el.labels).find(visible);
+    const label = (el.labels && Array.from(el.labels).find(visible))
+      || (["checkbox", "radio"].includes(el.type) && el.nextElementSibling?.tagName === "LABEL"
+          && visible(el.nextElementSibling) ? el.nextElementSibling : null);
     if (!visible(el) && !(label && ["checkbox", "radio"].includes(el.type))) continue;
     // Skip a control nested in a control already listed with the same name.
     const name = nameOf(el);
