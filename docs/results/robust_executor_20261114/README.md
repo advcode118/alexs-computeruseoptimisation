@@ -56,4 +56,31 @@ python -m pytest -q tests/test_script_resolve.py tests/test_script_helpers.py te
 
 The live command refuses to overwrite an existing paired result. The key is
 read from the owner-specified file and is not logged. Final measurement and
-recommendation will be added after the registered pair completes.
+recommendation are recorded below; the registered pair is complete.
+
+## Completed pair and decision
+
+Measured robust head: `e9c8673d10a87a03d88303685a964c9ec2595a9b`; baseline
+modules: `bec55ab`. Parent recovery verified all 80 saved rows, 40 unique
+matching dev3 task IDs per condition, model/effort, measured revision, and exact
+recomputation of `paired_summary.json`. The raw `paired_dev3.jsonl` is preserved.
+
+| Measure | tip3 | Robust |
+|---|---:|---:|
+| Final graded passes | 28/40 | 33/40 |
+| Wrong accepts | 4/40 | 6/40 |
+| One-script stopped and graded passes | 12/40 | 10/40 |
+| Script calls / model calls | 80 / 81 | 79 / 80 |
+| All-attempt median / mean / p90 | 7.02 / 9.01 / 15.76 s | 5.90 / 6.97 / 13.32 s |
+| Recorded USD | $0.024972 | $0.023257 |
+
+P90 is the inclusive linearly interpolated percentile. Pair cost was
+**$0.048229**. This is one development pair with shared-machine timing, not
+independent repeated evidence. One-script stopped passes do not recover all
+counterfactual first-script grades.
+
+**Hold the bundle out of integration.** Higher completion and lower observed
+time accompany more wrong accepts and fewer one-script successes. The local
+strict-ambiguity controls support that mechanism, not the whole live bundle.
+Review or isolate that mechanism before another integration proposal. Recovery
+made no runtime edit, benchmark rerun, API call or ledger change.

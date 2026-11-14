@@ -1,0 +1,26 @@
+{
+  "tip3": {
+    "n": 40,
+    "first_pass": 12,
+    "final_pass": 28,
+    "wrong_accepts": 4,
+    "script_calls": 80,
+    "model_calls": 81,
+    "mean_s": 9.011817572503059,
+    "median_s": 7.0190198499767575,
+    "p90_s": 15.761824479978536,
+    "usd": 0.024972
+  },
+  "robust": {
+    "n": 40,
+    "first_pass": 10,
+    "final_pass": 33,
+    "wrong_accepts": 6,
+    "script_calls": 79,
+    "model_calls": 80,
+    "mean_s": 6.972780272495584,
+    "median_s": 5.900182249984937,
+    "p90_s": 13.323796170001156,
+    "usd": 0.023257
+  }
+}
