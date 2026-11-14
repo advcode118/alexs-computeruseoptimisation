@@ -2,8 +2,8 @@
 
 One page.evaluate scores every control on the page against the name the
 script gave, marks the best one, and Playwright then acts on that mark.
-Exact names beat partial ones, visible and enabled controls beat hidden or
-disabled ones, and document order breaks a tie. A name that is not on the
+Exact names beat partial ones; ambiguous visible matches fail before acting.
+A name that is not on the
 page yet is looked for again for a few seconds. A miss lists the visible
 controls, so a repair turn can use a real name.
 
@@ -187,6 +187,11 @@ RESOLVE_JS = r"""(args) => {
   const ranked = [];
   for (const [el, c] of cands) {
     if (c.s < 38) continue;
+    // Text wrappers repeat their descendants' names; they are not another
+    // actionable target. Keep distinct controls even when their names match.
+    if (c.why === "text" && Array.from(cands).some(([child, match]) =>
+      child !== el && el.contains(child) && match.raw > 0 &&
+      (isClickable(child) || isField(child)))) continue;
     const vis = visible(el);
     ranked.push({ el, s: c.s + (vis ? 40 : -60) - (disabled(el) ? 30 : 0), vis, raw: c.raw || 0 });
   }
@@ -196,20 +201,18 @@ RESOLVE_JS = r"""(args) => {
     const n = names(el).map((p) => p[0]).find((v) => v && v.trim()) || ownText(el);
     return (role(el) || tag(el)) + " " + JSON.stringify(String(n).replace(/\s+/g, " ").trim().slice(0, 60));
   };
-  const target = (c) => describe(c.el) + " " + (c.el.getAttribute("href") || "");
   let pick = ranked.length && ranked[0].s >= 60 ? ranked[0] : null;
-  const exactHits = ranked.filter((c) => c.vis && c.raw >= 88);
-  const ties = new Set(ranked.filter((c) => pick && c.s === pick.s).map(target)).size;
+  const exactHits = ranked.filter((c) => c.vis && (re ? c.raw > 0 : c.raw >= 88));
+  const ties = ranked.filter((c) => pick && c.s === pick.s).length;
   let ambiguous = [];
   if (args.strict && pick) {
     // Exact and unique first. Several different exact matches, or a partial
     // match with a close rival, is ambiguous: fail and list them.
     const pool = exactHits.length ? exactHits : ranked.filter((c) => c.vis && c.raw >= pick.raw - 10);
-    const distinct = [];
-    const seenT = new Set();
-    for (const c of pool) { const t = target(c); if (!seenT.has(t)) { seenT.add(t); distinct.push(c); } }
-    if (distinct.length > 1) { ambiguous = distinct.slice(0, 8).map((c) => describe(c.el)); pick = null; }
-    else if (distinct.length === 1) pick = distinct[0];
+    // The Map already deduplicates DOM elements. Identical display names (or
+    // hrefs) do not make distinct controls interchangeable.
+    if (pool.length > 1) { ambiguous = pool.slice(0, 8).map((c) => describe(c.el)); pick = null; }
+    else if (pool.length === 1) pick = pool[0];
   }
   if (ambiguous.length) return { found: false, ambiguous: true, near: ambiguous };
   if (pick) {
@@ -393,7 +396,7 @@ _SIDE_EFFECT = re.compile(
 _POLL_S = 0.25
 # True: a name must match one control exactly, or one control clearly better
 # than any other; otherwise the step fails and lists the candidates.
-STRICT_MATCH = False
+STRICT_MATCH = True
 # A name that is not on the page yet is looked for again until this cap.
 FIND_CAP_S = 3.0
 _SETTLE_QUIET_MS = 150
@@ -529,7 +532,7 @@ async def resolve(page, target: str, op: str, *, pattern: str = "", flags: str =
 def miss_error(line: int, what: str, target: str, info: dict) -> RuntimeError:
     near = [str(item) for item in (info.get("near") or []) if str(item).strip()][:8]
     if info.get("ambiguous"):
-        return RuntimeError(f"line {line}: {len(near)} {what}s match {target!r}: {', '.join(near)}; use the full name of one")
+        return RuntimeError(f"line {line}: {len(near)} {what}s match {target!r}: {', '.join(near)}; use a unique name or an explicitly scoped/positioned locator")
     hint = f"; visible: {', '.join(near)}" if near else ""
     return RuntimeError(f"line {line}: no {what} named {target!r}{hint}")
 

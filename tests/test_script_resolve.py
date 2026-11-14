@@ -30,7 +30,9 @@ async def _with_page(html: str, script: str) -> dict:
             page = await browser.new_page()
             await page.set_content(html)
             text = await run_on_page(page, script)
-            return json.loads(text.splitlines()[0])
+            payload = json.loads(text.splitlines()[0])
+            payload["observed_out"] = await page.locator("#out").text_content() if await page.locator("#out").count() else None
+            return payload
         finally:
             await browser.close()
 
@@ -43,7 +45,9 @@ def answer(payload: dict) -> str:
     return (payload.get("claimed") or {}).get("answer", "")
 
 
-def test_click_prefers_the_exact_visible_name_and_breaks_ties_in_document_order():
+def test_click_prefers_the_exact_visible_name_and_breaks_ties_in_document_order(monkeypatch):
+    import bench.script_resolve as resolve_module
+    monkeypatch.setattr(resolve_module, "STRICT_MATCH", False)
     html = """
     <button style="display:none" onclick="out.innerText='hidden'">Go</button>
     <button onclick="out.innerText='go further'">Go further</button>
@@ -323,3 +327,27 @@ def test_strict_matching_fails_on_two_different_exact_matches_and_lists_them(mon
     payload = run(html, f'cu.click("Save"); {CLAIM}')
     assert payload["ok"] is True, payload
     assert answer(payload) == "save"
+
+
+@pytest.mark.parametrize("script", ['cu.click("Details")', 'page.getByRole("button", {name: "Details", exact: true}).click()'])
+def test_distinct_identically_named_controls_are_not_interchangeable(script):
+    html = '<button onclick="out.innerText=\'wrong\'">Details</button><button onclick="out.innerText=\'right\'">Details</button><div id="out"></div>'
+    payload = run(html, script)
+    assert not payload["ok"], payload
+    assert "match" in payload["error"]
+    assert payload["observed_out"] == ""
+
+
+def test_regex_ambiguity_is_not_resolved_by_name_length():
+    html = '<button>Delete</button><button>Delete permanently from every archive and backup</button>'
+    payload = run(html, 'cu.click(/Delete/)')
+    assert not payload["ok"], payload
+    assert "2 controls match" in payload["error"]
+
+
+def test_explicit_position_disambiguates_but_hidden_duplicates_do_not_block():
+    html = '<button style="display:none">Details</button><button onclick="out.innerText=\'right\'">Details</button><div id="out"></div>'
+    for script in ['cu.click("Details")', 'page.getByRole("button", {name: "Details"}).nth(1).click()']:
+        payload = run(html, f'{script}; {CLAIM}')
+        assert payload["ok"], payload
+        assert answer(payload) == "right"

@@ -2564,13 +2564,21 @@ async def _pick(page, locator, action: BrowserAction, *, name: str = "", op: str
     if n and n > 1:
         if action.positions:
             return locator
+        from bench.script_resolve import STRICT_MATCH
+        visible = []
         for index in range(min(n, 25)):
             candidate = locator.nth(index)
             try:
                 if await candidate.is_visible():
-                    return candidate
+                    if not STRICT_MATCH:
+                        return candidate
+                    visible.append(candidate)
             except Exception:
                 continue
+        if STRICT_MATCH:
+            if len(visible) == 1 and n <= 25:
+                return visible[0]
+            raise RuntimeError(f"line {action.line}: ambiguous locator {_describe(action)} ({n} matches); use a unique or explicitly positioned locator")
         return locator.first
     target = name or action.name or ""
     pattern = action.pattern

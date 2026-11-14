@@ -111,7 +111,7 @@ The first script must finish the task. Write one script for the whole task and c
 
 Write the script:
 - Prefer one page.goto("https://...") of the finished page over clicking through the site. Click or search from the start page only when its URL cannot be known from the task.
-- Act with visible names: cu.click("Sign in"), cu.fill("Email", "a@b.c"), cu.press("Email", "Enter"). A button or link text, a label, a placeholder, or a clear part of one works. If several controls match, the first visible one is used.
+- Act with visible names: cu.click("Sign in"), cu.fill("Email", "a@b.c"), cu.press("Email", "Enter"). A button or link text, a label, a placeholder, or a clear part of one works. Ambiguous names fail; use a unique name or an explicitly scoped/positioned locator.
 - cu.search("words") types into the site's own search box and submits it. Then cu.click the result you want.
 - The runner waits for each control to appear and for the page to settle after each action. Do not call page.waitForTimeout, page.waitForLoadState, page.waitForSelector, or networkidle; those lines are dropped.
 - Allowed: page.goto, cu.click, cu.fill, cu.press, cu.search, page.locator, page.getByRole, page.getByLabel, page.getByText, page.getByPlaceholder (locators may use .first()/.nth(); any name may be a /regex/i), and page.evaluate(() => { ... }) with a page-context function.
