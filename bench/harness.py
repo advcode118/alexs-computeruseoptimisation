@@ -1155,6 +1155,11 @@ class BenchmarkHarness:
             )
 
         wall_start = time.perf_counter()
+        # script_first reads the start page over HTTP while Chrome launches.
+        from bench.page_summary import await_summary, start_for_arm
+
+        page_summary_future = start_for_arm(self.arm, start_url, task_description)
+        self.last_page_summary = None
         steps: list[StepMetrics] = []
         total_model_ms = 0.0
         total_tool_ms = 0.0
@@ -1272,6 +1277,12 @@ class BenchmarkHarness:
                 step_num += 1
 
                 self._begin_browser_launch()
+                if page_summary_future is not None:
+                    # Model call 1 sees the start page. Any failure keeps the blind path.
+                    self.last_page_summary = await await_summary(page_summary_future)
+                    page_summary_future = None
+                    if self.last_page_summary.text:
+                        messages[0]["content"] += "\n\n" + self.last_page_summary.text
                 request_options = {}
                 if self.arm == "script_first" and awaiting_repair_reply:
                     request_options["tool_choice"] = "required" if self.provider == "openai" else {"type": "any"}

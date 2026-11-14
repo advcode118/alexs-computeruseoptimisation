@@ -966,6 +966,10 @@ async def run_claude_arm(
             ]
             row["repair_sent"] = result.repair_sent
             row["repair_reply"] = result.repair_reply
+            from bench.page_summary import row_fields
+
+            row.update(row_fields(getattr(harness, "last_page_summary", None)))
+            row["first_model_ms"] = round(result.steps[0].model_time_ms, 1) if result.steps else None
             row["script_turns"] = result.script_turns
             # Every script's self-check inputs and verdict, for offline replay.
             row["self_checks"] = [step.self_check for step in result.steps if step.self_check]

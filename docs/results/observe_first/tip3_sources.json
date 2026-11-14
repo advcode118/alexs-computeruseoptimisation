@@ -1,0 +1,141 @@
+{
+  "code_head": "43c8142cbd74c4dbfa7be8d08c934bbaad3f5180",
+  "order": [
+    "pair1-off",
+    "pair1-on",
+    "pair2-on",
+    "pair2-off",
+    "pair3-off",
+    "pair3-on"
+  ],
+  "sources": [
+    {
+      "cell": "pair1-off",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-b354c643-ce79818f994ca1d6\\bench\\runs\\observe-first-tip3-20261114\\pair1-off\\probe_20261114_154752.jsonl",
+      "archive": "docs\\results\\observe_first\\tip3_pair1-off.jsonl.gz",
+      "source_sha256": "a30ac3691e05ebd34bdf762455b768ad739e206e04b4d2ea90c3c153e8862e80",
+      "source_bytes": 655336,
+      "manifest": {
+        "cell": "pair1-off",
+        "code_head": "43c8142cbd74c4dbfa7be8d08c934bbaad3f5180",
+        "started_unix": 1794671272.0663319,
+        "finished_unix": 1794671697.6818523,
+        "rows": 40,
+        "graded_pass": 33,
+        "api_calls": 85,
+        "opening_ledger_usd": 5.648075,
+        "closing_ledger_usd": 5.675352,
+        "known_api_usd": 0.027276,
+        "unrecorded_usage_saved_usd": 0,
+        "error": null
+      }
+    },
+    {
+      "cell": "pair1-on",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-b354c643-ce79818f994ca1d6\\bench\\runs\\observe-first-tip3-20261114\\pair1-on\\probe_20261114_155458.jsonl",
+      "archive": "docs\\results\\observe_first\\tip3_pair1-on.jsonl.gz",
+      "source_sha256": "cb2397305ae161d412907587861cde80dbd21f4188803bf33068f9b1a21bd080",
+      "source_bytes": 635263,
+      "manifest": {
+        "cell": "pair1-on",
+        "code_head": "43c8142cbd74c4dbfa7be8d08c934bbaad3f5180",
+        "started_unix": 1794671698.171352,
+        "finished_unix": 1794672078.7497303,
+        "rows": 40,
+        "graded_pass": 35,
+        "api_calls": 75,
+        "opening_ledger_usd": 5.675352,
+        "closing_ledger_usd": 5.70053,
+        "known_api_usd": 0.025179,
+        "unrecorded_usage_saved_usd": 1e-06,
+        "error": null
+      }
+    },
+    {
+      "cell": "pair2-on",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-b354c643-ce79818f994ca1d6\\bench\\runs\\observe-first-tip3-20261114\\pair2-on\\probe_20261114_160119.jsonl",
+      "archive": "docs\\results\\observe_first\\tip3_pair2-on.jsonl.gz",
+      "source_sha256": "7aa26484c128992130f7a376ff8dd5d62c32968c9960c2993168d9a36166e0fe",
+      "source_bytes": 615216,
+      "manifest": {
+        "cell": "pair2-on",
+        "code_head": "43c8142cbd74c4dbfa7be8d08c934bbaad3f5180",
+        "started_unix": 1794672079.2435403,
+        "finished_unix": 1794672435.4812126,
+        "rows": 40,
+        "graded_pass": 37,
+        "api_calls": 67,
+        "opening_ledger_usd": 5.70053,
+        "closing_ledger_usd": 5.716909,
+        "known_api_usd": 0.016377,
+        "unrecorded_usage_saved_usd": 0,
+        "error": null
+      }
+    },
+    {
+      "cell": "pair2-off",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-b354c643-ce79818f994ca1d6\\bench\\runs\\observe-first-tip3-20261114\\pair2-off\\probe_20261114_160716.jsonl",
+      "archive": "docs\\results\\observe_first\\tip3_pair2-off.jsonl.gz",
+      "source_sha256": "cf7bec6a239067a4ab8c2bcd2d718dec4801c556f6a267d3f18111c978cd1e1f",
+      "source_bytes": 655037,
+      "manifest": {
+        "cell": "pair2-off",
+        "code_head": "43c8142cbd74c4dbfa7be8d08c934bbaad3f5180",
+        "started_unix": 1794672436.0442796,
+        "finished_unix": 1794672802.0498664,
+        "rows": 40,
+        "graded_pass": 34,
+        "api_calls": 82,
+        "opening_ledger_usd": 5.716909,
+        "closing_ledger_usd": 5.740459,
+        "known_api_usd": 0.023549,
+        "unrecorded_usage_saved_usd": 0,
+        "error": null
+      }
+    },
+    {
+      "cell": "pair3-off",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-b354c643-ce79818f994ca1d6\\bench\\runs\\observe-first-tip3-20261114\\pair3-off\\probe_20261114_161322.jsonl",
+      "archive": "docs\\results\\observe_first\\tip3_pair3-off.jsonl.gz",
+      "source_sha256": "d8843b6d4af42f0ace1fd6e9ae10ec66946fb8b2eb866f0a87fa8e90e8d96564",
+      "source_bytes": 666969,
+      "manifest": {
+        "cell": "pair3-off",
+        "code_head": "43c8142cbd74c4dbfa7be8d08c934bbaad3f5180",
+        "started_unix": 1794672802.5879061,
+        "finished_unix": 1794673205.2548614,
+        "rows": 40,
+        "graded_pass": 32,
+        "api_calls": 92,
+        "opening_ledger_usd": 5.740459,
+        "closing_ledger_usd": 5.768957,
+        "known_api_usd": 0.028498,
+        "unrecorded_usage_saved_usd": 5e-06,
+        "error": null
+      }
+    },
+    {
+      "cell": "pair3-on",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-b354c643-ce79818f994ca1d6\\bench\\runs\\observe-first-tip3-20261114\\pair3-on\\probe_20261114_162005.jsonl",
+      "archive": "docs\\results\\observe_first\\tip3_pair3-on.jsonl.gz",
+      "source_sha256": "353ba666dc9f89018650a1d55445c66cfa38cbcdb76aed87444f3e5ec90ab476",
+      "source_bytes": 590833,
+      "manifest": {
+        "cell": "pair3-on",
+        "code_head": "43c8142cbd74c4dbfa7be8d08c934bbaad3f5180",
+        "started_unix": 1794673205.7551613,
+        "finished_unix": 1794673535.6240065,
+        "rows": 40,
+        "graded_pass": 37,
+        "api_calls": 64,
+        "opening_ledger_usd": 5.768957,
+        "closing_ledger_usd": 5.784017,
+        "known_api_usd": 0.01506,
+        "unrecorded_usage_saved_usd": 0,
+        "error": null
+      }
+    }
+  ],
+  "opening_ledger_usd": 5.648075,
+  "closing_ledger_usd": 5.784017
+}
