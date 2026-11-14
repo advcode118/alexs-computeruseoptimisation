@@ -982,6 +982,7 @@ class BenchmarkHarness:
                 page_url,
                 start_url,
                 asks_value=task_asks_value(task_description),
+                task=task_description,
             )
             selector_text, claimed_answer, page_text, returned = logged_evidence(payload)
             steps.append(
@@ -1460,6 +1461,7 @@ class BenchmarkHarness:
                                 page_url,
                                 start_url,
                                 asks_value=task_asks_value(task_description),
+                                task=task_description,
                             )
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload

@@ -67,6 +67,7 @@ def replay_check(description: str, check: dict):
         check.get("page_url") or "",
         check.get("start_url") or "",
         asks_value=task_asks_value(description),
+        task=description,
     )
     return verdict
 

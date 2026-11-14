@@ -890,6 +890,9 @@ _FIND_PAGE = re.compile(
 )
 
 
+_OPEN = re.compile(r"\bopen\b", re.IGNORECASE)
+
+
 def task_asks_value(description: str) -> bool:
     """True when the task text asks for a value, not only a page to open."""
     text = " ".join((description or "").split())
@@ -901,8 +904,161 @@ def task_asks_value(description: str) -> bool:
         return True
     if _VALUE_QUESTION.search(text):
         return True
-    if _FIND.search(text) and not _FIND_PAGE.search(text):
+    # "find X and open its page" asks for a page, like "search for X and open it".
+    if _FIND.search(text) and not _FIND_PAGE.search(text) and not _OPEN.search(text):
         return True
+    return False
+
+
+# Precision checks for a self-PASS. They read the task text, the live page and
+# the claim. Never the task's markers or expected answer.
+_ERROR_PAGE = re.compile(
+    r"\b(?:page|content|file|document)\s+(?:was\s+)?not\s+found\b"
+    r"|\b404\b"
+    r"|^\s*not\s+found\s*$"
+    r"|\bpage\s+(?:does\s+not|doesn't|cannot\s+be\s+found|could\s+not\s+be\s+found)",
+    re.IGNORECASE,
+)
+# The clause that names the asked value starts at one of these.
+_ASK_START = re.compile(
+    r"\b(?:report|give|tell|state|what|which|who)\b|\bhow\s+(?:many|much|long|big|large|old)\b",
+    re.IGNORECASE,
+)
+# An asked value named by one of these words is a quantity, date or version.
+_QUANTITY_WORD = re.compile(
+    r"\bhow\s+(?:many|much|long|big|large|old)\b"
+    r"|\b(?:total|count|number|date|year|version|price|cost|diameter|radius|size|length|width|height|"
+    r"weight|mass|storage|amount|percentage|percent|population|age|duration|temperature|speed|hexadecimal|"
+    r"distance|area|volume)\b",
+    re.IGNORECASE,
+)
+_STRONG_ASK = re.compile(
+    r"\b(?:report|give|tell|state)\b|\b(?:what|which|who)\b|\bhow\s+(?:many|much)\b",
+    re.IGNORECASE,
+)
+
+
+def _asked_clause(task: str) -> str:
+    """The last sentence that asks, from its first ask word to the sentence end."""
+    text = " ".join((task or "").split())
+    for sentence in reversed(re.split(r"(?<=[.;!?])\s+", text)):
+        match = _ASK_START.search(sentence)
+        if match:
+            return sentence[match.start():].rstrip(".;!? ")
+    return ""
+
+
+def precision_problem(
+    trusted: PageEvidence,
+    claimed: ClaimedEvidence,
+    *,
+    task: str,
+    start_url: str = "",
+    asks_value: bool = False,
+) -> str:
+    """Why a run the plain check would PASS still looks wrong. Empty when none applies.
+
+    Each reason is shown to the model in the repair turn, so it says what to do.
+    """
+    live = (trusted.url or "").strip()
+    for part in (trusted.title, trusted.h1):
+        if part and _ERROR_PAGE.search(" ".join(part.split())):
+            return (
+                "the live page is an error page (" + " ".join(part.split())[:80] + "); "
+                "open the real page from a link on the site instead of guessing its URL"
+            )
+    on_start = _http(start_url) and _same_page(live, start_url)
+    if on_start and not asks_value:
+        return "the script is still on the start page; follow the link to the page the task asks for"
+    answer = (claimed.answer or "").strip()
+    if not answer or not asks_value:
+        return ""
+    if _STRONG_ASK.search(task or "") and len(_norm_runtime(answer)) >= 3 and _phrase_at_boundary(
+        _norm_runtime(answer), _norm_runtime(task)
+    ):
+        return (
+            "the answer only repeats words from the task; "
+            "read the asked value itself from the page, next to its label"
+        )
+    if on_start and any(
+        part and _norm_runtime(answer) == _norm_runtime(part) for part in (trusted.title, trusted.h1)
+    ):
+        return (
+            "the answer is the start page's own heading and the script is still on the start page; "
+            "finish the steps the task asks for, then read the result"
+        )
+    clause = _asked_clause(task)
+    if clause and _QUANTITY_WORD.search(clause) and not _has_new_digit(answer, task):
+        return (
+            "the task asks for a number, date or version and the answer has no digits of its own; "
+            "read the value next to its label on the page"
+        )
+    # An item in the title, h1 or URL is the page's subject, not one row of it.
+    subject = _norm_runtime(" ".join((trusted.title or "", trusted.h1 or "", unquote(live))))
+    rows = [row for row in _item_rows(task, trusted.text or "") if _norm_runtime(row[0]) not in subject]
+    if rows and not any(_answer_in_row(answer, row, item) for item, row in rows):
+        item = rows[0][0]
+        return (
+            f"the page has a table row for {item} and the answer is not from that row; "
+            "return the value from that row"
+        )
+    return ""
+
+
+_TOKEN = re.compile(r"[^\s,;:()\"'“”‘’]+")
+
+
+def _has_new_digit(answer: str, task: str) -> bool:
+    """A digit in an answer token that the task text does not already contain."""
+    known = {tok.casefold().strip(".") for tok in _TOKEN.findall(task or "")}
+    for tok in _TOKEN.findall(answer or ""):
+        if any(ch.isdigit() for ch in tok) and tok.casefold().strip(".") not in known:
+            return True
+    return False
+
+
+# A named item: an identifier-like word in the task (all caps, inner capital, or
+# letters mixed with digits or underscores), never a plain word.
+_ITEM = re.compile(r"\b(?=[A-Za-z_]*[A-Z0-9_])[A-Za-z][A-Za-z0-9_]*[A-Z0-9_][A-Za-z0-9_]*\b")
+
+
+def _task_items(task: str) -> set[str]:
+    items = set()
+    for match in _ITEM.finditer(task or ""):
+        word = match.group(0)
+        inner_cap = any(ch.isupper() for ch in word[1:])
+        mixed = any(ch.isdigit() or ch == "_" for ch in word) and any(ch.isalpha() for ch in word)
+        if len(word) >= 3 and (inner_cap or mixed):
+            items.add(word.casefold())
+    return items
+
+
+def _item_rows(task: str, page_text: str) -> list[tuple[str, list[str]]]:
+    """Table rows (tab-separated lines) with a cell equal to an item the task names."""
+    items = _task_items(task)
+    if not items:
+        return []
+    found = []
+    for line in (page_text or "").splitlines():
+        if "\t" not in line:
+            continue
+        cells = [" ".join(cell.split()) for cell in line.split("\t")]
+        for cell in cells:
+            if cell.casefold() in items:
+                found.append((cell, cells))
+                break
+    return found
+
+
+def _answer_in_row(answer: str, cells: list[str], item: str) -> bool:
+    """The answer shares a value cell with this row (the item's own cell does not count)."""
+    folded = _norm_runtime(answer)
+    for cell in cells:
+        value = _norm_runtime(cell)
+        if not value or value == _norm_runtime(item):
+            continue
+        if value in folded or (len(folded) >= 2 and folded in value):
+            return True
     return False
 
 
@@ -914,6 +1070,7 @@ def runtime_verdict(
     script_error: str = "",
     start_url: str = "",
     asks_value: bool = False,
+    task: str = "",
 ) -> EvidenceVerdict:
     """The live check script_first runs on itself. No task markers, no model call.
 
@@ -977,6 +1134,10 @@ def runtime_verdict(
     problem = _returned_problem(claimed, page_text, scored)
     if problem is not None:
         return problem
+    if task:
+        reason = precision_problem(trusted, claimed, task=task, start_url=start_url, asks_value=asks_value)
+        if reason:
+            return EvidenceVerdict(FAIL, reason, scored)
     if rule:
         return EvidenceVerdict(PASS, f"the script finished and {rule}", scored)
     return EvidenceVerdict(PASS, "the script finished and its evidence is on the live page", scored)
@@ -988,6 +1149,7 @@ def script_runtime_verdict(
     start_url: str = "",
     *,
     asks_value: bool = False,
+    task: str = "",
 ) -> tuple[EvidenceVerdict, dict]:
     """Judge one run_script result without the task's markers."""
     from bench.harness import page_field
@@ -1005,6 +1167,7 @@ def script_runtime_verdict(
         script_error=error,
         start_url=start_url,
         asks_value=asks_value,
+        task=task,
     )
     return verdict, payload
 
