@@ -1,0 +1,91 @@
+{
+  "manifest_path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-5285bf9b-28b8885040b29c28\\bench\\runs\\form_comparisons\\manifest.json",
+  "manifest_sha256": "bdd92bde5216241580cc0facad2c413c1840c509b6de161549985f5e82401985",
+  "runtime_commit": "b42e486",
+  "runtime_unchanged_through": "9bd9402388b0cc45d0a101289f509ba61725344c",
+  "ledger_opening_usd": 5.881834,
+  "ledger_closing_usd": 5.924748,
+  "ledger_increment_usd": 0.042914,
+  "files": [
+    {
+      "split": "dev3",
+      "variant": "off",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-5285bf9b-28b8885040b29c28\\bench\\runs\\probe_20261114_153522.jsonl",
+      "rows": 6,
+      "source_sha256": "efaaf4abd6a357b4f2940766e0d5435f49466c00326b369281c92e050e5da027",
+      "archived_file": "dev3_off.jsonl",
+      "archived_sha256": "1cb4c0bc0dc5dc78c42373372324bb0365de454e4738cdcc4d56b9857b807bfd",
+      "completion_log_sha256": "1b3ccd923ac1862d13e5cca4c096e1c2b05310085208eca7be9b517a4f9d36fd"
+    },
+    {
+      "split": "dev3",
+      "variant": "on",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-5285bf9b-28b8885040b29c28\\bench\\runs\\probe_20261114_153637.jsonl",
+      "rows": 6,
+      "source_sha256": "cf2a3d4991631baae5d8d1ec53ab51e8e52453b8ceff006304516918312b8e9d",
+      "archived_file": "dev3_on.jsonl",
+      "archived_sha256": "811e4d2f1d4492ec2b97f9a777d0ba3ea443917027d96a86bfc2048d58bef3e9",
+      "completion_log_sha256": "ca48351b8f3813e269070023c2a5c9d76402e384b60e82e511011b57714eb4f7"
+    },
+    {
+      "split": "held-out",
+      "variant": "off",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-5285bf9b-28b8885040b29c28\\bench\\runs\\probe_20261114_153744.jsonl",
+      "rows": 6,
+      "source_sha256": "4f46e8bde50c20d79cfcbc28d51b6f11399d40dca316febb7988193030b028ac",
+      "archived_file": "held-out_off.jsonl",
+      "archived_sha256": "77000c57430f51cb1cf94c8ac2d50ea337a4a01c05783054424150fcb217fce9",
+      "completion_log_sha256": "6aa011462efaa12f83fdc6718681f3929b8d146c5ac4e2783ccc6727bfc1b429"
+    },
+    {
+      "split": "held-out",
+      "variant": "on",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-5285bf9b-28b8885040b29c28\\bench\\runs\\probe_20261114_153859.jsonl",
+      "rows": 6,
+      "source_sha256": "f86aca623ea9e557d0ad06a35791c3ce828596f4b690e910520d6cc76f2a201d",
+      "archived_file": "held-out_on.jsonl",
+      "archived_sha256": "bd0c31e563a6949fce42572636caeb5c2676aa802af239904490c3ef765bb5f6",
+      "completion_log_sha256": "c7c576405aa87ce0a058f3faa469baf5e8790b12f7871f4a75da37cea15809ff"
+    },
+    {
+      "split": "heldout2",
+      "variant": "off",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-5285bf9b-28b8885040b29c28\\bench\\runs\\probe_20261114_154057.jsonl",
+      "rows": 2,
+      "source_sha256": "a84741beb42da1fb45b31831921275651881539f4b556fa55c3ae52577422adb",
+      "archived_file": "heldout2_off.jsonl",
+      "archived_sha256": "4b92afbae1a0702e279c91609d87b2815d48d57f771e5ca6b510b1071a863be1",
+      "completion_log_sha256": "fc35919f5f9c90ff95ff69842b52f87747dd4f130c97e50c7da8920962921782"
+    },
+    {
+      "split": "heldout2",
+      "variant": "on",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-5285bf9b-28b8885040b29c28\\bench\\runs\\probe_20261114_154131.jsonl",
+      "rows": 2,
+      "source_sha256": "99fcb47f56d58ac47283973d26b9922e84a7195bea6b0a32c6dd92248d178a44",
+      "archived_file": "heldout2_on.jsonl",
+      "archived_sha256": "88e04fab227e3c0b3f52513c2a90e8213f1ac5abfb93e799a427bc6d113359fa",
+      "completion_log_sha256": "5267d921f53c545b1681b104d8234cb96a8dd2150a916d6cd389cccb5b14f790"
+    },
+    {
+      "split": "dev4form",
+      "variant": "off",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-5285bf9b-28b8885040b29c28\\bench\\runs\\probe_20261114_154206.jsonl",
+      "rows": 12,
+      "source_sha256": "063d09b8ec46d6ef89dda99b62db4c5270189d4f57a7c6d699550cf875f1801c",
+      "archived_file": "dev4form_off.jsonl",
+      "archived_sha256": "8469aa3d58a817a66c9422d8ce2ca5a123a7cb536608713849c5153f65a4805c",
+      "completion_log_sha256": "4a3324ece091967d1f9cb787333714c691ec14dc40bcf1d49ff31c08ec8ea9fe"
+    },
+    {
+      "split": "dev4form",
+      "variant": "on",
+      "source": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-5285bf9b-28b8885040b29c28\\bench\\runs\\probe_20261114_154457.jsonl",
+      "rows": 12,
+      "source_sha256": "ef5cc6b2b05732281735c2b5cbe543f71ab95a752348a24ed16c82af8abc1e34",
+      "archived_file": "dev4form_on.jsonl",
+      "archived_sha256": "478f82760c7e2f59468f3ba9f5fd8f2eda9b69f45e64d732bceba2ae84fd3ece",
+      "completion_log_sha256": "34b1b57c2088eb6ce9442f88d343c935ec4b3bdec57235468fa38d0090373564"
+    }
+  ]
+}
