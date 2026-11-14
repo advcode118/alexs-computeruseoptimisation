@@ -952,6 +952,7 @@ def test_script_first_fail_or_unknown_fails_a_page_that_would_pass(monkeypatch, 
         assert failed["success"] is False, task["id"]
         assert failed["success_reason"] == "claimed URL does not match the live page"
         assert failed["end_state"] == "FAIL"
+        assert failed["page_answer_success"] is True
 
         monkeypatch.setattr("bench.harness.BenchmarkHarness.run_task", own_unknown)
         unknown = asyncio.run(
@@ -960,6 +961,7 @@ def test_script_first_fail_or_unknown_fails_a_page_that_would_pass(monkeypatch, 
         assert unknown["success"] is False, task["id"]
         assert unknown["success_reason"] == "UNKNOWN: Max steps reached"
         assert unknown["end_state"] == "UNKNOWN"
+        assert unknown["page_answer_success"] is True
 
     passed_page = pages["fixture_packing_add"]
     packing = _packing_tasks()[0]
@@ -1002,6 +1004,7 @@ def test_script_first_fail_or_unknown_fails_a_page_that_would_pass(monkeypatch, 
     )
     assert stopped["success"] is False
     assert stopped["success_reason"] == "Max steps reached"
+    assert stopped["page_answer_success"] is True
 
 
 def test_script_evidence_missing_from_the_page_fails(monkeypatch, tmp_path):
@@ -1049,6 +1052,8 @@ def test_script_evidence_missing_from_the_page_fails(monkeypatch, tmp_path):
     assert row["success"] is False
     assert row["success_reason"] == "returned evidence is not on the page"
     assert row["end_state"] == "PASS"
+    assert row["page_answer_success"] is False
+    assert row["page_answer_reason"] == row["success_reason"]
 
     async def wrong_url(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
         del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
@@ -1071,6 +1076,7 @@ def test_script_evidence_missing_from_the_page_fails(monkeypatch, tmp_path):
     )
     assert mismatched["success"] is False
     assert mismatched["success_reason"] == "claimed URL does not match the live page"
+    assert mismatched["page_answer_success"] is False
 
     async def present(self, task_id, task_description, start_url, expected_answer=None, judge_prompt=None, check_url_contains=None):
         del self, task_description, start_url, expected_answer, judge_prompt, check_url_contains
