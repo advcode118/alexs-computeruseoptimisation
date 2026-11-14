@@ -1,0 +1,36 @@
+{
+  "owned": {
+    "observations": 440,
+    "zero_usage_rows": 1,
+    "exact_token_cost_signature_matches": 439,
+    "row_spend": 0.363754,
+    "ledger_suffix_spend": 0.363754,
+    "opening": 5.881834,
+    "closing": 6.245588,
+    "allocation": 0.4,
+    "remaining": 0.036246,
+    "smoke": [
+      {
+        "stamp": "162554",
+        "passes": 33,
+        "false_accepts": 4
+      },
+      {
+        "stamp": "163217",
+        "passes": 34,
+        "false_accepts": 2
+      }
+    ]
+  },
+  "global_snapshot": {
+    "method": "max-multiplicity union of full task entries; maximum recorded prior once",
+    "task_entries": 6602,
+    "task_usd": 7.002494,
+    "recorded_prior_range": [
+      1.330861,
+      1.330866
+    ],
+    "estimated_total": 8.33336,
+    "not_atomic": true
+  }
+}

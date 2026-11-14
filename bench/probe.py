@@ -137,6 +137,9 @@ from bench.tasks import (
     DEV_TASK_IDS,
     HELD_OUT_TASK_IDS,
     SPLIT_DEV3,
+    SPLIT_DEV4NAV,
+    SPLIT_DEV4_FORM,
+    SPLIT_DEV4SPA,
     SPLIT_HELDOUT2,
     SPLIT_HELDOUT3B,
     SPLIT_HELDOUT3A,
@@ -227,9 +230,31 @@ BOX_COMMANDS = (
 )
 
 
-def probe_tasks(split: str | None = None) -> list[dict]:
+def filter_task_kinds(tasks: list[dict], only_kind: str = "") -> list[dict]:
+    """Optional reporting/selection filter; never passed to an agent or router.
+
+    only_kind (--only-kind, or CU_PROBE_ONLY_KIND when it is empty) is a comma
+    list of task-type words: the second word of the task id.
+    """
+    spec = only_kind or os.environ.get("CU_PROBE_ONLY_KIND", "")
+    kinds = {word.strip().casefold() for word in spec.split(",") if word.strip()}
+    if not kinds:
+        return tasks
+    selected = [task for task in tasks if task_kind(task["id"]) in kinds]
+    if not selected:
+        raise ValueError(f"no tasks match --only-kind {spec!r}")
+    return selected
+
+
+def task_kind(task_id: str) -> str:
+    """The task type: the second word of the task id."""
+    parts = task_id.split("_")
+    return parts[1].casefold() if len(parts) > 1 else ""
+
+
+def probe_tasks(split: str | None = None, only_kind: str = "") -> list[dict]:
     """Tasks for this split. The default is the three tuned probe tasks."""
-    return tasks_for_split(split)
+    return filter_task_kinds(tasks_for_split(split), only_kind)
 
 
 def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
@@ -372,6 +397,7 @@ def plan_probe(
     split: str | None = None,
     honest: bool = False,
     repeats: int | None = None,
+    only_kind: str = "",
 ) -> dict:
     """What --execute would run. This does not start a browser or a model."""
     chosen_repeats = resolve_repeats(repeats)
@@ -385,7 +411,7 @@ def plan_probe(
     try:
         spent = SpendLedger.load().running_total_usd
     except LedgerMissing:
-        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_VAL3):
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_DEV4NAV, SPLIT_DEV4_FORM, SPLIT_DEV4SPA, SPLIT_VAL3):
             raise
         # Listing the new catalog needs no spend authority. Unknown is not
         # zero; live execution and existing splits retain strict ledger checks.
@@ -400,7 +426,7 @@ def plan_probe(
         "execute": False,
         "mode": "no_model_only" if no_model_only else "outer_claude",
         "split": chosen_split,
-        "tasks": [task["id"] for task in probe_tasks(chosen_split)],
+        "tasks": [task["id"] for task in probe_tasks(chosen_split, only_kind)],
         "arms": list(chosen),
         "available_arms": list(SELECTABLE_ARMS),
         "baseline_arms": list(BASELINE_ARMS),
@@ -748,6 +774,26 @@ def grade_observation(
     )
 
 
+def grade_page_answer(
+    task: dict,
+    url: str,
+    text: str,
+    *,
+    selector_text: str = "",
+    answer: str = "",
+    claimed=None,
+) -> tuple[bool, str]:
+    """Post-run page/answer grade, independent of runtime/completion gating.
+
+    Use the identical marker and shared evidence checks as the final grade.
+    This diagnostic must never feed back into the run or its model messages.
+    """
+    ok, reason, _shared, _shared_reason = grade_observation(
+        task, url, text, selector_text=selector_text, answer=answer, claimed=claimed,
+    )
+    return ok, reason
+
+
 def empty_row(
     arm: str,
     task_id: str,
@@ -918,6 +964,10 @@ async def run_claude_arm(
         run_verdict = end_state if arm == ARM_SCRIPT_FIRST else None
         claimed = claim_from_step(last) if arm == ARM_SCRIPT_FIRST and last is not None else None
         completed = None if arm == ARM_SCRIPT_FIRST else result.success
+        page_answer_ok, page_answer_reason = grade_page_answer(
+            task, final_url, graded_text, selector_text=selector_text,
+            answer=claimed_answer, claimed=claimed,
+        )
         success, reason, substring_ok, substring_reason = grade_observation(
             task,
             final_url,
@@ -936,6 +986,8 @@ async def run_claude_arm(
             "success": success,
             "success_reason": reason,
             "end_state": end_state,
+            "page_answer_success": page_answer_ok,
+            "page_answer_reason": page_answer_reason,
             "substring_success": substring_ok,
             "substring_reason": substring_reason,
             "skipped": False,
@@ -971,6 +1023,16 @@ async def run_claude_arm(
             row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
             row["task_description"] = task.get("description") or ""
             row["start_url"] = task.get("start_url") or ""
+            if result.strategy:
+                row["strategy"] = result.strategy
+                row["strategy_reads"] = result.strategy_reads
+                row["strategy_reason"] = result.strategy_reason
+                row["strategy_steps"] = [
+                    {"action": step.tool_args, "result": step.snapshot_text}
+                    for step in result.steps if step.tool_name == "form_step"
+                ]
+            if result.strategy_detail:
+                row["strategy_detail"] = result.strategy_detail
         if provider == "openai":
             from bench.openai_spend import price_usd
 
@@ -1416,6 +1478,7 @@ async def execute_probe(
     sweep: bool = False,
     one_task: bool = False,
     repeats: int = DEFAULT_REPEATS,
+    only_kind: str = "",
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -1448,6 +1511,7 @@ async def execute_probe(
             no_model_only=no_model_only,
             warm_replay=warm_replay,
             honest=honest,
+            only_kind=only_kind,
         )
     if honest:
         chosen = HONEST_ARMS
@@ -1479,7 +1543,7 @@ async def execute_probe(
     destination.mkdir(parents=True, exist_ok=True)
     probe_spent = 0.0
     rows: list[dict] = []
-    tasks = probe_tasks(chosen_split)
+    tasks = probe_tasks(chosen_split, only_kind)
     script_cache = None
     if warm_replay and ARM_SCRIPT_FIRST in chosen:
         from bench.script_cache import ScriptCache
@@ -1552,6 +1616,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Run the probe. Omit this to print the plan and exit.",
     )
+    parser.add_argument(
+        "--only-kind",
+        default="",
+        help="Run only tasks of these types (comma list of the second word of the task id, e.g. value,title).",
+    )
     parser.add_argument("--no-headless", action="store_true", help="Show the browser. Only with --execute.")
     parser.add_argument(
         "--no-model-only",
@@ -1584,6 +1653,9 @@ def main(argv: list[str] | None = None) -> int:
             "heldout3c is a further independent forty-task set. "
             "heldout3 is a, b, c and d together, the frozen test set. "
             "dev3 is a forty-task public tune set. "
+            "dev4nav is the nav read step's twelve-task check set. "
+            "dev4form is the form specialist's twelve fresh form tasks. "
+            "dev4spa is the spa specialist's twelve-task tune set. "
             "val3 is the forty-task validation set, an aggregate-only gate. "
             "Printing the plan does not run it."
         ),
@@ -1682,6 +1754,7 @@ def main(argv: list[str] | None = None) -> int:
                             no_model_only=args.no_model_only,
                             warm_replay=warm,
                             honest=args.honest,
+                            only_kind=args.only_kind,
                         ),
                         indent=2,
                     )
@@ -1701,6 +1774,7 @@ def main(argv: list[str] | None = None) -> int:
                     sweep=request["sweep"],
                     one_task=request["one_task"],
                     repeats=chosen_repeats,
+                    only_kind=args.only_kind,
                 )
             )
         elif not args.execute:
@@ -1713,6 +1787,7 @@ def main(argv: list[str] | None = None) -> int:
                         split=chosen_split,
                         honest=args.honest,
                         repeats=chosen_repeats,
+                        only_kind=args.only_kind,
                     ),
                     indent=2,
                 )
@@ -1728,6 +1803,7 @@ def main(argv: list[str] | None = None) -> int:
                     split=chosen_split,
                     honest=args.honest,
                     repeats=chosen_repeats,
+                    only_kind=args.only_kind,
                 )
             )
     except (LedgerMissing, LedgerBelowRecorded, ProbeRefused, OpenAIModelNotAllowed, EffortNotAllowed, PriceUnknown) as exc:

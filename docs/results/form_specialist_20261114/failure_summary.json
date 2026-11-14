@@ -1,0 +1,584 @@
+[
+  {
+    "split": "dev3",
+    "variant": "off",
+    "id": "dev3_form_blazedemo_purchase",
+    "success": false,
+    "strategy": null,
+    "reason": "the answer was already on this page before the form was submitted, so it is not the result; submit the form, then return the new message that appears after submitting",
+    "strategy_reason": null,
+    "answer": "Thank you for your purchase today!",
+    "actions": []
+  },
+  {
+    "split": "dev3",
+    "variant": "off",
+    "id": "dev3_form_aito_contact",
+    "success": false,
+    "strategy": null,
+    "reason": "the answer was already on this page before the form was submitted, so it is not the result; submit the form, then return the new message that appears after submitting",
+    "strategy_reason": null,
+    "answer": "Check Availability & Book Your Stay",
+    "actions": []
+  },
+  {
+    "split": "held-out",
+    "variant": "off",
+    "id": "ho_form_selenium_received",
+    "success": false,
+    "strategy": null,
+    "reason": "answer does not satisfy the marker",
+    "strategy_reason": null,
+    "answer": "Form submitted",
+    "actions": []
+  },
+  {
+    "split": "held-out",
+    "variant": "off",
+    "id": "ho_form_testpages_comments",
+    "success": false,
+    "strategy": null,
+    "reason": "URL 'https://testpages.eviltester.com/pages/forms/html-form/submit' does not contain '/the_form_processor.php'",
+    "strategy_reason": null,
+    "answer": "Comments...",
+    "actions": []
+  },
+  {
+    "split": "held-out",
+    "variant": "off",
+    "id": "ho_form_w3schools_action",
+    "success": false,
+    "strategy": null,
+    "reason": "returned evidence is not on the page",
+    "strategy_reason": null,
+    "answer": "Your input was received.",
+    "actions": []
+  },
+  {
+    "split": "held-out",
+    "variant": "off",
+    "id": "ho_form_httpbin_phone",
+    "success": false,
+    "strategy": null,
+    "reason": "answer does not satisfy the marker",
+    "strategy_reason": null,
+    "answer": "5551234567",
+    "actions": []
+  },
+  {
+    "split": "held-out",
+    "variant": "on",
+    "id": "ho_form_selenium_received",
+    "success": false,
+    "strategy": "form",
+    "reason": "answer does not satisfy the marker",
+    "strategy_reason": "the answer appeared after the submit",
+    "answer": "Form submitted",
+    "actions": [
+      {
+        "action": "fill",
+        "fields": [],
+        "press": 15,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 1,
+            "value": "Selenium demonstration"
+          }
+        ],
+        "press": 15,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "done",
+        "fields": [],
+        "press": 0,
+        "answer": "Form submitted",
+        "reason": ""
+      }
+    ]
+  },
+  {
+    "split": "held-out",
+    "variant": "on",
+    "id": "ho_form_testpages_comments",
+    "success": false,
+    "strategy": "form",
+    "reason": "URL 'https://testpages.eviltester.com/pages/forms/html-form/submit' does not contain '/the_form_processor.php'",
+    "strategy_reason": "the answer appeared after the submit",
+    "answer": "comments",
+    "actions": [
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 30,
+            "value": "testuser"
+          },
+          {
+            "n": 31,
+            "value": "testpassword"
+          },
+          {
+            "n": 32,
+            "value": "This is a test comment."
+          }
+        ],
+        "press": 70,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "done",
+        "fields": [],
+        "press": 0,
+        "answer": "comments",
+        "reason": ""
+      }
+    ]
+  },
+  {
+    "split": "held-out",
+    "variant": "on",
+    "id": "ho_form_w3schools_action",
+    "success": false,
+    "strategy": "form:fallback",
+    "reason": "URL 'https://www.w3schools.com/html/html_forms.asp' does not contain '/action_page.php'",
+    "strategy_reason": "model-call or time budget used up",
+    "answer": "https://www.w3schools.com/html/html_forms.asp",
+    "actions": [
+      {
+        "action": "fill",
+        "fields": [],
+        "press": 58,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 2,
+            "value": "John"
+          },
+          {
+            "n": 3,
+            "value": "Doe"
+          }
+        ],
+        "press": 58,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 10,
+            "value": "John"
+          },
+          {
+            "n": 11,
+            "value": "Doe"
+          }
+        ],
+        "press": 60,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "click",
+        "fields": [],
+        "press": 59,
+        "answer": "",
+        "reason": ""
+      }
+    ]
+  },
+  {
+    "split": "heldout2",
+    "variant": "off",
+    "id": "ho2_form_expand_ticket",
+    "success": false,
+    "strategy": null,
+    "reason": "the script stopped before it finished (Page.evaluate: TypeError: Cannot read properties of null (reading 'innerText') at eval (eval at evaluate (:370:30), <anonymous>:1:121) at UtilityScript.evaluate (<anonymous>:377:18) at UtilityScript.<)",
+    "strategy_reason": null,
+    "answer": "",
+    "actions": []
+  },
+  {
+    "split": "heldout2",
+    "variant": "on",
+    "id": "ho2_form_calculator_sum",
+    "success": true,
+    "strategy": "form:fallback",
+    "reason": "URL contains '/apps/server-side-calculator/'",
+    "strategy_reason": "model gave up: The page does not show fields for the first or second number; only the operation select and Calculate button are available, so I cannot submit the requested values.",
+    "answer": "42",
+    "actions": [
+      {
+        "action": "fail",
+        "fields": [],
+        "press": 0,
+        "answer": "",
+        "reason": "The page does not show fields for the first or second number; only the operation select and Calculate button are available, so I cannot submit the requested values."
+      }
+    ]
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_cura_appointment",
+    "success": false,
+    "strategy": null,
+    "reason": "URL 'https://katalon-demo-cura.herokuapp.com/profile.php#login' does not contain 'appointment.php'",
+    "strategy_reason": null,
+    "answer": "",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_epoch_timestamp",
+    "success": false,
+    "strategy": null,
+    "reason": "the script stopped before it finished (Locator.click: Timeout 5000ms exceeded. Call log: - waiting for get_by_role(\"button\", name=\"Date to timestamp\").first - locator resolved to <button type=\"submit\" class=\"button\">\u2026</button> - attempting)",
+    "strategy_reason": null,
+    "answer": "",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_roman_convert",
+    "success": false,
+    "strategy": null,
+    "reason": "claimed URL does not match the live page",
+    "strategy_reason": null,
+    "answer": "MMDCCXLIX",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_lambdatest_input",
+    "success": false,
+    "strategy": null,
+    "reason": "Error: Script result metadata exceeds tool-result budget; refusing to cut JSON",
+    "strategy_reason": null,
+    "answer": "[{\"tag\": \"BUTTON\", \"type\": \"submit\", \"name\": \"\", \"id\": \"\", \"placeholder\": null, \"aria\": \"Menu\", \"text\": \"\"}, {\"tag\": \"BUTTON\", \"type\": \"submit\", \"name\": \"\", \"id\": \"\", \"placeholder\": null, \"aria\": null, \"text\": \"Solutions \"}, {\"tag\": \"BUTTON\", \"type\": \"submit\", \"name\": \"\", \"id\": \"\", \"placeholder\": null, \"aria\": null, \"text\": \"Book a Demo\"}, {\"tag\": \"BUTTON\", \"type\": \"submit\", \"name\": \"\", \"id\": \"\",",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_testmu_radio",
+    "success": false,
+    "strategy": null,
+    "reason": "answer does not satisfy the marker",
+    "strategy_reason": null,
+    "answer": "Age :\n0 to 55 to 1515 to 50",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_playground_checkout",
+    "success": false,
+    "strategy": null,
+    "reason": "URL '' does not contain 'checkout/success'",
+    "strategy_reason": null,
+    "answer": "",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_autoexercise_contact",
+    "success": false,
+    "strategy": null,
+    "reason": "the task asks for a value and the script returned no answer",
+    "strategy_reason": null,
+    "answer": "",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_giga_percent",
+    "success": false,
+    "strategy": null,
+    "reason": "Error: Script result metadata exceeds tool-result budget; refusing to cut JSON",
+    "strategy_reason": null,
+    "answer": "[{\"tag\": \"BUTTON\", \"type\": \"button\", \"name\": \"\", \"id\": \"\", \"value\": \"\", \"text\": \"\\n\\t\\t\\t\\t\\t\\t\\n\\t\\t\\t\\t\\t\", \"placeholder\": null, \"aria\": \"Toggle navigation\"}, {\"tag\": \"INPUT\", \"type\": \"search\", \"name\": \"search\", \"id\": \"srchFieldTop\", \"value\": \"\", \"text\": \"\", \"placeholder\": \"Find calculator/converter\", \"aria\": \"Search\"}, {\"tag\": \"BUTTON\", \"type\": \"submit\", \"name\": \"\", \"id\": \"srchBtnTop\", \"value\":",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_soup_subtract",
+    "success": false,
+    "strategy": null,
+    "reason": "Task failed: The calculator\u2019s date and day fields were populated, but the automation could not operate its operator dropdown using the required accessible-name controls. The calculation therefore remained at the page\u2019s default result, and I cannot verify the requested subtraction result from the live page.",
+    "strategy_reason": null,
+    "answer": "",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "off",
+    "id": "dev4_form_aos_contact",
+    "success": false,
+    "strategy": null,
+    "reason": "Task failed: The Contact Us form's category, email, and subject fields are present and filled, but the attempted send did not execute because the automation script failed to parse. The allowed repair attempts have been exhausted, so I cannot verify or report the thank-you message.",
+    "strategy_reason": null,
+    "answer": "",
+    "actions": []
+  },
+  {
+    "split": "dev4form",
+    "variant": "on",
+    "id": "dev4_form_cura_appointment",
+    "success": false,
+    "strategy": "form:fallback",
+    "reason": "URL 'https://katalon-demo-cura.herokuapp.com/' does not contain 'appointment.php'",
+    "strategy_reason": "too many fill attempts",
+    "answer": "",
+    "actions": [
+      {
+        "action": "click",
+        "fields": [],
+        "press": 5,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 3,
+            "value": "John Doe"
+          },
+          {
+            "n": 4,
+            "value": "ThisIsNotAPassword"
+          }
+        ],
+        "press": 11,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 1,
+            "value": "Hongkong CURA Healthcare Center"
+          },
+          {
+            "n": 2,
+            "value": "on"
+          },
+          {
+            "n": 3,
+            "value": "Medicaid"
+          },
+          {
+            "n": 4,
+            "value": "2030-05-20"
+          },
+          {
+            "n": 5,
+            "value": "Annual check"
+          }
+        ],
+        "press": 14,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "fill",
+        "fields": [],
+        "press": 14,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 5,
+            "value": "Annual check"
+          }
+        ],
+        "press": 14,
+        "answer": "",
+        "reason": ""
+      }
+    ]
+  },
+  {
+    "split": "dev4form",
+    "variant": "on",
+    "id": "dev4_form_roman_convert",
+    "success": true,
+    "strategy": "form:fallback",
+    "reason": "URL contains 'number=2749'",
+    "strategy_reason": "the answer was already on the page before the submit",
+    "answer": "MMDCCXLIX",
+    "actions": [
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 3,
+            "value": "2749"
+          }
+        ],
+        "press": 10,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "done",
+        "fields": [],
+        "press": 0,
+        "answer": "MMDCCXLIX",
+        "reason": ""
+      }
+    ]
+  },
+  {
+    "split": "dev4form",
+    "variant": "on",
+    "id": "dev4_form_testmu_radio",
+    "success": false,
+    "strategy": "form:fallback",
+    "reason": "answer does not satisfy the marker",
+    "strategy_reason": "the answer is not on the live page",
+    "answer": "Age : 0 to 55 to 1515 to 50",
+    "actions": [
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 3,
+            "value": "Female"
+          },
+          {
+            "n": 4,
+            "value": "15 to 50"
+          }
+        ],
+        "press": 14,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "done",
+        "fields": [],
+        "press": 0,
+        "answer": "2. Age : 15 - 50",
+        "reason": ""
+      }
+    ]
+  },
+  {
+    "split": "dev4form",
+    "variant": "on",
+    "id": "dev4_form_playground_checkout",
+    "success": false,
+    "strategy": "form:fallback",
+    "reason": "URL '' does not contain 'checkout/success'",
+    "strategy_reason": "model-call or time budget used up",
+    "answer": "",
+    "actions": [
+      {
+        "action": "fill",
+        "fields": [],
+        "press": 22,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 2,
+            "value": "1"
+          }
+        ],
+        "press": 22,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "click",
+        "fields": [],
+        "press": 40,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "click",
+        "fields": [],
+        "press": 22,
+        "answer": "",
+        "reason": ""
+      },
+      {
+        "action": "fill",
+        "fields": [
+          {
+            "n": 2,
+            "value": "Guest Checkout"
+          },
+          {
+            "n": 3,
+            "value": "Alex"
+          },
+          {
+            "n": 4,
+            "value": "Example"
+          },
+          {
+            "n": 5,
+            "value": "alex@example.com"
+          },
+          {
+            "n": 7,
+            "value": "1 Main Street"
+          },
+          {
+            "n": 9,
+            "value": "Leeds"
+          },
+          {
+            "n": 10,
+            "value": "LS1 1AA"
+          },
+          {
+            "n": 11,
+            "value": "United Kingdom"
+          },
+          {
+            "n": 12,
+            "value": "West Yorkshire"
+          },
+          {
+            "n": 15,
+            "value": "on"
+          }
+        ],
+        "press": 34,
+        "answer": "",
+        "reason": ""
+      }
+    ]
+  }
+]

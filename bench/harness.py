@@ -165,6 +165,11 @@ class TaskResult:
     repair_reply: str = "none"
     # script_first: one entry per script that ran: [self-check verdict, wall ms since the task started].
     script_turns: list = field(default_factory=list)
+    # CU_SF_STRATEGY: the specialist that handled this row, and how ("nav:read"). Empty when none did.
+    strategy: str = ""
+    strategy_reads: list = field(default_factory=list)
+    strategy_reason: str = ""
+    strategy_detail: dict = field(default_factory=dict)
 
 
 def estimate_tokens(text: str) -> int:
@@ -1155,6 +1160,7 @@ class BenchmarkHarness:
             )
 
         wall_start = time.perf_counter()
+        generic_start = wall_start
         steps: list[StepMetrics] = []
         total_model_ms = 0.0
         total_tool_ms = 0.0
@@ -1197,6 +1203,9 @@ class BenchmarkHarness:
         same_fail_count = 0
         script_turns: list = []
         looks = 0
+        strategy = ""
+        strategy_reads: list = []
+        nav_read = None
         end_state = ""
         last_verdict = None
         markers: dict = {}
@@ -1205,6 +1214,9 @@ class BenchmarkHarness:
         script_steps = 0
         passing_code = ""
         passing_verdict = None
+        strategy = ""
+        strategy_reason = ""
+        strategy_detail = {}
         cache = self.script_cache if self.arm == "script_first" else None
         if self.arm == "script_first":
             from bench.arms import SCRIPT_FIRST_HARD_CAP, script_first_repair_mode
@@ -1212,6 +1224,7 @@ class BenchmarkHarness:
                 FAIL,
                 PASS,
                 UNKNOWN,
+                claimed_from_payload,
                 drop_old_snapshots,
                 grounded_repair_request,
                 model_visible_script_result,
@@ -1235,9 +1248,77 @@ class BenchmarkHarness:
                 self.mcp_client.end_markers = {}
             if hasattr(self.mcp_client, "look_task"):
                 self.mcp_client.look_task = task_description
+            from bench import strategy_nav
+
+            if strategy_nav.enabled() and strategy_nav.claims(task_description):
+                nav_read = strategy_nav.read_after_pass
+                strategy = "nav:no_pass"
 
         try:
-            if cache is not None:
+            if self.arm == "script_first":
+                from bench.strategy_form import append_steps, run_for_harness
+
+                specialized = await run_for_harness(self, task_description, start_url)
+                if specialized is not None:
+                    # Precedence: form work goes to form. The nav read and spa do not take it.
+                    nav_read = None
+                    strategy = "form" if specialized.passed else "form:fallback"
+                    strategy_reason = specialized.reason
+                    append_steps(specialized, steps)
+                    total_model_ms += specialized.model_ms
+                    total_tool_ms += specialized.tool_ms
+                    total_input_tokens += specialized.input_tokens
+                    total_output_tokens += specialized.output_tokens
+                    total_cached_tokens += specialized.cached_tokens
+                    total_cache_write_30m_tokens += specialized.cache_write_30m_tokens
+                    total_cache_write_12h_tokens += specialized.cache_write_12h_tokens
+                    model_calls += specialized.model_calls
+                    if specialized.passed:
+                        tier, end_state, success = "form", PASS, True
+                        success_reason, last_url = specialized.reason, specialized.final_url
+                    else:
+                        # Keep specialist time in total wall time, but give its fallback
+                        # the same generic repair allowance as the SPA fallback.
+                        generic_start = time.perf_counter()
+                from bench.strategy_spa import maybe_run_spa
+
+                # spa runs only on tasks form did not take. When nav also claims the task, spa takes
+                # it only when its page signals (an app shell) fire; otherwise nav reads after arrival.
+                spa = await maybe_run_spa(
+                    self, task_description=task_description, start_url=start_url,
+                    defer_to_nav=nav_read is not None,
+                ) if specialized is None else None
+                if spa is not None:
+                    total_model_ms += spa.model_ms
+                    total_tool_ms += spa.tool_ms
+                    total_input_tokens += spa.input_tokens
+                    total_output_tokens += spa.output_tokens
+                    total_cached_tokens += spa.cached_tokens
+                    total_cache_write_30m_tokens += spa.cache_write_30m_tokens
+                    total_cache_write_12h_tokens += spa.cache_write_12h_tokens
+                    model_calls += spa.model_calls
+                    if spa.route:
+                        strategy_detail = {"claimed": spa.claimed, "passed": spa.passed, "route": spa.route,
+                                           "reason": spa.reason, "rounds": spa.rounds, "actions": spa.actions,
+                                           "fetch_ms": spa.fetch_ms, "model_calls": spa.model_calls}
+                    if spa.claimed:
+                        strategy = "spa" if spa.passed else "spa_fallback"
+                    if spa.passed:
+                        tier = "specialist"
+                        success, end_state, last_verdict = True, PASS, spa.verdict
+                        success_reason = spa.reason
+                        last_url = spa.evidence.url
+                        steps.append(StepMetrics(
+                            step_number=1, tool_name="spa", tool_args={"actions": spa.actions},
+                            tool_result_size=0, snapshot_tokens=0, model_time_ms=spa.model_ms,
+                            tool_time_ms=spa.tool_ms, input_tokens=spa.input_tokens, output_tokens=spa.output_tokens,
+                            page_url=last_url, page_title=spa.evidence.title, page_text=spa.evidence.text,
+                            claimed_answer=spa.answer,
+                        ))
+                    if spa.claimed or spa.route:
+                        # Specialist latency remains timed, but cannot consume the generic repair allowance.
+                        generic_start = time.perf_counter()
+            if cache is not None and not tier:
                 # A cached script runs before any model write, so Chrome has to
                 # be up first. A miss leaves the launch for the fresh model call.
                 if cache.lookup(task_description, start_url) is not None:
@@ -1347,7 +1428,7 @@ class BenchmarkHarness:
                             last_verdict is not None
                             and last_verdict.verdict == FAIL
                             and repairs_sent < max_repairs
-                            and time.perf_counter() - wall_start < repair_budget_s
+                            and time.perf_counter() - generic_start < repair_budget_s
                         ):
                             failure = last_verdict.reason
                         if failure:
@@ -1530,6 +1611,44 @@ class BenchmarkHarness:
                                 task=task_description,
                                 earlier=earlier_payloads,
                             )
+                            if nav_read is not None and (
+                                verdict.verdict == PASS or strategy_nav.read_can_fix(verdict)
+                            ):
+                                # The nav specialist reads the value off the live page in place of the
+                                # script's extraction, or in place of a repair script after an imprecise answer.
+                                read = await nav_read(
+                                    page=getattr(self.mcp_client, "_page", None),
+                                    model=self.anthropic,
+                                    description=task_description,
+                                    payload=payload,
+                                    verdict=verdict,
+                                    page_url=page_url,
+                                    start_url=start_url,
+                                    earlier=tuple(earlier_payloads),
+                                )
+                                strategy_reads.append({
+                                    "label": read.label,
+                                    "before_verdict": verdict.verdict,
+                                    "before_answer": claimed_from_payload(payload).answer,
+                                    "after_verdict": read.verdict.verdict,
+                                    "after_answer": claimed_from_payload(read.payload).answer,
+                                    "model_calls": read.model_calls,
+                                    "model_ms": read.model_ms,
+                                    "tool_ms": read.tool_ms,
+                                    "usage": read.usage,
+                                    "note": read.note,
+                                })
+                                verdict, payload = read.verdict, read.payload
+                                strategy = read.label if strategy == "nav:no_pass" else f"{strategy}+{read.label}"
+                                model_calls += read.model_calls
+                                total_model_ms += read.model_ms
+                                tool_ms += read.tool_ms
+                                total_tool_ms += read.tool_ms
+                                total_input_tokens += int(read.usage.get("input_tokens") or 0)
+                                total_output_tokens += int(read.usage.get("output_tokens") or 0)
+                                total_cached_tokens += int(read.usage.get("cached_tokens") or 0)
+                                total_cache_write_30m_tokens += int(read.usage.get("cache_write_30m_tokens") or 0)
+                                total_cache_write_12h_tokens += int(read.usage.get("cache_write_12h_tokens") or 0)
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
                             earlier_payloads.append(payload)
@@ -1553,7 +1672,7 @@ class BenchmarkHarness:
                                 same_fail_count = same_fail_count + 1 if outcome == last_fail_key else 1
                                 stalled = same_fail_count >= 3 and not legacy_repair
                                 last_fail_key = outcome
-                                in_budget = time.perf_counter() - wall_start < repair_budget_s
+                                in_budget = time.perf_counter() - generic_start < repair_budget_s
                                 if repairs_sent < max_repairs and in_budget and not stalled:
                                     snapshot, snap_ms = "", 0.0
                                     reader = getattr(self.mcp_client, "page_snapshot", None)
@@ -1771,6 +1890,10 @@ class BenchmarkHarness:
             repair_sent=repairs_sent > 0,
             repair_reply=repair_reply,
             script_turns=script_turns,
+            strategy=strategy,
+            strategy_reads=strategy_reads,
+            strategy_reason=strategy_reason,
+            strategy_detail=strategy_detail,
         )
 
     def _empty_result(
@@ -1818,7 +1941,11 @@ class BenchmarkHarness:
                 "end_state": result.end_state,
                 "tier": result.tier,
                 "model_calls": result.model_calls,
+                "strategy": result.strategy,
+                "strategy_reason": result.strategy_reason,
                 "script_steps": result.script_steps,
+                "strategy": result.strategy,
+                "strategy_detail": result.strategy_detail,
                 "error": result.error,
                 "claimed_answer": result.steps[-1].claimed_answer if result.steps else "",
                 "expected_value": result.steps[-1].selector_text if result.steps else "",

@@ -16,8 +16,11 @@ last two are a common two-part suffix (co.uk, ac.uk, gov.uk, com.au, and the
 other suffixes listed below), in which case the last three labels are used.
 That list is not the public suffix list.
 
-Self-check precision is P(graded pass | script_first end_state PASS) and recall
-is P(end_state PASS | graded pass), pooled over paired script_first rows.
+Self-check precision is P(graded pass | script_first end_state PASS), pooled
+over paired script_first rows. Recall is P(end_state PASS | page_answer_success),
+using only rows with an independently recorded post-run page/answer grade.
+Legacy final success requires runtime PASS and cannot measure false rejects:
+recall is N/A without independent labels. Mixed reports expose label coverage.
 Dollar cost is total usd divided by total graded passes. Median wall time is
 the median across tasks of each task's mean wall_ms over paired runs.
 
@@ -240,6 +243,7 @@ class Parsed(NamedTuple):
     end_state: str
     usd: float
     wall: float
+    page_answer_success: bool | None
 
 
 class Observation(NamedTuple):
@@ -250,6 +254,7 @@ class Observation(NamedTuple):
     bu_usd: float
     sf_wall: float
     bu_wall: float
+    sf_page_answer_success: bool | None
 
 
 class TaskStats(NamedTuple):
@@ -267,6 +272,8 @@ class TaskStats(NamedTuple):
     sf_wall: float
     bu_wall: float
     hy_wall: float
+    recall_joint: int
+    independently_graded: int
 
 
 def registrable_domain(url: str) -> str | None:
@@ -492,6 +499,7 @@ def _parse_row(row: Mapping, file_index: int, arm: str) -> Parsed | None:
         end_state=normalize_end_state(row.get("end_state")),
         usd=usd,
         wall=wall,
+        page_answer_success=_as_bool(row.get("page_answer_success")),
     )
 
 
@@ -545,6 +553,7 @@ def _pair_model(rows: Sequence[Parsed]) -> tuple[dict[str, list[Observation]], i
                     bu_usd=bu.usd,
                     sf_wall=sf.wall,
                     bu_wall=bu.wall,
+                    sf_page_answer_success=sf.page_answer_success,
                 )
             )
     return paired, dropped, len(sf_files), len(bu_files)
@@ -553,6 +562,7 @@ def _pair_model(rows: Sequence[Parsed]) -> tuple[dict[str, list[Observation]], i
 def _task_stats(site: str, runs: Sequence[Observation]) -> TaskStats:
     sf_passes = bu_passes = hy_passes = 0
     joint = prec_den = rec_den = 0
+    recall_joint = independently_graded = 0
     sf_usd = bu_usd = hy_usd = 0.0
     sf_wall = bu_wall = hy_wall = 0.0
     for run in runs:
@@ -573,7 +583,12 @@ def _task_stats(site: str, runs: Sequence[Observation]) -> TaskStats:
         hy_wall += wall
         if run.sf_success:
             sf_passes += 1
-            rec_den += 1
+        if run.sf_page_answer_success is not None:
+            independently_graded += 1
+            if run.sf_page_answer_success:
+                rec_den += 1
+                if run.sf_end == "PASS":
+                    recall_joint += 1
         if run.bu_success:
             bu_passes += 1
         if passed:
@@ -597,6 +612,8 @@ def _task_stats(site: str, runs: Sequence[Observation]) -> TaskStats:
         sf_wall=sf_wall,
         bu_wall=bu_wall,
         hy_wall=hy_wall,
+        recall_joint=recall_joint,
+        independently_graded=independently_graded,
     )
 
 
@@ -642,6 +659,7 @@ def _point_estimates(tasks: Sequence[TaskStats]) -> dict[str, float | None]:
     count = len(tasks)
     diff = sf = bu = hy = 0.0
     joint = prec_den = rec_den = 0
+    recall_joint = 0
     for task in tasks:
         diff += (task.sf_passes - task.bu_passes) / task.n
         sf += task.sf_passes / task.n
@@ -650,13 +668,14 @@ def _point_estimates(tasks: Sequence[TaskStats]) -> dict[str, float | None]:
         joint += task.joint
         prec_den += task.prec_den
         rec_den += task.rec_den
+        recall_joint += task.recall_joint
     return {
         "diff": diff / count,
         "sf": sf / count,
         "bu": bu / count,
         "hy": hy / count,
         "precision": (joint / prec_den) if prec_den else None,
-        "recall": (joint / rec_den) if rec_den else None,
+        "recall": (recall_joint / rec_den) if rec_den else None,
     }
 
 
@@ -816,6 +835,11 @@ def _model_block(
         "self_check": {
             "precision": precision,
             "recall": _ci_block(point["recall"], intervals["recall"]),
+            "recall_basis": "independent page_answer_success only",
+            "independently_graded_rows": sum(task.independently_graded for task in tasks),
+            "rows_missing_independent_grade": sum(task.n - task.independently_graded for task in tasks),
+            "independent_passes": sum(task.rec_den for task in tasks),
+            "false_rejects": sum(task.rec_den - task.recall_joint for task in tasks),
         },
         "usd_per_passed_task": {
             ARM_SCRIPT: sf_usd,
@@ -1027,8 +1051,13 @@ def _render_model(block: Mapping) -> list[str]:
         f"  pass_rate_browser_use_ci95: {_fmt_ci(bu['ci95'])}",
         f"  self_check_precision: {_fmt(precision['estimate'])}",
         f"  self_check_precision_ci95: {_fmt_ci(precision['ci95'])}",
-        f"  self_check_recall: {_fmt(recall['estimate'])}",
-        f"  self_check_recall_ci95: {_fmt_ci(recall['ci95'])}",
+        f"  self_check_recall: {_fmt(recall['estimate']) if recall['estimate'] is not None else 'N/A'}",
+        f"  self_check_recall_ci95: {_fmt_ci(recall['ci95']) if recall['ci95'] else 'N/A'}",
+        f"  self_check_recall_basis: {block['self_check']['recall_basis']}",
+        f"  independently_graded_rows: {block['self_check']['independently_graded_rows']}",
+        f"  rows_missing_independent_grade: {block['self_check']['rows_missing_independent_grade']}",
+        f"  independent_passes: {block['self_check']['independent_passes']}",
+        f"  self_check_false_rejects: {block['self_check']['false_rejects']}",
         f"  usd_per_passed_task_script_first: {_fmt(usd[ARM_SCRIPT])}",
         f"  usd_per_passed_task_browser_use: {_fmt(usd[ARM_BROWSER])}",
         f"  usd_ratio_sf_over_bu: {_fmt(usd['ratio_sf_over_bu'])}",
