@@ -227,9 +227,14 @@ BOX_COMMANDS = (
 )
 
 
-def probe_tasks(split: str | None = None) -> list[dict]:
+def probe_tasks(split: str | None = None, *, only_kind: str = "") -> list[dict]:
     """Tasks for this split. The default is the three tuned probe tasks."""
-    return tasks_for_split(split)
+    tasks = tasks_for_split(split)
+    if only_kind:
+        tasks = [t for t in tasks if t["id"].split("_")[1] == only_kind]
+        if not tasks:
+            raise ValueError(f"no tasks of kind {only_kind!r} in split {split!r}")
+    return tasks
 
 
 def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
@@ -372,6 +377,7 @@ def plan_probe(
     split: str | None = None,
     honest: bool = False,
     repeats: int | None = None,
+    only_kind: str = "",
 ) -> dict:
     """What --execute would run. This does not start a browser or a model."""
     chosen_repeats = resolve_repeats(repeats)
@@ -400,7 +406,7 @@ def plan_probe(
         "execute": False,
         "mode": "no_model_only" if no_model_only else "outer_claude",
         "split": chosen_split,
-        "tasks": [task["id"] for task in probe_tasks(chosen_split)],
+        "tasks": [task["id"] for task in probe_tasks(chosen_split, only_kind=only_kind)],
         "arms": list(chosen),
         "available_arms": list(SELECTABLE_ARMS),
         "baseline_arms": list(BASELINE_ARMS),
@@ -1416,6 +1422,7 @@ async def execute_probe(
     sweep: bool = False,
     one_task: bool = False,
     repeats: int = DEFAULT_REPEATS,
+    only_kind: str = "",
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -1436,6 +1443,7 @@ async def execute_probe(
             chosen = resolve_arms(arms)
             chosen_split = resolve_task_split(split)
         return await execute_openai_probe(
+            only_kind=only_kind,
             arms=chosen,
             split=chosen_split,
             sweep=sweep,
@@ -1479,7 +1487,7 @@ async def execute_probe(
     destination.mkdir(parents=True, exist_ok=True)
     probe_spent = 0.0
     rows: list[dict] = []
-    tasks = probe_tasks(chosen_split)
+    tasks = probe_tasks(chosen_split, only_kind=only_kind)
     script_cache = None
     if warm_replay and ARM_SCRIPT_FIRST in chosen:
         from bench.script_cache import ScriptCache
@@ -1643,6 +1651,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="With one OpenAI model, use the one-task sweep subset instead of the full Claude split.",
     )
+    parser.add_argument("--only-kind", default="", help="Run only the task kind (second underscore-separated ID word).")
     args = parser.parse_args(argv)
     from bench.openai_run import plan_openai_probe, resolve_openai_request
     from bench.openai_spend import EffortNotAllowed, OpenAIModelNotAllowed, PriceUnknown
@@ -1673,6 +1682,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(
                     json.dumps(
                         plan_openai_probe(
+                            only_kind=args.only_kind,
                             arms=chosen,
                             split=chosen_split,
                             sweep=request["sweep"],
@@ -1689,6 +1699,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             rows = asyncio.run(
                 execute_probe(
+                    only_kind=args.only_kind,
                     headless=not args.no_headless,
                     no_model_only=args.no_model_only,
                     warm_replay=warm,
@@ -1707,6 +1718,7 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 json.dumps(
                     plan_probe(
+                        only_kind=args.only_kind,
                         no_model_only=args.no_model_only,
                         warm_replay=warm,
                         arms=chosen,
@@ -1721,6 +1733,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             rows = asyncio.run(
                 execute_probe(
+                    only_kind=args.only_kind,
                     headless=not args.no_headless,
                     no_model_only=args.no_model_only,
                     warm_replay=warm,
