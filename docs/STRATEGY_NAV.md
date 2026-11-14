@@ -57,6 +57,11 @@ JSONL files; the committed file is a metric/claim extract, not a raw-file copy.
   Pre-fix reader-only latency and the original pre-reader extraction were not
   logged separately. Do not infer either from cumulative script-turn times.
 
+Recorded spend for the 228-row batch was $0.141299. No row recorded a reader
+model error. Charging every input token in every strategy row at the extra
+12-hour write premium gives a deliberately conservative **$0.071690** reserve
+for the missing cache-write premiums; this is a bound, not reconstructed usage.
+
 ### Dev3: pre-fix repeated comparison
 
 | Kind | Variant | Pass | FA | Calls med/mean | Steps mean | Wall median/mean/p90 s | Recorded USD/task |
@@ -76,6 +81,11 @@ completion improved, but stayed below the 90% target, and its mean exceeded 12 s
 Suspect-only missed plausible-looking wrong values: for example a neighbouring
 quantity and a precision rather than a storage-size cell. Keep always-read as
 the opt-in default; these data do not justify enabling it generally.
+
+The 54 always-read dev3 rows recorded nine model-free table selections and
+three title-rule selections that passed the runtime self-check, plus ten model
+read rescues of an extraction FAIL. Those are execution labels, not independent
+counterfactual grades of the script's original answer.
 
 ### Dev4nav first contact, preserved separately
 
@@ -155,7 +165,65 @@ all of these changes stay behind the existing opt-in hook.
 
 ## Validation and post-fix checkpoint
 
-Focused offline regression checks: **63 passed**. Post-fix permitted-suite and
-live checkpoint results will be recorded here when complete. Forbidden val3 and
-heldout3 tasks/results were not consulted for these changes. The local Next.js
-guide/dependencies are absent; this contribution changes only the Python bench.
+Focused offline regression checks: **63 passed**. The slot-managed permitted
+suite reported **855 passed, 1 skipped in 38.16s**, using
+`python -m pytest -q --ignore-glob=*heldout3* --ignore-glob=*val3*` to respect the
+blindness boundary. This is not presented as a fresh unrestricted full-suite
+run; the preceding implementation recorded 892 passed, 1 skipped before these
+fixes. Forbidden task/test/result content was not consulted for the recovery
+changes. The local Next.js guide/dependencies are absent; this contribution
+changes only the Python bench.
+
+The post-fix live checkpoint uses revision `3e53020`: one dev3 value/title run
+per off/always/suspect variant (14 each), followed by one always-read dev4nav
+run (12). It is a 54-task checkpoint, not a rerun of the original 228-row batch.
+All four runs completed, no skips, with identical dev3 task sets. Individual
+rows and reader events are in the [post-fix extract](results/nav_reader_20261114_post.jsonl).
+
+| Split/kind | Variant | Pass | FA | Calls med/mean | Steps mean | Wall median/mean/p90 s | USD/task |
+|---|---|---:|---:|---:|---:|---:|---:|
+| dev3 value | off | 5/10 | 2/10 | 2.5/2.50 | 2.30 | 12.21/10.80/17.28 | .000884 |
+| dev3 value | always | 7/10 | 1/10 | 2/2.80 | 1.50 | 7.92/9.15/11.72 | .000628 |
+| dev3 value | suspect | 10/10 | 0/10 | 2/2.30 | 1.80 | 6.71/8.10/13.27 | .000572 |
+| dev3 title | off | 4/4 | 0/4 | 1.5/1.50 | 1.50 | 5.31/5.27/7.13 | .000336 |
+| dev3 title | always | 4/4 | 0/4 | 2/1.75 | 1.00 | 4.60/4.56/5.54 | .000219 |
+| dev3 title | suspect | 3/4 | 1/4 | 2.5/2.50 | 1.75 | 6.21/7.38/13.77 | .000584 |
+| dev4 value, later checkpoint | always | 5/8 | 1/8 | 4/3.38 | 2.12 | 10.44/11.00/19.57 | .000861 |
+| dev4 title, later checkpoint | always | 4/4 | 0/4 | 2.5/2.50 | 2.00 | 8.46/8.24/12.93 | .000667 |
+
+Reader-only model latency is now directly measured (all attempted calls, not
+only successful selections):
+
+| Split/kind | Variant | Reader calls | Median/mean/p90 s | Graded-successful final rescues |
+|---|---|---:|---:|---:|
+| dev3 value | always | 11 | 1.54/1.74/2.50 | 2 |
+| dev3 title | always | 3 | 1.23/1.27/1.50 | 1 |
+| dev3 value | suspect | 5 | 1.37/1.36/1.57 | 2 |
+| dev3 title | suspect | 3 | 1.21/1.45/2.09 | 1 |
+| dev4 value | always | 8 | 1.26/1.33/1.65 | 3 |
+| dev4 title | always | 2 | 1.47/1.47/1.76 | 0 |
+
+A final rescue means the final reader event changed self-FAIL to self-PASS and
+the task subsequently passed the shared grade. It saved a script repair at that
+point; it is not a counterfactual measurement of what another script would have
+done. Model-free selections are included in rescue counts but not model latency.
+
+The fixed always-reader still passes 7/10 dev3 values. Suspect's single 10/10
+value run conflicts with its earlier higher false-accept rates and still misses
+a title. Dev4 is **9/12 after fixes versus the preserved 10/12 first contact**.
+The samples do not establish a robust winning variant or achievement of the
+accuracy/false-accept targets. Keep the contribution opt-in and draft.
+
+Inspection of the two post-fix dev4 recheck failures found synthetic `key_text`
+left over from the script (for example, labels joined by a dash that is not on
+the page). The reader replaces `answer` but preserves these other claims, so
+the unchanged strict check rejects them despite a plausible selected answer.
+The remaining dev4 false accept retains the script answer `How` after the
+reader's `ISL` selection is rejected as a heading. Neither failure was removed
+from the reported denominator or fixed by relaxing evidence checks.
+
+Post-fix recorded spend: **$0.034948**. Final specialist ledger total:
+**$6.083183**, not the project-wide aggregate. Relative to the previously stated
+starting balance of approximately $5.8818, this contribution recorded about
+**$0.2014**, or **$0.2731 including the conservative pre-fix reserve**, below the
+existing $1 increment cap. No additional live runs are claimed or planned here.
