@@ -167,3 +167,5 @@ Aggregates are in `docs/results/heldout3_20261113/interim_luna_sf2_bu1.json`. No
   - Smoke check on heldout2, Luna: MCP 20/20 (it was 10/20 before the fix).
 - **script_first.** The tip as of this commit: the answer-required check is in, and heldout2 dev was 71.7% over 3 runs.
 - **OpenAI ledger before the run:** $3.70.
+
+**Resumed 14 Nov 21:09** on frozen code f8decad (11 runs owed, same order). **Blindness slip at 21:10:** while checking that the API key worked, the orchestrator printed the first 4 rows of the live Luna browser_use run 2: task ID, pass/fail and the URL marker for 4 navigation tasks in set a, all passed. No answers, scripts or failure reasons were seen. Those 4 tasks must not inform any development change. Monitoring from now on is by row count and ledger only.
