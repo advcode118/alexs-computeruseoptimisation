@@ -137,6 +137,7 @@ from bench.tasks import (
     DEV_TASK_IDS,
     HELD_OUT_TASK_IDS,
     SPLIT_DEV3,
+    SPLIT_DEV4_FORM,
     SPLIT_HELDOUT2,
     SPLIT_HELDOUT3B,
     SPLIT_HELDOUT3A,
@@ -228,8 +229,22 @@ BOX_COMMANDS = (
 
 
 def probe_tasks(split: str | None = None) -> list[dict]:
-    """Tasks for this split. The default is the three tuned probe tasks."""
-    return tasks_for_split(split)
+    """Tasks for this split. The default is the three tuned probe tasks.
+
+    CU_PROBE_ONLY_KIND (set by --only-kind) keeps tasks whose id's second word
+    is that kind, for example form.
+    """
+    tasks = tasks_for_split(split)
+    kind = os.environ.get("CU_PROBE_ONLY_KIND", "").strip().casefold()
+    if kind:
+        tasks = [task for task in tasks if task_kind(task["id"]) == kind]
+    return tasks
+
+
+def task_kind(task_id: str) -> str:
+    """The task type: the second word of the task id."""
+    parts = task_id.split("_")
+    return parts[1].casefold() if len(parts) > 1 else ""
 
 
 def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
@@ -385,7 +400,7 @@ def plan_probe(
     try:
         spent = SpendLedger.load().running_total_usd
     except LedgerMissing:
-        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_VAL3):
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_DEV4_FORM, SPLIT_VAL3):
             raise
         # Listing the new catalog needs no spend authority. Unknown is not
         # zero; live execution and existing splits retain strict ledger checks.
@@ -971,6 +986,13 @@ async def run_claude_arm(
             row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
             row["task_description"] = task.get("description") or ""
             row["start_url"] = task.get("start_url") or ""
+            if result.strategy:
+                row["strategy"] = result.strategy
+                row["strategy_reason"] = result.strategy_reason
+                row["strategy_steps"] = [
+                    {"action": step.tool_args, "result": step.snapshot_text}
+                    for step in result.steps if step.tool_name == "form_step"
+                ]
         if provider == "openai":
             from bench.openai_spend import price_usd
 
@@ -1584,6 +1606,7 @@ def main(argv: list[str] | None = None) -> int:
             "heldout3c is a further independent forty-task set. "
             "heldout3 is a, b, c and d together, the frozen test set. "
             "dev3 is a forty-task public tune set. "
+            "dev4form is the form specialist's twelve fresh form tasks. "
             "val3 is the forty-task validation set, an aggregate-only gate. "
             "Printing the plan does not run it."
         ),
@@ -1643,7 +1666,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="With one OpenAI model, use the one-task sweep subset instead of the full Claude split.",
     )
+    parser.add_argument(
+        "--only-kind",
+        default="",
+        help="Keep only tasks of this type (the second word of the task id), for example form.",
+    )
     args = parser.parse_args(argv)
+    if args.only_kind:
+        os.environ["CU_PROBE_ONLY_KIND"] = args.only_kind
     from bench.openai_run import plan_openai_probe, resolve_openai_request
     from bench.openai_spend import EffortNotAllowed, OpenAIModelNotAllowed, PriceUnknown
 

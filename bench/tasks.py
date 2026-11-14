@@ -23,6 +23,7 @@ from bench.tasks_heldout3_a import HELDOUT3A_TASKS
 from bench.tasks_heldout3_d import HELDOUT3D_TASK_IDS, HELDOUT3D_TASKS
 from bench.tasks_heldout3_c import HELDOUT3C_TASK_IDS, HELDOUT3C_TASKS
 from bench.tasks_dev3 import DEV3_TASK_IDS, DEV3_TASKS
+from bench.tasks_dev4_form import DEV4_FORM_TASK_IDS, DEV4_FORM_TASKS
 from bench.tasks_val3 import VAL3_TASK_IDS, VAL3_TASKS
 
 FIXTURE_DIR = Path(__file__).parent.parent / "loop" / "fixture"
@@ -1203,6 +1204,8 @@ WEBVOYAGER_TASKS += HELDOUT3D_TASKS
 WEBVOYAGER_TASKS += HELDOUT3C_TASKS
 # dev3 is a tune set, never scored. See bench/tasks_dev3.py.
 WEBVOYAGER_TASKS += DEV3_TASKS
+# dev4form is the form specialist's fresh tune set. See bench/tasks_dev4_form.py.
+WEBVOYAGER_TASKS += DEV4_FORM_TASKS
 WEBVOYAGER_TASKS += VAL3_TASKS
 # The frozen heldout3 test set: all four blind-authored splits. See docs/HELDOUT3_PLAN.md.
 # Dropped by the pre-run rule on 13 Nov 2026: each failed a same-day live reproducer run.
@@ -1298,6 +1301,7 @@ SPLIT_HELDOUT3D = "heldout3d"
 SPLIT_HELDOUT3C = "heldout3c"
 SPLIT_HELDOUT3 = "heldout3"
 SPLIT_DEV3 = "dev3"
+SPLIT_DEV4_FORM = "dev4form"
 SPLIT_VAL3 = "val3"
 SPLIT_HONEST = "honest"
 # The scored set is held-out only. Dev is what we tune, and it is not scored.
@@ -1384,6 +1388,8 @@ def resolve_task_split(spec: str | None) -> str:
         return SPLIT_HELDOUT3
     if key == "dev3":
         return SPLIT_DEV3
+    if key == "dev4form":
+        return SPLIT_DEV4_FORM
     if key == "val3":
         return SPLIT_VAL3
     if key == "honest":
@@ -1412,6 +1418,8 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
         return _tasks_in_order(HELDOUT3_TASK_IDS)
     if name == SPLIT_DEV3:
         return _tasks_in_order(DEV3_TASK_IDS)
+    if name == SPLIT_DEV4_FORM:
+        return _tasks_in_order(DEV4_FORM_TASK_IDS)
     if name == SPLIT_VAL3:
         return _tasks_in_order(VAL3_TASK_IDS)
     if name == SPLIT_HONEST:
