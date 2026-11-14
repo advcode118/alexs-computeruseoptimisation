@@ -1076,8 +1076,13 @@ def precision_hits(
             f"the answer is a heading on the page ({heading[:80]}), not the asked value; "
             "return the value or text under that heading instead",
         ))
-    # One value only: a multi-line block that starts or stops mid-word is a dump, not a cut value.
-    if "\n" not in answer and _only_inside_token(answer, trusted.text or ""):
+    # One short value only: a block, row or sentence cut mid-word is a loose extract, not a cut value.
+    if (
+        "\n" not in answer
+        and "\t" not in answer
+        and len(answer.split()) <= 6
+        and _only_inside_token(answer, trusted.text or "")
+    ):
         hits.append((
             "token_fragment",
             "the answer is only part of a longer value on the page; "

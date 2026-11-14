@@ -153,6 +153,14 @@ def test_multi_line_block_is_not_judged_as_a_fragment():
     assert "token_fragment" in _rules(task, _page(text="Teal is #008080"), "0080")
 
 
+def test_long_cut_sentence_holding_the_value_is_not_judged_as_a_fragment():
+    task = "Open the telescope page and report the diameter of the small telescopes."
+    text = "four main telescopes of 8.2m diameter and four small 1.8m diameter telescopes. They can work together."
+    answer = "diameter and four small 1.8m diameter telescopes. They ca"
+    assert "token_fragment" not in _rules(task, _page(text=text), answer)
+    assert "token_fragment" not in _rules(task, _page(text="Teal\t#008080\t12 bytes"), "08080\t12")
+
+
 # error_page: a page about the error the task names.
 
 
