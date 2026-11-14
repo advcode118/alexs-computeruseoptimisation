@@ -1189,6 +1189,8 @@ class BenchmarkHarness:
         repair_reply = "none"
         refusal_extended = False
         previous_payload: dict | None = None
+        # Every earlier script payload in this run, for the self-check.
+        earlier_payloads: list[dict] = []
         # script_first's grounded repair loop: scripts already run, and the last FAIL's outcome.
         seen_scripts: set[str] = set()
         last_fail_key: tuple | None = None
@@ -1526,9 +1528,11 @@ class BenchmarkHarness:
                                 start_url,
                                 asks_value=task_asks_value(task_description),
                                 task=task_description,
+                                earlier=earlier_payloads,
                             )
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
+                            earlier_payloads.append(payload)
                             script_steps = int(payload.get("steps") or 0)
                             if verdict.verdict == PASS:
                                 args = tool_args if isinstance(tool_args, dict) else {}

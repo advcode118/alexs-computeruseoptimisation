@@ -958,6 +958,7 @@ def precision_problem(
     task: str,
     start_url: str = "",
     asks_value: bool = False,
+    earlier: tuple = (),
 ) -> str:
     """Why a run the plain check would PASS still looks wrong. Empty when none applies.
 
@@ -998,6 +999,17 @@ def precision_problem(
                 "the task asks for a title and the answer shares no word with the page's document title; "
                 "return the title of the item itself, not a site, section or breadcrumb heading"
             )
+    site = _site_name(trusted)
+    if site and _norm_runtime(answer) == site:
+        return (
+            "the answer is the site's own name, not the asked value; "
+            "return the title or value of the item this page is about"
+        )
+    if earlier and _FORM_TASK.search(task or "") and _seen_before_submit(answer, live, earlier):
+        return (
+            "the answer was already on this page before the form was submitted, so it is not the result; "
+            "submit the form, then return the new message that appears after submitting"
+        )
     wrong_row = _wrong_row_label(answer, task, trusted.text or "")
     if wrong_row and not _PLURAL_ASK.search(clause):
         return (
@@ -1144,6 +1156,33 @@ def _only_inside_token(answer: str, page_text: str) -> bool:
 _RESULTS_ASK = re.compile(r"\b(?:results?|matches|hits|search)\b", re.IGNORECASE)
 
 
+_FORM_TASK = re.compile(r"\b(?:submit|send|register|sign\s+up|purchase|book|fill\s+in|complete)\b", re.IGNORECASE)
+_TITLE_SEPARATOR = re.compile(r"\s+[|·—–-]\s+|\s+/\s+")
+
+
+def _site_name(trusted: PageEvidence) -> str:
+    """The folded site-name part of the document title ("Entry - Site"), or empty.
+
+    Only a title with a separator has one, and the part has to be short.
+    """
+    parts = [part.strip() for part in _TITLE_SEPARATOR.split(trusted.title or "") if part.strip()]
+    if len(parts) < 2:
+        return ""
+    site = _norm_runtime(parts[-1])
+    return site if 0 < len(site.split()) <= 4 else ""
+
+
+def _seen_before_submit(answer: str, live: str, earlier) -> bool:
+    """An earlier script of this run stopped on this same page and its text already held the answer."""
+    needle = _norm_runtime(answer)
+    if len(needle) < 3:
+        return False
+    for page in earlier:
+        if page.stopped and _same_page(page.url, live) and needle in _norm_runtime(page.text):
+            return True
+    return False
+
+
 def _content_words(text: str) -> set[str]:
     """Lower-case words of three or more letters, or numbers, from a title or answer."""
     return {w for w in re.findall(r"[a-z0-9]+", _norm_runtime(text)) if len(w) >= 3 or w.isdigit()}
@@ -1239,6 +1278,7 @@ def runtime_verdict(
     start_url: str = "",
     asks_value: bool = False,
     task: str = "",
+    earlier: tuple = (),
 ) -> EvidenceVerdict:
     """The live check script_first runs on itself. No task markers, no model call.
 
@@ -1303,7 +1343,9 @@ def runtime_verdict(
     if problem is not None:
         return problem
     if task:
-        reason = precision_problem(trusted, claimed, task=task, start_url=start_url, asks_value=asks_value)
+        reason = precision_problem(
+            trusted, claimed, task=task, start_url=start_url, asks_value=asks_value, earlier=earlier
+        )
         if reason:
             return EvidenceVerdict(FAIL, reason, scored)
     if rule:
@@ -1318,8 +1360,12 @@ def script_runtime_verdict(
     *,
     asks_value: bool = False,
     task: str = "",
+    earlier: list | tuple = (),
 ) -> tuple[EvidenceVerdict, dict]:
-    """Judge one run_script result without the task's markers."""
+    """Judge one run_script result without the task's markers.
+
+    `earlier` holds the payloads of the scripts this run already ran, oldest first.
+    """
     from bench.harness import page_field
 
     payload = script_result_payload(result_text)
@@ -1336,8 +1382,26 @@ def script_runtime_verdict(
         start_url=start_url,
         asks_value=asks_value,
         task=task,
+        earlier=tuple(_earlier_page(item) for item in earlier or () if isinstance(item, dict)),
     )
     return verdict, payload
+
+
+@dataclass(frozen=True)
+class EarlierPage:
+    """The page an earlier script of this run ended on. No grade fields."""
+
+    url: str = ""
+    text: str = ""
+    stopped: bool = False
+
+
+def _earlier_page(payload: dict) -> EarlierPage:
+    return EarlierPage(
+        url=payload.get("url") if isinstance(payload.get("url"), str) else "",
+        text=payload.get("text") if isinstance(payload.get("text"), str) else "",
+        stopped=payload.get("ok") is False,
+    )
 
 
 def script_verdict(markers: dict | None, result_text: str, page_url: str) -> tuple[EvidenceVerdict, dict]:
@@ -1774,8 +1838,9 @@ def _reason_hint(reason: str) -> str:
     text = (reason or "").casefold()
     if "not on the" in text or "not in the page text" in text:
         return (
-            "The check looks for key_text, each item in values, and answer in the page's body text: "
-            "copy them exactly from that text (see the lines below), not from the title or your own words."
+            "answer must be the value the task asks for, copied exactly from where it sits next to its label "
+            "on the page. If that value is not on this page, this is the wrong page: open the right one. "
+            "Do not swap in other text from this page just to match."
         )
     if "not text" in text:
         return "Return answer and key_text as strings and values as a list of strings."

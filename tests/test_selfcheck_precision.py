@@ -330,3 +330,33 @@ def test_field_label_answer_fails():
     v = _verdict(task, page, ClaimedEvidence(answer="Comment:"))
     assert v.verdict == FAIL
     assert "field label" in v.reason
+
+
+def test_site_name_from_the_document_title_is_not_a_value():
+    task = "Open the reference entry for the widget method and report the entry's description."
+    page = _page(title="Widgets / Widget.spin - ExampleDocs", h1="ExampleDocs", text="ExampleDocs\nWidget.spin turns a widget")
+    v = _verdict(task, page, ClaimedEvidence(answer="ExampleDocs"))
+    assert v.verdict == FAIL
+    assert "site's own name" in v.reason
+
+
+def test_form_answer_already_on_the_page_before_submit_fails():
+    task = "Send the contact form with name Alex Example and report the thank-you heading that appears."
+    form = "Welcome to Example Inn\nBook Your Stay\nContact us\nName\nEmail"
+    earlier = ({"ok": False, "url": START, "text": form, "error": "no control named 'Name'"},)
+    payload = {"ok": True, "url": START, "title": "Example Inn", "h1": "Welcome to Example Inn", "text": form,
+               "claimed": {"answer": "Book Your Stay"}}
+    v, _ = script_runtime_verdict(json.dumps(payload), START, START, asks_value=True, task=task, earlier=earlier)
+    assert v.verdict == FAIL
+    assert "before the form was submitted" in v.reason
+
+
+def test_form_result_that_is_new_after_submit_passes():
+    task = "Send the contact form with name Alex Example and report the thank-you heading that appears."
+    form = "Welcome to Example Inn\nBook Your Stay\nContact us\nName\nEmail"
+    earlier = ({"ok": False, "url": START, "text": form, "error": "no control named 'Name'"},)
+    payload = {"ok": True, "url": START, "title": "Example Inn", "h1": "Welcome to Example Inn",
+               "text": form + "\nThanks for getting in touch Alex Example!",
+               "claimed": {"answer": "Thanks for getting in touch Alex Example!"}}
+    v, _ = script_runtime_verdict(json.dumps(payload), START, START, asks_value=True, task=task, earlier=earlier)
+    assert v.verdict == PASS

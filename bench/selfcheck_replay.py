@@ -56,7 +56,7 @@ def grade_check(task: dict, check: dict) -> bool:
     return bool(ok)
 
 
-def replay_check(description: str, check: dict):
+def replay_check(description: str, check: dict, earlier: list | None = None):
     """The current self-check on the saved inputs. The grade fields are dropped first."""
     from bench.script_first import script_runtime_verdict, task_asks_value
 
@@ -68,6 +68,7 @@ def replay_check(description: str, check: dict):
         check.get("start_url") or "",
         asks_value=task_asks_value(description),
         task=description,
+        earlier=[dict(item.get("payload") or {}) for item in earlier or []],
     )
     return verdict
 
@@ -114,7 +115,7 @@ def build_units(rows: list[dict], tasks: dict[str, dict]) -> list[dict]:
             continue
         description = row.get("task_description") or task.get("description") or ""
         for index, check in enumerate(row["self_checks"]):
-            new = replay_check(description, check)
+            new = replay_check(description, check, row["self_checks"][:index])
             units.append(
                 {
                     "file": row["_file"],
