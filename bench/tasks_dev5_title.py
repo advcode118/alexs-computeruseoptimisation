@@ -52,7 +52,8 @@ DEV5_TITLE_TASKS = [
         "In the docs.rs documentation for the serde crate, open the page of the trait that a data structure "
         "implements so it can be built from any data format, and report the page's main heading.",
         "https://docs.rs/serde/latest/serde/",
-        "Trait Deserialize", "docs.rs", "/serde/trait.Deserialize.html", path_suffix="/trait.Deserialize.html",
+        # serde re-exports the trait, so /serde/de/trait.Deserialize.html is the same page (key fix, 14 Nov).
+        "Trait Deserialize", "docs.rs", "/trait.Deserialize.html", path_suffix="/trait.Deserialize.html",
     ),
     _task(
         "dev5_title_gitlab_ciyaml",

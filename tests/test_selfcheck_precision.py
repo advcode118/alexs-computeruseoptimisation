@@ -360,3 +360,14 @@ def test_form_result_that_is_new_after_submit_passes():
                "claimed": {"answer": "Thanks for getting in touch Alex Example!"}}
     v, _ = script_runtime_verdict(json.dumps(payload), START, START, asks_value=True, task=task, earlier=earlier)
     assert v.verdict == PASS
+
+
+def test_site_first_title_takes_the_site_from_the_host():
+    """'Site - Entry' titles: the entry is the answer, not the site name."""
+    task = "In the tutorial index, open the tutorial about isolating tones with masks and report the tutorial's title."
+    page = _page(url="https://www.gimp.org/tutorials/community/Luminosity_Masks/", title="GIMP - Luminosity\u00a0Masks",
+                 h1="Luminosity\u00a0Masks", text="GIMP\nLuminosity\u00a0Masks\nby Pat David")
+    v = _verdict(task, page, ClaimedEvidence(answer="Luminosity Masks"), start="https://www.gimp.org/tutorials/")
+    assert "site's own name" not in v.reason
+    site = _verdict(task, page, ClaimedEvidence(answer="GIMP"), start="https://www.gimp.org/tutorials/")
+    assert site.verdict == FAIL

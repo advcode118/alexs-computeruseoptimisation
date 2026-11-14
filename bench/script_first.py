@@ -767,7 +767,9 @@ def evidence_verdict(
     return EvidenceVerdict(FAIL, "empty evidence", "")
 
 
-def _returned_problem(claimed: ClaimedEvidence, page_text: str, scored: str) -> EvidenceVerdict | None:
+def _returned_problem(
+    claimed: ClaimedEvidence, page_text: str, scored: str, *, ignore_spacing: bool = False
+) -> EvidenceVerdict | None:
     """FAIL or UNKNOWN when the script's own return disagrees with the live page.
 
     A return that matches, or a script that returned none of these fields,
@@ -785,8 +787,14 @@ def _returned_problem(claimed: ClaimedEvidence, page_text: str, scored: str) -> 
     if not (page_text or "").strip():
         return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
     folded = _norm_answer(page_text)
+    # Runtime only: a long key_text read as innerText of several elements joins without the
+    # page's line breaks, so its spacing is not evidence. Short values keep the exact match
+    # ("alexexample" must not match "Alex Example"). The grade keeps the exact (folded) match.
+    squeezed = "".join(folded.split()) if ignore_spacing else ""
     for item in needed:
-        if _norm_answer(item) not in folded:
+        norm = _norm_answer(item)
+        loose = ignore_spacing and item is key and len(norm.split()) >= 4
+        if norm not in folded and not (loose and "".join(norm.split()) in squeezed):
             return EvidenceVerdict(FAIL, "returned evidence is not on the page", scored)
     return None
 
@@ -1169,6 +1177,14 @@ def _site_name(trusted: PageEvidence) -> str:
     if len(parts) < 2:
         return ""
     site = _norm_runtime(parts[-1])
+    # "Site - Entry" titles ("GIMP - Luminosity Masks" on gimp.org): the site part is the one
+    # the host name spells. With no such part, the last part stays the site.
+    host = re.sub(r"[^a-z0-9]", "", (urlsplit(trusted.url or "").hostname or "").casefold())
+    if host:
+        spelled = [part for part in parts if len(re.sub(r"[^a-z0-9]", "", part.casefold())) >= 3
+                   and re.sub(r"[^a-z0-9]", "", part.casefold()) in host]
+        if len(spelled) == 1:
+            site = _norm_runtime(spelled[0])
     return site if 0 < len(site.split()) <= 4 else ""
 
 
@@ -1339,7 +1355,7 @@ def runtime_verdict(
                 return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
             elif not in_text:
                 return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
-    problem = _returned_problem(claimed, page_text, scored)
+    problem = _returned_problem(claimed, page_text, scored, ignore_spacing=True)
     if problem is not None:
         return problem
     if task:
