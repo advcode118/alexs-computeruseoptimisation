@@ -275,3 +275,58 @@ def test_headings_stay_out_of_the_model_view():
     text = format_run_result(ok=True, url=LIVE, step_count=1, text=BODY, headings=["Widgets", "Usage"])
     assert trusted_from_payload(script_result_payload(text)).headings == ("Widgets", "Usage")
     assert '"headings"' not in model_visible_script_result(text)
+
+
+def test_row_returned_without_its_label_cell_is_judged_on_the_page_row():
+    task = "Open the status code registry and report the description listed for status code 451."
+    page = _page(text="Value\tDescription\tReference\n450\tBlocked\tRFC 1\n451\tUnavailable For Legal Reasons\tRFC 7725")
+    v = _verdict(task, page, ClaimedEvidence(answer="Unavailable For Legal Reasons\tRFC 7725"))
+    assert v.verdict == PASS
+
+
+def test_heading_task_ignores_rows_labelled_by_other_clause_words():
+    task = "Open the ebook page for the novel. Report the full main heading, including the author credit."
+    page = _page(
+        title="Widget Tales by Ada Example",
+        h1="Widget Tales by Ada Example",
+        text="Widget Tales by Ada Example\nAuthor\tExample, Ada, 1900-1990\nTitle\tWidget Tales",
+    )
+    v = _verdict(task, page, ClaimedEvidence(answer="Widget Tales by Ada Example"))
+    assert v.verdict == PASS
+
+
+def test_title_answer_must_share_a_word_with_the_document_title():
+    task = "Open the abstract page for the widget paper and report the paper title."
+    page = _page(title="[1234.5678] Widgets Are All You Need", h1="Computer Science > Language", text="Computer Science > Language\nWidgets Are All You Need")
+    v = _verdict(task, page, ClaimedEvidence(answer="Computer Science > Language"))
+    assert v.verdict == FAIL
+    assert "document title" in v.reason
+    assert _verdict(task, page, ClaimedEvidence(answer="Widgets Are All You Need")).verdict == PASS
+
+
+def test_title_rule_ignores_a_title_named_after_a_comma():
+    task = "Open the standard's page and report its status designation, not the document's title."
+    page = _page(title="RFC 9999: Widget Transport", text="Status: Internet Standard")
+    assert _verdict(task, page, ClaimedEvidence(answer="Internet Standard")).verdict == PASS
+
+
+def test_search_results_end_page_fails_for_a_value_task():
+    task = "Search the archive for the widget paper and report the paper title. Do not stop on the search results."
+    page = _page(url="https://docs.example.org/search/?query=widget", title="Search | Example", text="Widget Paper One\nWidget Paper Two")
+    v = _verdict(task, page, ClaimedEvidence(answer="Widget Paper One"))
+    assert v.verdict == FAIL
+    assert "search results page" in v.reason
+
+
+def test_search_results_page_is_fine_when_the_task_asks_about_results():
+    task = "Search the archive for widgets and report how many results it finds."
+    page = _page(url="https://docs.example.org/search/?query=widget", text="Showing 1-50 of 812 results")
+    assert _verdict(task, page, ClaimedEvidence(answer="812")).verdict == PASS
+
+
+def test_field_label_answer_fails():
+    task = "Submit the form and report the name of the multiline field as the result page echoes it."
+    page = _page(text="Comment:\ncomments")
+    v = _verdict(task, page, ClaimedEvidence(answer="Comment:"))
+    assert v.verdict == FAIL
+    assert "field label" in v.reason

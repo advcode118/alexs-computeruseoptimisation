@@ -980,7 +980,25 @@ def precision_problem(
     if not answer or not asks_value:
         return ""
     clause = _asked_clause(task)
-    wrong_row = _wrong_row_label(answer, task)
+    if is_search_results_url(live) and not _RESULTS_ASK.search(clause):
+        return (
+            "the script ended on a search results page; "
+            "open the matching result and read the value on its own page"
+        )
+    if answer.endswith(":") and len(answer) <= 60:
+        return (
+            f"the answer {answer[:60]} is a field label, not its value; "
+            "return the value shown next to that label"
+        )
+    asked = _asked_object(clause)
+    if re.search(r"\btitle\b", asked, re.IGNORECASE) and not re.search(r"\bheading\b", asked, re.IGNORECASE):
+        title_words = _content_words(trusted.title or "")
+        if title_words and not (_content_words(answer) & title_words):
+            return (
+                "the task asks for a title and the answer shares no word with the page's document title; "
+                "return the title of the item itself, not a site, section or breadcrumb heading"
+            )
+    wrong_row = _wrong_row_label(answer, task, trusted.text or "")
     if wrong_row and not _PLURAL_ASK.search(clause):
         return (
             f"the answer is a table row labelled {wrong_row[:60]}, which the task does not ask about; "
@@ -1005,7 +1023,11 @@ def precision_problem(
         )
     # An item in the title, h1 or URL is the page's subject, not one row of it.
     subject = _norm_runtime(" ".join((trusted.title or "", trusted.h1 or "", unquote(live))))
-    rows = [row for row in _item_rows(task, trusted.text or "") if _norm_runtime(row[0]) not in subject]
+    rows = [
+        row
+        for row in _item_rows(task, trusted.text or "", labels=not _TITLE_OBJECT.search(_asked_object(clause)))
+        if _norm_runtime(row[0]) not in subject
+    ]
     if rows and not any(_answer_in_row(answer, row, item) for item, row in rows):
         item = rows[0][0]
         return (
@@ -1037,23 +1059,29 @@ _OBJECT_END = re.compile(
 _TITLE_OBJECT = re.compile(r"\b(?:title|heading|headline|name|caption|label|subject|header)s?\b", re.IGNORECASE)
 
 
-def _wrong_row_label(answer: str, task: str) -> str:
+def _wrong_row_label(answer: str, task: str, page_text: str = "") -> str:
     """The label of a returned table row when no returned row is labelled with the task's own words.
 
-    A tab-separated answer is one or more rows; the first cell is the row label.
-    Empty when the answer is not a row, or one row's label uses only task words.
+    A tab-separated answer is one or more rows. Each is judged on the full page
+    row that contains it, so a row returned without its first cell keeps its
+    label. A row is right when one of its cells uses only task words.
+    Empty when the answer is not a row, or one row is labelled that way.
     """
-    rows = [line.split("\t") for line in (answer or "").splitlines() if "\t" in line]
+    rows = [line for line in (answer or "").splitlines() if "\t" in line]
     if not rows:
         return ""
     known = set(re.findall(r"[a-z0-9]+", _norm_runtime(task)))
+    page_rows = [line for line in (page_text or "").splitlines() if "\t" in line]
     labels = []
-    for cells in rows:
-        label = " ".join(cells[0].split())
-        words = re.findall(r"[a-z0-9]+", _norm_runtime(label))
-        if not words or all(word in known for word in words):
-            return ""
-        labels.append(label)
+    for line in rows:
+        folded = _norm_runtime(line)
+        full = next((row for row in page_rows if folded and folded in _norm_runtime(row)), line)
+        cells = [" ".join(cell.split()) for cell in full.split("\t") if cell.strip()]
+        for cell in cells:
+            words = re.findall(r"[a-z0-9]+", _norm_runtime(cell))
+            if words and all(word in known for word in words) and any(len(w) >= 3 or w.isdigit() for w in words):
+                return ""
+        labels.append(cells[0] if cells else line)
     return labels[0]
 
 
@@ -1066,7 +1094,8 @@ def _asked_object(clause: str) -> str:
     # Skip one leading word so "report its title" keeps "its title"; then stop at a preposition.
     head = first.group(0) if first else ""
     end = _OBJECT_END.search(rest, len(head))
-    return rest[: end.start()] if end else rest
+    rest = rest[: end.start()] if end else rest
+    return rest.split(",")[0].strip()
 
 
 def _heading_answer(answer: str, trusted: PageEvidence, clause: str) -> str:
@@ -1111,6 +1140,14 @@ def _only_inside_token(answer: str, page_text: str) -> bool:
     return True
 
 
+_RESULTS_ASK = re.compile(r"\b(?:results?|matches|hits|search)\b", re.IGNORECASE)
+
+
+def _content_words(text: str) -> set[str]:
+    """Lower-case words of three or more letters, or numbers, from a title or answer."""
+    return {w for w in re.findall(r"[a-z0-9]+", _norm_runtime(text)) if len(w) >= 3 or w.isdigit()}
+
+
 _TOKEN = re.compile(r"[^\s,;:()\"'“”‘’]+")
 
 
@@ -1139,7 +1176,7 @@ def _task_items(task: str) -> set[str]:
     return items
 
 
-def _item_rows(task: str, page_text: str) -> list[tuple[str, list[str]]]:
+def _item_rows(task: str, page_text: str, *, labels: bool = True) -> list[tuple[str, list[str]]]:
     """Table rows (tab-separated lines) labelled with something the task names.
 
     An identifier-like item may be in any cell. A plain word from the asked
@@ -1147,12 +1184,12 @@ def _item_rows(task: str, page_text: str) -> list[tuple[str, list[str]]]:
     row also has a value cell.
     """
     items = _task_items(task)
-    labels = {
+    label_words = {
         word.casefold()
         for word in re.findall(r"[A-Za-z][A-Za-z0-9_-]{2,}", _asked_clause(task))
         if word.casefold() not in _LABEL_STOP
-    }
-    if not items and not labels:
+    } if labels else set()
+    if not items and not label_words:
         return []
     found = []
     for line in (page_text or "").splitlines():
@@ -1162,7 +1199,7 @@ def _item_rows(task: str, page_text: str) -> list[tuple[str, list[str]]]:
         filled = [cell for cell in cells if cell]
         if len(filled) < 2:
             continue
-        if filled[0].casefold() in labels:
+        if filled[0].casefold() in label_words:
             found.append((filled[0], cells))
             continue
         for cell in cells:
