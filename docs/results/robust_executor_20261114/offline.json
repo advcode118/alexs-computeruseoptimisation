@@ -1,0 +1,244 @@
+{
+  "cases": [
+    {
+      "case": "identical controls",
+      "variant": "fuzzy",
+      "code": "cu.click(\"Details\")",
+      "html": "<button onclick=\"out.textContent='wrong'\">Details</button><button onclick=\"out.textContent='right'\">Details</button>",
+      "ok": true,
+      "observed": "wrong",
+      "expected": "",
+      "correct": false,
+      "wrong_accept": true,
+      "error": ""
+    },
+    {
+      "case": "regex length",
+      "variant": "fuzzy",
+      "code": "cu.click(/Delete/)",
+      "html": "<button onclick=\"out.textContent='wrong'\">Delete</button><button onclick=\"out.textContent='right'\">Delete permanently from every archive and backup</button>",
+      "ok": true,
+      "observed": "wrong",
+      "expected": "",
+      "correct": false,
+      "wrong_accept": true,
+      "error": ""
+    },
+    {
+      "case": "locator ambiguity",
+      "variant": "fuzzy",
+      "code": "page.getByRole(\"button\", {name:\"Details\", exact:true}).click()",
+      "html": "<button onclick=\"out.textContent='wrong'\">Details</button><button onclick=\"out.textContent='right'\">Details</button>",
+      "ok": true,
+      "observed": "wrong",
+      "expected": "",
+      "correct": false,
+      "wrong_accept": true,
+      "error": ""
+    },
+    {
+      "case": "close partials",
+      "variant": "fuzzy",
+      "code": "cu.click(\"Save\")",
+      "html": "<button onclick=\"out.textContent='wrong'\">Save draft</button><button onclick=\"out.textContent='right'\">Save copy</button>",
+      "ok": true,
+      "observed": "right",
+      "expected": "",
+      "correct": false,
+      "wrong_accept": true,
+      "error": ""
+    },
+    {
+      "case": "unique partial",
+      "variant": "fuzzy",
+      "code": "cu.click(\"Save\")",
+      "html": "<button onclick=\"out.textContent='right'\">Save changes</button>",
+      "ok": true,
+      "observed": "right",
+      "expected": "right",
+      "correct": true,
+      "wrong_accept": false,
+      "error": ""
+    },
+    {
+      "case": "exact precedence",
+      "variant": "fuzzy",
+      "code": "cu.click(\"Go\")",
+      "html": "<button onclick=\"out.textContent='wrong'\">Go further</button><button onclick=\"out.textContent='right'\">Go</button>",
+      "ok": true,
+      "observed": "right",
+      "expected": "right",
+      "correct": true,
+      "wrong_accept": false,
+      "error": ""
+    },
+    {
+      "case": "positioned locator",
+      "variant": "fuzzy",
+      "code": "page.getByRole(\"button\", {name:\"Details\"}).nth(1).click()",
+      "html": "<button onclick=\"out.textContent='wrong'\">Details</button><button onclick=\"out.textContent='right'\">Details</button>",
+      "ok": true,
+      "observed": "right",
+      "expected": "right",
+      "correct": true,
+      "wrong_accept": false,
+      "error": ""
+    },
+    {
+      "case": "hidden duplicate",
+      "variant": "fuzzy",
+      "code": "cu.click(\"Save\")",
+      "html": "<button style=\"display:none\">Save</button><button onclick=\"out.textContent='right'\">Save</button>",
+      "ok": true,
+      "observed": "right",
+      "expected": "right",
+      "correct": true,
+      "wrong_accept": false,
+      "error": ""
+    },
+    {
+      "case": "identical controls",
+      "variant": "strict",
+      "code": "cu.click(\"Details\")",
+      "html": "<button onclick=\"out.textContent='wrong'\">Details</button><button onclick=\"out.textContent='right'\">Details</button>",
+      "ok": false,
+      "observed": "",
+      "expected": "",
+      "correct": true,
+      "wrong_accept": false,
+      "error": "line 1: 2 controls match 'Details': button \"Details\", button \"Details\"; use a unique name or an explicitly scoped/positioned locator"
+    },
+    {
+      "case": "regex length",
+      "variant": "strict",
+      "code": "cu.click(/Delete/)",
+      "html": "<button onclick=\"out.textContent='wrong'\">Delete</button><button onclick=\"out.textContent='right'\">Delete permanently from every archive and backup</button>",
+      "ok": false,
+      "observed": "",
+      "expected": "",
+      "correct": true,
+      "wrong_accept": false,
+      "error": "line 1: 2 controls match 'Delete': button \"Delete\", button \"Delete permanently from every archive and backup\"; use a unique name or an explicitly scoped/positioned locator"
+    },
+    {
+      "case": "locator ambiguity",
+      "variant": "strict",
+      "code": "page.getByRole(\"button\", {name:\"Details\", exact:true}).click()",
+      "html": "<button onclick=\"out.textContent='wrong'\">Details</button><button onclick=\"out.textContent='right'\">Details</button>",
+      "ok": false,
+      "observed": "",
+      "expected": "",
+      "correct": true,
+      "wrong_accept": false,
+      "error": "line 1: ambiguous locator role button named 'Details' (2 matches); use a unique or explicitly positioned locator"
+    },
+    {
+      "case": "close partials",
+      "variant": "strict",
+      "code": "cu.click(\"Save\")",
+      "html": "<button onclick=\"out.textContent='wrong'\">Save draft</button><button onclick=\"out.textContent='right'\">Save copy</button>",
+      "ok": false,
+      "observed": "",
+      "expected": "",
+      "correct": true,
+      "wrong_accept": false,
+      "error": "line 1: 2 controls match 'Save': button \"Save copy\", button \"Save draft\"; use a unique name or an explicitly scoped/positioned locator"
+    },
+    {
+      "case": "unique partial",
+      "variant": "strict",
+      "code": "cu.click(\"Save\")",
+      "html": "<button onclick=\"out.textContent='right'\">Save changes</button>",
+      "ok": true,
+      "observed": "right",
+      "expected": "right",
+      "correct": true,
+      "wrong_accept": false,
+      "error": ""
+    },
+    {
+      "case": "exact precedence",
+      "variant": "strict",
+      "code": "cu.click(\"Go\")",
+      "html": "<button onclick=\"out.textContent='wrong'\">Go further</button><button onclick=\"out.textContent='right'\">Go</button>",
+      "ok": true,
+      "observed": "right",
+      "expected": "right",
+      "correct": true,
+      "wrong_accept": false,
+      "error": ""
+    },
+    {
+      "case": "positioned locator",
+      "variant": "strict",
+      "code": "page.getByRole(\"button\", {name:\"Details\"}).nth(1).click()",
+      "html": "<button onclick=\"out.textContent='wrong'\">Details</button><button onclick=\"out.textContent='right'\">Details</button>",
+      "ok": true,
+      "observed": "right",
+      "expected": "right",
+      "correct": true,
+      "wrong_accept": false,
+      "error": ""
+    },
+    {
+      "case": "hidden duplicate",
+      "variant": "strict",
+      "code": "cu.click(\"Save\")",
+      "html": "<button style=\"display:none\">Save</button><button onclick=\"out.textContent='right'\">Save</button>",
+      "ok": true,
+      "observed": "right",
+      "expected": "right",
+      "correct": true,
+      "wrong_accept": false,
+      "error": ""
+    }
+  ],
+  "recovered_script_compatibility": {
+    "tip3": {
+      "parsed": 32,
+      "failures": [
+        {
+          "task_id": "dev3_nav_ffmpeg_ffprobe",
+          "error": "line 2: expected a literal option; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...}))"
+        },
+        {
+          "task_id": "dev3_nav_fish_tutorial",
+          "error": "line 2: expected a literal option; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...}))"
+        },
+        {
+          "task_id": "dev3_nav_erlang_getting_started",
+          "error": "line 2: expected a literal option; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...}))"
+        },
+        {
+          "task_id": "dev3_value_commonmark_028",
+          "error": "line 2: expected a literal option; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...}))"
+        },
+        {
+          "task_id": "dev3_value_ffmpeg_codename",
+          "error": "line 2: expected a literal option; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...}))"
+        },
+        {
+          "task_id": "dev3_value_exif_gpsaltref",
+          "error": "line 2: expected a literal option; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...}))"
+        },
+        {
+          "task_id": "dev3_form_blazedemo_purchase",
+          "error": "line 2: expected a string literal; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...}))"
+        },
+        {
+          "task_id": "dev3_spa_letcode_total",
+          "error": "line 2: expected a literal option; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...}))"
+        }
+      ]
+    },
+    "robust": {
+      "parsed": 39,
+      "failures": [
+        {
+          "task_id": "dev3_form_blazedemo_purchase",
+          "error": "script has more than 12 actions"
+        }
+      ]
+    }
+  }
+}
