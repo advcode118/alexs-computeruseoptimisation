@@ -305,3 +305,21 @@ def test_a_different_first_goto_ignores_the_preload():
 
     asyncio.run(go())
     assert page.gotos[-1] == "https://example.com/deep/page"
+
+
+def test_strict_matching_fails_on_two_different_exact_matches_and_lists_them(monkeypatch):
+    import bench.script_resolve as resolve_module
+
+    monkeypatch.setattr(resolve_module, "STRICT_MATCH", True)
+    html = """
+    <a href="/a" onclick="out.innerText='a'; return false">Details</a>
+    <a href="/b" onclick="out.innerText='b'; return false">Details</a>
+    <button onclick="out.innerText='save'">Save changes</button>
+    <div id="out"></div>
+    """
+    payload = run(html, f'cu.click("Details"); {CLAIM}')
+    assert payload["ok"] is False
+    assert "2 controls match 'Details'" in payload["error"]
+    payload = run(html, f'cu.click("Save"); {CLAIM}')
+    assert payload["ok"] is True, payload
+    assert answer(payload) == "save"

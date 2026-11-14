@@ -144,40 +144,41 @@ RESOLVE_JS = r"""(args) => {
   const wantsField = op === "fill" || op === "press";
   const wantsCheck = op === "check";
   const cands = new Map();
-  const put = (el, s, why) => {
+  // s ranks a candidate; raw is how well its name alone matched (94 and up: the same words).
+  const put = (el, s, why, raw) => {
     if (!el || s <= 0) return;
     const prev = cands.get(el);
-    if (!prev || prev.s < s) cands.set(el, { s, why });
+    if (!prev || prev.s < s) cands.set(el, { s, why, raw });
   };
   for (const el of all) {
     const field = isField(el);
     const click = isClickable(el);
     if (wantsField) {
-      if (field) put(el, best(el) + 20, "field");
+      if (field) { const b = best(el); put(el, b + 20, "field", b); }
       else if (!click || tag(el) === "label") {
         if (el.children.length <= 2) {
           const own = ownText(el);
           if (own && own.length <= 120) {
             const s = score(own);
-            if (s > 0) put(fieldNear(el), s * 0.8, "near text");
+            if (s > 0) put(fieldNear(el), s * 0.8, "near text", s);
           }
         }
       }
     } else if (wantsCheck) {
-      if (isCheck(el)) put(el, best(el) + 20, "checkbox");
+      if (isCheck(el)) { const b = best(el); put(el, b + 20, "checkbox", b); }
       else if (tag(el) === "label") {
         const s = score(ownText(el));
-        if (s > 0) put(el.control && isCheck(el.control) ? el.control : el, s, "label");
+        if (s > 0) put(el.control && isCheck(el.control) ? el.control : el, s, "label", s);
       }
     } else {
-      if (click) put(el, best(el) + 15, "control");
+      if (click) { const b = best(el); put(el, b + 15, "control", b); }
       else if (el.children.length <= 3) {
         const own = ownText(el);
         if (own && own.length <= 200) {
           const s = score(own) * 0.9;
           if (s > 0) {
             const up = el.closest("a[href], button, [role=button], [role=link], [role=tab], [role=menuitem], [role=option], summary, label, [onclick]");
-            put(up || el, s, up ? "text in control" : "text");
+            put(up || el, s, up ? "text in control" : "text", s / 0.9);
           }
         }
       }
@@ -187,7 +188,7 @@ RESOLVE_JS = r"""(args) => {
   for (const [el, c] of cands) {
     if (c.s < 38) continue;
     const vis = visible(el);
-    ranked.push({ el, s: c.s + (vis ? 40 : -60) - (disabled(el) ? 30 : 0), vis });
+    ranked.push({ el, s: c.s + (vis ? 40 : -60) - (disabled(el) ? 30 : 0), vis, raw: c.raw || 0 });
   }
   // Ties stay in document order: the Map keeps insertion order and sort is stable.
   ranked.sort((a, b) => b.s - a.s);
@@ -195,8 +196,24 @@ RESOLVE_JS = r"""(args) => {
     const n = names(el).map((p) => p[0]).find((v) => v && v.trim()) || ownText(el);
     return (role(el) || tag(el)) + " " + JSON.stringify(String(n).replace(/\s+/g, " ").trim().slice(0, 60));
   };
-  if (ranked.length && ranked[0].s >= 60) {
-    const top = ranked[0];
+  const target = (c) => describe(c.el) + " " + (c.el.getAttribute("href") || "");
+  let pick = ranked.length && ranked[0].s >= 60 ? ranked[0] : null;
+  const exactHits = ranked.filter((c) => c.vis && c.raw >= 88);
+  const ties = new Set(ranked.filter((c) => pick && c.s === pick.s).map(target)).size;
+  let ambiguous = [];
+  if (args.strict && pick) {
+    // Exact and unique first. Several different exact matches, or a partial
+    // match with a close rival, is ambiguous: fail and list them.
+    const pool = exactHits.length ? exactHits : ranked.filter((c) => c.vis && c.raw >= pick.raw - 10);
+    const distinct = [];
+    const seenT = new Set();
+    for (const c of pool) { const t = target(c); if (!seenT.has(t)) { seenT.add(t); distinct.push(c); } }
+    if (distinct.length > 1) { ambiguous = distinct.slice(0, 8).map((c) => describe(c.el)); pick = null; }
+    else if (distinct.length === 1) pick = distinct[0];
+  }
+  if (ambiguous.length) return { found: false, ambiguous: true, near: ambiguous };
+  if (pick) {
+    const top = pick;
     top.el.setAttribute("data-cu-mark", mark);
     let covered = false;
     if (top.vis) {
@@ -208,7 +225,7 @@ RESOLVE_JS = r"""(args) => {
           && !(top.el.labels && Array.from(top.el.labels).some((l) => l.contains(hit)));
       }
     }
-    return { found: true, desc: describe(top.el), score: Math.round(top.s), covered, visible: top.vis, field: isField(top.el), tag: tag(top.el) };
+    return { found: true, desc: describe(top.el), score: Math.round(top.s), exact: top.raw >= 88, ties, covered, visible: top.vis, field: isField(top.el), tag: tag(top.el) };
   }
   const near = [];
   const seen = new Set();
@@ -374,6 +391,9 @@ _SIDE_EFFECT = re.compile(
 )
 
 _POLL_S = 0.25
+# True: a name must match one control exactly, or one control clearly better
+# than any other; otherwise the step fails and lists the candidates.
+STRICT_MATCH = False
 # A name that is not on the page yet is looked for again until this cap.
 FIND_CAP_S = 3.0
 _SETTLE_QUIET_MS = 150
@@ -476,13 +496,18 @@ async def resolve(page, target: str, op: str, *, pattern: str = "", flags: str =
         mark = _new_mark()
         try:
             got = await _await(
-                page.evaluate(RESOLVE_JS, {"target": target, "op": op, "mark": mark, "pattern": pattern, "flags": flags}),
+                page.evaluate(
+                    RESOLVE_JS,
+                    {"target": target, "op": op, "mark": mark, "pattern": pattern, "flags": flags, "strict": STRICT_MATCH},
+                ),
                 5,
             )
         except Exception:
             got = None
             await _try(getattr(page, "wait_for_load_state", None), "domcontentloaded", timeout=5)
         info = got if isinstance(got, dict) else {"found": False, "near": []}
+        if info.get("ambiguous"):
+            return "", info
         now = loop.time()
         if info.get("found"):
             if info.get("covered") and not dismissed:
@@ -503,6 +528,8 @@ async def resolve(page, target: str, op: str, *, pattern: str = "", flags: str =
 
 def miss_error(line: int, what: str, target: str, info: dict) -> RuntimeError:
     near = [str(item) for item in (info.get("near") or []) if str(item).strip()][:8]
+    if info.get("ambiguous"):
+        return RuntimeError(f"line {line}: {len(near)} {what}s match {target!r}: {', '.join(near)}; use the full name of one")
     hint = f"; visible: {', '.join(near)}" if near else ""
     return RuntimeError(f"line {line}: no {what} named {target!r}{hint}")
 
