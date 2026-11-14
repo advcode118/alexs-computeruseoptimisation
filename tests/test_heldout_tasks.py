@@ -130,6 +130,7 @@ def _finished(task_id):
     return pages[task_id]
 
 
+_DEV3_SAME_PAGE = {"dev3_form_demoqa_textbox", "dev3_form_demoqa_practice", "dev3_form_aito_contact", "dev3_form_guru99_register", "dev3_spa_demoqa_origin"}
 _NEW_PREFIXES = ("ho_nav_", "ho_form_", "ho_find_", "ho_page_", "ho_table_", "ho_open_")
 
 _NEW_FINISHED = {
@@ -502,11 +503,13 @@ def test_answers_stay_off_the_prompt_repair_and_patch_turn():
     standing.append(("patch-tool", json.dumps(PATCH_TOOL)))
     standing.append(("planner", planner._SYSTEM))
     standing.append(("judge-system", JUDGE_SYSTEM))
-    covered = [*get_held_out_tasks(), *tasks_for_split("heldout3a"), *tasks_for_split("heldout3b"), *tasks_for_split("heldout3c"), *tasks_for_split("heldout3d")]
+    covered = [*get_held_out_tasks(), *tasks_for_split("heldout3a"), *tasks_for_split("heldout3b"), *tasks_for_split("heldout3c"), *tasks_for_split("heldout3d"), *tasks_for_split("dev3"), *tasks_for_split("val3")]
+    assert sum(task["id"].startswith("dev3_") for task in covered) == 40
     assert any(task["id"].startswith("ho3a_") for task in covered)
     assert any(task["id"].startswith("ho3b_") for task in covered)
     assert any(task["id"].startswith("ho3d_") for task in covered)
     assert any(task["id"].startswith("ho3c_") for task in covered)
+    assert any(task["id"].startswith("val3_") for task in covered)
     for task in covered:
         markers = task["end_markers"]
         url_token = str(markers.get("url_contains") or "")
@@ -515,8 +518,13 @@ def test_answers_stay_off_the_prompt_repair_and_patch_turn():
             assert secret not in task_text, task["id"]
         if task["id"] in WIDER_IDS and url_token:
             assert url_token not in task_text, task["id"]
-        if task["id"].startswith(_NEW_PREFIXES) and url_token:
+        if task["id"].startswith((*_NEW_PREFIXES, "val3_")) and url_token:
             assert url_token not in task_text, task["id"]
+        if task["id"].startswith("dev3_") and url_token:
+            # Same-page forms and the tab demo finish on their start URL.
+            assert url_token not in task["description"], task["id"]
+            if task["id"] not in _DEV3_SAME_PAGE:
+                assert url_token not in task["start_url"], task["id"]
         raw = format_run_result(
             ok=True,
             url=task["start_url"],

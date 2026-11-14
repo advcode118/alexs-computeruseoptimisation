@@ -54,7 +54,10 @@ held-out command from this checkout. It is a live Claude probe.
 --split heldout3a and --split heldout3b select thirty more each, and
 --split heldout3c and --split heldout3d forty more each, from
 bench/tasks_heldout3_*.py. --split heldout3 is all four: the frozen test
-set. Without --execute they only list the plan, like every other split.
+set. --split dev3 selects forty public tune tasks from bench/tasks_dev3.py.
+--split val3 selects forty validation tasks from bench/tasks_val3.py,
+an aggregate-only gate. Without --execute they only list the plan, like
+every other split.
 
 --honest is the live comparison. It selects playwright_mcp, script_first,
 stagehand, and browser_use on the held-out scored set, and a warm replay of
@@ -133,6 +136,7 @@ from bench.judge import check_text_present, check_url_contains
 from bench.tasks import (
     DEV_TASK_IDS,
     HELD_OUT_TASK_IDS,
+    SPLIT_DEV3,
     SPLIT_HELDOUT2,
     SPLIT_HELDOUT3B,
     SPLIT_HELDOUT3A,
@@ -140,6 +144,7 @@ from bench.tasks import (
     SPLIT_HELDOUT3C,
     SPLIT_HELDOUT3,
     SPLIT_HONEST,
+    SPLIT_VAL3,
     SPLIT_PROBE,
     TUNED_PROBE_TASK_IDS,
     resolve_task_split,
@@ -380,7 +385,7 @@ def plan_probe(
     try:
         spent = SpendLedger.load().running_total_usd
     except LedgerMissing:
-        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3):
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_VAL3):
             raise
         # Listing the new catalog needs no spend authority. Unknown is not
         # zero; live execution and existing splits retain strict ledger checks.
@@ -854,7 +859,7 @@ async def run_claude_arm(
     started = time.perf_counter()
     # script_first starts at one script plus a completion turn. The harness
     # adds a turn only for a repair or a refused extra script, stops at
-    # SCRIPT_FIRST_HARD_CAP, and runs at most one repair script.
+    # SCRIPT_FIRST_HARD_CAP, and runs at most SCRIPT_FIRST_MAX_REPAIRS repair scripts.
     max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
     openai_model = None
     openai_effort = None
@@ -961,6 +966,11 @@ async def run_claude_arm(
             ]
             row["repair_sent"] = result.repair_sent
             row["repair_reply"] = result.repair_reply
+            row["script_turns"] = result.script_turns
+            # Every script's self-check inputs and verdict, for offline replay.
+            row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
+            row["task_description"] = task.get("description") or ""
+            row["start_url"] = task.get("start_url") or ""
         if provider == "openai":
             from bench.openai_spend import price_usd
 
@@ -1573,6 +1583,8 @@ def main(argv: list[str] | None = None) -> int:
             "heldout3d is a further independent forty-task set. "
             "heldout3c is a further independent forty-task set. "
             "heldout3 is a, b, c and d together, the frozen test set. "
+            "dev3 is a forty-task public tune set. "
+            "val3 is the forty-task validation set, an aggregate-only gate. "
             "Printing the plan does not run it."
         ),
     )

@@ -391,6 +391,8 @@ class PageEvidence:
     selector_text: str = ""
     controls: tuple[str, ...] = ()
     links: tuple[tuple[str, str], ...] = ()
+    # Page headings, h1 to h6. The self-check reads them; the model never sees this field.
+    headings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -830,6 +832,7 @@ def trusted_from_payload(payload: dict | None, *, url: str = "", title: str = ""
         h1=data.get("h1") if isinstance(data.get("h1"), str) else "",
         text=data.get("text") if isinstance(data.get("text"), str) else "",
         selector_text=data.get("selector_text") if isinstance(data.get("selector_text"), str) else "",
+        headings=tuple(h for h in data.get("headings") or () if isinstance(h, str)),
     )
 
 
@@ -890,6 +893,9 @@ _FIND_PAGE = re.compile(
 )
 
 
+_OPEN = re.compile(r"\bopen\b", re.IGNORECASE)
+
+
 def task_asks_value(description: str) -> bool:
     """True when the task text asks for a value, not only a page to open."""
     text = " ".join((description or "").split())
@@ -901,8 +907,365 @@ def task_asks_value(description: str) -> bool:
         return True
     if _VALUE_QUESTION.search(text):
         return True
-    if _FIND.search(text) and not _FIND_PAGE.search(text):
+    # "find X and open its page" asks for a page, like "search for X and open it".
+    if _FIND.search(text) and not _FIND_PAGE.search(text) and not _OPEN.search(text):
         return True
+    return False
+
+
+# Precision checks for a self-PASS. They read the task text, the live page and
+# the claim. Never the task's markers or expected answer.
+_ERROR_PAGE = re.compile(
+    r"\b(?:page|content|file|document)\s+(?:was\s+)?not\s+found\b"
+    r"|\b404\b"
+    r"|^\s*not\s+found\s*$"
+    r"|\bpage\s+(?:does\s+not|doesn't|cannot\s+be\s+found|could\s+not\s+be\s+found)",
+    re.IGNORECASE,
+)
+# The clause that names the asked value starts at one of these.
+_ASK_START = re.compile(
+    r"\b(?:report|give|tell|state|what|which|who)\b|\bhow\s+(?:many|much|long|big|large|old)\b",
+    re.IGNORECASE,
+)
+# An asked value named by one of these words is a quantity, date or version.
+_QUANTITY_WORD = re.compile(
+    r"\bhow\s+(?:many|much|long|big|large|old)\b"
+    r"|\b(?:total|count|number|date|year|version|price|cost|diameter|radius|size|length|width|height|"
+    r"weight|mass|storage|amount|percentage|percent|population|age|duration|temperature|speed|hexadecimal|"
+    r"distance|area|volume)\b",
+    re.IGNORECASE,
+)
+_STRONG_ASK = re.compile(
+    r"\b(?:report|give|tell|state)\b|\b(?:what|which|who)\b|\bhow\s+(?:many|much)\b",
+    re.IGNORECASE,
+)
+
+
+def _asked_clause(task: str) -> str:
+    """The last sentence that asks, from its first ask word to the sentence end."""
+    text = " ".join((task or "").split())
+    for sentence in reversed(re.split(r"(?<=[.;!?])\s+", text)):
+        match = _ASK_START.search(sentence)
+        if match:
+            return sentence[match.start():].rstrip(".;!? ")
+    return ""
+
+
+def precision_problem(
+    trusted: PageEvidence,
+    claimed: ClaimedEvidence,
+    *,
+    task: str,
+    start_url: str = "",
+    asks_value: bool = False,
+    earlier: tuple = (),
+) -> str:
+    """Why a run the plain check would PASS still looks wrong. Empty when none applies.
+
+    Each reason is shown to the model in the repair turn, so it says what to do.
+    """
+    live = (trusted.url or "").strip()
+    for part in (trusted.title, trusted.h1):
+        if part and _ERROR_PAGE.search(" ".join(part.split())):
+            return (
+                "the live page is an error page (" + " ".join(part.split())[:80] + "); "
+                "open the real page from a link on the site instead of guessing its URL"
+            )
+    on_start = _http(start_url) and _same_page(live, start_url)
+    answer = (claimed.answer or "").strip()
+    start_heading = any(
+        part and answer and _norm_runtime(answer) == _norm_runtime(part) for part in (trusted.title, trusted.h1)
+    )
+    if on_start and not asks_value and (not answer or start_heading):
+        return "the script is still on the start page; follow the link to the page the task asks for"
+    if not answer or not asks_value:
+        return ""
+    clause = _asked_clause(task)
+    if is_search_results_url(live) and not _RESULTS_ASK.search(clause):
+        return (
+            "the script ended on a search results page; "
+            "open the matching result and read the value on its own page"
+        )
+    if answer.endswith(":") and len(answer) <= 60:
+        return (
+            f"the answer {answer[:60]} is a field label, not its value; "
+            "return the value shown next to that label"
+        )
+    asked = _asked_object(clause)
+    if re.search(r"\btitle\b", asked, re.IGNORECASE) and not re.search(r"\bheading\b", asked, re.IGNORECASE):
+        title_words = _content_words(trusted.title or "")
+        if title_words and not (_content_words(answer) & title_words):
+            return (
+                "the task asks for a title and the answer shares no word with the page's document title; "
+                "return the title of the item itself, not a site, section or breadcrumb heading"
+            )
+    site = _site_name(trusted)
+    if site and _norm_runtime(answer) == site:
+        return (
+            "the answer is the site's own name, not the asked value; "
+            "return the title or value of the item this page is about"
+        )
+    if earlier and _FORM_TASK.search(task or "") and _seen_before_submit(answer, live, earlier):
+        return (
+            "the answer was already on this page before the form was submitted, so it is not the result; "
+            "submit the form, then return the new message that appears after submitting"
+        )
+    wrong_row = _wrong_row_label(answer, task, trusted.text or "")
+    if wrong_row and not _PLURAL_ASK.search(clause):
+        return (
+            f"the answer is a table row labelled {wrong_row[:60]}, which the task does not ask about; "
+            "return only the value cell from the row the task names"
+        )
+    if _STRONG_ASK.search(task or "") and len(_norm_runtime(answer)) >= 3 and _phrase_at_boundary(
+        _norm_runtime(answer), _norm_runtime(task)
+    ):
+        return (
+            "the answer only repeats words from the task; "
+            "read the asked value itself from the page, next to its label"
+        )
+    if on_start and start_heading:
+        return (
+            "the answer is the start page's own heading and the script is still on the start page; "
+            "finish the steps the task asks for, then read the result"
+        )
+    if clause and _QUANTITY_WORD.search(clause) and not _has_new_digit(answer, task):
+        return (
+            "the task asks for a number, date or version and the answer has no digits of its own; "
+            "read the value next to its label on the page"
+        )
+    # An item in the title, h1 or URL is the page's subject, not one row of it.
+    subject = _norm_runtime(" ".join((trusted.title or "", trusted.h1 or "", unquote(live))))
+    rows = [
+        row
+        for row in _item_rows(task, trusted.text or "", labels=not _TITLE_OBJECT.search(_asked_object(clause)))
+        if _norm_runtime(row[0]) not in subject
+    ]
+    if rows and not any(_answer_in_row(answer, row, item) for item, row in rows):
+        item = rows[0][0]
+        return (
+            f"the page has a table row for {item} and the answer is not from that row; "
+            f"return the value cell from the row for {item}"
+        )
+    heading = _heading_answer(answer, trusted, clause)
+    if heading:
+        return (
+            f"the answer is a heading on the page ({heading[:80]}), not the asked value; "
+            "return the value or text under that heading instead"
+        )
+    if _only_inside_token(answer, trusted.text or ""):
+        return (
+            "the answer is only part of a longer value on the page; "
+            "return the whole value as written there"
+        )
+    return ""
+
+
+# The asked clause wants several items: a row or list answer is fine there.
+_PLURAL_ASK = re.compile(r"\b(?:list|all|every|each|lines|rows|values|items|entries|both)\b", re.IGNORECASE)
+# Words that end the asked object ("the codename of ...", "the entry under ...").
+_OBJECT_END = re.compile(
+    r"\b(?:of|for|in|on|at|from|under|that|which|who|shown|listed|given|as|with|to|by|written|where|when|"
+    r"exactly|it|its|they|their|between|after|before|near|next)\b",
+    re.IGNORECASE,
+)
+_TITLE_OBJECT = re.compile(r"\b(?:title|heading|headline|name|caption|label|subject|header)s?\b", re.IGNORECASE)
+
+
+def _wrong_row_label(answer: str, task: str, page_text: str = "") -> str:
+    """The label of a returned table row when no returned row is labelled with the task's own words.
+
+    A tab-separated answer is one or more rows. Each is judged on the full page
+    row that contains it, so a row returned without its first cell keeps its
+    label. A row is right when one of its cells uses only task words.
+    Empty when the answer is not a row, or one row is labelled that way.
+    """
+    rows = [line for line in (answer or "").splitlines() if "\t" in line]
+    if not rows:
+        return ""
+    known = set(re.findall(r"[a-z0-9]+", _norm_runtime(task)))
+    page_rows = [line for line in (page_text or "").splitlines() if "\t" in line]
+    labels = []
+    for line in rows:
+        folded = _norm_runtime(line)
+        full = next((row for row in page_rows if folded and folded in _norm_runtime(row)), line)
+        cells = [" ".join(cell.split()) for cell in full.split("\t") if cell.strip()]
+        for cell in cells:
+            words = re.findall(r"[a-z0-9]+", _norm_runtime(cell))
+            if words and all(word in known for word in words) and any(len(w) >= 3 or w.isdigit() for w in words):
+                return ""
+        label = cells[0] if cells else ""
+        labels.append(label if any(ch.isalnum() for ch in label) else "(no label)")
+    return labels[0]
+
+
+def _asked_object(clause: str) -> str:
+    """The noun phrase right after the ask word: 'report the scene heading exactly' -> 'the scene heading'."""
+    match = _ASK_START.match(clause or "")
+    rest = clause[match.end():] if match else (clause or "")
+    rest = rest.strip()
+    first = re.match(r"\S+\s*", rest)
+    # Skip one leading word so "report its title" keeps "its title"; then stop at a preposition.
+    head = first.group(0) if first else ""
+    end = _OBJECT_END.search(rest, len(head))
+    rest = rest[: end.start()] if end else rest
+    return rest.split(",")[0].strip()
+
+
+def _heading_answer(answer: str, trusted: PageEvidence, clause: str) -> str:
+    """The heading the answer equals, when the task asks for something other than a title or heading."""
+    if not clause or _TITLE_OBJECT.search(_asked_object(clause)):
+        return ""
+    folded = _norm_runtime(answer.rstrip(":"))
+    for part in (trusted.title, trusted.h1, *trusted.headings):
+        text = (part or "").strip()
+        if text and _norm_runtime(text.rstrip(":").replace("\uf0c1", "")) == folded:
+            return text
+    return ""
+
+
+def _glued(ch: str, beyond: str) -> bool:
+    """True when ch joins two parts of one token (a letter or digit, or a joiner before one)."""
+    if not ch:
+        return False
+    if ch.isalnum() or ch == "_":
+        return True
+    return ch in "-./" and bool(beyond) and (beyond.isalnum())
+
+
+def _only_inside_token(answer: str, page_text: str) -> bool:
+    """Every place the answer occurs on the page continues a longer token on one side."""
+    needle = _norm_runtime(answer)
+    hay = _norm_runtime(page_text)
+    if len(needle) < 2 or not needle[0].isalnum() or not needle[-1].isalnum():
+        return False
+    start = hay.find(needle)
+    if start == -1:
+        return False
+    while start != -1:
+        end = start + len(needle)
+        before = hay[start - 1] if start else ""
+        before2 = hay[start - 2] if start >= 2 else ""
+        after = hay[end] if end < len(hay) else ""
+        after2 = hay[end + 1] if end + 1 < len(hay) else ""
+        if not _glued(before, before2) and not _glued(after, after2):
+            return False
+        start = hay.find(needle, start + 1)
+    return True
+
+
+_RESULTS_ASK = re.compile(r"\b(?:results?|matches|hits|search)\b", re.IGNORECASE)
+
+
+_FORM_TASK = re.compile(r"\b(?:submit|send|register|sign\s+up|purchase|book|fill\s+in|complete)\b", re.IGNORECASE)
+_TITLE_SEPARATOR = re.compile(r"\s+[|·—–-]\s+|\s+/\s+")
+
+
+def _site_name(trusted: PageEvidence) -> str:
+    """The folded site-name part of the document title ("Entry - Site"), or empty.
+
+    Only a title with a separator has one, and the part has to be short.
+    """
+    parts = [part.strip() for part in _TITLE_SEPARATOR.split(trusted.title or "") if part.strip()]
+    if len(parts) < 2:
+        return ""
+    site = _norm_runtime(parts[-1])
+    return site if 0 < len(site.split()) <= 4 else ""
+
+
+def _seen_before_submit(answer: str, live: str, earlier) -> bool:
+    """An earlier script of this run stopped on this same page and its text already held the answer."""
+    needle = _norm_runtime(answer)
+    if len(needle) < 3:
+        return False
+    for page in earlier:
+        if page.stopped and _same_page(page.url, live) and needle in _norm_runtime(page.text):
+            return True
+    return False
+
+
+def _content_words(text: str) -> set[str]:
+    """Lower-case words of three or more letters, or numbers, from a title or answer."""
+    return {w for w in re.findall(r"[a-z0-9]+", _norm_runtime(text)) if len(w) >= 3 or w.isdigit()}
+
+
+_TOKEN = re.compile(r"[^\s,;:()\"'“”‘’]+")
+
+
+def _has_new_digit(answer: str, task: str) -> bool:
+    """A digit in an answer token that the task text does not already contain."""
+    known = {tok.casefold().strip(".") for tok in _TOKEN.findall(task or "")}
+    for tok in _TOKEN.findall(answer or ""):
+        if any(ch.isdigit() for ch in tok) and tok.casefold().strip(".") not in known:
+            return True
+    return False
+
+
+# A named item: an identifier-like word in the task (all caps, inner capital, or
+# letters mixed with digits or underscores), never a plain word.
+_ITEM = re.compile(r"\b(?=[A-Za-z_]*[A-Z0-9_])[A-Za-z][A-Za-z0-9_]*[A-Z0-9_][A-Za-z0-9_]*\b")
+
+
+def _task_items(task: str) -> set[str]:
+    items = set()
+    for match in _ITEM.finditer(task or ""):
+        word = match.group(0)
+        inner_cap = any(ch.isupper() for ch in word[1:])
+        mixed = any(ch.isdigit() or ch == "_" for ch in word) and any(ch.isalpha() for ch in word)
+        if len(word) >= 3 and (inner_cap or mixed):
+            items.add(word.casefold())
+    return items
+
+
+def _item_rows(task: str, page_text: str, *, labels: bool = True) -> list[tuple[str, list[str]]]:
+    """Table rows (tab-separated lines) labelled with something the task names.
+
+    An identifier-like item may be in any cell. A plain word from the asked
+    clause counts only as the row's first cell (its label), and only when the
+    row also has a value cell.
+    """
+    items = _task_items(task)
+    label_words = {
+        word.casefold()
+        for word in re.findall(r"[A-Za-z][A-Za-z0-9_-]{2,}", _asked_clause(task))
+        if word.casefold() not in _LABEL_STOP
+    } if labels else set()
+    if not items and not label_words:
+        return []
+    found = []
+    for line in (page_text or "").splitlines():
+        if "\t" not in line:
+            continue
+        cells = [" ".join(cell.split()) for cell in line.split("\t")]
+        filled = [cell for cell in cells if cell]
+        if len(filled) < 2:
+            continue
+        if filled[0].casefold() in label_words:
+            found.append((filled[0], cells))
+            continue
+        for cell in cells:
+            if cell.casefold() in items:
+                found.append((cell, cells))
+                break
+    return found
+
+
+# Words of the asked clause that never label a data row.
+_LABEL_STOP = {
+    "report", "give", "tell", "state", "what", "which", "who", "how", "many", "much", "the", "its", "their",
+    "and", "for", "from", "with", "that", "this", "shown", "listed", "given", "written", "exactly", "page",
+    "full", "main", "value", "number", "name", "line", "text", "entry", "item", "items",
+}
+
+
+def _answer_in_row(answer: str, cells: list[str], item: str) -> bool:
+    """The answer shares a value cell with this row (the item's own cell does not count)."""
+    folded = _norm_runtime(answer)
+    for cell in cells:
+        value = _norm_runtime(cell)
+        if not value or value == _norm_runtime(item):
+            continue
+        if value in folded or (len(folded) >= 2 and folded in value):
+            return True
     return False
 
 
@@ -914,6 +1277,8 @@ def runtime_verdict(
     script_error: str = "",
     start_url: str = "",
     asks_value: bool = False,
+    task: str = "",
+    earlier: tuple = (),
 ) -> EvidenceVerdict:
     """The live check script_first runs on itself. No task markers, no model call.
 
@@ -977,6 +1342,12 @@ def runtime_verdict(
     problem = _returned_problem(claimed, page_text, scored)
     if problem is not None:
         return problem
+    if task:
+        reason = precision_problem(
+            trusted, claimed, task=task, start_url=start_url, asks_value=asks_value, earlier=earlier
+        )
+        if reason:
+            return EvidenceVerdict(FAIL, reason, scored)
     if rule:
         return EvidenceVerdict(PASS, f"the script finished and {rule}", scored)
     return EvidenceVerdict(PASS, "the script finished and its evidence is on the live page", scored)
@@ -988,8 +1359,13 @@ def script_runtime_verdict(
     start_url: str = "",
     *,
     asks_value: bool = False,
+    task: str = "",
+    earlier: list | tuple = (),
 ) -> tuple[EvidenceVerdict, dict]:
-    """Judge one run_script result without the task's markers."""
+    """Judge one run_script result without the task's markers.
+
+    `earlier` holds the payloads of the scripts this run already ran, oldest first.
+    """
     from bench.harness import page_field
 
     payload = script_result_payload(result_text)
@@ -1005,8 +1381,27 @@ def script_runtime_verdict(
         script_error=error,
         start_url=start_url,
         asks_value=asks_value,
+        task=task,
+        earlier=tuple(_earlier_page(item) for item in earlier or () if isinstance(item, dict)),
     )
     return verdict, payload
+
+
+@dataclass(frozen=True)
+class EarlierPage:
+    """The page an earlier script of this run ended on. No grade fields."""
+
+    url: str = ""
+    text: str = ""
+    stopped: bool = False
+
+
+def _earlier_page(payload: dict) -> EarlierPage:
+    return EarlierPage(
+        url=payload.get("url") if isinstance(payload.get("url"), str) else "",
+        text=payload.get("text") if isinstance(payload.get("text"), str) else "",
+        stopped=payload.get("ok") is False,
+    )
 
 
 def script_verdict(markers: dict | None, result_text: str, page_url: str) -> tuple[EvidenceVerdict, dict]:
@@ -1038,6 +1433,483 @@ def repair_request(url: str, reason: str) -> str:
         "cu.claim belongs inside page.evaluate. "
         "Return any title or answer with page.evaluate in that same script. "
         "Do not repeat the same script."
+    )
+
+
+# Read only after a script FAILs, so the first-script path never pays for it.
+# Visible elements only, with the names cu.click/getByRole/getByLabel match.
+_REPAIR_SNAPSHOT_JS = r"""(terms) => {
+  const clean = (s, n) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
+  const shown = (el) => {
+    if (!el || !el.getClientRects || !el.getClientRects().length) return false;
+    if (el.closest('[hidden], [aria-hidden="true"], [inert]')) return false;
+    const st = getComputedStyle(el);
+    return st.visibility !== "hidden" && st.visibility !== "collapse" && st.display !== "none";
+  };
+  const roleOf = (el) => {
+    const explicit = el.getAttribute("role");
+    if (explicit) return explicit.split(/\s+/)[0];
+    const tag = el.tagName.toLowerCase();
+    if (tag === "a") return "link";
+    if (tag === "button" || tag === "summary") return "button";
+    if (tag === "textarea") return "textbox";
+    if (tag === "select") return el.multiple ? "listbox" : "combobox";
+    if (tag === "input") {
+      const t = (el.getAttribute("type") || "text").toLowerCase();
+      if (["button", "submit", "reset", "image"].includes(t)) return "button";
+      if (t === "checkbox" || t === "radio") return t;
+      if (t === "search") return "searchbox";
+      if (t === "range") return "slider";
+      if (t === "number") return "spinbutton";
+      return "textbox";
+    }
+    return tag;
+  };
+  const nameOf = (el) => {
+    let name = el.getAttribute("aria-label") || "";
+    if (!name && el.getAttribute("aria-labelledby")) {
+      name = el.getAttribute("aria-labelledby").split(/\s+/).map((id) => {
+        const node = document.getElementById(id);
+        return node ? (node.innerText || node.textContent || "") : "";
+      }).join(" ");
+    }
+    if (!name && el.labels && el.labels.length) {
+      name = Array.from(el.labels).map((l) => l.innerText || l.textContent || "").join(" ");
+    }
+    const tag = el.tagName.toLowerCase();
+    if (!name && tag === "input" && ["button", "submit", "reset"].includes((el.type || "").toLowerCase())) name = el.value || "";
+    if (!name && !["input", "textarea", "select"].includes(tag)) name = el.innerText || el.textContent || "";
+    if (!name) {
+      const img = el.querySelector && el.querySelector("img[alt]");
+      name = el.getAttribute("title") || (img ? img.getAttribute("alt") : "") || "";
+    }
+    return clean(name, 70);
+  };
+  const shortHref = (el) => {
+    try {
+      const u = new URL(el.getAttribute("href"), document.baseURI);
+      if (/^(javascript|mailto|tel):/i.test(u.href)) return "";
+      return u.origin === location.origin ? (u.pathname + u.search + u.hash) : u.href;
+    } catch (e) { return ""; }
+  };
+  const boxName = (el) => {
+    let name = el.getAttribute("aria-label") || "";
+    if (!name && el.getAttribute("aria-labelledby")) {
+      const node = document.getElementById(el.getAttribute("aria-labelledby").split(/\s+/)[0]);
+      name = node ? (node.innerText || node.textContent || "") : "";
+    }
+    if (!name) {
+      const head = el.querySelector("h1, h2, h3, h4, legend");
+      name = head ? (head.innerText || "") : "";
+    }
+    return clean(name || el.getAttribute("id") || el.getAttribute("name") || "", 60);
+  };
+  const fieldOf = (el) => {
+    const tag = el.tagName.toLowerCase();
+    const type = tag === "input" ? (el.getAttribute("type") || "text").toLowerCase() : tag;
+    const out = { role: roleOf(el), name: nameOf(el), type };
+    const ph = el.getAttribute("placeholder");
+    if (ph) out.placeholder = clean(ph, 50);
+    if (el.required) out.required = true;
+    if (el.disabled) out.disabled = true;
+    if (type === "checkbox" || type === "radio") out.checked = !!el.checked;
+    else if (tag === "select") {
+      out.options = Array.from(el.options).slice(0, 12).map((o) => clean(o.text, 40));
+      if (el.selectedIndex >= 0 && el.options[el.selectedIndex]) out.value = clean(el.options[el.selectedIndex].text, 40);
+    } else if (type !== "password" && el.value) out.value = clean(el.value, 60);
+    // No accessible name: cu.fill cannot find it, so give a CSS locator instead.
+    if (!out.name) {
+      if (el.id) out.locator = "#" + CSS.escape(el.id);
+      else if (el.getAttribute("name")) out.locator = tag + '[name="' + clean(el.getAttribute("name"), 40) + '"]';
+    }
+    if (el.willValidate && !el.checkValidity()) out.invalid = clean(el.validationMessage, 80) || "invalid";
+    else if (el.getAttribute("aria-invalid") === "true") out.invalid = "aria-invalid";
+    return out;
+  };
+  const isField = (el) => {
+    const tag = el.tagName.toLowerCase();
+    if (tag === "input") return !["hidden", "button", "submit", "reset", "image"].includes((el.getAttribute("type") || "").toLowerCase());
+    return tag === "textarea" || tag === "select";
+  };
+  const used = new Set();
+  const dialogs = [];
+  for (const d of document.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"]')) {
+    if (dialogs.length >= 2 || !shown(d)) continue;
+    const buttons = [];
+    for (const b of d.querySelectorAll('button, [role="button"], a[href], input[type="submit"], input[type="button"]')) {
+      if (buttons.length >= 6 || !shown(b)) continue;
+      const n = nameOf(b);
+      if (n) buttons.push(n);
+      used.add(b);
+    }
+    dialogs.push({ name: boxName(d), text: clean(d.innerText, 240), buttons });
+  }
+  const alerts = [];
+  for (const a of document.querySelectorAll('[role="alert"], [role="status"], [aria-live="assertive"], [aria-live="polite"], .invalid-feedback, .error, .alert')) {
+    if (alerts.length >= 5 || !shown(a)) continue;
+    const t = clean(a.innerText, 160);
+    if (t && !alerts.includes(t)) alerts.push(t);
+  }
+  const forms = [];
+  const formFields = (root, inForm) => {
+    const fields = [];
+    for (const el of root.querySelectorAll("input, textarea, select")) {
+      if (fields.length >= 12) break;
+      if (!isField(el) || !shown(el) || (!inForm && el.form) || used.has(el)) continue;
+      used.add(el);
+      fields.push(fieldOf(el));
+    }
+    const submits = [];
+    for (const b of root.querySelectorAll('button, input[type="submit"], input[type="button"], [role="button"]')) {
+      if (submits.length >= 4 || !shown(b) || (!inForm && b.form) || used.has(b)) continue;
+      const n = nameOf(b);
+      used.add(b);
+      if (n) submits.push(n);
+    }
+    return { fields, submits };
+  };
+  for (const f of document.forms) {
+    if (forms.length >= 4 || !shown(f)) continue;
+    const { fields, submits } = formFields(f, true);
+    if (!fields.length) continue;
+    forms.push({ name: boxName(f), fields, buttons: submits });
+  }
+  const loose = [];
+  for (const el of document.querySelectorAll("input, textarea, select")) {
+    if (loose.length >= 8) break;
+    if (!isField(el) || el.form || used.has(el) || !shown(el)) continue;
+    used.add(el);
+    loose.push(fieldOf(el));
+  }
+  if (loose.length) forms.push({ name: "(fields outside a form)", fields: loose, buttons: [] });
+  const main = document.querySelector('main, [role="main"], article') || document.body;
+  const vh = window.innerHeight || 800;
+  const items = [];
+  const seen = new Set();
+  const sel = 'a[href], button, summary, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="option"], [role="checkbox"], [role="switch"], input[type="submit"], input[type="button"]';
+  let order = 0;
+  for (const el of document.querySelectorAll(sel)) {
+    order += 1;
+    if (used.has(el) || !shown(el)) continue;
+    const name = nameOf(el);
+    if (!name) continue;
+    const role = roleOf(el);
+    const href = role === "link" && el.hasAttribute("href") ? shortHref(el) : "";
+    const key = role + "|" + name + "|" + href;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const r = el.getBoundingClientRect();
+    const inMain = main !== document.body && main.contains(el);
+    const inView = r.top < vh && r.bottom > 0;
+    const chrome = !!el.closest('nav, header, footer, aside, [role="navigation"], [role="banner"], [role="contentinfo"]');
+    items.push({ role, name, href, rank: (inMain ? 0 : 2) + (inView ? 0 : 1) + (chrome ? 2 : 0), order });
+  }
+  items.sort((a, b) => a.rank - b.rank || a.order - b.order);
+  const tables = [];
+  for (const t of document.querySelectorAll("table")) {
+    if (tables.length >= 3 || !shown(t)) continue;
+    const rows = t.rows;
+    if (!rows || rows.length < 2) continue;
+    const cells = (row) => Array.from(row.cells).slice(0, 8).map((c) => clean(c.innerText, 30));
+    const cap = t.caption ? clean(t.caption.innerText, 60) : "";
+    tables.push({ caption: cap, rows: rows.length, head: cells(rows[0]), first: cells(rows[1]) });
+  }
+  const headings = [];
+  for (const h of document.querySelectorAll("h1, h2, h3")) {
+    if (headings.length >= 12) break;
+    if (!shown(h)) continue;
+    const t = clean(h.innerText, 80);
+    if (t) headings.push(h.tagName.toLowerCase() + " " + t);
+  }
+  return {
+    url: location.href,
+    title: clean(document.title, 120),
+    headings,
+    dialogs,
+    alerts,
+    forms,
+    elements: items.slice(0, 36).map((i) => ({ role: i.role, name: i.name, href: i.href })),
+    more_elements: Math.max(0, items.length - 36),
+    tables,
+    matches: (() => {
+      // Page lines that share words or numbers with the task, wherever they sit on the page.
+      const list = (terms || []).filter((t) => t);
+      if (!list.length || !main) return [];
+      const scored = [];
+      const raw = (main.innerText || "").split(/\r?\n/);
+      for (let i = 0; i < raw.length && i < 6000; i++) {
+        const line = raw[i].replace(/\s+/g, " ").trim();
+        if (!line || line.length < 2) continue;
+        const low = line.toLowerCase();
+        let score = 0, first = -1;
+        for (const t of list) {
+          let at = -1;
+          if (/^[0-9]/.test(t)) {
+            const m = new RegExp("(^|[^0-9])" + t.replace(/[^a-z0-9]/g, (c) => "\\" + c) + "(?![0-9])").exec(low);
+            if (m) { at = m.index + m[1].length; score += 2; }
+          } else {
+            at = low.indexOf(t);
+            if (at >= 0) score += 1;
+          }
+          if (at >= 0 && (first < 0 || at < first)) first = at;
+        }
+        if (score < 2) continue;
+        const start = line.length > 200 ? Math.max(0, first - 60) : 0;
+        scored.push({ score, i, line: line.slice(start, start + 200) });
+      }
+      scored.sort((a, b) => b.score - a.score || a.i - b.i);
+      const out = [];
+      for (const item of scored) {
+        if (out.length >= 8) break;
+        if (!out.includes(item.line)) out.push(item.line);
+      }
+      return out;
+    })(),
+    text: clean(main ? main.innerText : "", 1500)
+  };
+}"""
+
+_SNAPSHOT_CAP = 5000
+_TERM_STOP = frozenset(
+    "that this with from what which when where there their then than into onto your about after before "
+    "page site open find give tell show report name state value values return answer task text link "
+    "click visit search using under over each some only also does have will would should could".split()
+)
+
+
+def task_terms(description: str, limit: int = 12) -> list[str]:
+    """Numbers and longer words from the task text, for matching page lines. No site knowledge."""
+    terms: list[str] = []
+    for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9.+#_-]*", description or ""):
+        word = token.strip(".-_").casefold()
+        if not word or word in terms:
+            continue
+        if any(ch.isdigit() for ch in word) or (len(word) >= 4 and word not in _TERM_STOP):
+            terms.append(word)
+        if len(terms) >= limit:
+            break
+    return terms
+
+
+def _q(text) -> str:
+    return json.dumps(str(text or ""), ensure_ascii=False)
+
+
+def format_page_snapshot(data: dict | None, *, cap: int = _SNAPSHOT_CAP) -> str:
+    """Render the repair snapshot as short lines a weak model can copy names from."""
+    if not isinstance(data, dict) or not data:
+        return ""
+    lines = [f"url: {data.get('url') or '(none)'}", f"title: {data.get('title') or ''}"]
+    headings = [h for h in data.get("headings") or [] if isinstance(h, str)]
+    if headings:
+        lines.append("headings: " + " | ".join(headings))
+    for dialog in data.get("dialogs") or []:
+        if not isinstance(dialog, dict):
+            continue
+        buttons = ", ".join(_q(b) for b in dialog.get("buttons") or [])
+        lines.append(f"OPEN DIALOG {_q(dialog.get('name'))}: {dialog.get('text') or ''}" + (f" buttons: {buttons}" if buttons else ""))
+    alerts = [a for a in data.get("alerts") or [] if isinstance(a, str)]
+    if alerts:
+        lines.append("messages: " + " | ".join(_q(a) for a in alerts))
+    for form in data.get("forms") or []:
+        if not isinstance(form, dict):
+            continue
+        lines.append(f"form {_q(form.get('name'))}:")
+        for field in form.get("fields") or []:
+            if not isinstance(field, dict):
+                continue
+            parts = [f"  {field.get('role') or 'field'} {_q(field.get('name'))}", f"type={field.get('type') or ''}"]
+            if not field.get("name") and field.get("locator"):
+                parts[0] = f"  {field.get('role') or 'field'} (no name) page.locator({_q(field['locator'])})"
+            for key in ("placeholder", "value"):
+                if field.get(key):
+                    parts.append(f"{key}={_q(field[key])}")
+            if field.get("options"):
+                parts.append("options=[" + ", ".join(_q(o) for o in field["options"]) + "]")
+            if "checked" in field:
+                parts.append(f"checked={'yes' if field['checked'] else 'no'}")
+            for flag in ("required", "disabled"):
+                if field.get(flag):
+                    parts.append(flag)
+            if field.get("invalid"):
+                parts.append(f"INVALID: {field['invalid']}")
+            lines.append(" ".join(parts))
+        buttons = form.get("buttons") or []
+        if buttons:
+            lines.append("  buttons: " + ", ".join(_q(b) for b in buttons))
+    elements = [e for e in data.get("elements") or [] if isinstance(e, dict)]
+    if elements:
+        lines.append("visible elements (role \"name\" -> href):")
+        for element in elements:
+            line = f"  {element.get('role') or ''} {_q(element.get('name'))}"
+            if element.get("href"):
+                line += f" -> {element['href']}"
+            lines.append(line)
+        more = int(data.get("more_elements") or 0)
+        if more:
+            lines.append(f"  ...and {more} more")
+    matches = [m for m in data.get("matches") or [] if isinstance(m, str) and m.strip()]
+    if matches:
+        lines.append("page lines that match words in the task:")
+        lines.extend(f"  {m}" for m in matches)
+    for table in data.get("tables") or []:
+        if not isinstance(table, dict):
+            continue
+        label = f" {_q(table.get('caption'))}" if table.get("caption") else ""
+        lines.append(
+            f"table{label} ({table.get('rows')} rows): header {table.get('head')} first row {table.get('first')}"
+        )
+    text = data.get("text") if isinstance(data.get("text"), str) else ""
+    head = "\n".join(lines)
+    room = cap - len(head) - len("\ntext: ")
+    if text and room > 80:
+        lines.append("text: " + text[:room])
+    rendered = "\n".join(lines)
+    return rendered[:cap]
+
+
+def look_enabled() -> bool:
+    """The opt-in look tool. Off unless CU_SF_LOOK=1, so the default arm is unchanged."""
+    import os
+
+    return os.environ.get("CU_SF_LOOK", "") == "1"
+
+
+LOOK_TOOL = {
+    "name": "look",
+    "description": (
+        "Open a URL and return a compact view of that page: headings, forms with their fields, "
+        "visible links and buttons with their names, and lines that match the task. "
+        "No check runs. Use it at most once, only when you do not know the page's controls "
+        "or where the value is; then send run_script, which starts from that page."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {"url": {"type": "string", "description": "http(s) URL to open."}},
+        "required": ["url"],
+    },
+}
+
+
+SNAPSHOT_BEGIN = "--- PAGE NOW ---"
+SNAPSHOT_END = "--- END PAGE ---"
+_SNAPSHOT_DROPPED = "(older page snapshot dropped; see the newest one)"
+
+
+def failed_step_note(code: str, payload: dict | None) -> str:
+    """Which step of the script stopped it, and how far it got. No page read."""
+    payload = payload if isinstance(payload, dict) else {}
+    done = int(payload.get("steps") or 0)
+    error = payload.get("error") if isinstance(payload.get("error"), str) else ""
+    try:
+        steps = parse_task_script(code or "")
+    except ScriptError as exc:
+        return f"Your script did not parse, so nothing ran: {' '.join(str(exc).split())[:300]}"
+    total = len(steps)
+    if payload.get("ok") is False:
+        detail = " | ".join(line.strip() for line in error.splitlines()[:3] if line.strip())[:300]
+        if done < total:
+            source = " ".join(steps[done].source.split())[:200]
+            return (
+                f"Your script ran {done} of {total} steps. Step {done + 1} failed: `{source}`"
+                + (f" Error: {detail}" if detail else "")
+                + ". The steps after it did not run."
+            )
+        return f"Your script stopped after {done} of {total} steps." + (f" Error: {detail}" if detail else "")
+    return f"Your script ran all {total} steps without an error."
+
+
+def _claimed_note(payload: dict | None) -> str:
+    claimed = payload.get("claimed") if isinstance(payload, dict) else None
+    if not isinstance(claimed, dict):
+        return "It returned no evidence object."
+    parts = []
+    for key in ("answer", "key_text"):
+        value = claimed.get(key)
+        if isinstance(value, str) and value.strip():
+            parts.append(f"{key}={_q(value.strip()[:120])}")
+    if not parts:
+        return "It returned an empty answer and key_text."
+    return "It returned " + ", ".join(parts) + "."
+
+
+def _reason_hint(reason: str) -> str:
+    """What the self-check's FAIL reason asks of the next script. Keyed on runtime_verdict's wording."""
+    text = (reason or "").casefold()
+    if "not on the" in text or "not in the page text" in text:
+        return (
+            "answer must be the value the task asks for, copied exactly from where it sits next to its label "
+            "on the page. If that value is not on this page, this is the wrong page: open the right one. "
+            "Do not swap in other text from this page just to match."
+        )
+    if "not text" in text:
+        return "Return answer and key_text as strings and values as a list of strings."
+    if "returned no answer" in text:
+        return "Put the asked value in answer, copied exactly from the page."
+    if "start page" in text or "did not end on a web page" in text:
+        return "The script has to leave the start page for the page that holds the asked value."
+    if "claimed url" in text:
+        return "Return url: location.href, not a URL you typed."
+    return ""
+
+
+def grounded_repair_request(
+    reason: str,
+    *,
+    code: str,
+    payload: dict | None,
+    snapshot: str,
+    repair_number: int,
+    max_repairs: int,
+) -> str:
+    """A repair ask that shows the live page, the failed step, and how far the script got."""
+    hint = _reason_hint(reason)
+    lines = [
+        f"END_STATE_FAILED (repair {repair_number} of {max_repairs}): {reason}.",
+        failed_step_note(code, payload) + " " + _claimed_note(payload) + (" " + hint if hint else ""),
+        "The browser is still on the page below. Your next script starts from this page: "
+        "continue from here, or page.goto a URL to start over.",
+        SNAPSHOT_BEGIN,
+        snapshot or "(the page could not be read)",
+        SNAPSHOT_END,
+        "Send one script that finishes the task. Use the names, labels and links shown above; "
+        "do not guess selectors that are not on this page. Fix the step that failed. "
+        "End with the page.evaluate evidence object and put the asked value in answer. "
+        "Do not repeat a script that already ran. If the task cannot be done, call task_failed.",
+    ]
+    return "\n".join(lines)
+
+
+def drop_old_snapshots(messages: list[dict]) -> None:
+    """Replace the page snapshot in earlier tool results with a short stub, in place."""
+    for message in messages:
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            text = block.get("content")
+            if not isinstance(text, str) or SNAPSHOT_BEGIN not in text:
+                continue
+            head, _, rest = text.partition(SNAPSHOT_BEGIN)
+            _, _, tail = rest.partition(SNAPSHOT_END)
+            block["content"] = head + SNAPSHOT_BEGIN + "\n" + _SNAPSHOT_DROPPED + "\n" + SNAPSHOT_END + tail
+
+
+def normalized_script(code: str) -> str:
+    return "".join((code or "").split())
+
+
+def repair_outcome_key(verdict, payload: dict | None) -> tuple:
+    """Two scripts with this same key failed the same way on the same page."""
+    payload = payload if isinstance(payload, dict) else {}
+    claimed = payload.get("claimed") if isinstance(payload.get("claimed"), dict) else {}
+    return (
+        str(payload.get("url") or ""),
+        getattr(verdict, "reason", ""),
+        payload.get("ok") is not False,
+        str(claimed.get("answer") or ""),
     )
 
 
@@ -1110,6 +1982,7 @@ def format_run_result(
     claimed: dict | None = None,
     controls: list | tuple | None = None,
     links: list | tuple | None = None,
+    headings: list | tuple | None = None,
 ) -> str:
     """JSON for the live page plus Stagehand-style goto prose.
 
@@ -1143,6 +2016,9 @@ def format_run_result(
         payload["controls"] = shown_controls
     if links:
         payload["links"] = [list(pair) for pair in links[:40]]
+    shown_headings = [" ".join(h.split())[:160] for h in headings or () if isinstance(h, str) and h.strip()]
+    if shown_headings:
+        payload["headings"] = shown_headings[:60]
     if claimed:
         kept = {}
         for key in ("url", "title", "h1", "answer", "key_text"):
@@ -1171,7 +2047,7 @@ def format_run_result(
     return "\n".join(lines)
 
 
-_HIDDEN_RESULT_KEYS = ("selector_text",)
+_HIDDEN_RESULT_KEYS = ("selector_text", "headings")
 
 
 def budget_script_result(result_text: str, limit: int) -> str:
@@ -1212,11 +2088,18 @@ def budget_script_result(result_text: str, limit: int) -> str:
     return render()
 
 
-def model_visible_script_result(result_text: str, *, failed: bool = False, limit: int | None = None) -> str:
+def model_visible_script_result(
+    result_text: str,
+    *,
+    failed: bool = False,
+    limit: int | None = None,
+    hide_page: bool = False,
+) -> str:
     """The run_script result the model may see.
 
     selector_text is judge-only. Failed results may include trusted links and
     role/name controls; PASS and UNKNOWN results do not expose these hints.
+    hide_page also drops the page text: a grounded repair snapshot follows.
     """
     if limit is None:
         from bench.harness import MAX_SNAPSHOT_CHARS
@@ -1239,6 +2122,8 @@ def model_visible_script_result(result_text: str, *, failed: bool = False, limit
         return result_text
     for key in _HIDDEN_RESULT_KEYS:
         payload.pop(key, None)
+    if hide_page:
+        payload.pop("text", None)
     if not failed:
         payload.pop("links", None)
         payload.pop("controls", None)
@@ -1497,6 +2382,9 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
             if isinstance(item, (list, tuple)) and len(item) == 2
             and all(isinstance(value, str) for value in item)
         )[:40],
+        headings=tuple(
+            " ".join(item.split()) for item in data.get("headings") or [] if isinstance(item, str) and item.strip()
+        )[:60],
     )
 
 
@@ -1548,6 +2436,7 @@ async def _finish_page(
         claimed=claimed,
         controls=evidence.controls,
         links=evidence.links,
+        headings=evidence.headings,
     )
 
 
@@ -1734,6 +2623,8 @@ class ScriptFirstClient:
         self._page = page
         self._owns_page = page is None
         self.end_markers: dict = {}
+        # The task text for the opt-in look tool's matching lines. The harness sets it.
+        self.look_task = ""
         self._playwright = None
         self._browser = None
         self._context = None
@@ -1782,7 +2673,7 @@ class ScriptFirstClient:
                     "required": ["reason"],
                 },
             }
-        ]
+        ] + ([dict(LOOK_TOOL)] if look_enabled() else [])
 
     def begin_launch(self) -> asyncio.Future:
         """Launch local Chrome if it is not already up.
@@ -1855,12 +2746,44 @@ class ScriptFirstClient:
             if profile:
                 shutil.rmtree(profile, ignore_errors=True)
 
+    async def _look(self, arguments: dict, start: float) -> tuple[str, float]:
+        url = str(arguments.get("url") or "").strip()
+        error = ""
+        if _http(url):
+            try:
+                await self._page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+            except Exception as exc:
+                error = " ".join(str(exc).split())[:200]
+        elif url:
+            error = "look needs an http(s) URL"
+        snapshot, _ms = await self.page_snapshot(self.look_task)
+        lines = [f"LOOK (no check ran){': ' + error if error else ''}", SNAPSHOT_BEGIN, snapshot or "(the page could not be read)", SNAPSHOT_END]
+        lines.append("Now send run_script. It starts from this page.")
+        return "\n".join(lines), (time.perf_counter() - start) * 1000
+
+    async def page_snapshot(self, task: str = "") -> tuple[str, float]:
+        """The compact repair snapshot of the live page, and the ms it took."""
+        start = time.perf_counter()
+        if self._page is None:
+            return "", 0.0
+        source = "() => (" + _REPAIR_SNAPSHOT_JS + ")(" + json.dumps(task_terms(task)) + ")"
+        raw = await _evaluate_value(self._page, source)
+        data = raw if isinstance(raw, dict) else {}
+        if data and not _http(str(data.get("url") or "")):
+            data["url"] = _page_url(self._page) or data.get("url")
+        if not data:
+            url = _page_url(self._page)
+            data = {"url": url, "title": await _read_title(self._page)} if url else {}
+        return format_page_snapshot(data), (time.perf_counter() - start) * 1000
+
     async def call_tool(self, name: str, arguments: dict | None) -> tuple[str, float]:
         if name == "browser_run_code_unsafe":
             raise ScriptError("browser_run_code_unsafe is not available")
         if self._page is None:
             raise RuntimeError("script_first client is not started")
         start = time.perf_counter()
+        if name == "look" and look_enabled():
+            return await self._look(arguments or {}, start)
         if name != "run_script":
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""
