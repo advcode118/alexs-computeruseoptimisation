@@ -138,6 +138,7 @@ from bench.tasks import (
     HELD_OUT_TASK_IDS,
     SPLIT_DEV3,
     SPLIT_DEV4NAV,
+    SPLIT_DEV5TITLE,
     SPLIT_DEV4_FORM,
     SPLIT_DEV4SPA,
     SPLIT_HELDOUT2,
@@ -411,7 +412,7 @@ def plan_probe(
     try:
         spent = SpendLedger.load().running_total_usd
     except LedgerMissing:
-        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_DEV4NAV, SPLIT_DEV4_FORM, SPLIT_DEV4SPA, SPLIT_VAL3):
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_DEV4NAV, SPLIT_DEV5TITLE, SPLIT_DEV4_FORM, SPLIT_DEV4SPA, SPLIT_VAL3):
             raise
         # Listing the new catalog needs no spend authority. Unknown is not
         # zero; live execution and existing splits retain strict ledger checks.
@@ -1654,6 +1655,7 @@ def main(argv: list[str] | None = None) -> int:
             "heldout3 is a, b, c and d together, the frozen test set. "
             "dev3 is a forty-task public tune set. "
             "dev4nav is the nav read step's twelve-task check set. "
+            "dev5title is a fresh twelve-task title set. "
             "dev4form is the form specialist's twelve fresh form tasks. "
             "dev4spa is the spa specialist's twelve-task tune set. "
             "val3 is the forty-task validation set, an aggregate-only gate. "
