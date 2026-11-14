@@ -93,7 +93,7 @@ def test_read_replaces_a_whole_row_with_one_cell():
     model = FakeModel({"line": 0, "value": ""})
     view = sn.build_view(TABLE_PAGE, TASK)
     number = next(i for i, line in enumerate(view.lines, 1) if line.raw.startswith("21\t"))
-    model.reply = {"line": number, "value": "8.5"}
+    model.reply = {"line": number, "column": 3, "value": "8.5"}
     out = _run(model)
     assert out.label == "nav:read" and out.verdict.verdict == PASS
     assert claimed_from_payload(out.payload).answer == "8.5"
@@ -104,7 +104,7 @@ def test_read_replaces_a_whole_row_with_one_cell():
 def test_label_prefix_is_stripped():
     view = sn.build_view(TABLE_PAGE, TASK)
     number = next(i for i, line in enumerate(view.lines, 1) if line.raw.startswith("21\t"))
-    out = _run(FakeModel({"line": number, "value": "Support for running: 8.5 and after"}))
+    out = _run(FakeModel({"line": number, "column": 3, "value": "Support for running: 8.5 and after"}))
     assert claimed_from_payload(out.payload).answer == "8.5 and after"
 
 
@@ -161,7 +161,7 @@ def test_value_not_in_the_checked_text_keeps_the_script_answer():
     number = next(i for i, line in enumerate(view.lines, 1) if line.raw.startswith("21\t"))
     verdict = EvidenceVerdict(PASS, "ok", page["url"])
     payload = dict(_payload("Java"), text=payload_text_without_value)
-    out = asyncio.run(sn.read_after_pass(page=FakePage(page), model=FakeModel({"line": number, "value": "8.5"}),
+    out = asyncio.run(sn.read_after_pass(page=FakePage(page), model=FakeModel({"line": number, "column": 3, "value": "8.5"}),
                                          description=TASK, payload=payload, verdict=verdict,
                                          page_url=page["url"], start_url="https://docs.example.org/"))
     assert out.label == "nav:recheck_fail"
@@ -200,7 +200,7 @@ def test_rescue_turns_an_imprecise_fail_into_a_pass_without_a_repair_script():
     number = next(i for i, line in enumerate(view.lines, 1) if line.raw.startswith("21\t"))
     failed = EvidenceVerdict(FAIL, "the answer is a heading on the page (Java), not the asked value", TABLE_PAGE["url"])
     assert sn.read_can_fix(failed)
-    out = asyncio.run(sn.read_after_pass(page=FakePage(TABLE_PAGE), model=FakeModel({"line": number, "value": "8.5"}),
+    out = asyncio.run(sn.read_after_pass(page=FakePage(TABLE_PAGE), model=FakeModel({"line": number, "column": 3, "value": "8.5"}),
                                          description=TASK, payload=_payload("Java"), verdict=failed,
                                          page_url=TABLE_PAGE["url"], start_url="https://docs.example.org/"))
     assert out.label == "nav:rescue_read" and out.verdict.verdict == PASS
@@ -221,3 +221,98 @@ def test_navigation_failures_are_left_to_the_repair_loop():
     ):
         assert not sn.read_can_fix(EvidenceVerdict(FAIL, reason, ""))
     assert not sn.read_can_fix(EvidenceVerdict(PASS, "ok", ""))
+
+
+@pytest.mark.parametrize("column,value", [(2, "8.4"), (3, "8.4"), (None, "8.5"), (True, "8.5")])
+def test_wrong_or_unidentified_table_column_cannot_replace_a_correct_answer(column, value):
+    view = sn.build_view(TABLE_PAGE, TASK, prior_answer="8.5")
+    number = next(i for i, line in enumerate(view.lines, 1) if line.raw.startswith("21\t"))
+    out = _run(FakeModel({"line": number, "column": column, "value": value}), answer="8.5")
+    assert out.label == "nav:rejected"
+    assert claimed_from_payload(out.payload).answer == "8.5"
+    assert "column" in out.note
+
+
+def test_main_heading_takes_priority_over_an_unrelated_fragment():
+    view = sn.View(url="https://example.org/manual#details", title="Widget Manual", h1="Widget Manual",
+                   anchor="Advanced Details", lines=[])
+    assert sn.title_without_model(view, "Report the main heading of this page.") == "Widget Manual"
+    assert sn.title_without_model(view, "Report the Installation section heading.") == ""
+    assert sn.title_without_model(view, "Report the Advanced Details section heading.") == "Advanced Details"
+
+
+def test_definition_selection_matches_the_term_and_refuses_ambiguity():
+    data = {"text": "Timeout\n30 seconds\nRetries\n4", "dls": [[["Timeout", "30 seconds"], ["Retries", "4"]]]}
+    assert sn.table_pick(sn.page_lines(data), "Report the Timeout value.") == "30 seconds"
+    assert sn.table_pick(sn.page_lines(data), "Report the 30 seconds value.") == ""
+    data["dls"].append([["Timeout", "60 seconds"]])
+    assert sn.table_pick(sn.page_lines(data), "Report the Timeout value.") == ""
+
+
+def test_unpriceable_reader_call_propagates_but_transport_error_keeps_the_answer():
+    from bench.openai_spend import PriceUnknown
+
+    class BrokenModel:
+        def __init__(self, error):
+            self.error = error
+
+        async def create_message(self, *args, **kwargs):
+            raise self.error
+
+    with pytest.raises(PriceUnknown):
+        _run(BrokenModel(PriceUnknown("unknown usage field")))
+    out = _run(BrokenModel(ConnectionError("offline")), answer="8.5")
+    assert out.label == "nav:model_error" and out.verdict.verdict == PASS
+    assert claimed_from_payload(out.payload).answer == "8.5"
+    assert out.model_calls == 1 and out.model_ms >= 0
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_probe_accounts_for_reader_usage_and_records_before_after(monkeypatch, tmp_path, enabled):
+    from bench.harness import BenchmarkHarness
+    from bench.probe import run_claude_arm
+    from bench.openai_spend import price_usd
+    from bench.script_first import format_run_result
+    from tests.test_grounded_repair import _Client, _Model, _reply
+
+    monkeypatch.setenv("CU_SF_STRATEGY", "nav" if enabled else "")
+    view = sn.build_view(TABLE_PAGE, TASK, prior_answer="8.5")
+    number = next(i for i, line in enumerate(view.lines, 1) if line.raw.startswith("21\t"))
+    usage = {"input_tokens": 500, "output_tokens": 20, "cached_tokens": 100,
+             "cache_write_30m_tokens": 200, "cache_write_12h_tokens": 50}
+    model = _Model([_reply("page.evaluate(() => '8.5')"), {
+        "content": [{"type": "text", "text": json.dumps({"line": number, "column": 3, "value": "8.5"})}],
+        "usage": usage,
+    }])
+    client = _Client([format_run_result(ok=True, url=TABLE_PAGE["url"], title=TABLE_PAGE["title"],
+                                       h1=TABLE_PAGE["h1"], text=TABLE_PAGE["text"], step_count=1,
+                                       claimed={"answer": "8.5"})])
+    client._page = FakePage(TABLE_PAGE)
+
+    async def setup(self):
+        self.anthropic, self.mcp_client = model, client
+
+    async def noop(*args):
+        pass
+
+    monkeypatch.setattr(BenchmarkHarness, "setup", setup)
+    monkeypatch.setattr(BenchmarkHarness, "teardown", noop)
+    monkeypatch.setattr(BenchmarkHarness, "_read_shared_page", noop)
+    row = asyncio.run(run_claude_arm("script_first", {"id": "fixture", "description": TASK,
+                                                    "start_url": "https://docs.example.org/"},
+                                   api_key="offline", headless=True, runs_dir=tmp_path,
+                                   provider="openai", model="gpt-6-luna", effort="medium"))
+    assert row["model_calls"] == (2 if enabled else 1)
+    assert row["claimed_answer"] == "8.5"
+    assert row["input_tokens"] == (501 if enabled else 1)
+    assert row["cache_write_30m_tokens"] == (200 if enabled else 0)
+    assert row["cache_write_12h_tokens"] == (50 if enabled else 0)
+    expected_usd = price_usd("gpt-6-luna", 501, 21, 100, 200, 50) if enabled else price_usd("gpt-6-luna", 1, 1)
+    assert row["usd"] == expected_usd
+    if enabled:
+        event, = row["strategy_reads"]
+        assert event["usage"] == usage
+        assert event["before_answer"] == event["after_answer"] == "8.5"
+        assert event["model_ms"] == 1.0 and event["model_calls"] == 1
+    else:
+        assert "strategy" not in row and "strategy_reads" not in row

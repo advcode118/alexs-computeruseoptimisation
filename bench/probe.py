@@ -981,6 +981,7 @@ async def run_claude_arm(
             row["start_url"] = task.get("start_url") or ""
             if result.strategy:
                 row["strategy"] = result.strategy
+                row["strategy_reads"] = result.strategy_reads
         if provider == "openai":
             from bench.openai_spend import price_usd
 

@@ -167,6 +167,7 @@ class TaskResult:
     script_turns: list = field(default_factory=list)
     # CU_SF_STRATEGY: the specialist that handled this row, and how ("nav:read"). Empty when none did.
     strategy: str = ""
+    strategy_reads: list = field(default_factory=list)
 
 
 def estimate_tokens(text: str) -> int:
@@ -1200,6 +1201,7 @@ class BenchmarkHarness:
         script_turns: list = []
         looks = 0
         strategy = ""
+        strategy_reads: list = []
         nav_read = None
         end_state = ""
         last_verdict = None
@@ -1216,6 +1218,7 @@ class BenchmarkHarness:
                 FAIL,
                 PASS,
                 UNKNOWN,
+                claimed_from_payload,
                 drop_old_snapshots,
                 grounded_repair_request,
                 model_visible_script_result,
@@ -1554,6 +1557,18 @@ class BenchmarkHarness:
                                     start_url=start_url,
                                     earlier=tuple(earlier_payloads),
                                 )
+                                strategy_reads.append({
+                                    "label": read.label,
+                                    "before_verdict": verdict.verdict,
+                                    "before_answer": claimed_from_payload(payload).answer,
+                                    "after_verdict": read.verdict.verdict,
+                                    "after_answer": claimed_from_payload(read.payload).answer,
+                                    "model_calls": read.model_calls,
+                                    "model_ms": read.model_ms,
+                                    "tool_ms": read.tool_ms,
+                                    "usage": read.usage,
+                                    "note": read.note,
+                                })
                                 verdict, payload = read.verdict, read.payload
                                 strategy = read.label if strategy == "nav:no_pass" else f"{strategy}+{read.label}"
                                 model_calls += read.model_calls
@@ -1563,6 +1578,8 @@ class BenchmarkHarness:
                                 total_input_tokens += int(read.usage.get("input_tokens") or 0)
                                 total_output_tokens += int(read.usage.get("output_tokens") or 0)
                                 total_cached_tokens += int(read.usage.get("cached_tokens") or 0)
+                                total_cache_write_30m_tokens += int(read.usage.get("cache_write_30m_tokens") or 0)
+                                total_cache_write_12h_tokens += int(read.usage.get("cache_write_12h_tokens") or 0)
                             progress = script_made_progress(previous_payload, payload)
                             previous_payload = payload
                             earlier_payloads.append(payload)
@@ -1805,6 +1822,7 @@ class BenchmarkHarness:
             repair_reply=repair_reply,
             script_turns=script_turns,
             strategy=strategy,
+            strategy_reads=strategy_reads,
         )
 
     def _empty_result(

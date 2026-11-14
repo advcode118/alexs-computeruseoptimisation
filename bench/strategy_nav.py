@@ -3,7 +3,7 @@
 script_first's script writes its extraction blind, so on value and title tasks
 it often returns a whole table row, a neighbouring cell, a heading, or a long
 phrase that only contains the words. This step runs after the script's own
-self-check says PASS and replaces that extraction:
+self-check says PASS, or rejects an extraction the reader can fix:
 
 1. With no model, build a short numbered view of the live page: the lines
    around the task's key words, table rows with their column labels attached
@@ -58,7 +58,7 @@ def enabled() -> bool:
 
 
 def read_mode() -> str:
-    """always: read on every claimed PASS. suspect: only when the script's answer looks wrong."""
+    """Both modes rescue extraction FAILs; always also reads every claimed PASS."""
     value = (os.environ.get("CU_SF_NAV_READ") or "always").strip().casefold()
     return value if value in ("always", "suspect") else "always"
 
@@ -438,10 +438,12 @@ def title_without_model(view: View, description: str) -> str:
     """The heading a title task asks for, when the page makes it plain. Empty when unsure."""
     if not asks_title(description):
         return ""
-    if view.anchor:
-        return view.anchor
     if _MAIN_HEADING.search(description or "") and view.h1:
         return view.h1
+    if view.anchor and re.search(r"\b(?:section|chapter|subsection)\b", description, re.IGNORECASE):
+        generic = _words("full numbered section chapter subsection heading headline title")
+        if (_words(view.anchor) - generic) & (_words(description) - generic):
+            return view.anchor
     return ""
 
 
@@ -454,7 +456,7 @@ def _strip_label(value: str, line: ViewLine) -> str:
     return value
 
 
-def check_value(value: str, line: ViewLine | None, view: View, description: str) -> str:
+def check_value(value: str, line: ViewLine | None, view: View, description: str, *, column=None) -> str:
     """Empty when the value is one exact value from that line. Otherwise why not."""
     if not value or not value.strip():
         return "empty value"
@@ -469,6 +471,14 @@ def check_value(value: str, line: ViewLine | None, view: View, description: str)
         return "value is not on that line"
     if line.kind == "row" and sum(1 for _label, cell in line.cells if cell and _norm(cell) in needle) >= 2:
         return "value is a whole row, not one cell"
+    if line.kind == "row":
+        if type(column) is not int or not 1 <= column <= len(line.cells):
+            return "table column number is not in the row"
+        if needle not in _norm(line.cells[column - 1][1]):
+            return "value is not in the selected column"
+        target = _target_column(line, description)
+        if target is not None and column - 1 != target:
+            return "selected column is not the column named in the task"
     if not asks_title(description):
         if needle in {_norm(view.title), _norm(view.h1)}:
             return "value is the page title, not the asked value"
@@ -519,6 +529,22 @@ def _task_keys(description: str) -> set[str]:
     return {key for key in keys if key}
 
 
+def _target_column(line: ViewLine, description: str) -> int | None:
+    """A uniquely named value column, excluding columns used to identify the row."""
+    keys = _task_keys(description)
+    key_at = {i for i, (_label, cell) in enumerate(line.cells) if _norm(cell) in keys}
+    used = set().union(*(_words(line.cells[i][0]) for i in key_at)) if key_at else set()
+    task_words = _words(description)
+    scored = sorted(
+        ((len((_words(label) - used) & task_words), i)
+         for i, (label, cell) in enumerate(line.cells) if i not in key_at and label and cell.strip()),
+        reverse=True,
+    )
+    if not scored or scored[0][0] == 0 or (len(scored) > 1 and scored[0][0] == scored[1][0]):
+        return None
+    return scored[0][1]
+
+
 def table_pick(lines: list[ViewLine], description: str) -> str:
     """One cell from the one row whose key cell is named in the task, in the column the task names.
 
@@ -527,35 +553,26 @@ def table_pick(lines: list[ViewLine], description: str) -> str:
     if asks_title(description):
         return ""
     keys = _task_keys(description)
-    task_words = _words(description)
     found: list[tuple[str, str]] = []
     for line in lines:
         if line.kind not in ("row", "term") or len(line.cells) < 1:
             continue
         cells = list(line.cells)
+        if line.kind == "term":
+            if len(cells) == 1 and _norm(cells[0][0]) in keys:
+                found.append(cells[0])
+            continue
         key_at = [i for i, (_label, cell) in enumerate(cells) if _norm(cell) in keys]
         if not key_at:
             continue
-        if line.kind == "term" or (len(cells) == 2 and not any(label for label, _cell in cells)):
-            # A definition, or a two-column key | value table with no header row.
-            if line.kind == "term":
-                found.append(("", line.raw))
-            elif key_at == [0]:
+        if len(cells) == 2 and not any(label for label, _cell in cells):
+            # A two-column key | value table with no header row.
+            if key_at == [0]:
                 found.append(("", cells[1][1]))
             continue
-        used = set()
-        for i in key_at:
-            used |= _words(cells[i][0])
-        scored = []
-        for i, (label, cell) in enumerate(cells):
-            if i in key_at or not cell.strip() or not label:
-                continue
-            overlap = len((_words(label) - used) & task_words)
-            scored.append((overlap, i))
-        scored.sort(reverse=True)
-        if not scored or scored[0][0] == 0 or (len(scored) > 1 and scored[1][0] == scored[0][0]):
-            continue
-        found.append((cells[scored[0][1]][0], cells[scored[0][1]][1]))
+        column = _target_column(line, description)
+        if column is not None:
+            found.append(cells[column])
     values = {_norm(value) for _label, value in found}
     if len(values) != 1:
         return ""
@@ -566,7 +583,8 @@ def table_pick(lines: list[ViewLine], description: str) -> str:
 READ_SYSTEM = (
     "You read one value off a web page for a task. You get the task and numbered lines from the page. "
     "Table rows show each cell as 'Column: cell'. Definitions show 'term: value'. "
-    'Reply with JSON only: {"line": <number>, "value": "<the value>"}. '
+    'Reply with JSON only: {"line": <number>, "column": <number>, "value": "<the value>"}. '
+    "For a table row, column is the cell's 1-based position from the left; otherwise use 0. "
     "Copy the value exactly as it is written on that line: only the asked value, no column label, "
     "no surrounding sentence, no other cells. Pick the cell in the column the task asks about. "
     "If the task asks for a heading or title, copy the whole heading text. "
@@ -663,11 +681,12 @@ async def read_after_pass(
     start_url: str,
     earlier=(),
 ) -> ReadOutcome:
-    """Replace the script's extraction with a read by selection. Never raises.
+    """Replace the script's extraction with a read by selection.
 
     After a PASS the read answer replaces the script's (unsure: the script's stays).
     After a FAIL that read_can_fix, a read answer that passes the self-check turns it
     into a PASS without a repair script (unsure: the FAIL and its repair stay).
+    Unpriceable API usage propagates so the probe's spend guard can stop the run.
     """
     from bench.script_first import claimed_from_payload
 
@@ -716,6 +735,7 @@ async def _read(page, model, description, payload, verdict, page_url, start_url,
         if not view.lines:
             keep.label = "nav:empty_view"
             return keep
+        call_started = time.perf_counter()
         try:
             response, model_ms = await model.create_message(
                 [{"role": "user", "content": read_prompt(description, view, terms)}],
@@ -724,8 +744,14 @@ async def _read(page, model, description, payload, verdict, page_url, start_url,
                 max_tokens=1500,
             )
         except Exception as exc:  # noqa: BLE001 - the generic answer stays
+            from bench.openai_spend import PriceUnknown
+
+            if isinstance(exc, PriceUnknown):
+                raise
             keep.label = "nav:model_error"
             keep.note = str(exc)[:200]
+            keep.model_calls = 1
+            keep.model_ms = (time.perf_counter() - call_started) * 1000
             return keep
         outcome.model_calls = 1
         outcome.model_ms = model_ms
@@ -753,7 +779,7 @@ async def _read(page, model, description, payload, verdict, page_url, start_url,
         line = view.lines[number - 1] if 1 <= number <= len(view.lines) else None
         if line is not None:
             value = _strip_label(value, line)
-        problem = check_value(value, line, view, description)
+        problem = check_value(value, line, view, description, column=reply.get("column"))
         if problem:
             outcome.label = "nav:rejected"
             outcome.note = f"{problem}: {value[:80]}"
