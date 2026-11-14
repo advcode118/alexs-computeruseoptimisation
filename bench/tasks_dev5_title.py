@@ -1,4 +1,4 @@
-"""dev5title: twelve public title tasks, written fresh to study title false accepts.
+"""dev5title: seventeen public title tasks, written fresh to study title false accepts.
 
 The tasks were written on 14 Nov 2026 before any title fix. val3 and heldout3
 showed title tasks failing mostly by confident wrong answers, and the earlier
@@ -117,6 +117,42 @@ DEV5_TITLE_TASKS = [
         "plain push button, and report the page's main heading.",
         "https://docs.gtk.org/gtk4/index.html",
         "GtkButton", "docs.gtk.org", "/gtk4/class.Button.html", path_suffix="/class.Button.html",
+    ),
+    # Item titles: pick one item from a listing by an attribute, next to similar items.
+    _task(
+        "dev5_title_cran_bayes",
+        "In the list of CRAN Task Views, open the view for inference with prior distributions and MCMC samplers, "
+        "and report that view's full title without the 'CRAN Task View:' prefix.",
+        "https://cran.r-project.org/web/views/",
+        "Bayesian Inference", "cran.r-project.org", "/web/views/Bayesian.html", path_suffix="/Bayesian.html",
+    ),
+    _task(
+        "dev5_title_wikisource_raven",
+        "On Edgar Allan Poe's Wikisource author page, open his 1845 poem about a talking bird that keeps saying "
+        "'Nevermore' (the poem itself, not a collection), and report the page's heading as shown on Wikisource.",
+        "https://en.wikisource.org/wiki/Author:Edgar_Allan_Poe",
+        "The Raven (Poe)", "en.wikisource.org", "/wiki/The_Raven_(Poe)",
+    ),
+    _task(
+        "dev5_title_leaflet_cluster",
+        "From the Leaflet home page, open the plugin directory, find the plugin published by the Leaflet "
+        "organisation itself that groups nearby markers into clusters, and report the plugin's name.",
+        "https://leafletjs.com/",
+        "Leaflet.markercluster", "leafletjs.com", "/plugins.html", path_suffix="/plugins.html",
+    ),
+    _task(
+        "dev5_title_gimp_tones",
+        "In GIMP's tutorial index, open the photo-editing tutorial about using several layer masks to isolate "
+        "specific tones in an image, and report the tutorial's title.",
+        "https://www.gimp.org/tutorials/",
+        "Luminosity Masks", "www.gimp.org", "/tutorials/community/Luminosity_Masks",
+    ),
+    _task(
+        "dev5_title_celery_whatsnew50",
+        "In the history section of the Celery documentation, open the What's New page for the 5.0 release, and "
+        "report the release name and number from its heading, including the codename in brackets.",
+        "https://docs.celeryq.dev/en/stable/history/index.html",
+        "Celery 5.0 (singularity)", "docs.celeryq.dev", "/history/whatsnew-5.0.html", path_suffix="/whatsnew-5.0.html",
     ),
 ]
 

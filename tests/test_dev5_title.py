@@ -12,10 +12,10 @@ def test_dev5title_split_has_twelve_title_tasks():
     tasks = tasks_for_split("dev5title")
     assert resolve_task_split("dev5title") == "dev5title"
     ids = [task["id"] for task in tasks]
-    assert tuple(ids) == DEV5_TITLE_TASK_IDS and len(set(ids)) == 12
+    assert tuple(ids) == DEV5_TITLE_TASK_IDS and len(set(ids)) == 17
     catalog_ids = [task["id"] for task in get_all_tasks()]
     assert all(catalog_ids.count(task_id) == 1 for task_id in ids)
-    assert Counter(task_id.split("_")[1] for task_id in ids) == {"title": 12}
+    assert Counter(task_id.split("_")[1] for task_id in ids) == {"title": 17}
     for task in tasks:
         markers = task["end_markers"]
         assert task["start_url"].startswith("https://")

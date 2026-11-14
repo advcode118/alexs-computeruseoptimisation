@@ -1376,7 +1376,7 @@ def resolve_task_split(spec: str | None) -> str:
     names start with a through m.
     dev3 is a forty-task public tune set, not scored.
     dev4nav is the nav read step's twelve-task first-contact set.
-    dev5title is a fresh twelve-task title set, not scored.
+    dev5title is a fresh seventeen-task title set, not scored.
     dev4spa is the spa specialist's twelve-task tune set, not scored.
     val3 is a forty-task validation set on n-z sites, disjoint from all of
     those. It is an aggregate-only gate.

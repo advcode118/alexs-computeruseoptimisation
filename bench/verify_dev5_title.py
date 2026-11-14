@@ -32,6 +32,11 @@ ROUTES = {
     "dev5_title_meson_deps": ['a[href="Dependencies.html"]'],
     "dev5_title_gentoo_disks": ['a[href="/wiki/Handbook:AMD64/Installation/Disks"]'],
     "dev5_title_gtk_button": ['a[href="class.Button.html"]'],
+    "dev5_title_cran_bayes": ['a[href="Bayesian.html"]'],
+    "dev5_title_wikisource_raven": ['a[href$="/wiki/The_Raven_(Poe)"]'],
+    "dev5_title_leaflet_cluster": ['a[href="plugins.html"]'],
+    "dev5_title_gimp_tones": ['a[href$="/tutorials/community/Luminosity_Masks/"]'],
+    "dev5_title_celery_whatsnew50": ['a[href="whatsnew-5.0.html"]'],
 }
 
 # A plausible wrong title: a neighbouring item, section or chapter. Claimed on the end page, it must grade FAIL.
@@ -48,6 +53,11 @@ WRONG = {
     "dev5_title_meson_deps": "Build options",
     "dev5_title_gentoo_disks": "Installing the stage file",
     "dev5_title_gtk_button": "GtkToggleButton",
+    "dev5_title_cran_bayes": "Bayesian Statistics",
+    "dev5_title_wikisource_raven": "The Raven and Other Poems",
+    "dev5_title_leaflet_cluster": "PruneCluster",
+    "dev5_title_gimp_tones": "Layer Masks",
+    "dev5_title_celery_whatsnew50": "Celery 5.7 (Collider)",
 }
 
 

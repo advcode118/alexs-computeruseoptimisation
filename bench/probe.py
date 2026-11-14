@@ -1655,7 +1655,7 @@ def main(argv: list[str] | None = None) -> int:
             "heldout3 is a, b, c and d together, the frozen test set. "
             "dev3 is a forty-task public tune set. "
             "dev4nav is the nav read step's twelve-task check set. "
-            "dev5title is a fresh twelve-task title set. "
+            "dev5title is a fresh seventeen-task title set. "
             "dev4form is the form specialist's twelve fresh form tasks. "
             "dev4spa is the spa specialist's twelve-task tune set. "
             "val3 is the forty-task validation set, an aggregate-only gate. "
