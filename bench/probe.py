@@ -986,6 +986,13 @@ async def run_claude_arm(
             row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
             row["task_description"] = task.get("description") or ""
             row["start_url"] = task.get("start_url") or ""
+            if result.strategy:
+                row["strategy"] = result.strategy
+                row["strategy_reason"] = result.strategy_reason
+                row["strategy_steps"] = [
+                    {"action": step.tool_args, "result": step.snapshot_text}
+                    for step in result.steps if step.tool_name == "form_step"
+                ]
         if provider == "openai":
             from bench.openai_spend import price_usd
 

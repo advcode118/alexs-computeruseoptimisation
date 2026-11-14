@@ -165,6 +165,8 @@ class TaskResult:
     repair_reply: str = "none"
     # script_first: one entry per script that ran: [self-check verdict, wall ms since the task started].
     script_turns: list = field(default_factory=list)
+    strategy: str = ""
+    strategy_reason: str = ""
 
 
 def estimate_tokens(text: str) -> int:
@@ -1205,6 +1207,8 @@ class BenchmarkHarness:
         script_steps = 0
         passing_code = ""
         passing_verdict = None
+        strategy = ""
+        strategy_reason = ""
         cache = self.script_cache if self.arm == "script_first" else None
         if self.arm == "script_first":
             from bench.arms import SCRIPT_FIRST_HARD_CAP, script_first_repair_mode
@@ -1237,7 +1241,26 @@ class BenchmarkHarness:
                 self.mcp_client.look_task = task_description
 
         try:
-            if cache is not None:
+            if self.arm == "script_first":
+                from bench.strategy_form import append_steps, run_for_harness
+
+                specialized = await run_for_harness(self, task_description, start_url)
+                if specialized is not None:
+                    strategy = "form" if specialized.passed else "form:fallback"
+                    strategy_reason = specialized.reason
+                    append_steps(specialized, steps)
+                    total_model_ms += specialized.model_ms
+                    total_tool_ms += specialized.tool_ms
+                    total_input_tokens += specialized.input_tokens
+                    total_output_tokens += specialized.output_tokens
+                    total_cached_tokens += specialized.cached_tokens
+                    total_cache_write_30m_tokens += specialized.cache_write_30m_tokens
+                    total_cache_write_12h_tokens += specialized.cache_write_12h_tokens
+                    model_calls += specialized.model_calls
+                    if specialized.passed:
+                        tier, end_state, success = "form", PASS, True
+                        success_reason, last_url = specialized.reason, specialized.final_url
+            if cache is not None and not tier:
                 # A cached script runs before any model write, so Chrome has to
                 # be up first. A miss leaves the launch for the fresh model call.
                 if cache.lookup(task_description, start_url) is not None:
@@ -1771,6 +1794,8 @@ class BenchmarkHarness:
             repair_sent=repairs_sent > 0,
             repair_reply=repair_reply,
             script_turns=script_turns,
+            strategy=strategy,
+            strategy_reason=strategy_reason,
         )
 
     def _empty_result(
@@ -1818,6 +1843,8 @@ class BenchmarkHarness:
                 "end_state": result.end_state,
                 "tier": result.tier,
                 "model_calls": result.model_calls,
+                "strategy": result.strategy,
+                "strategy_reason": result.strategy_reason,
                 "script_steps": result.script_steps,
                 "error": result.error,
                 "claimed_answer": result.steps[-1].claimed_answer if result.steps else "",

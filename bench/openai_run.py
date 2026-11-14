@@ -44,7 +44,9 @@ def _key_is_set() -> bool:
 
 
 def _tasks(split: str, *, one_task: bool) -> list[dict]:
-    catalog = tasks_for_split(split)
+    from bench.probe import probe_tasks
+
+    catalog = probe_tasks(split)
     if not one_task:
         return catalog
     wanted = set(sweep_task_ids([task["id"] for task in catalog]))

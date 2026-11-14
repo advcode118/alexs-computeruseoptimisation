@@ -546,7 +546,7 @@ def new_lines(before_texts: list[str], after: str) -> list[str]:
 
 
 _ERROR = re.compile(
-    r"\b(?:error|invalid|is required|are required|required field|must be|must contain|please (?:enter|fill|provide|select|choose|correct)|"
+    r"(?:error|invalid|failed)|\b(?:is required|are required|required field|must be|must contain|please (?:enter|fill|provide|select|choose|correct)|"
     r"not valid|incorrect|failed|try again|cannot be (?:empty|blank)|too short|too long)\b",
     re.IGNORECASE,
 )
@@ -653,10 +653,8 @@ def match_option(options: list[str], wanted: str) -> int:
     if len(contains) == 1:
         return contains[0]
     inside = [i for i, option in enumerate(options) if _norm(option) and _norm(option) in want and len(_norm(option)) > 2]
-    if inside:
+    if len(inside) == 1:
         return max(inside, key=lambda i: len(options[i]))
-    if contains:
-        return min(contains, key=lambda i: len(options[i]))
     return -1
 
 
@@ -684,7 +682,7 @@ async def _set_text(locator, value: str, typ: str) -> str:
     except Exception:  # noqa: BLE001
         pass
     current = await _read_value(locator)
-    if _norm(current) == _norm(value) or (current and _norm(value) in _norm(current)):
+    if _norm(current) == _norm(value):
         return ""
     return f"value reads back as {current!r}"
 
@@ -720,6 +718,9 @@ async def _set_select(locator, value: str) -> str:
         return f"no option matches {value!r}"
     try:
         await locator.select_option(index=index, timeout=_ACTION_TIMEOUT_MS)
+        selected = await locator.evaluate("e => e.selectedIndex")
+        if selected != index:
+            return "selected option did not stick"
     except Exception as exc:  # noqa: BLE001
         return f"select failed: {str(exc).splitlines()[0][:120]}"
     return ""
@@ -766,8 +767,7 @@ async def _set_combobox(page, locator, value: str) -> str:
         if index >= 0:
             await options.nth(index).click(timeout=_ACTION_TIMEOUT_MS)
             return ""
-        await page.keyboard.press("Enter")
-        return ""
+        return "no visible option matches the requested value"
     except Exception as exc:  # noqa: BLE001
         return f"combobox failed: {str(exc).splitlines()[0][:120]}"
 
@@ -780,6 +780,7 @@ async def fill_fields(page, schema: dict, values: list[dict]) -> list[str]:
         try:
             number = int(entry.get("n"))
         except (TypeError, ValueError, AttributeError):
+            problems.append("malformed field entry")
             continue
         value = str(entry.get("value") if entry.get("value") is not None else "")
         item = by_n.get(number)
@@ -801,7 +802,10 @@ async def fill_fields(page, schema: dict, values: list[dict]) -> list[str]:
                 if typ == "select":
                     problem = await _set_select(target, value)
                 elif typ == "checkbox":
-                    problem = await _click_choice(page, target, _truthy(value))
+                    if _norm(value) not in {"on", "off", "true", "false", "yes", "no", "1", "0", "checked", "unchecked"}:
+                        problem = "checkbox value must be on or off"
+                    else:
+                        problem = await _click_choice(page, target, _truthy(value))
                 elif typ == "combobox":
                     problem = await _set_combobox(page, target, value)
                 elif typ == "file":
@@ -822,12 +826,15 @@ async def fill_fields(page, schema: dict, values: list[dict]) -> list[str]:
     return problems
 
 
-async def invalid_fields(page) -> list[str]:
+async def invalid_fields(page, form: int = -1) -> list[str]:
     """Native constraint-validation messages: the browser blocks the submit and shows no page text."""
     value = await _evaluate(
         page,
-        r"""() => Array.from(document.querySelectorAll('[data-cu-n]')).filter((e) => e.willValidate && !e.checkValidity())
+        r"""(form) => Array.from(document.querySelectorAll('[data-cu-n]'))
+          .filter(e => form < 0 ? !e.form : e.form === document.forms[form])
+          .filter((e) => e.willValidate && !e.checkValidity())
           .slice(0, 8).map((e) => '[' + e.getAttribute('data-cu-n') + '] ' + (e.validationMessage || 'invalid'))""",
+        form,
     )
     return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
 
@@ -886,14 +893,35 @@ def check_answer(answer: str, live_text: str, earlier_texts: list[str], fresh: l
     want = _norm(answer)
     if not want:
         return False, "empty answer"
+    if error_lines(fresh):
+        return False, "validation or server error after submit: " + "; ".join(error_lines(fresh)[:3])
     if want not in _norm(live_text):
         return False, "the answer is not on the live page"
     for text in earlier_texts:
         if want in _norm(text):
             return False, "the answer was already on the page before the submit"
-    if not any(want in _norm(line) or _norm(line) in want for line in fresh):
+    if not any(want in _norm(line) for line in fresh):
         return False, "the answer is not in the text that appeared after the submit"
     return True, "the answer appeared after the submit"
+
+
+def submit_problem(schema: dict, values: list[dict], press: int | None) -> str:
+    """A fill must target real fields and a related submit, never an arbitrary link/field."""
+    fields = {item["n"]: item for item in schema.get("fields", [])}
+    control = next((item for item in schema.get("controls", []) if item["n"] == press), None)
+    if control is None:
+        return "no observed submit control selected"
+    if control["kind"] == "link" and not re.search(r"\b(submit|send|confirm|register|calculate)\b", control["text"], re.I):
+        return "navigation link is not a submit"
+    if not values:
+        return "no fields specified for this submit"
+    selected = [fields.get(entry.get("n")) for entry in values if isinstance(entry, dict)]
+    if len(selected) != len(values) or any(item is None for item in selected):
+        return "unknown field selected"
+    forms = {item.get("form", -1) for item in selected}
+    if len(forms) != 1 or control.get("form", -1) not in forms:
+        return "submit control does not belong to the filled form"
+    return ""
 
 
 # ---------------------------------------------------------------- the strategy
@@ -940,9 +968,9 @@ def _outcome_text(*, url_before: str, url_after: str, dialogs: list[str], fresh:
     return "\n\n".join(parts)
 
 
-async def run_form_strategy(page, model, description: str, start_url: str) -> FormOutcome:
+async def run_form_strategy(page, model, description: str, start_url: str, *, outcome: FormOutcome | None = None) -> FormOutcome:
     """Observe, ask for data, fill, submit, read what is new, check. FAIL hands back to the generic path."""
-    outcome = FormOutcome(claimed=True)
+    outcome = outcome if outcome is not None else FormOutcome(claimed=True)
     started = time.perf_counter()
     terms = task_terms(description)
     dialogs: list[str] = []
@@ -972,6 +1000,7 @@ async def run_form_strategy(page, model, description: str, start_url: str) -> Fo
         messages: list[dict] = [{"role": "user", "content": first_message(description, start_url, schema_text)}]
         fills = 0
         submitted = False
+        blocked = ""
         fresh: list[str] = []
         while outcome.model_calls < MAX_MODEL_CALLS and time.perf_counter() - started < BUDGET_S:
             response, model_ms = await model.create_message(
@@ -1002,7 +1031,7 @@ async def run_form_strategy(page, model, description: str, start_url: str) -> Fo
                 answer = " ".join(str(action.get("answer") or "").split())
                 live = await page_text(page)
                 if not submitted:
-                    outcome.reason = "done before any submit"
+                    outcome.reason = blocked or "done without a successful fill-and-submit action"
                     return outcome
                 ok, why = check_answer(answer, live, seen, fresh)
                 outcome.answer = answer
@@ -1029,16 +1058,22 @@ async def run_form_strategy(page, model, description: str, start_url: str) -> Fo
                 if fills > MAX_FILLS:
                     outcome.reason = "too many fill attempts"
                     return outcome
-                problems = await fill_fields(page, schema, values)
                 if press is None:
                     press = default_submit(schema, values)
+                blocked = submit_problem(schema, values, press)
+                if blocked:
+                    problems.append(blocked)
+                else:
+                    problems = await fill_fields(page, schema, values)
+                    control = next(item for item in schema["controls"] if item["n"] == press)
+                    invalid = await invalid_fields(page, control.get("form", -1))
+            elif not any(item["n"] == press for item in schema.get("controls", [])):
+                problems.append("click must select an observed control")
             before_url = getattr(page, "url", "")
             before_text = await page_text(page)
             dialogs.clear()
             pressed = False
-            if press is not None:
-                if kind == "fill":
-                    invalid = await invalid_fields(page)
+            if press is not None and not problems and not invalid:
                 problem = await press_control(page, press)
                 if problem:
                     problems.append(problem)
@@ -1054,9 +1089,11 @@ async def run_form_strategy(page, model, description: str, start_url: str) -> Fo
                 seen.append(before_text)
                 # Lines new since this press, and not on any page seen before it.
                 fresh = new_lines(seen, after)
-                submitted = submitted or kind == "fill"
+                submitted = kind == "fill" and not problems and not invalid
             else:
                 fresh = []
+                submitted = False
+            blocked = "; ".join(problems + invalid)
             await _wait_for_fields(page, max_s=1.0)
             schema = await read_schema(page, terms)
             schema_text = render_schema(schema, terms)
@@ -1112,7 +1149,7 @@ async def _wait_for_fields(page, max_s: float = 2.5) -> None:
 
 def _tool_choice(model):
     """Force the one tool. OpenAI takes 'required'; the Claude client takes no tool_choice here."""
-    return "required" if model.__class__.__name__ == "OpenAIClient" else None
+    return "required" if model.__class__.__name__ == "OpenAIClient" else {"type": "any"}
 
 
 # ---------------------------------------------------------------- harness glue
@@ -1120,20 +1157,25 @@ def _tool_choice(model):
 
 async def run_for_harness(harness, task_description: str, start_url: str) -> FormOutcome | None:
     """None when the strategy is off or does not claim the task. The harness logs the steps."""
-    if not strategy_enabled() or not claims(task_description):
+    if harness.arm != "script_first" or not strategy_enabled() or not claims(task_description):
         return None
+    harness._begin_browser_launch()
+    await harness._wait_for_browser()
     client = harness.mcp_client
     page = getattr(client, "_page", None)
     if page is None:
         return None
+    outcome = FormOutcome(claimed=True)
     try:
-        outcome = await run_form_strategy(page, harness.anthropic, task_description, start_url)
+        # Do not cancel an in-flight billable model call: let its usage return.
+        # The loop checks the wall/call budget before starting each next call.
+        await run_form_strategy(page, harness.anthropic, task_description, start_url, outcome=outcome)
     except Exception as exc:  # noqa: BLE001 - the generic path still runs
         from bench.openai_spend import PriceUnknown
 
         if isinstance(exc, PriceUnknown):
             raise
-        outcome = FormOutcome(claimed=True, reason=f"strategy error: {str(exc).splitlines()[0][:200]}")
+        outcome.reason = f"strategy error: {type(exc).__name__}: {str(exc)[:200]}"
     if not outcome.passed:
         # Hand back a blank page, as the generic path would have had.
         try:
@@ -1141,3 +1183,23 @@ async def run_for_harness(harness, task_description: str, start_url: str) -> For
         except Exception:  # noqa: BLE001
             pass
     return outcome
+
+
+def append_steps(outcome: FormOutcome, steps: list) -> None:
+    """Log specialist attempts, including a failed attempt's usage before generic fallback."""
+    from bench.harness import StepMetrics
+
+    for step in outcome.steps:
+        steps.append(StepMetrics(
+            step_number=len(steps) + 1, tool_name="form_step", tool_args=step.action,
+            tool_result_size=len(step.result), snapshot_tokens=0,
+            model_time_ms=step.model_ms, tool_time_ms=step.tool_ms,
+            input_tokens=step.input_tokens, output_tokens=step.output_tokens,
+            snapshot_text=step.result, page_url=step.page_url,
+        ))
+    if outcome.steps:
+        steps[-1].self_check = {"strategy": "form", "verdict": "PASS" if outcome.passed else "FAIL", "reason": outcome.reason}
+    if outcome.passed and outcome.steps:
+        steps[-1].claimed_answer = outcome.answer
+        steps[-1].page_url = outcome.final_url
+        steps[-1].page_text = outcome.page_text
