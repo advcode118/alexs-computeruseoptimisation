@@ -88,6 +88,24 @@ def confusion(units: list[dict], key: str) -> dict:
     }
 
 
+def check_name(reason: str) -> str:
+    """A reason without its page-specific detail: the text before the first '(' or ';'."""
+    head = reason.split(";")[0].split("(")[0]
+    words = [word for word in head.split() if not any(ch.isdigit() for ch in word)]
+    return " ".join(words[:8])
+
+
+def by_check(units: list[dict]) -> dict:
+    """For scripts the old check passed and the new one does not: caught false accepts and rejected true passes."""
+    table: dict[str, dict[str, int]] = {}
+    for unit in units:
+        if unit["before"] != "PASS" or unit["after"] == "PASS":
+            continue
+        row = table.setdefault(check_name(unit["after_reason"]), {"caught_false_accept": 0, "rejected_true_pass": 0})
+        row["rejected_true_pass" if unit["graded"] else "caught_false_accept"] += 1
+    return table
+
+
 def build_units(rows: list[dict], tasks: dict[str, dict]) -> list[dict]:
     units = []
     for row in rows:
@@ -124,7 +142,12 @@ def main(argv: list[str] | None = None) -> int:
 
     tasks = {task["id"]: task for task in tasks_for_split(args.split)}
     units = build_units(load_rows(args.rows), tasks)
-    out = {"scripts": len(units), "before": confusion(units, "before"), "after": confusion(units, "after")}
+    out = {
+        "scripts": len(units),
+        "before": confusion(units, "before"),
+        "after": confusion(units, "after"),
+        "new_fails_by_check": by_check(units),
+    }
     print(json.dumps(out, indent=2))
     for unit in units:
         show = (

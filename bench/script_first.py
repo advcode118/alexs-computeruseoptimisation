@@ -391,6 +391,8 @@ class PageEvidence:
     selector_text: str = ""
     controls: tuple[str, ...] = ()
     links: tuple[tuple[str, str], ...] = ()
+    # Page headings, h1 to h6. The self-check reads them; the model never sees this field.
+    headings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -830,6 +832,7 @@ def trusted_from_payload(payload: dict | None, *, url: str = "", title: str = ""
         h1=data.get("h1") if isinstance(data.get("h1"), str) else "",
         text=data.get("text") if isinstance(data.get("text"), str) else "",
         selector_text=data.get("selector_text") if isinstance(data.get("selector_text"), str) else "",
+        headings=tuple(h for h in data.get("headings") or () if isinstance(h, str)),
     )
 
 
@@ -968,11 +971,21 @@ def precision_problem(
                 "open the real page from a link on the site instead of guessing its URL"
             )
     on_start = _http(start_url) and _same_page(live, start_url)
-    if on_start and not asks_value:
-        return "the script is still on the start page; follow the link to the page the task asks for"
     answer = (claimed.answer or "").strip()
+    start_heading = any(
+        part and answer and _norm_runtime(answer) == _norm_runtime(part) for part in (trusted.title, trusted.h1)
+    )
+    if on_start and not asks_value and (not answer or start_heading):
+        return "the script is still on the start page; follow the link to the page the task asks for"
     if not answer or not asks_value:
         return ""
+    clause = _asked_clause(task)
+    wrong_row = _wrong_row_label(answer, task)
+    if wrong_row and not _PLURAL_ASK.search(clause):
+        return (
+            f"the answer is a table row labelled {wrong_row[:60]}, which the task does not ask about; "
+            "return only the value cell from the row the task names"
+        )
     if _STRONG_ASK.search(task or "") and len(_norm_runtime(answer)) >= 3 and _phrase_at_boundary(
         _norm_runtime(answer), _norm_runtime(task)
     ):
@@ -980,14 +993,11 @@ def precision_problem(
             "the answer only repeats words from the task; "
             "read the asked value itself from the page, next to its label"
         )
-    if on_start and any(
-        part and _norm_runtime(answer) == _norm_runtime(part) for part in (trusted.title, trusted.h1)
-    ):
+    if on_start and start_heading:
         return (
             "the answer is the start page's own heading and the script is still on the start page; "
             "finish the steps the task asks for, then read the result"
         )
-    clause = _asked_clause(task)
     if clause and _QUANTITY_WORD.search(clause) and not _has_new_digit(answer, task):
         return (
             "the task asks for a number, date or version and the answer has no digits of its own; "
@@ -1000,9 +1010,105 @@ def precision_problem(
         item = rows[0][0]
         return (
             f"the page has a table row for {item} and the answer is not from that row; "
-            "return the value from that row"
+            f"return the value cell from the row for {item}"
+        )
+    heading = _heading_answer(answer, trusted, clause)
+    if heading:
+        return (
+            f"the answer is a heading on the page ({heading[:80]}), not the asked value; "
+            "return the value or text under that heading instead"
+        )
+    if _only_inside_token(answer, trusted.text or ""):
+        return (
+            "the answer is only part of a longer value on the page; "
+            "return the whole value as written there"
         )
     return ""
+
+
+# The asked clause wants several items: a row or list answer is fine there.
+_PLURAL_ASK = re.compile(r"\b(?:list|all|every|each|lines|rows|values|items|entries|both)\b", re.IGNORECASE)
+# Words that end the asked object ("the codename of ...", "the entry under ...").
+_OBJECT_END = re.compile(
+    r"\b(?:of|for|in|on|at|from|under|that|which|who|shown|listed|given|as|with|to|by|written|where|when|"
+    r"exactly|it|its|they|their|between|after|before|near|next)\b",
+    re.IGNORECASE,
+)
+_TITLE_OBJECT = re.compile(r"\b(?:title|heading|headline|name|caption|label|subject|header)s?\b", re.IGNORECASE)
+
+
+def _wrong_row_label(answer: str, task: str) -> str:
+    """The label of a returned table row when no returned row is labelled with the task's own words.
+
+    A tab-separated answer is one or more rows; the first cell is the row label.
+    Empty when the answer is not a row, or one row's label uses only task words.
+    """
+    rows = [line.split("\t") for line in (answer or "").splitlines() if "\t" in line]
+    if not rows:
+        return ""
+    known = set(re.findall(r"[a-z0-9]+", _norm_runtime(task)))
+    labels = []
+    for cells in rows:
+        label = " ".join(cells[0].split())
+        words = re.findall(r"[a-z0-9]+", _norm_runtime(label))
+        if not words or all(word in known for word in words):
+            return ""
+        labels.append(label)
+    return labels[0]
+
+
+def _asked_object(clause: str) -> str:
+    """The noun phrase right after the ask word: 'report the scene heading exactly' -> 'the scene heading'."""
+    match = _ASK_START.match(clause or "")
+    rest = clause[match.end():] if match else (clause or "")
+    rest = rest.strip()
+    first = re.match(r"\S+\s*", rest)
+    # Skip one leading word so "report its title" keeps "its title"; then stop at a preposition.
+    head = first.group(0) if first else ""
+    end = _OBJECT_END.search(rest, len(head))
+    return rest[: end.start()] if end else rest
+
+
+def _heading_answer(answer: str, trusted: PageEvidence, clause: str) -> str:
+    """The heading the answer equals, when the task asks for something other than a title or heading."""
+    if not clause or _TITLE_OBJECT.search(_asked_object(clause)):
+        return ""
+    folded = _norm_runtime(answer.rstrip(":"))
+    for part in (trusted.title, trusted.h1, *trusted.headings):
+        text = (part or "").strip()
+        if text and _norm_runtime(text.rstrip(":").replace("\uf0c1", "")) == folded:
+            return text
+    return ""
+
+
+def _glued(ch: str, beyond: str) -> bool:
+    """True when ch joins two parts of one token (a letter or digit, or a joiner before one)."""
+    if not ch:
+        return False
+    if ch.isalnum() or ch == "_":
+        return True
+    return ch in "-./" and bool(beyond) and (beyond.isalnum())
+
+
+def _only_inside_token(answer: str, page_text: str) -> bool:
+    """Every place the answer occurs on the page continues a longer token on one side."""
+    needle = _norm_runtime(answer)
+    hay = _norm_runtime(page_text)
+    if len(needle) < 2 or not needle[0].isalnum() or not needle[-1].isalnum():
+        return False
+    start = hay.find(needle)
+    if start == -1:
+        return False
+    while start != -1:
+        end = start + len(needle)
+        before = hay[start - 1] if start else ""
+        before2 = hay[start - 2] if start >= 2 else ""
+        after = hay[end] if end < len(hay) else ""
+        after2 = hay[end + 1] if end + 1 < len(hay) else ""
+        if not _glued(before, before2) and not _glued(after, after2):
+            return False
+        start = hay.find(needle, start + 1)
+    return True
 
 
 _TOKEN = re.compile(r"[^\s,;:()\"'“”‘’]+")
@@ -1034,20 +1140,44 @@ def _task_items(task: str) -> set[str]:
 
 
 def _item_rows(task: str, page_text: str) -> list[tuple[str, list[str]]]:
-    """Table rows (tab-separated lines) with a cell equal to an item the task names."""
+    """Table rows (tab-separated lines) labelled with something the task names.
+
+    An identifier-like item may be in any cell. A plain word from the asked
+    clause counts only as the row's first cell (its label), and only when the
+    row also has a value cell.
+    """
     items = _task_items(task)
-    if not items:
+    labels = {
+        word.casefold()
+        for word in re.findall(r"[A-Za-z][A-Za-z0-9_-]{2,}", _asked_clause(task))
+        if word.casefold() not in _LABEL_STOP
+    }
+    if not items and not labels:
         return []
     found = []
     for line in (page_text or "").splitlines():
         if "\t" not in line:
             continue
         cells = [" ".join(cell.split()) for cell in line.split("\t")]
+        filled = [cell for cell in cells if cell]
+        if len(filled) < 2:
+            continue
+        if filled[0].casefold() in labels:
+            found.append((filled[0], cells))
+            continue
         for cell in cells:
             if cell.casefold() in items:
                 found.append((cell, cells))
                 break
     return found
+
+
+# Words of the asked clause that never label a data row.
+_LABEL_STOP = {
+    "report", "give", "tell", "state", "what", "which", "who", "how", "many", "much", "the", "its", "their",
+    "and", "for", "from", "with", "that", "this", "shown", "listed", "given", "written", "exactly", "page",
+    "full", "main", "value", "number", "name", "line", "text", "entry", "item", "items",
+}
 
 
 def _answer_in_row(answer: str, cells: list[str], item: str) -> bool:
@@ -1749,6 +1879,7 @@ def format_run_result(
     claimed: dict | None = None,
     controls: list | tuple | None = None,
     links: list | tuple | None = None,
+    headings: list | tuple | None = None,
 ) -> str:
     """JSON for the live page plus Stagehand-style goto prose.
 
@@ -1782,6 +1913,9 @@ def format_run_result(
         payload["controls"] = shown_controls
     if links:
         payload["links"] = [list(pair) for pair in links[:40]]
+    shown_headings = [" ".join(h.split())[:160] for h in headings or () if isinstance(h, str) and h.strip()]
+    if shown_headings:
+        payload["headings"] = shown_headings[:60]
     if claimed:
         kept = {}
         for key in ("url", "title", "h1", "answer", "key_text"):
@@ -1810,7 +1944,7 @@ def format_run_result(
     return "\n".join(lines)
 
 
-_HIDDEN_RESULT_KEYS = ("selector_text",)
+_HIDDEN_RESULT_KEYS = ("selector_text", "headings")
 
 
 def budget_script_result(result_text: str, limit: int) -> str:
@@ -2145,6 +2279,9 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
             if isinstance(item, (list, tuple)) and len(item) == 2
             and all(isinstance(value, str) for value in item)
         )[:40],
+        headings=tuple(
+            " ".join(item.split()) for item in data.get("headings") or [] if isinstance(item, str) and item.strip()
+        )[:60],
     )
 
 
@@ -2196,6 +2333,7 @@ async def _finish_page(
         claimed=claimed,
         controls=evidence.controls,
         links=evidence.links,
+        headings=evidence.headings,
     )
 
 

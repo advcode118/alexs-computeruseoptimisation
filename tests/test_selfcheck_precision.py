@@ -176,3 +176,102 @@ def test_find_and_open_is_a_navigation_task():
     assert not task_asks_value("Use the package search to find the package named widgets and open its package page.")
     assert task_asks_value("Use the package search to find the package named widgets and report its version.")
     assert task_asks_value("Find the latest version of widgets.")
+
+
+def test_navigation_task_on_start_page_answering_its_heading_fails():
+    task = "From the Example docs home, open the guide page about widgets."
+    page = _page(url=START, title="Example Docs", h1="Example Docs", text="Example Docs\nGuides")
+    v = _verdict(task, page, ClaimedEvidence(answer="Example Docs"))
+    assert v.verdict == FAIL
+    assert "start page" in v.reason
+
+
+def test_start_page_value_that_is_not_its_heading_passes():
+    # "Read the top story" is answered on the start page itself.
+    task = "Read the top story on the Example news front page"
+    page = _page(url=START, title="Example News", h1="Example News", text="Example News\nFirst story title\nSecond")
+    v = _verdict(task, page, ClaimedEvidence(answer="First story title"))
+    assert v.verdict == PASS
+
+
+# Answers taken from the wrong part of a table
+
+TABLE = "Type\tSize\nTINYWIDGET\t1 unit\nMIDWIDGET\t3 units\n\nIn some stores MIDWIDGET and BIGWIDGET take 4 units each."
+
+
+def test_answer_outside_the_row_the_task_names_fails():
+    task = "In the widget manual, open the size table and report how much space a MIDWIDGET needs."
+    page = _page(text=TABLE)
+    v = _verdict(task, page, ClaimedEvidence(answer="In some stores MIDWIDGET and BIGWIDGET take 4 units each."))
+    assert v.verdict == FAIL
+    assert "table row for MIDWIDGET" in v.reason
+
+
+def test_answer_from_the_named_row_passes():
+    task = "In the widget manual, open the size table and report how much space a MIDWIDGET needs."
+    v = _verdict(task, _page(text=TABLE), ClaimedEvidence(answer="3 units"))
+    assert v.verdict == PASS
+
+
+def test_item_named_in_the_page_title_is_the_subject_not_a_row():
+    task = "Open the MIDWIDGET page and report its colour code."
+    page = _page(title="MIDWIDGET", h1="MIDWIDGET", text="Name\tMIDWIDGET\nColour\tteal\nSee also: blue")
+    v = _verdict(task, page, ClaimedEvidence(answer="teal"))
+    assert v.verdict == PASS
+
+
+def test_row_label_from_the_asked_clause_must_hold_the_answer():
+    task = "Open the shopping table and report the total shown at the bottom of the list."
+    page = _page(text="Item\tPrice\nApple\t150\nPear\t180\nTotal\t330")
+    assert _verdict(task, page, ClaimedEvidence(answer="150")).verdict == FAIL
+    assert _verdict(task, page, ClaimedEvidence(answer="330")).verdict == PASS
+
+
+def test_returned_row_with_a_label_the_task_does_not_name_fails():
+    task = "Open the character page and report its encoding in hex."
+    page = _page(text="Encoding (hex)\t0xE2 0x98\nEncoding (binary)\t1110 0010")
+    v = _verdict(task, page, ClaimedEvidence(answer="Encoding (binary)\t1110 0010"))
+    assert v.verdict == FAIL
+    assert "labelled Encoding (binary)" in v.reason
+    ok = _verdict(task, page, ClaimedEvidence(answer="Encoding (hex)\t0xE2 0x98"))
+    assert ok.verdict == PASS
+
+
+# Headings and fragments
+
+
+def test_section_heading_returned_as_a_value_fails():
+    task = "Open the manual page for the widget command and report the one-line entry under its Name heading."
+    page = _page(
+        title="widget(1) manual",
+        h1="widget(1) manual",
+        headings=("widget(1) manual", "Name", "Synopsis", "Description"),
+        text="Name\nwidget - build widgets\nSynopsis\nwidget [options]",
+    )
+    v = _verdict(task, page, ClaimedEvidence(answer="Synopsis"))
+    assert v.verdict == FAIL
+    assert "heading on the page" in v.reason
+    assert _verdict(task, page, ClaimedEvidence(answer="widget - build widgets")).verdict == PASS
+
+
+def test_heading_is_fine_when_the_task_asks_for_a_heading():
+    task = "Open section 9.4 of the widget manual and report its full numbered section heading."
+    page = _page(h1="9.4 Widget Parts", headings=("9.4 Widget Parts",), text="9.4 Widget Parts\nA part is ...")
+    assert _verdict(task, page, ClaimedEvidence(answer="9.4 Widget Parts")).verdict == PASS
+
+
+def test_fragment_of_a_longer_value_fails():
+    task = "Open the widget types table and report the precision listed for decimal."
+    page = _page(text="Type\tRange\tPrecision\ndecimal\t1 to 9\t28-29 digits")
+    v = _verdict(task, page, ClaimedEvidence(answer="29 digits"))
+    assert v.verdict == FAIL
+    assert "part of a longer value" in v.reason
+    assert _verdict(task, page, ClaimedEvidence(answer="28-29 digits")).verdict == PASS
+
+
+def test_headings_stay_out_of_the_model_view():
+    from bench.script_first import format_run_result, model_visible_script_result, trusted_from_payload, script_result_payload
+
+    text = format_run_result(ok=True, url=LIVE, step_count=1, text=BODY, headings=["Widgets", "Usage"])
+    assert trusted_from_payload(script_result_payload(text)).headings == ("Widgets", "Usage")
+    assert '"headings"' not in model_visible_script_result(text)
