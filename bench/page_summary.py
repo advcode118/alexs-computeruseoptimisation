@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import gzip
+import io
 import os
 import re
 import threading
@@ -599,15 +600,26 @@ def summarize(facts: PageFacts, task: str) -> str:
 
 
 # Fetch ------------------------------------------------------------------
+def _inflate_limited(body: bytes, wbits: int) -> bytes:
+    decoder = zlib.decompressobj(wbits)
+    decoded = decoder.decompress(body, MAX_HTML_BYTES + 1)
+    if len(decoded) <= MAX_HTML_BYTES and not decoder.eof:
+        raise zlib.error("incomplete deflate stream")
+    return decoded
+
+
 def _decode(body: bytes, encoding: str, content_type: str) -> str:
     encoding = (encoding or "").lower()
     if encoding == "gzip":
-        body = gzip.decompress(body)
+        with gzip.GzipFile(fileobj=io.BytesIO(body)) as compressed:
+            body = compressed.read(MAX_HTML_BYTES + 1)
     elif encoding == "deflate":
         try:
-            body = zlib.decompress(body)
+            body = _inflate_limited(body, zlib.MAX_WBITS)
         except zlib.error:
-            body = zlib.decompress(body, -zlib.MAX_WBITS)
+            body = _inflate_limited(body, -zlib.MAX_WBITS)
+    if len(body) > MAX_HTML_BYTES:
+        raise ValueError("decoded body exceeds HTML byte limit")
     charset = ""
     match = re.search(r"charset=([\w-]+)", content_type, re.I)
     if match:

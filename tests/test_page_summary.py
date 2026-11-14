@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import gzip
+import zlib
 from pathlib import Path
 
 import pytest
@@ -120,6 +121,45 @@ def test_summary_names_no_host_but_the_page():
 def test_decode_gzip_and_meta_charset():
     body = '<meta charset="iso-8859-1"><p>caf\xe9</p>'.encode("latin-1")
     assert "café" in ps._decode(gzip.compress(body), "gzip", "text/html")
+
+
+@pytest.mark.parametrize("encoding", ["gzip", "deflate", "raw-deflate"])
+def test_decoded_body_cannot_expand_beyond_the_fetch_limit(monkeypatch, encoding):
+    monkeypatch.setattr(ps, "MAX_HTML_BYTES", 64)
+    content = b"<p>" + b"x" * 1000 + b"</p>"
+    if encoding == "gzip":
+        body = gzip.compress(content)
+    elif encoding == "deflate":
+        body = zlib.compress(content)
+    else:
+        encoder = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+        body = encoder.compress(content) + encoder.flush()
+    assert len(body) < ps.MAX_HTML_BYTES
+    with pytest.raises(ValueError, match="decoded body exceeds"):
+        ps._decode(body, "gzip" if encoding == "gzip" else "deflate", "text/html")
+
+
+def test_valid_deflate_and_concatenated_gzip_remain_supported():
+    content = b"<p>short page</p>"
+    assert ps._decode(zlib.compress(content), "deflate", "text/html") == content.decode()
+    encoder = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+    assert ps._decode(encoder.compress(content) + encoder.flush(), "deflate", "text/html") == content.decode()
+    members = gzip.compress(b"<p>short ") + gzip.compress(b"page</p>")
+    assert ps._decode(members, "gzip", "text/html") == content.decode()
+
+
+def test_oversized_compressed_fetch_uses_the_ordinary_fallback(monkeypatch):
+    import io
+
+    monkeypatch.setattr(ps, "MAX_HTML_BYTES", 64)
+    response = io.BytesIO(gzip.compress(b"<p>" + b"x" * 1000 + b"</p>"))
+    response.status = 200
+    response.headers = {"Content-Type": "text/html", "Content-Encoding": "gzip"}
+    response.geturl = lambda: "https://x.example.test/"
+    monkeypatch.setattr(ps.urllib.request, "urlopen", lambda *_args, **_kwargs: response)
+    summary = ps.build_summary("https://x.example.test/", "task")
+    assert summary.text == ""
+    assert "decoded body exceeds" in summary.status
 
 
 def test_switch(monkeypatch):
