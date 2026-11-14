@@ -37,12 +37,25 @@ def load_rows(paths: list[str]) -> list[dict]:
     return rows
 
 
+def _has_page_evidence(check: dict) -> bool:
+    payload = check.get("payload")
+    return (
+        check.get("replay_available") is not False
+        and isinstance(payload, dict)
+        and isinstance(payload.get("text"), str)
+        and isinstance(check.get("page_url"), str)
+        and bool(check["page_url"])
+    )
+
+
 def grade_check(task: dict, check: dict) -> bool | None:
     """Independent page/answer grade, or None when a dynamic label was not saved."""
     from bench.probe import grade_page_answer
     from bench.script_first import claimed_from_payload
 
-    payload = check.get("payload") or {}
+    if not _has_page_evidence(check):
+        return None
+    payload = check["payload"]
     if (task.get("end_markers") or {}).get("answer_equals_selector") and not payload.get("selector_text"):
         return None
     claim = claimed_from_payload(payload)
@@ -59,7 +72,10 @@ def grade_check(task: dict, check: dict) -> bool | None:
 
 def replay_check(description: str, check: dict, earlier: list | None = None):
     """The current self-check on the saved inputs. The grade fields are dropped first."""
-    from bench.script_first import script_runtime_verdict, task_asks_value
+    from bench.script_first import EvidenceVerdict, UNKNOWN, script_runtime_verdict, task_asks_value
+
+    if not _has_page_evidence(check):
+        return EvidenceVerdict(UNKNOWN, "saved check lacks replayable page evidence", "")
 
     payload = dict(check.get("payload") or {})
     payload.pop("selector_text", None)

@@ -211,7 +211,8 @@ _QUIET_FOR_JS = r"""() => {
 # Numbered controls and visible text lines of the rendered page, open shadow roots included.
 _OBSERVE_JS = r"""({cap, terms}) => {
   const W = window.innerWidth, H = window.innerHeight;
-  let next = window.__cuNextId || 1;
+  // IDs belong to this observation, never to page-supplied attributes or globals.
+  let next = 1;
   const visible = (el) => {
     const r = el.getBoundingClientRect();
     if (r.width < 2 || r.height < 2) return false;
@@ -257,6 +258,7 @@ _OBSERVE_JS = r"""({cap, terms}) => {
   const all = [];
   const walk = (root) => {
     root.querySelectorAll("*").forEach((el) => {
+      el.removeAttribute("data-cu-id");
       if (el.shadowRoot) walk(el.shadowRoot);
       let take = el.matches(SEL);
       if (!take && el.children.length <= 3) {
@@ -282,8 +284,8 @@ _OBSERVE_JS = r"""({cap, terms}) => {
     if (!name && !["textbox", "select", "checkbox", "radio", "combobox"].includes(role)) continue;
     const parent = el.parentElement && el.parentElement.closest("[data-cu-id]");
     if (parent && seen.has(parent) && nameOf(parent) === name) continue;
-    let id = el.getAttribute("data-cu-id");
-    if (!id) { id = String(next++); el.setAttribute("data-cu-id", id); }
+    const id = String(next++);
+    el.setAttribute("data-cu-id", id);
     seen.add(el);
     const st = [];
     const sel = el.getAttribute("aria-selected"); if (sel === "true") st.push("selected");
@@ -308,7 +310,6 @@ _OBSERVE_JS = r"""({cap, terms}) => {
       + (role !== "link" ? 1 : 0);
     controls.push(item);
   }
-  window.__cuNextId = next;
   // Visible text lines, and which of them sit in page chrome (header, nav, footer, aside).
   const lines = [];
   const chrome = new Set();
@@ -470,11 +471,12 @@ class ActionResult:
 async def _locate(page, control_id: int):
     locator = page.locator(f'[data-cu-id="{int(control_id)}"]')
     try:
-        if await locator.count() == 0:
+        if await locator.count() != 1:
             return None
     except Exception:  # noqa: BLE001
         return None
-    return locator.first
+    # Keep Playwright's strictness if the DOM changes again before the action.
+    return locator
 
 
 async def _click(page, locator) -> None:

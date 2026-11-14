@@ -1276,6 +1276,10 @@ class BenchmarkHarness:
                     if specialized.passed:
                         tier, end_state, success = "form", PASS, True
                         success_reason, last_url = specialized.reason, specialized.final_url
+                    else:
+                        # Keep specialist time in total wall time, but give its fallback
+                        # the same generic repair allowance as the SPA fallback.
+                        generic_start = time.perf_counter()
                 from bench.strategy_spa import maybe_run_spa
 
                 # spa runs only on tasks form did not take. When nav also claims the task, spa takes

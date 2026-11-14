@@ -632,7 +632,7 @@ def _with_answer(payload: dict, answer: str) -> dict:
 
 def _recheck(payload: dict, page_url: str, start_url: str, description: str, earlier=()) -> EvidenceVerdict:
     """The same self-check the script got, on the read answer (the strict one included)."""
-    from bench.script_first import claimed_from_payload
+    from bench.script_first import _earlier_page, claimed_from_payload
 
     return runtime_verdict(
         trusted_from_payload(payload, url=page_url),
@@ -641,7 +641,7 @@ def _recheck(payload: dict, page_url: str, start_url: str, description: str, ear
         start_url=start_url,
         asks_value=True,
         task=description,
-        earlier=tuple(earlier),
+        earlier=tuple(_earlier_page(item) for item in earlier or () if isinstance(item, dict)),
     )
 
 

@@ -911,8 +911,8 @@ def submit_problem(schema: dict, values: list[dict], press: int | None) -> str:
     control = next((item for item in schema.get("controls", []) if item["n"] == press), None)
     if control is None:
         return "no observed submit control selected"
-    if control["kind"] == "link" and not re.search(r"\b(submit|send|confirm|register|calculate)\b", control["text"], re.I):
-        return "navigation link is not a submit"
+    if control.get("submits") is not True:
+        return "selected control is not a native submit control"
     if not values:
         return "no fields specified for this submit"
     selected = [fields.get(entry.get("n")) for entry in values if isinstance(entry, dict)]
@@ -1198,7 +1198,10 @@ def append_steps(outcome: FormOutcome, steps: list) -> None:
             snapshot_text=step.result, page_url=step.page_url,
         ))
     if outcome.steps:
-        steps[-1].self_check = {"strategy": "form", "verdict": "PASS" if outcome.passed else "FAIL", "reason": outcome.reason}
+        steps[-1].self_check = {
+            "strategy": "form", "verdict": "PASS" if outcome.passed else "FAIL",
+            "reason": outcome.reason, "replay_available": False,
+        }
     if outcome.passed and outcome.steps:
         steps[-1].claimed_answer = outcome.answer
         steps[-1].page_url = outcome.final_url

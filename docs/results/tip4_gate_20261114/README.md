@@ -101,3 +101,46 @@ Recovery scripts on this machine:
 `C:/Users/epicd/AppData/Local/Temp/opencode/reconcile-completed-spend.py`.
 All nine subprocesses exited zero in the saved completion artifact. Recovery
 ran offline, produced only aggregate output and made no API calls.
+
+## Post-gate independent review and repairs
+
+The fresh Astra review of `0f8d0d9` reproduced five defects on local fixtures.
+All five regression cases failed before repair; the adjacent native-submit and
+zero-delay fallback controls passed. These repairs are **after the gate**.
+The measurements above remain attributed to `80f7433` and have not been rerun
+or regraded. The repaired candidate has no new live accuracy/latency claim.
+
+1. **Nav history and accounting:** normalize earlier payload dictionaries to
+   the existing `EarlierPage` type before rechecking a reader answer. The
+   failed-script/reader sequence now succeeds and accounts for all three model
+   calls and all 21 input / 9 output tokens in the synthetic reproduction.
+   A second case proves earlier-page rejection is preserved, not bypassed.
+2. **SPA control identity:** discard page-supplied `data-cu-id` attributes
+   (including open shadow roots) and allocate observation-local numbers.
+   Action lookup requires exactly one match and retains Playwright strictness
+   instead of choosing `.first`. The fixture verifies the intended click and
+   refusal of a collision introduced after observation.
+3. **Form submit provenance:** a fill action must choose an observed native
+   submit control associated with the filled form. Preview/custom buttons and
+   links cannot establish submission merely by showing new text. Custom
+   JavaScript-only submits now use the generic fallback; this conservative
+   restriction may change performance and coverage relative to the gate.
+   This checks native control semantics and visible result freshness; it does
+   not independently prove server-side completion.
+4. **Form fallback allowance:** reset the generic repair clock after form
+   fallback, as already done for SPA. Total wall time and specialist usage
+   remain included. An injected 31-second failed form attempt no longer removes
+   the generic script's repair opportunity.
+5. **Missing replay evidence:** metadata-only form checks explicitly mark
+   replay unavailable. Missing payload/text/URL yields ungraded ground truth
+   and UNKNOWN replay, not a fabricated negative label. A recorded empty page
+   still receives a failed grade. Existing frozen scores and final grading
+   are unchanged.
+
+Parent verification: **163 distinct focused tests passed** (161 in the combined
+run, then two additional negative-path checks). Tests cover the nine new cases,
+combined routing/off parity, all three specialist modules, replay, final grade,
+cache, grounded repair, precision catches and prompt isolation. All commands
+used `verifier_audit_guard.py`; no protected datasets or live API calls.
+A fresh independent review of the repaired candidate is required before
+considering this review complete. Defaults remain off.
