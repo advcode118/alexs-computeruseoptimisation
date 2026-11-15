@@ -1041,6 +1041,482 @@ def repair_request(url: str, reason: str) -> str:
     )
 
 
+# Read only after a script FAILs, so the first-script path never pays for it.
+# Visible elements only, with the names cu.click/getByRole/getByLabel match.
+_REPAIR_SNAPSHOT_JS = r"""(terms) => {
+  const clean = (s, n) => (s || "").replace(/\s+/g, " ").trim().slice(0, n);
+  const shown = (el) => {
+    if (!el || !el.getClientRects || !el.getClientRects().length) return false;
+    if (el.closest('[hidden], [aria-hidden="true"], [inert]')) return false;
+    const st = getComputedStyle(el);
+    return st.visibility !== "hidden" && st.visibility !== "collapse" && st.display !== "none";
+  };
+  const roleOf = (el) => {
+    const explicit = el.getAttribute("role");
+    if (explicit) return explicit.split(/\s+/)[0];
+    const tag = el.tagName.toLowerCase();
+    if (tag === "a") return "link";
+    if (tag === "button" || tag === "summary") return "button";
+    if (tag === "textarea") return "textbox";
+    if (tag === "select") return el.multiple ? "listbox" : "combobox";
+    if (tag === "input") {
+      const t = (el.getAttribute("type") || "text").toLowerCase();
+      if (["button", "submit", "reset", "image"].includes(t)) return "button";
+      if (t === "checkbox" || t === "radio") return t;
+      if (t === "search") return "searchbox";
+      if (t === "range") return "slider";
+      if (t === "number") return "spinbutton";
+      return "textbox";
+    }
+    return tag;
+  };
+  const nameOf = (el) => {
+    let name = el.getAttribute("aria-label") || "";
+    if (!name && el.getAttribute("aria-labelledby")) {
+      name = el.getAttribute("aria-labelledby").split(/\s+/).map((id) => {
+        const node = document.getElementById(id);
+        return node ? (node.innerText || node.textContent || "") : "";
+      }).join(" ");
+    }
+    if (!name && el.labels && el.labels.length) {
+      name = Array.from(el.labels).map((l) => l.innerText || l.textContent || "").join(" ");
+    }
+    const tag = el.tagName.toLowerCase();
+    if (!name && tag === "input" && ["button", "submit", "reset"].includes((el.type || "").toLowerCase())) name = el.value || "";
+    if (!name && !["input", "textarea", "select"].includes(tag)) name = el.innerText || el.textContent || "";
+    if (!name) {
+      const img = el.querySelector && el.querySelector("img[alt]");
+      name = el.getAttribute("title") || (img ? img.getAttribute("alt") : "") || "";
+    }
+    return clean(name, 70);
+  };
+  const shortHref = (el) => {
+    try {
+      const u = new URL(el.getAttribute("href"), document.baseURI);
+      if (/^(javascript|mailto|tel):/i.test(u.href)) return "";
+      return u.origin === location.origin ? (u.pathname + u.search + u.hash) : u.href;
+    } catch (e) { return ""; }
+  };
+  const boxName = (el) => {
+    let name = el.getAttribute("aria-label") || "";
+    if (!name && el.getAttribute("aria-labelledby")) {
+      const node = document.getElementById(el.getAttribute("aria-labelledby").split(/\s+/)[0]);
+      name = node ? (node.innerText || node.textContent || "") : "";
+    }
+    if (!name) {
+      const head = el.querySelector("h1, h2, h3, h4, legend");
+      name = head ? (head.innerText || "") : "";
+    }
+    return clean(name || el.getAttribute("id") || el.getAttribute("name") || "", 60);
+  };
+  const fieldOf = (el) => {
+    const tag = el.tagName.toLowerCase();
+    const type = tag === "input" ? (el.getAttribute("type") || "text").toLowerCase() : tag;
+    const out = { role: roleOf(el), name: nameOf(el), type };
+    const ph = el.getAttribute("placeholder");
+    if (ph) out.placeholder = clean(ph, 50);
+    if (el.required) out.required = true;
+    if (el.disabled) out.disabled = true;
+    if (type === "checkbox" || type === "radio") out.checked = !!el.checked;
+    else if (tag === "select") {
+      out.options = Array.from(el.options).slice(0, 12).map((o) => clean(o.text, 40));
+      if (el.selectedIndex >= 0 && el.options[el.selectedIndex]) out.value = clean(el.options[el.selectedIndex].text, 40);
+    } else if (type !== "password" && el.value) out.value = clean(el.value, 60);
+    // No accessible name: cu.fill cannot find it, so give a CSS locator instead.
+    if (!out.name) {
+      if (el.id) out.locator = "#" + CSS.escape(el.id);
+      else if (el.getAttribute("name")) out.locator = tag + '[name="' + clean(el.getAttribute("name"), 40) + '"]';
+    }
+    if (el.willValidate && !el.checkValidity()) out.invalid = clean(el.validationMessage, 80) || "invalid";
+    else if (el.getAttribute("aria-invalid") === "true") out.invalid = "aria-invalid";
+    return out;
+  };
+  const isField = (el) => {
+    const tag = el.tagName.toLowerCase();
+    if (tag === "input") return !["hidden", "button", "submit", "reset", "image"].includes((el.getAttribute("type") || "").toLowerCase());
+    return tag === "textarea" || tag === "select";
+  };
+  const used = new Set();
+  const dialogs = [];
+  for (const d of document.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"]')) {
+    if (dialogs.length >= 2 || !shown(d)) continue;
+    const buttons = [];
+    for (const b of d.querySelectorAll('button, [role="button"], a[href], input[type="submit"], input[type="button"]')) {
+      if (buttons.length >= 6 || !shown(b)) continue;
+      const n = nameOf(b);
+      if (n) buttons.push(n);
+      used.add(b);
+    }
+    dialogs.push({ name: boxName(d), text: clean(d.innerText, 240), buttons });
+  }
+  const alerts = [];
+  for (const a of document.querySelectorAll('[role="alert"], [role="status"], [aria-live="assertive"], [aria-live="polite"], .invalid-feedback, .error, .alert')) {
+    if (alerts.length >= 5 || !shown(a)) continue;
+    const t = clean(a.innerText, 160);
+    if (t && !alerts.includes(t)) alerts.push(t);
+  }
+  const forms = [];
+  const formFields = (root, inForm) => {
+    const fields = [];
+    for (const el of root.querySelectorAll("input, textarea, select")) {
+      if (fields.length >= 12) break;
+      if (!isField(el) || !shown(el) || (!inForm && el.form) || used.has(el)) continue;
+      used.add(el);
+      fields.push(fieldOf(el));
+    }
+    const submits = [];
+    for (const b of root.querySelectorAll('button, input[type="submit"], input[type="button"], [role="button"]')) {
+      if (submits.length >= 4 || !shown(b) || (!inForm && b.form) || used.has(b)) continue;
+      const n = nameOf(b);
+      used.add(b);
+      if (n) submits.push(n);
+    }
+    return { fields, submits };
+  };
+  for (const f of document.forms) {
+    if (forms.length >= 4 || !shown(f)) continue;
+    const { fields, submits } = formFields(f, true);
+    if (!fields.length) continue;
+    forms.push({ name: boxName(f), fields, buttons: submits });
+  }
+  const loose = [];
+  for (const el of document.querySelectorAll("input, textarea, select")) {
+    if (loose.length >= 8) break;
+    if (!isField(el) || el.form || used.has(el) || !shown(el)) continue;
+    used.add(el);
+    loose.push(fieldOf(el));
+  }
+  if (loose.length) forms.push({ name: "(fields outside a form)", fields: loose, buttons: [] });
+  const main = document.querySelector('main, [role="main"], article') || document.body;
+  const vh = window.innerHeight || 800;
+  const items = [];
+  const seen = new Set();
+  const sel = 'a[href], button, summary, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="option"], [role="checkbox"], [role="switch"], input[type="submit"], input[type="button"]';
+  let order = 0;
+  for (const el of document.querySelectorAll(sel)) {
+    order += 1;
+    if (used.has(el) || !shown(el)) continue;
+    const name = nameOf(el);
+    if (!name) continue;
+    const role = roleOf(el);
+    const href = role === "link" && el.hasAttribute("href") ? shortHref(el) : "";
+    const key = role + "|" + name + "|" + href;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const r = el.getBoundingClientRect();
+    const inMain = main !== document.body && main.contains(el);
+    const inView = r.top < vh && r.bottom > 0;
+    const chrome = !!el.closest('nav, header, footer, aside, [role="navigation"], [role="banner"], [role="contentinfo"]');
+    items.push({ role, name, href, rank: (inMain ? 0 : 2) + (inView ? 0 : 1) + (chrome ? 2 : 0), order });
+  }
+  items.sort((a, b) => a.rank - b.rank || a.order - b.order);
+  const tables = [];
+  for (const t of document.querySelectorAll("table")) {
+    if (tables.length >= 3 || !shown(t)) continue;
+    const rows = t.rows;
+    if (!rows || rows.length < 2) continue;
+    const cells = (row) => Array.from(row.cells).slice(0, 8).map((c) => clean(c.innerText, 30));
+    const cap = t.caption ? clean(t.caption.innerText, 60) : "";
+    tables.push({ caption: cap, rows: rows.length, head: cells(rows[0]), first: cells(rows[1]) });
+  }
+  const headings = [];
+  for (const h of document.querySelectorAll("h1, h2, h3")) {
+    if (headings.length >= 12) break;
+    if (!shown(h)) continue;
+    const t = clean(h.innerText, 80);
+    if (t) headings.push(h.tagName.toLowerCase() + " " + t);
+  }
+  return {
+    url: location.href,
+    title: clean(document.title, 120),
+    headings,
+    dialogs,
+    alerts,
+    forms,
+    elements: items.slice(0, 36).map((i) => ({ role: i.role, name: i.name, href: i.href })),
+    more_elements: Math.max(0, items.length - 36),
+    tables,
+    matches: (() => {
+      // Page lines that share words or numbers with the task, wherever they sit on the page.
+      const list = (terms || []).filter((t) => t);
+      if (!list.length || !main) return [];
+      const scored = [];
+      const raw = (main.innerText || "").split(/\r?\n/);
+      for (let i = 0; i < raw.length && i < 6000; i++) {
+        const line = raw[i].replace(/\s+/g, " ").trim();
+        if (!line || line.length < 2) continue;
+        const low = line.toLowerCase();
+        let score = 0, first = -1;
+        for (const t of list) {
+          let at = -1;
+          if (/^[0-9]/.test(t)) {
+            const m = new RegExp("(^|[^0-9])" + t.replace(/[^a-z0-9]/g, (c) => "\\" + c) + "(?![0-9])").exec(low);
+            if (m) { at = m.index + m[1].length; score += 2; }
+          } else {
+            at = low.indexOf(t);
+            if (at >= 0) score += 1;
+          }
+          if (at >= 0 && (first < 0 || at < first)) first = at;
+        }
+        if (score < 2) continue;
+        const start = line.length > 200 ? Math.max(0, first - 60) : 0;
+        scored.push({ score, i, line: line.slice(start, start + 200) });
+      }
+      scored.sort((a, b) => b.score - a.score || a.i - b.i);
+      const out = [];
+      for (const item of scored) {
+        if (out.length >= 8) break;
+        if (!out.includes(item.line)) out.push(item.line);
+      }
+      return out;
+    })(),
+    text: clean(main ? main.innerText : "", 1500)
+  };
+}"""
+
+_SNAPSHOT_CAP = 5000
+_TERM_STOP = frozenset(
+    "that this with from what which when where there their then than into onto your about after before "
+    "page site open find give tell show report name state value values return answer task text link "
+    "click visit search using under over each some only also does have will would should could".split()
+)
+
+
+def task_terms(description: str, limit: int = 12) -> list[str]:
+    """Numbers and longer words from the task text, for matching page lines. No site knowledge."""
+    terms: list[str] = []
+    for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9.+#_-]*", description or ""):
+        word = token.strip(".-_").casefold()
+        if not word or word in terms:
+            continue
+        if any(ch.isdigit() for ch in word) or (len(word) >= 4 and word not in _TERM_STOP):
+            terms.append(word)
+        if len(terms) >= limit:
+            break
+    return terms
+
+
+def _q(text) -> str:
+    return json.dumps(str(text or ""), ensure_ascii=False)
+
+
+def format_page_snapshot(data: dict | None, *, cap: int = _SNAPSHOT_CAP) -> str:
+    """Render the repair snapshot as short lines a weak model can copy names from."""
+    if not isinstance(data, dict) or not data:
+        return ""
+    lines = [f"url: {data.get('url') or '(none)'}", f"title: {data.get('title') or ''}"]
+    headings = [h for h in data.get("headings") or [] if isinstance(h, str)]
+    if headings:
+        lines.append("headings: " + " | ".join(headings))
+    for dialog in data.get("dialogs") or []:
+        if not isinstance(dialog, dict):
+            continue
+        buttons = ", ".join(_q(b) for b in dialog.get("buttons") or [])
+        lines.append(f"OPEN DIALOG {_q(dialog.get('name'))}: {dialog.get('text') or ''}" + (f" buttons: {buttons}" if buttons else ""))
+    alerts = [a for a in data.get("alerts") or [] if isinstance(a, str)]
+    if alerts:
+        lines.append("messages: " + " | ".join(_q(a) for a in alerts))
+    for form in data.get("forms") or []:
+        if not isinstance(form, dict):
+            continue
+        lines.append(f"form {_q(form.get('name'))}:")
+        for field in form.get("fields") or []:
+            if not isinstance(field, dict):
+                continue
+            parts = [f"  {field.get('role') or 'field'} {_q(field.get('name'))}", f"type={field.get('type') or ''}"]
+            if not field.get("name") and field.get("locator"):
+                parts[0] = f"  {field.get('role') or 'field'} (no name) page.locator({_q(field['locator'])})"
+            for key in ("placeholder", "value"):
+                if field.get(key):
+                    parts.append(f"{key}={_q(field[key])}")
+            if field.get("options"):
+                parts.append("options=[" + ", ".join(_q(o) for o in field["options"]) + "]")
+            if "checked" in field:
+                parts.append(f"checked={'yes' if field['checked'] else 'no'}")
+            for flag in ("required", "disabled"):
+                if field.get(flag):
+                    parts.append(flag)
+            if field.get("invalid"):
+                parts.append(f"INVALID: {field['invalid']}")
+            lines.append(" ".join(parts))
+        buttons = form.get("buttons") or []
+        if buttons:
+            lines.append("  buttons: " + ", ".join(_q(b) for b in buttons))
+    elements = [e for e in data.get("elements") or [] if isinstance(e, dict)]
+    if elements:
+        lines.append("visible elements (role \"name\" -> href):")
+        for element in elements:
+            line = f"  {element.get('role') or ''} {_q(element.get('name'))}"
+            if element.get("href"):
+                line += f" -> {element['href']}"
+            lines.append(line)
+        more = int(data.get("more_elements") or 0)
+        if more:
+            lines.append(f"  ...and {more} more")
+    matches = [m for m in data.get("matches") or [] if isinstance(m, str) and m.strip()]
+    if matches:
+        lines.append("page lines that match words in the task:")
+        lines.extend(f"  {m}" for m in matches)
+    for table in data.get("tables") or []:
+        if not isinstance(table, dict):
+            continue
+        label = f" {_q(table.get('caption'))}" if table.get("caption") else ""
+        lines.append(
+            f"table{label} ({table.get('rows')} rows): header {table.get('head')} first row {table.get('first')}"
+        )
+    text = data.get("text") if isinstance(data.get("text"), str) else ""
+    head = "\n".join(lines)
+    room = cap - len(head) - len("\ntext: ")
+    if text and room > 80:
+        lines.append("text: " + text[:room])
+    rendered = "\n".join(lines)
+    return rendered[:cap]
+
+
+def look_enabled() -> bool:
+    """The opt-in look tool. Off unless CU_SF_LOOK=1, so the default arm is unchanged."""
+    import os
+
+    return os.environ.get("CU_SF_LOOK", "") == "1"
+
+
+LOOK_TOOL = {
+    "name": "look",
+    "description": (
+        "Open a URL and return a compact view of that page: headings, forms with their fields, "
+        "visible links and buttons with their names, and lines that match the task. "
+        "No check runs. Use it at most once, only when you do not know the page's controls "
+        "or where the value is; then send run_script, which starts from that page."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {"url": {"type": "string", "description": "http(s) URL to open."}},
+        "required": ["url"],
+    },
+}
+
+
+SNAPSHOT_BEGIN = "--- PAGE NOW ---"
+SNAPSHOT_END = "--- END PAGE ---"
+_SNAPSHOT_DROPPED = "(older page snapshot dropped; see the newest one)"
+
+
+def failed_step_note(code: str, payload: dict | None) -> str:
+    """Which step of the script stopped it, and how far it got. No page read."""
+    payload = payload if isinstance(payload, dict) else {}
+    done = int(payload.get("steps") or 0)
+    error = payload.get("error") if isinstance(payload.get("error"), str) else ""
+    try:
+        steps = parse_task_script(code or "")
+    except ScriptError as exc:
+        return f"Your script did not parse, so nothing ran: {' '.join(str(exc).split())[:300]}"
+    total = len(steps)
+    if payload.get("ok") is False:
+        detail = " | ".join(line.strip() for line in error.splitlines()[:3] if line.strip())[:300]
+        if done < total:
+            source = " ".join(steps[done].source.split())[:200]
+            return (
+                f"Your script ran {done} of {total} steps. Step {done + 1} failed: `{source}`"
+                + (f" Error: {detail}" if detail else "")
+                + ". The steps after it did not run."
+            )
+        return f"Your script stopped after {done} of {total} steps." + (f" Error: {detail}" if detail else "")
+    return f"Your script ran all {total} steps without an error."
+
+
+def _claimed_note(payload: dict | None) -> str:
+    claimed = payload.get("claimed") if isinstance(payload, dict) else None
+    if not isinstance(claimed, dict):
+        return "It returned no evidence object."
+    parts = []
+    for key in ("answer", "key_text"):
+        value = claimed.get(key)
+        if isinstance(value, str) and value.strip():
+            parts.append(f"{key}={_q(value.strip()[:120])}")
+    if not parts:
+        return "It returned an empty answer and key_text."
+    return "It returned " + ", ".join(parts) + "."
+
+
+def _reason_hint(reason: str) -> str:
+    """What the self-check's FAIL reason asks of the next script. Keyed on runtime_verdict's wording."""
+    text = (reason or "").casefold()
+    if "not on the" in text or "not in the page text" in text:
+        return (
+            "The check looks for key_text, each item in values, and answer in the page's body text: "
+            "copy them exactly from that text (see the lines below), not from the title or your own words."
+        )
+    if "not text" in text:
+        return "Return answer and key_text as strings and values as a list of strings."
+    if "returned no answer" in text:
+        return "Put the asked value in answer, copied exactly from the page."
+    if "start page" in text or "did not end on a web page" in text:
+        return "The script has to leave the start page for the page that holds the asked value."
+    if "claimed url" in text:
+        return "Return url: location.href, not a URL you typed."
+    return ""
+
+
+def grounded_repair_request(
+    reason: str,
+    *,
+    code: str,
+    payload: dict | None,
+    snapshot: str,
+    repair_number: int,
+    max_repairs: int,
+) -> str:
+    """A repair ask that shows the live page, the failed step, and how far the script got."""
+    hint = _reason_hint(reason)
+    lines = [
+        f"END_STATE_FAILED (repair {repair_number} of {max_repairs}): {reason}.",
+        failed_step_note(code, payload) + " " + _claimed_note(payload) + (" " + hint if hint else ""),
+        "The browser is still on the page below. Your next script starts from this page: "
+        "continue from here, or page.goto a URL to start over.",
+        SNAPSHOT_BEGIN,
+        snapshot or "(the page could not be read)",
+        SNAPSHOT_END,
+        "Send one script that finishes the task. Use the names, labels and links shown above; "
+        "do not guess selectors that are not on this page. Fix the step that failed. "
+        "End with the page.evaluate evidence object and put the asked value in answer. "
+        "Do not repeat a script that already ran. If the task cannot be done, call task_failed.",
+    ]
+    return "\n".join(lines)
+
+
+def drop_old_snapshots(messages: list[dict]) -> None:
+    """Replace the page snapshot in earlier tool results with a short stub, in place."""
+    for message in messages:
+        content = message.get("content") if isinstance(message, dict) else None
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            text = block.get("content")
+            if not isinstance(text, str) or SNAPSHOT_BEGIN not in text:
+                continue
+            head, _, rest = text.partition(SNAPSHOT_BEGIN)
+            _, _, tail = rest.partition(SNAPSHOT_END)
+            block["content"] = head + SNAPSHOT_BEGIN + "\n" + _SNAPSHOT_DROPPED + "\n" + SNAPSHOT_END + tail
+
+
+def normalized_script(code: str) -> str:
+    return "".join((code or "").split())
+
+
+def repair_outcome_key(verdict, payload: dict | None) -> tuple:
+    """Two scripts with this same key failed the same way on the same page."""
+    payload = payload if isinstance(payload, dict) else {}
+    claimed = payload.get("claimed") if isinstance(payload.get("claimed"), dict) else {}
+    return (
+        str(payload.get("url") or ""),
+        getattr(verdict, "reason", ""),
+        payload.get("ok") is not False,
+        str(claimed.get("answer") or ""),
+    )
+
+
 def script_made_progress(previous: dict | None, current: dict) -> bool:
     """True when this script moved the page or finished more actions than the last one."""
     if not current:
@@ -1212,11 +1688,18 @@ def budget_script_result(result_text: str, limit: int) -> str:
     return render()
 
 
-def model_visible_script_result(result_text: str, *, failed: bool = False, limit: int | None = None) -> str:
+def model_visible_script_result(
+    result_text: str,
+    *,
+    failed: bool = False,
+    limit: int | None = None,
+    hide_page: bool = False,
+) -> str:
     """The run_script result the model may see.
 
     selector_text is judge-only. Failed results may include trusted links and
     role/name controls; PASS and UNKNOWN results do not expose these hints.
+    hide_page also drops the page text: a grounded repair snapshot follows.
     """
     if limit is None:
         from bench.harness import MAX_SNAPSHOT_CHARS
@@ -1239,6 +1722,8 @@ def model_visible_script_result(result_text: str, *, failed: bool = False, limit
         return result_text
     for key in _HIDDEN_RESULT_KEYS:
         payload.pop(key, None)
+    if hide_page:
+        payload.pop("text", None)
     if not failed:
         payload.pop("links", None)
         payload.pop("controls", None)
@@ -1734,6 +2219,8 @@ class ScriptFirstClient:
         self._page = page
         self._owns_page = page is None
         self.end_markers: dict = {}
+        # The task text for the opt-in look tool's matching lines. The harness sets it.
+        self.look_task = ""
         self._playwright = None
         self._browser = None
         self._context = None
@@ -1782,7 +2269,7 @@ class ScriptFirstClient:
                     "required": ["reason"],
                 },
             }
-        ]
+        ] + ([dict(LOOK_TOOL)] if look_enabled() else [])
 
     def begin_launch(self) -> asyncio.Future:
         """Launch local Chrome if it is not already up.
@@ -1855,12 +2342,44 @@ class ScriptFirstClient:
             if profile:
                 shutil.rmtree(profile, ignore_errors=True)
 
+    async def _look(self, arguments: dict, start: float) -> tuple[str, float]:
+        url = str(arguments.get("url") or "").strip()
+        error = ""
+        if _http(url):
+            try:
+                await self._page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
+            except Exception as exc:
+                error = " ".join(str(exc).split())[:200]
+        elif url:
+            error = "look needs an http(s) URL"
+        snapshot, _ms = await self.page_snapshot(self.look_task)
+        lines = [f"LOOK (no check ran){': ' + error if error else ''}", SNAPSHOT_BEGIN, snapshot or "(the page could not be read)", SNAPSHOT_END]
+        lines.append("Now send run_script. It starts from this page.")
+        return "\n".join(lines), (time.perf_counter() - start) * 1000
+
+    async def page_snapshot(self, task: str = "") -> tuple[str, float]:
+        """The compact repair snapshot of the live page, and the ms it took."""
+        start = time.perf_counter()
+        if self._page is None:
+            return "", 0.0
+        source = "() => (" + _REPAIR_SNAPSHOT_JS + ")(" + json.dumps(task_terms(task)) + ")"
+        raw = await _evaluate_value(self._page, source)
+        data = raw if isinstance(raw, dict) else {}
+        if data and not _http(str(data.get("url") or "")):
+            data["url"] = _page_url(self._page) or data.get("url")
+        if not data:
+            url = _page_url(self._page)
+            data = {"url": url, "title": await _read_title(self._page)} if url else {}
+        return format_page_snapshot(data), (time.perf_counter() - start) * 1000
+
     async def call_tool(self, name: str, arguments: dict | None) -> tuple[str, float]:
         if name == "browser_run_code_unsafe":
             raise ScriptError("browser_run_code_unsafe is not available")
         if self._page is None:
             raise RuntimeError("script_first client is not started")
         start = time.perf_counter()
+        if name == "look" and look_enabled():
+            return await self._look(arguments or {}, start)
         if name != "run_script":
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""

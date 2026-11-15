@@ -141,7 +141,8 @@ def test_tool_choice_is_cleared_after_repair(monkeypatch, tmp_path):
 
     monkeypatch.setattr(harness, "_read_shared_page", noop)
     asyncio.run(harness.run_task("fixture", "Read page", "https://example.org"))
-    assert [request[2].get("tool_choice") for request in model.requests] == [None, {"type": "any"}, None]
+    # A second FAIL on a new page earns another grounded repair, so tool_choice stays required.
+    assert [request[2].get("tool_choice") for request in model.requests] == [None, {"type": "any"}, {"type": "any"}]
 
 
 def test_oversized_metadata_fails_closed():
