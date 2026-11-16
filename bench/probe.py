@@ -562,58 +562,24 @@ def claude_block_reason(
 
 
 def deterministic_success(task: dict, url: str, text: str) -> tuple[bool | None, str]:
-    """URL and text checks only. The LLM judge is not called."""
-    if task.get("check_url_contains"):
-        result = check_url_contains(url, task["check_url_contains"])
-        return result.success, result.reason
-    if task.get("check_text"):
-        result = check_text_present(text, task["check_text"])
-        return result.success, result.reason
-    return None, "no deterministic check; LLM judge was not called"
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
+
+    return grade.deterministic_success(task, url, text)
 
 
 def _grade_claim(answer: str, claimed):
-    """The claim the shared check sees. A bare answer stays an answer-only claim."""
-    from bench.script_first import ClaimedEvidence
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
 
-    if claimed is None:
-        return ClaimedEvidence(answer=answer or "")
-    if answer and not claimed.answer:
-        return ClaimedEvidence(
-            url=claimed.url,
-            title=claimed.title,
-            h1=claimed.h1,
-            answer=answer,
-            key_text=claimed.key_text,
-            values=claimed.values,
-            rejected=claimed.rejected,
-        )
-    return claimed
+    return grade._grade_claim(answer, claimed)
 
 
 def _live_return_failure(url: str, text: str, claimed) -> str:
-    """Why the script's own return is not on the live page. Empty when it is.
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
 
-    URL, key text, and values are the live-page evidence check. A claim that
-    returned none of them leaves the task's own check alone. Title rides along
-    on the same object. UNKNOWN is not a failure here.
-    """
-    if claimed is None:
-        return ""
-    returned = bool(
-        claimed.rejected
-        or (claimed.key_text or "").strip()
-        or any((item or "").strip() for item in claimed.values)
-        or (claimed.url or "").startswith(("http://", "https://"))
-    )
-    if not returned:
-        return ""
-    from bench.script_first import FAIL, PageEvidence, evidence_verdict
-
-    verdict = evidence_verdict({}, PageEvidence(url=url, text=text), claimed)
-    if verdict.verdict == FAIL:
-        return verdict.reason
-    return ""
+    return grade._live_return_failure(url, text, claimed)
 
 
 def shared_end_state(
@@ -626,36 +592,13 @@ def shared_end_state(
     page_text: str = "",
     claimed=None,
 ) -> tuple[bool | None, str]:
-    """The one shared check. A missing check is None, which is not a pass.
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
 
-    URL and text checks use the same strings they always have. A task whose
-    end state is the live value of answer_equals_selector, and which has no
-    URL or text check, is decided by that read. An empty read is a failure.
-    A script return (URL, title, key text, values) is checked against that
-    same page. Text that is not on the page fails the check.
-    """
-    claim = _grade_claim(answer, claimed)
-    body = page_text or text
-    checked, reason = deterministic_success(task, url, text)
-    if checked is not None:
-        if checked is True:
-            problem = _live_return_failure(url, body, claim)
-            if problem:
-                return False, problem
-        return checked, reason
-    markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
-    if not (markers or {}).get("answer_equals_selector"):
-        return None, reason
-    from bench.script_first import PASS, PageEvidence, evidence_verdict
-
-    verdict = evidence_verdict(
-        markers,
-        PageEvidence(url=url, text=body, selector_text=selector_text),
-        claim,
+    return grade.shared_end_state(
+        task, url, text, selector_text=selector_text, answer=answer,
+        page_text=page_text, claimed=claimed,
     )
-    if verdict.verdict == PASS:
-        return True, verdict.reason
-    return False, verdict.reason
 
 
 def shared_check_passes(
@@ -702,34 +645,14 @@ def grade_arm(
     page_text: str = "",
     claimed=None,
 ) -> tuple[bool, str, bool | None, str]:
-    """One rule for every arm. Pass only when the applicable signals agree.
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
 
-    The shared check must be True. None and False are failures. When the arm
-    has an evidence verdict, that verdict must be PASS. UNKNOWN is not a pass.
-    `completed` is the harness completion bit for arms that have one. True is
-    not a pass by itself. False blocks a pass. None means the arm has no such bit.
-    """
-    shared_ok, shared_reason = shared_end_state(
-        task,
-        url,
-        text,
-        selector_text=selector_text,
-        answer=answer,
-        page_text=page_text,
-        claimed=claimed,
+    return grade.grade_arm(
+        task, url, text, evidence=evidence, evidence_reason=evidence_reason,
+        completed=completed, completion_reason=completion_reason,
+        selector_text=selector_text, answer=answer, page_text=page_text, claimed=claimed,
     )
-    if shared_ok is not True:
-        if shared_ok is None:
-            return False, "no shared end-state check", shared_ok, shared_reason
-        return False, shared_reason, shared_ok, shared_reason
-    if evidence is not None and evidence != "PASS":
-        if evidence == "UNKNOWN":
-            reason = evidence_reason if evidence_reason.startswith("UNKNOWN") else "UNKNOWN is not success"
-            return False, reason, shared_ok, shared_reason
-        return False, evidence_reason or "evidence judge did not pass", shared_ok, shared_reason
-    if completed is False:
-        return False, completion_reason or "the run did not finish", shared_ok, shared_reason
-    return True, shared_reason, shared_ok, shared_reason
 
 
 def grade_observation(
@@ -744,55 +667,34 @@ def grade_observation(
     run_verdict: str | None = None,
     claimed=None,
 ) -> tuple[bool, str, bool | None, str]:
-    """The one grade for every arm.
+    """Delegate to the frozen post-run grader; apply the runtime gate on top."""
+    from bench import grade
 
-    `text` is the page text read after the run. A task with end markers gets
-    one evidence verdict from that read and the full claim. A task with no
-    markers gets no marker gate. UNKNOWN is not a pass. TASK_COMPLETE is not
-    a pass by itself: `completed` False still blocks, and True does not.
-    `run_verdict` is script_first's own end state. It has to be PASS, and the
-    shared page check has to pass too. The claim's URL, title, key text, and
-    values are part of that page check.
-    """
-    claim = _grade_claim(answer, claimed)
-    markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
-    evidence = None
-    evidence_reason = ""
-    if markers:
-        from bench.script_first import PageEvidence, evidence_verdict
-
-        verdict = evidence_verdict(
-            markers,
-            PageEvidence(url=url, text=text or "", selector_text=selector_text),
-            claim,
-        )
-        evidence = verdict.verdict
-        evidence_reason = verdict.reason
-    if run_verdict is not None:
-        own = run_verdict if run_verdict in {"PASS", "FAIL", "UNKNOWN"} else "UNKNOWN"
-        if own != "PASS":
-            evidence = own
-            if own == "UNKNOWN":
-                if completion_reason.startswith("UNKNOWN"):
-                    evidence_reason = completion_reason
-                elif completion_reason:
-                    evidence_reason = f"UNKNOWN: {completion_reason}"
-                else:
-                    evidence_reason = "UNKNOWN is not success"
-            else:
-                evidence_reason = completion_reason or evidence_reason or "evidence judge did not pass"
-    return grade_arm(
-        task,
-        url,
-        text or "",
-        evidence=evidence,
-        evidence_reason=evidence_reason,
-        completed=completed,
-        completion_reason=completion_reason,
-        selector_text=selector_text,
-        answer=claim.answer,
-        page_text=text or "",
-        claimed=claim,
+    page_grade = grade.grade_observation(
+        task, url, text, selector_text=selector_text, answer=answer,
+        completed=completed, completion_reason=completion_reason, claimed=claimed,
+    )
+    if run_verdict is None or run_verdict == "PASS":
+        return page_grade
+    own = run_verdict if run_verdict in {"FAIL", "UNKNOWN"} else "UNKNOWN"
+    if own == "UNKNOWN":
+        if completion_reason.startswith("UNKNOWN"):
+            reason = completion_reason
+        else:
+            reason = f"UNKNOWN: {completion_reason}" if completion_reason else "UNKNOWN is not success"
+    else:
+        markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
+        evidence_reason = ""
+        if markers:
+            evidence_reason = grade.evidence_verdict(
+                markers, grade.PageEvidence(url=url, text=text or "", selector_text=selector_text),
+                grade._grade_claim(answer, claimed),
+            ).reason
+        reason = completion_reason or evidence_reason or "evidence judge did not pass"
+    return grade.grade_arm(
+        task, url, text or "", evidence=own, evidence_reason=reason,
+        completed=completed, completion_reason=completion_reason,
+        selector_text=selector_text, answer=answer, page_text=text or "", claimed=claimed,
     )
 
 
@@ -805,15 +707,12 @@ def grade_page_answer(
     answer: str = "",
     claimed=None,
 ) -> tuple[bool, str]:
-    """Post-run page/answer grade, independent of runtime/completion gating.
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
 
-    Use the identical marker and shared evidence checks as the final grade.
-    This diagnostic must never feed back into the run or its model messages.
-    """
-    ok, reason, _shared, _shared_reason = grade_observation(
+    return grade.grade_page_answer(
         task, url, text, selector_text=selector_text, answer=answer, claimed=claimed,
     )
-    return ok, reason
 
 
 def empty_row(

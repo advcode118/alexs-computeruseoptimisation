@@ -1,7 +1,7 @@
 """Hand-written counterexamples, independent of any benchmark task catalog.
 
 These characterize unresolved false rejects, not desired rejection behaviour.
-Each answer passes the unchanged page/answer grader but fails runtime and thus
+Each answer passes the page/answer grader but fails runtime and thus
 final success. Keep the diagnosis explicit until a rule has a supported fix.
 """
 from dataclasses import replace

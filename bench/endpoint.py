@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from html.parser import HTMLParser
 
-from bench.script_first import PASS, ClaimedEvidence, PageEvidence, evidence_verdict
+from bench.grade import PASS, ClaimedEvidence, PageEvidence, evidence_verdict
 
 _TITLELINE_ANCHOR = ".titleline a"
 _VOID = {"link", "meta", "br", "img", "hr", "input", "source", "wbr"}
