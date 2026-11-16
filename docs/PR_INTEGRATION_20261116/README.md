@@ -16,6 +16,10 @@ reconciling the ledgers.
 - Treat already-contained, superseded, useful, harmful and unmeasured work as
   different outcomes. Passing unit tests alone does not prove an accuracy gain.
 
+## Merged so far
+
+See `merged.md` (#46, #45, #67, #78, #81).
+
 ## Work in progress
 
 1. Map PR ancestry and unique changes.
