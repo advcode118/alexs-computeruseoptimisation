@@ -2,8 +2,9 @@
 
 Base `t3/tip4` `b5b74b3`. Audit commit `5dfea8e`. All merges are GitHub merge
 commits at the exact pinned head (`gh pr merge --merge --match-head-commit`).
-Source branches preserved. No `main`, force-push, branch deletion, probe, API
-call or ledger edit.
+Source branches preserved. These merge operations do not include the separately
+approved ledger reconciliation and paid pilot; see `pr-integration-budget-smoke.md`.
+No merge to `main`, force-push or branch deletion.
 
 | PR | Head | Merge commit | Class | Delta |
 |---|---|---|---|---|
@@ -13,6 +14,7 @@ call or ledger edit.
 | #78 | `ea474cfff81897ccbcee15e3cf64c536fdd93e76` | `d974319e44071298dd34b1ceb2c03f7cde85899a` | docs/DEV evidence only; runtime `3e53020` already in tip4 | `docs/STRATEGY_NAV.md`, `docs/results/nav_reader_20261114_post.jsonl` |
 | — | annotation `d0836d3` (cherry-picked `-x`) | `2146779` | dated historical notes on #45/#67 | +20 lines, 2 docs |
 | #81 | `69357dde5265fe3c37704b45b8af3f4f606ac422` | `6dfaeab29338025938f839fed1f9699461692554` | runtime correctness fix (title self-check false rejects, `_clean_url` brackets for all arms); no fresh accuracy gain shown | `bench/{harness,probe,script_first,tasks,tasks_dev5_title,verify_dev5_title}.py`, 3 tests |
+| #58 | `aad3077cc501a4efb91fc18630000070830b90d8` | `d1dc7bbeb33f5b81d08e3d32801c163349c887b9` | record-only remainder; tip2 runtime already in tip4 | run-plan deviations, manifest additions and historical subset wrapper |
 
 Not merged: #79 stays PARKED (saved live 192/240 vs 200/240, false accepts 19
 vs 12). The isolated child heads `d0836d3` (contains PR82) and `67db53d`
@@ -47,6 +49,11 @@ Windows, Python 3.14.5, Chrome 157. No full suite (parent owns it).
 These checks show regression coverage and correctness. They do not show an
 accuracy or speed gain. For later paid comparisons, keep #81's corrected URL
 parser common to every arm. Do not soften the grade.
+
+#58 was separately confirmed to contain only the three expected record paths
+after retargeting, with no runtime delta, no conflicts and no configured checks.
+Its historical subset wrapper was not executed and protected per-task results
+were not opened. GitHub reports the exact pinned head merged on 16 Nov 2026.
 
 Isolated reports: `test_maintenance_isolated.md` (PR82 base, 19 passed) and
 `test_verifier_title_isolated.md` (#81 alone, 114 passed). Their evidence

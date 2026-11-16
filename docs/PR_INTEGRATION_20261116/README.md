@@ -18,13 +18,19 @@ reconciling the ledgers.
 
 ## Merged so far
 
-See `merged.md` (#46, #45, #67, #78, #81).
+See `merged.md` (#46, #45, #67, #78, #81, #58).
 
 ## Work in progress
 
-1. Map PR ancestry and unique changes.
-2. Reconcile shared and experiment spend ledgers.
-3. Review independent runtime and non-runtime candidates.
-4. Run isolated checks and approved matched development comparisons.
-5. Retarget and merge useful candidates, then verify the combined branch.
-6. Record each PR's disposition and supporting evidence.
+- [x] Map all 73 PRs: 51 heads already contained in tip4.
+- [x] Reconcile ledger forks; import missing prior spend once.
+- [x] Opus/Astra independent candidate reviews and focused offline tests.
+- [x] Merge six useful correctness, coverage and record PRs.
+- [x] Opus-reviewed budget runner and one paid schema/accounting smoke.
+- [ ] Complete the predeclared matched development pilot for #74/#82.
+- [ ] Decide the remaining experimental merges and run the final combined suite.
+- [ ] Publish final per-PR disposition and measured outcomes.
+
+`pr-integration-pilot-plan.md` was written before comparative results.
+`pr-integration-budget-smoke.md` records the completed reconciliation and smoke;
+the original read-only budget audit remains in `budget.md`.
