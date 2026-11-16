@@ -278,7 +278,15 @@ def page_field(result_text: str, label: str) -> str:
 
 
 def _clean_url(value: str) -> str:
-    return (value or "").strip().rstrip(_URL_TRAILING)
+    """Drop punctuation that ends a sentence, not the URL's own closing bracket (/wiki/X_(Y))."""
+    url = (value or "").strip()
+    while url and url[-1] in _URL_TRAILING:
+        close = url[-1]
+        opener = {")": "(", "]": "[", "}": "{"}.get(close)
+        if opener and url.count(opener) >= url.count(close):
+            break
+        url = url[:-1]
+    return url
 
 
 def _remember_url(found: list[tuple[int, str]], pos: int, url: str) -> None:

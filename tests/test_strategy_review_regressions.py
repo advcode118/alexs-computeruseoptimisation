@@ -230,3 +230,12 @@ def test_submit_needs_a_real_native_form_owner(mode):
                 await browser.close()
 
     asyncio.run(run())
+
+
+def test_url_keeps_its_own_closing_bracket():
+    from bench.harness import _clean_url
+
+    assert _clean_url("https://en.wikisource.org/wiki/The_Raven_(Poe)") == "https://en.wikisource.org/wiki/The_Raven_(Poe)"
+    assert _clean_url("https://en.wikipedia.org/wiki/Mercury_(planet)).") == "https://en.wikipedia.org/wiki/Mercury_(planet)"
+    assert _clean_url("https://example.org/a).") == "https://example.org/a"
+    assert _clean_url("https://example.org/a',") == "https://example.org/a"

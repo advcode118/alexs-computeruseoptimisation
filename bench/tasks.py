@@ -24,6 +24,7 @@ from bench.tasks_heldout3_d import HELDOUT3D_TASK_IDS, HELDOUT3D_TASKS
 from bench.tasks_heldout3_c import HELDOUT3C_TASK_IDS, HELDOUT3C_TASKS
 from bench.tasks_dev3 import DEV3_TASK_IDS, DEV3_TASKS
 from bench.tasks_dev4_nav import DEV4_NAV_TASK_IDS, DEV4_NAV_TASKS
+from bench.tasks_dev5_title import DEV5_TITLE_TASK_IDS, DEV5_TITLE_TASKS
 from bench.tasks_dev4_form import DEV4_FORM_TASK_IDS, DEV4_FORM_TASKS
 from bench.tasks_dev4_spa import DEV4_SPA_TASK_IDS, DEV4_SPA_TASKS
 from bench.tasks_val3 import VAL3_TASK_IDS, VAL3_TASKS
@@ -1208,6 +1209,8 @@ WEBVOYAGER_TASKS += HELDOUT3C_TASKS
 WEBVOYAGER_TASKS += DEV3_TASKS
 # dev4nav: the nav read step's first-contact set. See bench/tasks_dev4_nav.py.
 WEBVOYAGER_TASKS += DEV4_NAV_TASKS
+# dev5title: fresh title tasks for the title false-accept work. See bench/tasks_dev5_title.py.
+WEBVOYAGER_TASKS += DEV5_TITLE_TASKS
 # dev4form is the form specialist's fresh tune set. See bench/tasks_dev4_form.py.
 WEBVOYAGER_TASKS += DEV4_FORM_TASKS
 # dev4spa is the spa specialist's tune set, never scored. See bench/tasks_dev4_spa.py.
@@ -1308,6 +1311,7 @@ SPLIT_HELDOUT3C = "heldout3c"
 SPLIT_HELDOUT3 = "heldout3"
 SPLIT_DEV3 = "dev3"
 SPLIT_DEV4NAV = "dev4nav"
+SPLIT_DEV5TITLE = "dev5title"
 SPLIT_DEV4_FORM = "dev4form"
 SPLIT_DEV4SPA = "dev4spa"
 SPLIT_VAL3 = "val3"
@@ -1372,6 +1376,7 @@ def resolve_task_split(spec: str | None) -> str:
     names start with a through m.
     dev3 is a forty-task public tune set, not scored.
     dev4nav is the nav read step's twelve-task first-contact set.
+    dev5title is a fresh seventeen-task title set, not scored.
     dev4spa is the spa specialist's twelve-task tune set, not scored.
     val3 is a forty-task validation set on n-z sites, disjoint from all of
     those. It is an aggregate-only gate.
@@ -1400,6 +1405,8 @@ def resolve_task_split(spec: str | None) -> str:
         return SPLIT_DEV3
     if key in ("dev4nav", "dev4-nav"):
         return SPLIT_DEV4NAV
+    if key == "dev5title":
+        return SPLIT_DEV5TITLE
     if key == "dev4form":
         return SPLIT_DEV4_FORM
     if key == "dev4spa":
@@ -1434,6 +1441,8 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
         return _tasks_in_order(DEV3_TASK_IDS)
     if name == SPLIT_DEV4NAV:
         return _tasks_in_order(DEV4_NAV_TASK_IDS)
+    if name == SPLIT_DEV5TITLE:
+        return _tasks_in_order(DEV5_TITLE_TASK_IDS)
     if name == SPLIT_DEV4_FORM:
         return _tasks_in_order(DEV4_FORM_TASK_IDS)
     if name == SPLIT_DEV4SPA:
