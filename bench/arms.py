@@ -136,6 +136,53 @@ _SCRIPT_FIRST_LOOK_LINE = """
 
 If you know the URL but not the page's field names, buttons, or where the value sits, you may call look(url) once first. Otherwise write the script directly."""
 
+_SEGMENT_LINES = """
+
+Grounded segments:
+- If you need to inspect controls or content, look({}) reads the current page; look({url: "https://..."}) opens a page first. At most two looks per task. A look is never completion.
+- run_script accepts final (boolean, true by default) and expect (at most four checks). final:false retains the current page and returns a receipt and compact view so you can continue.
+- Each expect item has exactly one key: url_contains, text, gone_text, or control. The first three take nonblank strings of at most 200 characters. control takes {name: string, role?: string} and needs exactly one visible exact match.
+- Expectations are polled together before trailing page.evaluate steps, for at most three seconds per segment and ten seconds total. They are checked again afterward. A failed readiness check stays failed. Expectations are extra constraints, never proof of semantic correctness.
+- The receipt reports completed actions, any failed step, checks, and remaining budgets. Completed mutations remain applied; a failed action may already have emitted input. Inspect current state before retrying and never replay completed mutations.
+- Only a final script with passing execution, expectations, and live-page evidence can finish. A non-final segment or TASK_COMPLETE prose cannot finish the task.
+- Keep within six scripts and eight model calls, including repairs, and the task's wall budget. Batch known steps rather than splitting each click into a segment."""
+
+
+def _segment_prompt() -> str:
+    return _SCRIPT_FIRST_PROMPT.replace(
+        "- The first script must finish the task. Call run_script once. Do not plan a second script.",
+        "- If you know the whole path, send one script that finishes the task (final is true by default). "
+        "If you do not, send a short final:false segment, read the receipt and page, then continue. "
+        "Use expect for what must be on the page before the evidence is read.",
+    ).replace(
+        "- The end URL must", "- A final script's end URL must",
+    ).replace(
+        "Do not stop on the start URL, and do not stop on a search-results URL",
+        "Do not finish on the start URL or a search-results URL",
+    ).replace(
+        "Put the whole navigation in the same script.",
+        "Batch the navigation you know; use a segment when the next action needs observation.",
+    ).replace(
+        "Leave it for the page that holds the asked value.",
+        "A final script must leave it for the page that holds the asked value.",
+    ).replace(
+        "- End every script with", "- End every final script with",
+    ).replace(
+        "- Do not click, type, or snapshot one element at a time.",
+        "- Batch known actions; observe between segments when the next action is not yet grounded.",
+    ).replace(
+        _GROUNDED_REPAIR_LINE,
+        "- If the tool result says END_STATE_FAILED, inspect the current page and receipt. "
+        "Continue from that state without replaying completed mutations. A repair may use final:false if work remains.\n",
+    ).replace(
+        "- If the result already satisfies the task, the run stops.",
+        "- If a final script passes the completion gate, the run stops.",
+    ).replace(
+        _GROUNDED_CLOSING,
+        "Be efficient: one final script when possible; otherwise use short grounded segments.",
+    ) + _SEGMENT_LINES
+
+
 _ENDPOINT_PROMPT = """A direct read of the task start URL uses no model.
 
 A miss falls through to the script_first arm. This arm does not launch a browser."""
@@ -180,11 +227,14 @@ def prompt_for(arm: str) -> str:
         return _STAGEHAND_PROMPT
     if arm == ARM_SCRIPT_FIRST:
         from bench.script_first import look_enabled
+        from bench.segments import segments_enabled
 
         if script_first_repair_mode()["legacy"]:
             return _SCRIPT_FIRST_PROMPT.replace(_GROUNDED_REPAIR_LINE, _BLIND_REPAIR_LINE).replace(
                 _GROUNDED_CLOSING, _BLIND_CLOSING
             )
+        if segments_enabled():
+            return _segment_prompt()
         if look_enabled():
             return _SCRIPT_FIRST_PROMPT + _SCRIPT_FIRST_LOOK_LINE
         return _SCRIPT_FIRST_PROMPT

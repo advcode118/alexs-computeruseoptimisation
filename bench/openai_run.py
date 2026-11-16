@@ -98,7 +98,7 @@ def plan_openai_probe(
             models.append(cell["model"])
     tasks = _tasks(split, one_task=request["one_task"], only_kind=only_kind)
     ledger = OpenAISpendLedger.read()
-    return {
+    plan = {
         "execute": False,
         "provider": "openai",
         "mode": "sweep" if request["sweep"] else "outer_openai",
@@ -125,6 +125,17 @@ def plan_openai_probe(
         "box_commands": _commands(request["sweep"]),
         "checks": "the same URL, text, and evidence checks as the Claude path",
     }
+    if "script_first" in arms:
+        from bench.harness import segment_mode_for
+        from bench.segments import SEG_MAX_CALLS
+
+        mode = segment_mode_for("script_first")
+        if mode != "off":
+            plan["segment_mode"] = mode
+            if mode == "on":
+                plan.update(segment_cache="disabled", segment_specialists="disabled",
+                            segment_warm_replay="disabled", segment_max_calls=SEG_MAX_CALLS)
+    return plan
 
 
 def resolve_openai_request(

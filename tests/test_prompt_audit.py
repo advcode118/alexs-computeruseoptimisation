@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from bench.arms import SELECTABLE_ARMS, prompt_for
 from bench.judge import JUDGE_SYSTEM
 from bench.probe import probe_tasks
@@ -89,7 +91,10 @@ def _model_texts() -> list[tuple[str, str]]:
     return texts
 
 
-def test_prompts_repairs_and_patch_turns_omit_probe_answers():
+@pytest.mark.parametrize("segments", [False, True])
+def test_prompts_repairs_and_patch_turns_omit_probe_answers(monkeypatch, segments):
+    monkeypatch.delenv("CU_SF_REPAIR", raising=False)
+    monkeypatch.setenv("CU_SF_SEGMENTS", "1" if segments else "0")
     seen = _model_texts()
     names = [name for name, _text in seen]
     assert any(name.startswith("prompt:") for name in names)
@@ -99,3 +104,30 @@ def test_prompts_repairs_and_patch_turns_omit_probe_answers():
     for name, text in seen:
         for secret in FORBIDDEN:
             assert secret not in text, f"{name} contains {secret!r}"
+
+
+def test_segment_feedback_has_no_answer_key_fields(monkeypatch):
+    from bench.script_first import EvidenceVerdict, grounded_repair_request
+    from bench.segments import build_receipt, segment_continue_text, segment_repair_note
+
+    monkeypatch.setenv("CU_SF_SEGMENTS", "1")
+    monkeypatch.delenv("CU_SF_REPAIR", raising=False)
+    receipt = build_receipt(
+        segment=1, final=False, ok=False, steps_run=1, steps_total=2,
+        url_before="https://example.test/start", url_after="https://example.test/form",
+        failed_step={"index": 2, "source": 'cu.click("Next")', "error": "not visible"},
+    )
+    snapshot = 'URL: https://example.test/form\nbutton "Next"'
+    texts = [
+        segment_continue_text(receipt, snapshot),
+        segment_repair_note(receipt),
+        grounded_repair_request(
+            EvidenceVerdict("FAIL", "control not visible", receipt["url_after"]).reason,
+            code='cu.fill("Name", "Pat")\ncu.click("Next")',
+            payload={"ok": False, "steps": 1, "url": receipt["url_after"], "receipt": receipt},
+            snapshot=snapshot, repair_number=1, max_repairs=3,
+        ),
+    ]
+    for text in texts:
+        for secret in FORBIDDEN:
+            assert secret not in text

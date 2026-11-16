@@ -170,6 +170,59 @@ class TaskResult:
     strategy_reads: list = field(default_factory=list)
     strategy_reason: str = ""
     strategy_detail: dict = field(default_factory=dict)
+    segment_mode: str = "off"
+    segments: list[dict] = field(default_factory=list)
+
+
+def segment_mode_for(arm: str) -> str:
+    """The requested experiment, with legacy repair taking precedence."""
+    if arm != "script_first" or os.environ.get("CU_SF_SEGMENTS") != "1":
+        return "off"
+    from bench.segments import segments_enabled
+
+    return "on" if segments_enabled() else "off:legacy"
+
+
+def segment_result_fields(result: TaskResult) -> dict:
+    """Keep ordinary saved rows byte-compatible with the default path."""
+    if getattr(result, "segment_mode", "off") == "off":
+        return {}
+    fields = {"segment_mode": result.segment_mode, "segments": result.segments}
+    if result.segment_mode == "on":
+        fields.update(segment_cache="disabled", segment_specialists="disabled")
+    return fields
+
+
+def _segment_receipt_error(receipt: object, args: object, index: int) -> str:
+    """Fail closed on broken client receipts before trusting their final bit."""
+    from bench.segments import parse_segment_args, valid_receipt
+
+    if not valid_receipt(receipt):
+        return "missing or malformed segment receipt"
+    if receipt["segment"] != index:
+        return "invalid segment receipt step accounting"
+    final, checks, errors = parse_segment_args(args)
+    if receipt["final"] != final:
+        return "invalid segment receipt final flag"
+    if receipt["ok"] and (
+        errors or receipt["failed_step"] is not None
+        or receipt["steps_run"] != receipt["steps_total"]
+        or len(receipt["checks"]) != len(checks)
+        or any(not check["ok"] for check in receipt["checks"])
+    ):
+        return "invalid successful segment receipt"
+    if receipt["ok"]:
+        for expected, actual in zip(checks, receipt["checks"]):
+            kind, arg = next(iter(expected.items()))
+            observed = actual["arg"]
+            if kind == "control":
+                try:
+                    observed = json.loads(observed)
+                except ValueError:
+                    return "invalid segment receipt control"
+            if actual["kind"] != kind or observed != arg:
+                return "segment receipt does not match requested expectations"
+    return ""
 
 
 def estimate_tokens(text: str) -> int:
@@ -1139,6 +1192,346 @@ class BenchmarkHarness:
         if marked:
             last.selector_text = marked
 
+    async def _run_segment_task(self, task_id: str, description: str, start_url: str) -> TaskResult:
+        """Cold, bounded segment controller. Only a final runtime PASS can finish.
+
+        The wall limit is an admission deadline: an already-issued provider call
+        may return later, and its usage is still counted. Browser work is bounded
+        by the same deadline on ScriptFirstClient. The shared grade runs afterward.
+        """
+        from bench.arms import script_first_repair_mode
+        from bench.script_first import (
+            FAIL, PASS, UNKNOWN, EvidenceVerdict, drop_old_snapshots,
+            grounded_repair_request, repair_outcome_key,
+            script_result_payload, script_runtime_verdict,
+            task_asks_value,
+        )
+        from bench.segments import (
+            SEG_MAX_CALLS, SEG_MAX_LOOKS, SEG_MAX_SCRIPTS, SEG_WALL_S,
+            gate_final, segment_continue_text, segment_made_progress,
+            segment_repair_note, segment_request_key,
+        )
+        from bench.tasks import task_message
+
+        wall_start = time.perf_counter()
+        deadline = wall_start + SEG_WALL_S
+        client = self.mcp_client
+        client.reset_segments()
+        client.segment_deadline = deadline
+        client.end_markers = {}
+        client.look_task = description
+        self._pending_snapshot_path = None
+        tools = client.tools_for_claude()
+        messages = [{"role": "user", "content": task_message(description, start_url)}]
+        result = TaskResult(
+            task_id=task_id, task_description=description, success=False,
+            success_reason="Max model calls reached", total_steps=0, total_wall_ms=0,
+            total_model_ms=0, total_tool_ms=0, total_other_ms=0,
+            total_input_tokens=0, total_output_tokens=0, total_snapshot_tokens=0,
+            tier="fresh", segment_mode="on",
+        )
+        max_calls = min(self.max_steps, SEG_MAX_CALLS)
+        max_repairs = script_first_repair_mode()["max_repairs"]
+        scripts = repairs = segments_acked = looks = stalled_scripts = same_fail_count = 0
+        awaiting_repair = False
+        last_verdict = None
+        last_fail_key = None
+        last_url = ""
+        previous: dict | None = None
+        earlier: list[dict] = []
+        repeatable: dict[str, bool] = {}
+        check_states: dict[tuple[str, str], bool] = {}
+
+        def expired() -> bool:
+            return time.perf_counter() >= deadline
+
+        def stop(reason: str, state: str = FAIL) -> None:
+            result.success = False
+            result.end_state = state
+            result.success_reason = reason
+
+        async def snapshot() -> tuple[str, float]:
+            if expired():
+                return "", 0.0
+            began = time.perf_counter()
+            try:
+                text, _ms = await asyncio.wait_for(
+                    client.page_snapshot(description), timeout=max(0.0, deadline - began),
+                )
+                return text, (time.perf_counter() - began) * 1000
+            except Exception as exc:
+                return f"(page snapshot unavailable: {type(exc).__name__})", (time.perf_counter() - began) * 1000
+
+        try:
+            while result.model_calls < max_calls:
+                if expired():
+                    stop("Segment wall budget reached", UNKNOWN)
+                    break
+                if scripts >= SEG_MAX_SCRIPTS:
+                    stop("No further scripts. The segment script limit is reached.")
+                    break
+                self._begin_browser_launch()
+                options = {}
+                if awaiting_repair:
+                    options["tool_choice"] = "required" if self.provider == "openai" else {"type": "any"}
+                sent_messages = cap_messages_for_model(messages, script_first=True)
+                # Count the issued call even if the provider throws.
+                result.model_calls += 1
+                model_start = time.perf_counter()
+                try:
+                    response, model_ms = await self.anthropic.create_message(
+                        sent_messages, tools, system=self.system_prompt, **options,
+                    )
+                except Exception:
+                    result.total_model_ms += (time.perf_counter() - model_start) * 1000
+                    raise
+                usage = response.get("usage", {})
+                input_tokens = int(usage.get("input_tokens") or 0)
+                output_tokens = int(usage.get("output_tokens") or 0)
+                result.total_model_ms += model_ms
+                result.total_input_tokens += input_tokens
+                result.total_output_tokens += output_tokens
+                result.total_cached_tokens += int(usage.get("cached_tokens") or 0)
+                result.total_cache_write_30m_tokens += int(usage.get("cache_write_30m_tokens") or 0)
+                result.total_cache_write_12h_tokens += int(usage.get("cache_write_12h_tokens") or 0)
+                if expired():
+                    stop("Segment wall budget reached after model return", UNKNOWN)
+                    break
+                content = response.get("content", [])
+                calls = [b for b in content if b.get("type") == "tool_use"]
+                prose = "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
+                if awaiting_repair:
+                    names = {b.get("name") for b in calls}
+                    result.repair_reply = (
+                        "script" if "run_script" in names else
+                        "task_failed" if "task_failed" in names or "TASK_FAILED" in prose else "prose"
+                    )
+                awaiting_repair = False
+                messages.append({"role": "assistant", "content": content})
+                if not calls:
+                    if "TASK_FAILED" in prose:
+                        stop(f"Task failed: {prose}")
+                    elif last_verdict is not None and last_verdict.verdict == FAIL:
+                        stop(last_verdict.reason)
+                    else:
+                        stop("UNKNOWN: no final segment passed", UNKNOWN)
+                    break
+                tool_results = []
+                stopped = False
+                for index, call in enumerate(calls):
+                    if expired():
+                        stop("Segment wall budget reached before tool admission", UNKNOWN)
+                        stopped = True
+                        break
+                    name, args = call.get("name", ""), call.get("input", {})
+                    if name == "task_failed":
+                        reason = args.get("reason", "") if isinstance(args, dict) else ""
+                        stop(f"Task failed: {reason}")
+                        stopped = True
+                        break
+                    code = (args.get("code") or args.get("script") or "") if isinstance(args, dict) else ""
+                    key = segment_request_key(args)
+                    refusal = ""
+                    if name == "look":
+                        if looks >= SEG_MAX_LOOKS:
+                            refusal = "look was already used. Send run_script."
+                    elif name == "run_script":
+                        finished_first = scripts >= 1 and scripts > repairs + segments_acked
+                        if scripts >= SEG_MAX_SCRIPTS:
+                            refusal = "No further scripts. The segment script limit is reached."
+                        elif finished_first:
+                            refusal = "No further scripts. The repair limit is reached."
+                        elif key in repeatable and not repeatable[key]:
+                            refusal = "No further scripts. This exact script already ran without progress."
+                    else:
+                        refusal = f"Unknown segment tool: {name}"
+                    if refusal:
+                        stop(refusal)
+                        stopped = True
+                        break
+                    await asyncio.wait_for(self._wait_for_browser(), timeout=max(0.0, deadline - time.perf_counter()))
+                    if expired():
+                        stop("Segment wall budget reached before tool admission", UNKNOWN)
+                        stopped = True
+                        break
+                    if name == "look":
+                        looks += 1
+                        drop_old_snapshots(messages)
+                    else:
+                        scripts += 1
+                    raw, tool_ms = await client.call_tool(name, args)
+                    result.total_tool_ms += tool_ms
+                    payload = script_result_payload(raw) if name == "run_script" else {}
+                    page_url = (
+                        payload["url"] if isinstance(payload.get("url"), str)
+                        else page_url_from_result(raw) or last_url
+                    )
+                    last_url = page_url
+                    selector, answer, page_text, returned = logged_evidence(payload)
+                    metric = StepMetrics(
+                        step_number=len(result.steps) + 1, tool_name=name, tool_args=args,
+                        tool_result_size=len(raw), snapshot_tokens=0,
+                        model_time_ms=model_ms if index == 0 else 0, tool_time_ms=tool_ms,
+                        input_tokens=input_tokens if index == 0 else 0,
+                        output_tokens=output_tokens if index == 0 else 0,
+                        page_url=page_url, page_title=page_field(raw, "Title"),
+                        selector_text=selector, claimed_answer=answer, page_text=page_text,
+                        **claim_step_fields(returned),
+                    )
+                    result.steps.append(metric)
+                    check_record = {}
+                    shown = raw
+                    snapshot_text = ""
+                    if name == "run_script":
+                        receipt = payload.get("receipt")
+                        receipt_error = _segment_receipt_error(receipt, args, scripts)
+                        if not receipt_error and (
+                            payload.get("ok") is not receipt["ok"] or payload.get("steps") != receipt["steps_run"]
+                            or receipt["url_after"] != payload.get("url")
+                            or receipt["looks_left"] != SEG_MAX_LOOKS - looks
+                        ):
+                            receipt_error = "segment receipt does not match execution"
+                        valid = not receipt_error
+                        # Even a broken client result is logged as a failed segment.
+                        record = dict(receipt) if isinstance(receipt, dict) else {"segment": scripts, "ok": False}
+                        result.segments.append(record)
+                        done = payload.get("steps")
+                        result.script_steps += done if type(done) is int and done >= 0 else 0
+                        progress = valid and segment_made_progress(previous, payload, receipt)
+                        if valid:
+                            for check in receipt["checks"]:
+                                check_key = (check["kind"], check["arg"])
+                                progress |= check_states.get(check_key) is False and check["ok"]
+                                check_states[check_key] = check["ok"]
+                        stalled_scripts = 0 if progress else stalled_scripts + 1
+                        final = valid and receipt["final"]
+                        repeatable[key] = bool(valid and not final and receipt["ok"] and progress)
+                        verdict = None
+                        if not valid:
+                            verdict = EvidenceVerdict(FAIL, receipt_error, page_url)
+                        elif final:
+                            verdict, _ = script_runtime_verdict(
+                                raw, page_url, start_url, asks_value=task_asks_value(description),
+                                task=description, earlier=earlier,
+                            )
+                            verdict = gate_final(verdict, receipt)
+                        elif not receipt["ok"] or payload.get("ok") is not True:
+                            failed = receipt["failed_step"]
+                            reason = (
+                                f"segment step {failed.get('index')} failed: {failed.get('error', '')}"
+                                if failed else "segment execution or expectation failed"
+                            )
+                            failed_checks = [c["kind"] + ": " + c["arg"] for c in receipt["checks"] if not c["ok"]]
+                            if failed_checks:
+                                reason += "; failed checks: " + ", ".join(failed_checks)
+                            verdict = EvidenceVerdict(FAIL, reason, page_url)
+                        if stalled_scripts >= 2 and (verdict is None or verdict.verdict != PASS):
+                            verdict = EvidenceVerdict(FAIL, "no progress", page_url)
+                        previous = payload
+                        earlier.append(payload)
+                        if verdict is not None:
+                            last_verdict = verdict
+                            result.end_state = verdict.verdict
+                            record.update(verdict=verdict.verdict, reason=verdict.reason)
+                            check_record = self_check_record(payload, page_url, start_url, verdict)
+                            result.script_turns.append([verdict.verdict, round((time.perf_counter() - wall_start) * 1000)])
+                            if verdict.verdict == PASS and page_url.startswith(("http://", "https://")):
+                                result.success = True
+                                result.success_reason = "Task completed successfully"
+                                stopped = True
+                            elif verdict.verdict == UNKNOWN:
+                                stop(f"UNKNOWN: {verdict.reason}", UNKNOWN)
+                                stopped = True
+                            else:
+                                outcome = repair_outcome_key(verdict, payload)
+                                same_fail_count = same_fail_count + 1 if outcome == last_fail_key else 1
+                                last_fail_key = outcome
+                                if (not valid or repairs >= max_repairs or scripts >= SEG_MAX_SCRIPTS
+                                        or result.model_calls >= max_calls or expired()
+                                        or stalled_scripts >= 2 or same_fail_count >= 3):
+                                    stop(verdict.reason)
+                                    stopped = True
+                                else:
+                                    repairs += 1
+                                    result.repair_sent = True
+                                    awaiting_repair = True
+                        else:
+                            # An acknowledged segment is permission to continue, never a PASS.
+                            segments_acked += 1
+                            same_fail_count = 0
+                            last_fail_key = None
+                        if not stopped and (awaiting_repair or not final):
+                            snapshot_text, snap_ms = await snapshot()
+                            tool_ms += snap_ms
+                            result.total_tool_ms += snap_ms
+                            metric.tool_time_ms = tool_ms
+                            drop_old_snapshots(messages)
+
+                            def feedback(page: str) -> str:
+                                if awaiting_repair:
+                                    return segment_repair_note(receipt) + "\n" + grounded_repair_request(
+                                        verdict.reason, code=code if isinstance(code, str) else "",
+                                        payload=payload, snapshot=page, repair_number=repairs,
+                                        max_repairs=max_repairs,
+                                    )
+                                return segment_continue_text(receipt, page)
+
+                            # Keep the receipt intact and budget the page around it.
+                            header_data = {"ok": payload.get("ok"), "steps": payload.get("steps", 0),
+                                           "receipt": receipt}
+                            script_output = {key: payload[key] for key in ("claimed", "extracted") if payload.get(key)}
+                            if script_output:
+                                output = json.dumps(script_output, ensure_ascii=False)
+                                header_data.update(script_output=output[:1600], script_output_truncated=len(output) > 1600)
+                            header = json.dumps(header_data)
+                            allowance = MAX_SNAPSHOT_CHARS - len(header) - len(feedback("")) - 2
+                            if allowance < 0:
+                                raise ValueError("Segment metadata exceeds tool-result budget")
+                            snapshot_text = cap_snapshot_text(snapshot_text, allowance)
+                            shown = header + "\n" + feedback(snapshot_text)
+                        else:
+                            from bench.script_first import model_visible_script_result
+
+                            shown = model_visible_script_result(raw)
+                    snapshot_tokens = estimate_tokens(shown) if name == "look" or snapshot_text else 0
+                    result.total_snapshot_tokens += snapshot_tokens
+                    metric.tool_result_size = len(shown)
+                    metric.snapshot_tokens = snapshot_tokens
+                    metric.snapshot_text = snapshot_text
+                    metric.self_check = check_record
+                    tool_results.append({"type": "tool_result", "tool_use_id": call.get("id", ""), "content": shown})
+                    if expired() and not result.success:
+                        stop("Segment wall budget reached", UNKNOWN)
+                        stopped = True
+                    if stopped:
+                        break
+                    # Every observation/segment is a decision boundary. Later
+                    # calls were planned without its result, even on success.
+                    tool_results.extend(
+                        {"type": "tool_result", "tool_use_id": pending.get("id", ""),
+                         "content": "Not run. Inspect the segment result and current snapshot before continuing."}
+                        for pending in calls[index + 1:]
+                    )
+                    break
+                messages.append({"role": "user", "content": tool_results})
+                if stopped:
+                    break
+            if not result.success and not result.end_state:
+                result.end_state = UNKNOWN
+        except Exception as exc:
+            from bench.openai_spend import PriceUnknown
+
+            if isinstance(exc, PriceUnknown):
+                raise
+            result.error = str(exc) or type(exc).__name__
+            stop(f"Error: {result.error}", UNKNOWN)
+        # This is the independent post-run grade read, never controller input.
+        result.total_wall_ms = (time.perf_counter() - wall_start) * 1000
+        await self._read_shared_page(task_id, result.steps)
+        result.total_steps = len(result.steps)
+        result.total_other_ms = result.total_wall_ms - result.total_model_ms - result.total_tool_ms
+        return result
+
     async def run_task(
         self,
         task_id: str,
@@ -1166,6 +1559,9 @@ class BenchmarkHarness:
                 "MCP client not initialized",
                 "MCP client not started",
             )
+
+        if segment_mode_for(self.arm) == "on":
+            return await self._run_segment_task(task_id, task_description, start_url)
 
         wall_start = time.perf_counter()
         generic_start = wall_start
@@ -1902,6 +2298,7 @@ class BenchmarkHarness:
             strategy_reads=strategy_reads,
             strategy_reason=strategy_reason,
             strategy_detail=strategy_detail,
+            segment_mode=segment_mode_for(self.arm),
         )
 
     def _empty_result(
@@ -1925,6 +2322,7 @@ class BenchmarkHarness:
             total_output_tokens=0,
             total_snapshot_tokens=0,
             error=error,
+            segment_mode=segment_mode_for(self.arm),
         )
 
     def save_result(self, result: TaskResult, run_id: str) -> Path:
@@ -1990,6 +2388,7 @@ class BenchmarkHarness:
                 data["model"] = self.model
                 data["effort"] = self.effort
                 data["cached_tokens"] = result.total_cached_tokens
+            data.update(segment_result_fields(result))
             handle.write(json.dumps(data) + "\n")
         return run_file
 

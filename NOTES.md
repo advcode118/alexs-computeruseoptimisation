@@ -125,3 +125,22 @@ What the later slices changed:
 - Saved-log report (CUO-67, draft PR #11, `cursor/probe-log-report-ce57`). `python -m bench.report` reads `bench/runs/probe_*.jsonl` or a path. It prints each task's saved wall time, step count, tier, and dollars, and the sum of the `usd` fields in that file per arm. It refuses `--execute`. The test file `tests/fixtures/probe_sketch.jsonl` is a sketch, not a probe, and it adds no measurements.
 
 `python -m pytest -q bench/test_harness.py tests` on the report slice: 203 passed. No live probe.
+
+## 15 Nov 2026: grounded-segment prototype
+
+Branch `t3/grounded-segments-astra-opus` starts at `t3/tip4` (`b5b74b3`),
+including the newer runtime verifier, grammar and grounded-repair work.
+`CU_SF_SEGMENTS=1` adds optional observations, intermediate scripts, bounded
+readiness checks, execution receipts and final-only completion. See
+`docs/GROUNDED_SEGMENTS.md` for the contract, flag precedence and local tests.
+
+Opus designed and independently reviewed the prototype; Astra implemented it.
+Review findings about same-URL progress, stale queued calls, repeat keys and an
+unintended warm run were reproduced with synthetic tests and fixed. The
+existing benchmark grade and runtime/answer-key separation are preserved.
+This is a cold-task experiment; segment mode bypasses old replay entries and
+specialists. No API probe or new accuracy claim is part of this change.
+Final local verification: `python -m pytest -q bench/test_harness.py tests`
+gave **1,102 passed, 1 skipped**. `git diff --check` passed, and the OpenAI dev3
+dry plan reports segment mode, eight-call cap and disabled warm replay without
+executing a probe.

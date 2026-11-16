@@ -2,6 +2,13 @@
 
 This benchmark harness measures where time and tokens go when running browser tasks with a Claude model driving `@playwright/mcp`.
 
+## Grounded-segment experiment
+
+`CU_SF_SEGMENTS=1` enables an opt-in script-first controller with observation,
+bounded readiness checks, execution receipts and local continuation. See
+[the experiment guide](../docs/GROUNDED_SEGMENTS.md) for its tool contract,
+limits, local browser tests and comparison plan. Its default is off.
+
 ## Purpose
 
 Milestone 0 of mcp-turbo: measure the baseline before building optimizations. The harness answers:

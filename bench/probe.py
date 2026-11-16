@@ -284,6 +284,10 @@ def warm_arms_for(arms: tuple[str, ...], *, honest: bool = False) -> tuple[str, 
     The honest probe warms script_first only. The cached-script tier is the
     warm pass. The other honest arms stay cold.
     """
+    from bench.segments import segments_enabled
+
+    if segments_enabled():
+        return () if honest else WARM_ARMS
     if honest:
         return (ARM_SCRIPT_FIRST,)
     if ARM_SCRIPT_FIRST in arms:
@@ -490,6 +494,23 @@ def plan_probe(
             "of the three measured arms; warm replay is not included"
         )
         plan["expected_within_3_to_5"] = 3.0 <= plan["expected_usd"] <= 5.0
+    if ARM_SCRIPT_FIRST in chosen:
+        from bench.harness import segment_mode_for
+
+        mode = segment_mode_for(ARM_SCRIPT_FIRST)
+        if mode != "off":
+            plan["segment_mode"] = mode
+            if mode == "on":
+                from bench.segments import SEG_MAX_CALLS
+
+                plan.update(segment_cache="disabled", segment_specialists="disabled",
+                            segment_max_calls=SEG_MAX_CALLS, segment_warm_replay="disabled")
+                if not any(arm in chosen for arm in plan["warm_arms"]):
+                    plan["warm_replay"] = False
+                if honest:
+                    plan["expected_usd"] = None
+                    plan["expected_within_3_to_5"] = None
+                    plan["expected_usd_basis"] = "Segment-mode cost is unmeasured; the old one-shot estimate does not apply."
     return plan
 
 
@@ -901,13 +922,17 @@ async def run_claude_arm(
     effort: str | None = None,
 ) -> dict:
     """Outer model for one arm. The default is claude-sonnet-5-5."""
-    from bench.harness import BenchmarkHarness, claim_from_step
+    from bench.harness import BenchmarkHarness, claim_from_step, segment_mode_for, segment_result_fields
 
     started = time.perf_counter()
     # script_first starts at one script plus a completion turn. The harness
     # adds a turn only for a repair or a refused extra script, stops at
     # SCRIPT_FIRST_HARD_CAP, and runs at most SCRIPT_FIRST_MAX_REPAIRS repair scripts.
     max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
+    if segment_mode_for(arm) == "on":
+        from bench.segments import SEG_MAX_CALLS
+
+        max_steps = SEG_MAX_CALLS
     openai_model = None
     openai_effort = None
     if provider == "openai":
@@ -1024,6 +1049,7 @@ async def run_claude_arm(
             row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
             row["task_description"] = task.get("description") or ""
             row["start_url"] = task.get("start_url") or ""
+            row.update(segment_result_fields(result))
             if result.strategy:
                 row["strategy"] = result.strategy
                 row["strategy_reads"] = result.strategy_reads
@@ -1546,7 +1572,9 @@ async def execute_probe(
     rows: list[dict] = []
     tasks = probe_tasks(chosen_split, only_kind)
     script_cache = None
-    if warm_replay and ARM_SCRIPT_FIRST in chosen:
+    from bench.harness import segment_mode_for
+
+    if warm_replay and ARM_SCRIPT_FIRST in chosen and segment_mode_for(ARM_SCRIPT_FIRST) != "on":
         from bench.script_cache import ScriptCache
 
         # A new file per probe: the cold pass starts empty and the warm pass reads it.
