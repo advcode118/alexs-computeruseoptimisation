@@ -16,20 +16,35 @@ reconciling the ledgers.
 - Treat already-contained, superseded, useful, harmful and unmeasured work as
   different outcomes. Passing unit tests alone does not prove an accuracy gain.
 
-## Merged so far
+## Final status (16 Nov 2026)
 
-See `merged.md` (#46, #45, #67, #78, #81, #58).
+- **7 merged** (#46, #45, #67, #78, #81, #58, #82), **51 already contained**,
+  **15 not merged**. Per-PR reasons: `final_dispositions.md` / `.json`.
+- #82 (segments) merged as accepted experimental infrastructure: opt-in via
+  `CU_SF_SEGMENTS=1`, default off. Strong offline coverage; partial DEV pilot
+  inconclusive (matched 14 tasks: 13 vs baseline 12, FA 1→0, FR 0→1, ~1.23×
+  settled cost per pass). Not promoted to default.
+- #74 (observe-first) PARKED: DEV rep 1 was 15/24 vs baseline 18/24, 0 wins,
+  3 losses. Single repetition; not a general regression claim. Not merged.
+- No blanket claim that project accuracy improved versus tip4 `b5b74b3`.
+- Pilot stopped incomplete: `pilot_20261116.md` (with parent corrections),
+  sanitized per-task rows in `pilot/`.
+- **Budget blocker:** one unresolved OpenAI call
+  (`32f86e4fcf454936b4f519150d51e2cb`, run
+  `pr-eval-3bc3847883fb4aab8a8549e6b9f8b599`) retains a $0.012660
+  reservation; ledger `aborted`, closing total $14.648180. No paid run until it
+  is resolved from provider evidence. Ledger not edited here.
 
-## Work in progress
+## Checklist
 
 - [x] Map all 73 PRs: 51 heads already contained in tip4.
 - [x] Reconcile ledger forks; import missing prior spend once.
 - [x] Opus/Astra independent candidate reviews and focused offline tests.
 - [x] Merge six useful correctness, coverage and record PRs.
 - [x] Opus-reviewed budget runner and one paid schema/accounting smoke.
-- [ ] Complete the predeclared matched development pilot for #74/#82.
-- [ ] Decide the remaining experimental merges and run the final combined suite.
-- [ ] Publish final per-PR disposition and measured outcomes.
+- [~] Matched DEV pilot for #74/#82: stopped after rep 1 (segments 14/15 graded).
+- [x] Merge #82 opt-in; park #74; final combined suite (see `merged.md`).
+- [x] Publish final per-PR disposition.
 
 `pr-integration-pilot-plan.md` was written before comparative results.
 `pr-integration-budget-smoke.md` records the completed reconciliation and smoke;

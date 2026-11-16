@@ -1,0 +1,99 @@
+{
+  "plan": "C:/Users/epicd/AppData/Local/Temp/opencode/pr-integration-pilot-plan.md",
+  "salt": "pr-integration-20261116:",
+  "groups": {
+    "dev3:dev3_nav_": [
+      "dev3_nav_express_middleware",
+      "dev3_nav_erlang_getting_started",
+      "dev3_nav_ffmpeg_ffprobe",
+      "dev3_nav_freedesktop_desktop_entry"
+    ],
+    "dev3:dev3_value_": [
+      "dev3_value_ffmpeg_codename",
+      "dev3_value_exif_gpsaltref",
+      "dev3_value_mysql_mediumint",
+      "dev3_value_commonmark_028"
+    ],
+    "dev3:dev3_search_": [
+      "dev3_search_erlang_lists",
+      "dev3_search_metacpan_moose",
+      "dev3_search_godot_signals",
+      "dev3_search_hex_plug"
+    ],
+    "dev4form:*": [
+      "dev4_form_playground_enquiry",
+      "dev4_form_giga_percent",
+      "dev4_form_lambdatest_input",
+      "dev4_form_testmu_radio",
+      "dev4_form_epoch_timestamp",
+      "dev4_form_roman_convert"
+    ],
+    "dev4spa:*": [
+      "dev4spa_spa_artifacthub_nginx_app",
+      "dev4spa_spa_deps_react_dependency",
+      "dev4spa_js_shoelace_advanced",
+      "dev4spa_js_jqueryui_tab_three",
+      "dev4spa_js_jqueryui_section_three",
+      "dev4spa_spa_docsify_serve"
+    ]
+  },
+  "selection": {
+    "dev3": [
+      "dev3_nav_ffmpeg_ffprobe",
+      "dev3_nav_freedesktop_desktop_entry",
+      "dev3_nav_erlang_getting_started",
+      "dev3_nav_express_middleware",
+      "dev3_value_commonmark_028",
+      "dev3_value_ffmpeg_codename",
+      "dev3_value_mysql_mediumint",
+      "dev3_value_exif_gpsaltref",
+      "dev3_search_metacpan_moose",
+      "dev3_search_hex_plug",
+      "dev3_search_godot_signals",
+      "dev3_search_erlang_lists"
+    ],
+    "dev4form": [
+      "dev4_form_epoch_timestamp",
+      "dev4_form_roman_convert",
+      "dev4_form_lambdatest_input",
+      "dev4_form_testmu_radio",
+      "dev4_form_playground_enquiry",
+      "dev4_form_giga_percent"
+    ],
+    "dev4spa": [
+      "dev4spa_spa_deps_react_dependency",
+      "dev4spa_spa_docsify_serve",
+      "dev4spa_js_jqueryui_section_three",
+      "dev4spa_spa_artifacthub_nginx_app",
+      "dev4spa_js_jqueryui_tab_three",
+      "dev4spa_js_shoelace_advanced"
+    ]
+  },
+  "frozen": {
+    "runtime_head": "1dede2b6396a1f9a580ca055c3d9d57e77863873",
+    "runtime_dirty": false,
+    "catalog_sha256": {
+      "bench/tasks.py": "de35562596831a214b31c96e381074b0bbbad36a40fa750f17ddad775fc118b9",
+      "bench/tasks_dev3.py": "70e01cf672361334b9319732b84f9e15192efbe05dabe0b39fa9d8d268ff0b9d",
+      "bench/tasks_dev4_form.py": "125905cf3bdc2dd96702cbb23b3115771099b635ccca3c53ec44631d983dde37",
+      "bench/tasks_dev4_spa.py": "0b29b896f6ae15baf7c16cc0ea4535842221113a7708786f3acfbefa3f0741c3"
+    },
+    "runtime_sha256": {
+      "bench/harness.py": "0aa799740468df762ee0d79b41dbc85a2da083b4fa3791a127fd41445de3ab7b",
+      "bench/probe.py": "1faa599c84bb1f5f01d6527e02dbee3ae0d08f539d595735b81ccfe96e6138ef",
+      "bench/arms.py": "40d711c7d7b21170fe825cc9d4152d1e7ffe65329a60111fc301278510f7fb98",
+      "bench/script_first.py": "7073b3a56225a21c2f783b8930bb281ca1db1954dfd90640f9e25a074ce7c665",
+      "bench/segments.py": "b97f3b00c9e408bd45e1b44f5dc44da4762629d709c486dc3ff166aa0ce15452",
+      "bench/openai_client.py": "851591072af358d24fa03b1b945e9448787e27cceedb34400a38185f98b9bc1c",
+      "bench/openai_spend.py": "c533882e6efb8a3c53033fceacac76abb1b23a3dddee4868bd850f09377ebe56",
+      "bench/strategy_nav.py": "61165693d689c4cf74405a473c891da42d27d67e95558999f5076e84e6511567",
+      "bench/strategy_form.py": "930050bc7ff9df42bbbf95fe964502e8ffdb2a5578262f103523465aefca445f",
+      "bench/strategy_spa.py": "fc73fad3ef87f7a095db1d7016238b93b0ae7613177e114df156064e3d097a96",
+      "bench/page_summary.py": "9133dd42fcb0ca2a212232ed6773151e2275d4596301c5b3bb9e5402cb7c716c",
+      "bench/selfcheck_replay.py": "56a3c856e108ce8877cc573d010c32e63a787f77a639f56102b522fe53a867c2"
+    },
+    "driver_path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3df6dc75-c72ace6f81735bf9\\tools\\pr_eval.py",
+    "driver_sha256": "2f559a8e8e36a60a7d0115a08d7e2c724efe2964bbf91b189a3c7460e33b5d77",
+    "campaign_sha256": "c687dd2f72c6aa4f5c1dcf32501f417fcd19eaa07e547b37cffa364f9110deff"
+  }
+}

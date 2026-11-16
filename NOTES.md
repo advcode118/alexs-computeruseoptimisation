@@ -144,3 +144,11 @@ Final local verification: `python -m pytest -q bench/test_harness.py tests`
 gave **1,102 passed, 1 skipped**. `git diff --check` passed, and the OpenAI dev3
 dry plan reports segment mode, eight-call cap and disabled warm replay without
 executing a probe.
+
+## PR integration close, 16 Nov 2026 (`t3/pr-integration-20261116`, draft PR #83)
+
+- Baseline `t3/tip4` `b5b74b3`. Of the 73 open PRs: 7 merged (#46, #45, #67, #78, #81, #58, #82), 51 already contained and 15 not merged. See `docs/PR_INTEGRATION_20261116/final_dispositions.md`.
+- #82 segments merged opt-in (`CU_SF_SEGMENTS=1`, default off) with accuracy INCONCLUSIVE. On the 14 matched DEV tasks it scored 13 vs baseline 12, with FA 1→0, FR 0→1 and about 1.23× settled cost per pass. #74 observe-first is PARKED and not merged (DEV rep 1: 15/24 vs 18/24). #81 is a correctness fix with no new accuracy measurement. This does not claim that project accuracy improved.
+- Pilot report with parent corrections: `docs/PR_INTEGRATION_20261116/pilot_20261116.md`. Sanitized rows: `pilot/`.
+- Budget blocker: one OpenAI call is unresolved (`32f86e4fcf454936b4f519150d51e2cb`). It keeps a $0.012660 reservation and the ledger is `aborted` at $14.648180. No paid run until it is resolved from provider evidence.
+- Full suite `python -m pytest -q bench/test_harness.py tests`: 1159 passed, 1 skipped, 1 failed. The failure is `test_checks.py::test_cli_replay_committed_spec`, `elapsed < 3` (3.57 s). It is a wall-time bound and fails on tip4 `b5b74b3` too (3 of 4 reruns under the same machine load), so this branch did not introduce it. The assertion was not changed.

@@ -15,10 +15,13 @@ No merge to `main`, force-push or branch deletion.
 | — | annotation `d0836d3` (cherry-picked `-x`) | `2146779` | dated historical notes on #45/#67 | +20 lines, 2 docs |
 | #81 | `69357dde5265fe3c37704b45b8af3f4f606ac422` | `6dfaeab29338025938f839fed1f9699461692554` | runtime correctness fix (title self-check false rejects, `_clean_url` brackets for all arms); no fresh accuracy gain shown | `bench/{harness,probe,script_first,tasks,tasks_dev5_title,verify_dev5_title}.py`, 3 tests |
 | #58 | `aad3077cc501a4efb91fc18630000070830b90d8` | `d1dc7bbeb33f5b81d08e3d32801c163349c887b9` | record-only remainder; tip2 runtime already in tip4 | run-plan deviations, manifest additions and historical subset wrapper |
+| #82 | `d4f9d03abe278ebad44d1391cc67b4d3b83b8005` | `888f7e245f327b008546f0733b80240a7be359f1` | opt-in runtime (`CU_SF_SEGMENTS`, default off); accuracy inconclusive | `bench/segments.py`, harness/script_first hooks, tests |
 
 Not merged: #79 stays PARKED (saved live 192/240 vs 200/240, false accepts 19
 vs 12). The isolated child heads `d0836d3` (contains PR82) and `67db53d`
-(contains #79) were not merged whole. #74/#82 await probes.
+(contains #79) were not merged whole. #74 PARKED after the DEV pilot (not
+merged; private head `deac8e1` not merged). #82 merged opt-in on 16 Nov after
+the pilot; see `final_dispositions.md`.
 
 ## Focused checks on this tip4-based tree (not PR82)
 
