@@ -74,6 +74,9 @@ class _World:
                 self.page_selector_text = world.page_selector_text
                 self.stopped = False
 
+            async def start(self):
+                return None
+
             async def stop(self):
                 self.stopped = True
                 world.stopped += 1

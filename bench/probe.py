@@ -133,6 +133,7 @@ from bench.budget import (
     estimate_usd,
 )
 from bench.judge import check_text_present, check_url_contains
+from bench.measurement import grade_fields, measurement_fields
 from bench.tasks import (
     DEV_TASK_IDS,
     HELD_OUT_TASK_IDS,
@@ -724,6 +725,8 @@ def empty_row(
     no_model_only: bool = False,
 ) -> dict:
     return {
+        **measurement_fields(),
+        **grade_fields(),
         "arm": arm,
         "task_id": task_id,
         "success": False,
@@ -766,17 +769,24 @@ async def run_no_model_arm(arm: str, task: dict, *, headless: bool = True) -> di
         raise RuntimeError(f"{arm} needs Claude and must not use the no-model runner")
     from bench.arms import build_client
 
-    started = time.perf_counter()
+    launch_start = time.perf_counter()
     client = build_client(arm, headless=headless)
-    await client.start()
+    started = None
+    wall_ms = None
+    browser_launch_ms = 0.0
     try:
+        await client.start()
+        browser_launch_ms = (time.perf_counter() - launch_start) * 1000
+        started = time.perf_counter()
         peeked, _elapsed = await _peek_snapshot(client, arm, task["start_url"])
         if snapshot_is_huge(peeked):
             row = empty_row(arm, task["id"], reason=f"skipped: first snapshot is {len(peeked)} chars")
             row["wall_ms"] = (time.perf_counter() - started) * 1000
+            row.update(measurement_fields(browser_launch_ms=browser_launch_ms))
             return row
         tool = "fast_act" if arm == "diff_fast_act" else "do_task_segment"
         body, _tool_ms = await client.call_tool(tool, {"task": task["description"]})
+        wall_ms = (time.perf_counter() - started) * 1000
         payload = {}
         try:
             payload = json.loads(body)
@@ -784,16 +794,25 @@ async def run_no_model_arm(arm: str, task: dict, *, headless: bool = True) -> di
             payload = {}
         url = str(payload.get("url") or "")
         page = str(payload.get("page") or "") + "\n" + str(payload.get("diff") or "")
+        from bench.script_first import read_marked_page
+
+        grade_start = time.perf_counter()
+        read_text, selector_text = await read_marked_page(client, "")
+        grade_read_ms = (time.perf_counter() - grade_start) * 1000
+        page = read_text or page
+        url = getattr(client, "_grade_read_url", "") or url
         success, grade_reason, checked, reason = grade_arm(task, url, page)
         if checked is None:
             grade_reason = payload.get("summary") or reason
         return {
+            **measurement_fields(browser_launch_ms=browser_launch_ms, grade_read_ms=grade_read_ms),
+            **grade_fields(url, page, selector_text),
             "arm": arm,
             "task_id": task["id"],
             "success": success,
             "success_reason": grade_reason,
             "skipped": False,
-            "wall_ms": (time.perf_counter() - started) * 1000,
+            "wall_ms": wall_ms,
             "steps": int(payload.get("cycles") or 0),
             "input_tokens": 0,
             "output_tokens": 0,
@@ -804,6 +823,15 @@ async def run_no_model_arm(arm: str, task: dict, *, headless: bool = True) -> di
             "tier": payload.get("tier") or "",
             "claude": False,
         }
+    except Exception as exc:
+        row = empty_row(arm, task["id"], reason=f"run failed: {type(exc).__name__}", skipped=False)
+        row["wall_ms"] = wall_ms if wall_ms is not None else (
+            (time.perf_counter() - started) * 1000 if started is not None else 0.0
+        )
+        row.update(measurement_fields(browser_launch_ms=(
+            browser_launch_ms if started is not None else (time.perf_counter() - launch_start) * 1000
+        )))
+        return row
     finally:
         await client.stop()
 
@@ -823,7 +851,6 @@ async def run_claude_arm(
     """Outer model for one arm. The default is claude-sonnet-5-5."""
     from bench.harness import BenchmarkHarness, claim_from_step, segment_mode_for, segment_result_fields
 
-    started = time.perf_counter()
     # script_first starts at one script plus a completion turn. The harness
     # adds a turn only for a repair or a refused extra script, stops at
     # SCRIPT_FIRST_HARD_CAP, and runs at most SCRIPT_FIRST_MAX_REPAIRS repair scripts.
@@ -859,12 +886,17 @@ async def run_claude_arm(
             max_steps=max_steps,
             script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
         )
-    await harness.setup()
+    started = None
+    wall_ms = None
     try:
+        await harness.setup()
+        started = time.perf_counter()
+        harness._task_wall_start = started
         peeked, _elapsed = await _peek_snapshot(harness.mcp_client, arm, task["start_url"])
         if snapshot_is_huge(peeked):
             row = empty_row(arm, task["id"], reason=f"skipped: first snapshot is {len(peeked)} chars")
             row["wall_ms"] = (time.perf_counter() - started) * 1000
+            row.update(measurement_fields(browser_launch_ms=harness.browser_launch_ms))
             row["claude"] = False
             return row
         result = await harness.run_task(
@@ -875,6 +907,7 @@ async def run_claude_arm(
             judge_prompt=task.get("judge_prompt"),
             check_url_contains=task.get("check_url_contains") or "",
         )
+        wall_ms = result.total_wall_ms
         last = result.steps[-1] if result.steps else None
         final_url = last.page_url if last else ""
         selector_text = last.selector_text if last else ""
@@ -906,17 +939,28 @@ async def run_claude_arm(
         )
         usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
         row = {
+            **measurement_fields(
+                browser_launch_ms=harness.browser_launch_ms, grade_read_ms=result.grade_read_ms,
+            ),
+            **grade_fields(final_url, graded_text, selector_text, claimed_answer),
             "arm": arm,
             "task_id": task["id"],
             "success": success,
             "success_reason": reason,
             "end_state": end_state,
+            "grade_completed": completed,
+            "grade_completion_reason": result.success_reason,
+            "grade_claim": {
+                "url": claimed.url, "title": claimed.title, "h1": claimed.h1,
+                "answer": claimed.answer, "key_text": claimed.key_text,
+                "values": list(claimed.values), "rejected": claimed.rejected,
+            } if claimed is not None else None,
             "page_answer_success": page_answer_ok,
             "page_answer_reason": page_answer_reason,
             "substring_success": substring_ok,
             "substring_reason": substring_reason,
             "skipped": False,
-            "wall_ms": result.total_wall_ms or ((time.perf_counter() - started) * 1000),
+            "wall_ms": result.total_wall_ms,
             "steps": result.total_steps,
             "input_tokens": result.total_input_tokens,
             "output_tokens": result.total_output_tokens,
@@ -977,6 +1021,19 @@ async def run_claude_arm(
             row["cached_tokens"] = result.total_cached_tokens
             row["cache_write_30m_tokens"] = result.total_cache_write_30m_tokens
             row["cache_write_12h_tokens"] = result.total_cache_write_12h_tokens
+        return row
+    except Exception as exc:
+        from bench.openai_spend import PriceUnknown
+
+        if isinstance(exc, PriceUnknown):
+            raise
+        row = empty_row(arm, task["id"], reason=f"run failed: {type(exc).__name__}", skipped=False)
+        if wall_ms is None:
+            wall_ms = harness._task_wall_ms
+        row["wall_ms"] = wall_ms if wall_ms is not None else (
+            (time.perf_counter() - started) * 1000 if started is not None else 0.0
+        )
+        row.update(measurement_fields(browser_launch_ms=harness.browser_launch_ms))
         return row
     finally:
         await harness.teardown()
@@ -1058,10 +1115,16 @@ async def _run_endpoint(
     markers = task.get("end_markers") or {}
     if isinstance(markers, dict):
         selector = str(markers.get("answer_equals_selector") or "")
+    fetch_start = time.perf_counter()
     try:
         page = fetch_start_url(task["start_url"], opener=opener, selector=selector)
     except EndpointError as exc:
-        return empty_row(ARM_ENDPOINT, task["id"], reason=str(exc)), probe_spent
+        row = empty_row(ARM_ENDPOINT, task["id"], reason=str(exc))
+        row["wall_ms"] = (time.perf_counter() - fetch_start) * 1000
+        row["endpoint_fetch_ms"] = row["wall_ms"]
+        return row, probe_spent
+
+    fetch_ms = (time.perf_counter() - fetch_start) * 1000
 
     async def fallback(missed: dict) -> dict:
         if not api_key:
@@ -1084,6 +1147,9 @@ async def _run_endpoint(
         )
 
     row = await run_endpoint_task(task, page, fallback=fallback)
+    row["endpoint_fetch_ms"] = fetch_ms
+    if row.get("arm") == ARM_ENDPOINT:
+        row["wall_ms"] = fetch_ms
     if row.get("arm") == ARM_SCRIPT_FIRST and row.get("claude") and (row.get("input_tokens") or row.get("output_tokens")):
         ledger.record_task(
             run_id="probe",

@@ -17,6 +17,7 @@ import time
 
 from bench.arms import ARM_BROWSER_USE, prompt_for
 from bench.budget import ALLOWED_MODEL, assert_allowed_model, estimate_usd
+from bench.measurement import grade_fields, measurement_fields
 from bench.probe import grade_observation
 from bench.script_first import _PAGE_EVIDENCE_JS, text_from_page_read
 
@@ -181,6 +182,8 @@ async def read_page(browser, *, selector: str = "") -> tuple[str, str, str]:
 
 def _base_row(task_id: str) -> dict:
     return {
+        **measurement_fields(),
+        **grade_fields(),
         "arm": ARM_BROWSER_USE,
         "task_id": task_id,
         "success": False,
@@ -362,11 +365,17 @@ async def run_browser_use_task(
             row["effort"] = chosen_effort
             row["claude"] = False
         return row
-    started = time.perf_counter()
+    started = None
+    launch_start = None
+    run_finished = False
     browser = None
     try:
         agent_cls, browser_cls, llm_cls = loader() if loader is not None else load_browser_use() if provider != "openai" else load_browser_use(provider)
+        launch_start = time.perf_counter()
         browser = browser_cls(LOCAL_BROWSER, headless=headless, keep_alive=True)
+        await browser.start()
+        row["browser_launch_ms"] = (time.perf_counter() - launch_start) * 1000
+        started = time.perf_counter()
         llm = _chat_model(llm_cls, chosen, api_key, chosen_effort)
         # CU_BU_MODE=ultrafast runs browser-use's own fast mode as a control. Unset keeps its default.
         mode = os.environ.get("CU_BU_MODE", "").strip()
@@ -380,8 +389,15 @@ async def run_browser_use_task(
             **extra,
         )
         result = await agent.run(max_steps=BROWSER_USE_MAX_STEPS)
-        url, text, selector_text = await read_page(browser, selector=_task_selector(task))
+        row["wall_ms"] = (time.perf_counter() - started) * 1000
+        run_finished = True
+        grade_start = time.perf_counter()
+        try:
+            url, text, selector_text = await read_page(browser, selector=_task_selector(task))
+        finally:
+            row["grade_read_ms"] = (time.perf_counter() - grade_start) * 1000
         answer = _reported_answer(result)
+        row.update(grade_fields(url, text, selector_text, answer))
         success, reason = _judge(
             task,
             url,
@@ -402,7 +418,6 @@ async def run_browser_use_task(
                 "success": success,
                 "success_reason": reason,
                 "skipped": False,
-                "wall_ms": (time.perf_counter() - started) * 1000,
                 "steps": steps,
                 "input_tokens": incoming,
                 "output_tokens": outgoing,
@@ -424,7 +439,6 @@ async def run_browser_use_task(
     except ImportError:
         row["skipped"] = True
         row["success_reason"] = f"browser-use=={BROWSER_USE_VERSION} is not installed"
-        row["wall_ms"] = (time.perf_counter() - started) * 1000
         return row
     except Exception as exc:
         from bench.openai_spend import PriceUnknown
@@ -432,7 +446,10 @@ async def run_browser_use_task(
         if isinstance(exc, PriceUnknown):
             raise
         row["success_reason"] = f"browser_use run failed: {type(exc).__name__}"
-        row["wall_ms"] = (time.perf_counter() - started) * 1000
         return row
     finally:
+        if started is None and launch_start is not None:
+            row["browser_launch_ms"] = (time.perf_counter() - launch_start) * 1000
+        elif started is not None and not run_finished:
+            row["wall_ms"] = (time.perf_counter() - started) * 1000
         await _stop(browser)

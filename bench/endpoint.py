@@ -10,6 +10,7 @@ from __future__ import annotations
 from html.parser import HTMLParser
 
 from bench.grade import PASS, ClaimedEvidence, PageEvidence, evidence_verdict
+from bench.measurement import grade_fields, measurement_fields
 
 _TITLELINE_ANCHOR = ".titleline a"
 _VOID = {"link", "meta", "br", "img", "hr", "input", "source", "wbr"}
@@ -185,6 +186,8 @@ def judge_page(task: dict, page: dict) -> tuple:
     if verdict.verdict != PASS:
         grade_reason = verdict.reason
     row = {
+        **measurement_fields(),
+        **grade_fields(evidence.url, evidence.text, evidence.selector_text, claimed.answer),
         "arm": "endpoint",
         "task_id": task.get("id") or "",
         "success": hit,

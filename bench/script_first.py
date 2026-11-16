@@ -2342,12 +2342,14 @@ async def read_marked_page(client, selector: str) -> tuple[str, str]:
     same page-evidence function, then the same selector read. An arm that
     cannot read returns empty strings. This is not a model prompt.
     """
+    client._grade_read_url = ""
     page = getattr(client, "_page", None)
     if page is not None:
         try:
             evidence = await collect_page_evidence(page, selector=selector)
         except Exception:
             return "", ""
+        client._grade_read_url = evidence.url
         return evidence.text, evidence.selector_text
     if "browser_evaluate" not in _client_tool_names(client):
         return "", ""
@@ -2359,7 +2361,10 @@ async def read_marked_page(client, selector: str) -> tuple[str, str]:
     except Exception:
         return "", ""
     raw = result[0] if isinstance(result, tuple) else result
-    page_text = text_from_page_read(mcp_evaluate_value(str(raw or "")))
+    value = mcp_evaluate_value(str(raw or ""))
+    if isinstance(value, dict) and isinstance(value.get("url"), str):
+        client._grade_read_url = value["url"]
+    page_text = text_from_page_read(value)
     if not selector:
         return page_text, ""
     try:
