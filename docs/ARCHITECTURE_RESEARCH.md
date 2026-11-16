@@ -1,5 +1,17 @@
 # Browser-agent architectures: what is best, and what script_first should do
 
+> Historical status — 16 November 2026: this is **13-Nov research, not the active
+> implementation plan**. Grounded repair (#69), stricter checking and opt-in
+> specialists have since reached tip4; later observe-first/executor experiments
+> provide their own versioned evidence. The old measurements are not current
+> results, and projected success/latency gains and causal explanations remain
+> hypotheses. The brief-supplied 138-task aggregates and external/vendor claims
+> were not independently revalidated for this integration. Historical in-repo
+> `stagehand` measurements used a local emulator, distinct from the real
+> Stagehand versions discussed here. The old "dev or val" wording below does
+> not authorize tuning on protected val3, heldout3 or heldout4: use permitted
+> development data, and a new blind set for new generalisation claims.
+
 Research note, 13 Nov 2026. No code changed, no model calls, no browser launched. Sources: the installed `browser-use` 1.0.3 package on this machine, this repo (`bench/script_first.py`, `bench/arms.py`, `bench/harness.py`, `bench/browser_use_arm.py`, `docs/HISTORY.md`, `docs/BROWSER_USE_REVIEW.md`), the saved non-heldout3 run rows in `docs/results/` (heldout, 11 Nov; heldout2, 13 Nov), and the web pages listed in the Sources section. Every web source was read on **13 Nov 2026**. Our own 138-task numbers are as given in the brief.
 
 ---

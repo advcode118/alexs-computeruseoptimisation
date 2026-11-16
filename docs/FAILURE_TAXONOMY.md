@@ -1,5 +1,13 @@
 # Failure taxonomy
 
+> Historical status — 16 November 2026: this inventory describes the **10-Nov
+> tuned/development experiment**, not current failure rates or evidence that
+> script_first never fails. The `stagehand` arm below was the local emulator,
+> not the Stagehand library. Format parity and oracle/timing cleanup arrived
+> subsequently in #47; current grading and recall diagnostics also differ.
+> Preserve the original classifications rather than assuming these sparse rows
+> can be re-graded or publishing their win rate as today's accuracy.
+
 Source: the three OpenAI probe logs on branch `docs/our-approach-wording`, `docs/results/2026-11-10/`. Describe them as F1 = `probe_20261110_214520.jsonl` (32 cells + 1 `openai_report` row), F2 = `probe_20261110_215922.jsonl` (12 cells), F3 = `probe_20261110_220242.jsonl` (12 cells). Row numbers are 1-based lines in the file. Every cell has `pass: "cold"`. No probe was run to write this note.
 
 Of 56 cells, 7 have `success: false`. All 7 are listed below; no other rows failed.
