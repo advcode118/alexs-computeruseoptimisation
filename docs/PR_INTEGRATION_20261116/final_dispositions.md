@@ -11,7 +11,9 @@ Machine-readable: `final_dispositions.json`. Ancestry detail: `inventory.md`.
 
 Project accuracy is **not** shown to have improved. #81 is a correctness fix with no fresh accuracy measurement; #82 is opt-in, default off, and its partial DEV pilot is inconclusive. The other merges are docs, tests or records.
 
-Open PRs were left open (no bulk close, no base changes) apart from #82, which was retargeted and merged.
+The seven accepted original PRs were retargeted and merged into the integration
+branch. The other 66 original PRs remain open, with no bulk closure or base
+changes. The new umbrella PR #83 remains a draft against `t3/tip4`.
 
 ## Merged
 
