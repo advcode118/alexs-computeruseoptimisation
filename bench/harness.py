@@ -658,10 +658,9 @@ class PlaywrightMCPClient:
             except asyncio.CancelledError:
                 pass
             self._stderr_task = None
-        process = self.process
-        self.process = None
-        if process is not None:
-            await _shut_down_mcp_process(process)
+        if self.process is not None:
+            await _shut_down_mcp_process(self.process)
+            self.process = None
         self._discard_profile()
 
     def _discard_profile(self) -> None:
