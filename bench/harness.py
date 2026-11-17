@@ -679,14 +679,16 @@ async def _shut_down_mcp_process(process: asyncio.subprocess.Process) -> None:
     """
     if process.stdin is not None:
         process.stdin.close()
-    for escalate in (process.terminate, process.kill):
+    for escalate in (process.terminate, process.kill, None):
         try:
             await asyncio.wait_for(process.wait(), timeout=MCP_SHUTDOWN_TIMEOUT_S)
             return
         except asyncio.TimeoutError:
-            with contextlib.suppress(ProcessLookupError):
-                escalate()
-    await process.wait()
+            # After the kill, a surviving grandchild can still hold the pipes
+            # open and keep wait() pending; give up rather than hang the run.
+            if escalate is not None:
+                with contextlib.suppress(ProcessLookupError):
+                    escalate()
 
 
 def cached_prompt_prefix(system: str, tools: list[dict]) -> tuple[list[dict], list[dict]]:
