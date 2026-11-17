@@ -29,6 +29,7 @@ from bench.tasks_dev4_form import DEV4_FORM_TASK_IDS, DEV4_FORM_TASKS
 from bench.tasks_dev4_spa import DEV4_SPA_TASK_IDS, DEV4_SPA_TASKS
 from bench.tasks_val3 import VAL3_TASK_IDS, VAL3_TASKS
 from bench.tasks_extdev import EXTDEV_TASK_IDS, EXTDEV_TASKS
+from bench.tasks_heldout4 import HELDOUT4_TASK_IDS, HELDOUT4_TASKS
 
 FIXTURE_DIR = Path(__file__).parent.parent / "loop" / "fixture"
 
@@ -1218,6 +1219,7 @@ WEBVOYAGER_TASKS += DEV4_FORM_TASKS
 WEBVOYAGER_TASKS += DEV4_SPA_TASKS
 WEBVOYAGER_TASKS += VAL3_TASKS
 WEBVOYAGER_TASKS += EXTDEV_TASKS
+WEBVOYAGER_TASKS += HELDOUT4_TASKS
 # The frozen heldout3 test set: all four blind-authored splits. See docs/HELDOUT3_PLAN.md.
 # Dropped by the pre-run rule on 13 Nov 2026: each failed a same-day live reproducer run.
 HELDOUT3_DROPPED_TASK_IDS = ("ho3d_spa_toolshop_pliers", "ho3d_form_parabank_login")
@@ -1318,6 +1320,7 @@ SPLIT_DEV4_FORM = "dev4form"
 SPLIT_DEV4SPA = "dev4spa"
 SPLIT_VAL3 = "val3"
 SPLIT_EXTDEV = "extdev"
+SPLIT_HELDOUT4 = "heldout4"
 SPLIT_HONEST = "honest"
 # The scored set is held-out only. Dev is what we tune, and it is not scored.
 HONEST_TASK_IDS = HELD_OUT_TASK_IDS
@@ -1417,6 +1420,8 @@ def resolve_task_split(spec: str | None) -> str:
         return SPLIT_VAL3
     if key == "extdev":
         return SPLIT_EXTDEV
+    if key == "heldout4":
+        return SPLIT_HELDOUT4
     if key == "honest":
         return SPLIT_HONEST
     raise ValueError(f"unknown split {spec!r}")
@@ -1455,6 +1460,8 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
         return _tasks_in_order(VAL3_TASK_IDS)
     if name == SPLIT_EXTDEV:
         return _tasks_in_order(EXTDEV_TASK_IDS)
+    if name == SPLIT_HELDOUT4:
+        return _tasks_in_order(HELDOUT4_TASK_IDS)
     if name == SPLIT_HONEST:
         return _tasks_in_order(HONEST_TASK_IDS)
     return _tasks_in_order(TUNED_PROBE_TASK_IDS)
