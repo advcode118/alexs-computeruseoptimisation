@@ -26,6 +26,8 @@ Low-call design, signed off:
 - Merged [PR #95](https://github.com/advcode118/alexs-computeruseoptimisation/pull/95): browser-use priced per request.
 - Open [PR #106](https://github.com/advcode118/alexs-computeruseoptimisation/pull/106): `run_recovery` stage, per-stage model-call counts, `--fallback none`; offline, **1132 passed, 1 skipped**.
 - Open [PR #105](https://github.com/advcode118/alexs-computeruseoptimisation/pull/105): Sol model/effort comparison.
+- In progress [PR #108](https://github.com/advcode118/alexs-computeruseoptimisation/pull/108): offline only — task profile, checkpoints, executor safety gate, side-effect fixtures.
+- [Continuation plan](https://github.com/advcode118/alexs-computeruseoptimisation/blob/devin/1794950090-planner-gate/docs/LOW_CALL_CONTINUATION.md).
 
 ### Current baseline
 

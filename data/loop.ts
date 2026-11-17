@@ -71,7 +71,13 @@ export const CURRENT_UPDATE = {
       status: "Open",
       body: "Sol model/effort comparison.",
     },
+    {
+      pr: 108,
+      status: "In progress",
+      body: "offline only — task profile, checkpoints, executor safety gate, side-effect fixtures.",
+    },
   ],
+  continuation: "https://github.com/advcode118/alexs-computeruseoptimisation/blob/devin/1794950090-planner-gate/docs/LOW_CALL_CONTINUATION.md",
   promise: "Speed from fewer model calls and deterministic execution. Easier maintenance through scripts you can read and rerun, instead of a model deciding each click. That is the product promise, not a measured speed or accuracy win today.",
   baseline: "Today’s paired speed is effectively tied: cascade mean wall 25.1 s vs browser_use ultrafast 25.3 s. Sample: 22 paired extdev tasks, gpt-6.1-sol medium, 1 replicate. Recorded runs: python tools/extdev_control.py --mode default --execute and python tools/extdev_control.py --mode ultrafast --execute (CU_BU_MODE=ultrafast). The next fresh paired benchmark will provide the speed claim.",
 };

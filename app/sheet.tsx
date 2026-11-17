@@ -163,6 +163,7 @@ export function Sheet() {
                     {": "}{item.body}
                   </li>
                 ))}
+                <li><a className="text-amber underline underline-offset-4" href={CURRENT_UPDATE.continuation}>Continuation plan</a></li>
               </ul>
             </div>
           </div>
