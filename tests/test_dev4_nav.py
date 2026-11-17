@@ -4,7 +4,7 @@ import re
 from collections import Counter
 
 from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
-from bench.tasks import DEV4_NAV_TASK_IDS, get_all_tasks, resolve_task_split, tasks_for_split
+from bench.tasks import DEV4_NAV_TASK_IDS, BENCHMARK_TASKS, resolve_task_split, tasks_for_split
 from tests.test_dev3 import USED_HOSTS, _hosts, registrable
 
 
@@ -13,7 +13,7 @@ def test_dev4nav_split_has_twelve_read_tasks():
     assert resolve_task_split("dev4nav") == "dev4nav"
     ids = [task["id"] for task in tasks]
     assert tuple(ids) == DEV4_NAV_TASK_IDS and len(set(ids)) == 12
-    catalog_ids = [task["id"] for task in get_all_tasks()]
+    catalog_ids = [task["id"] for task in BENCHMARK_TASKS]
     assert all(catalog_ids.count(task_id) == 1 for task_id in ids)
     assert Counter(task_id.split("_")[1] for task_id in ids) == {"value": 8, "title": 4}
     for task in tasks:

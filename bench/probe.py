@@ -1,101 +1,8 @@
-"""Small probe: 3 WebVoyager tasks x 4 arms. Prepared here, not launched.
+"""Offline plans and budgeted execution for script_first and browser baselines.
 
-The competitive path is the outer model claude-sonnet-5-5 on every arm.
-diff_fast_act and macro_replay use the same loop as playwright_mcp and
-stagehand. Their tools are the proxy surface: settle plus a compact diff,
-fast_act with a script, and do_task_segment. The tools do not call Claude.
-The outer loop does. Opus is never used.
-
-That probe stops once it has spent $5 on Claude, and once the project total
-would pass $40. A first snapshot longer than HUGE_SNAPSHOT_CHARS is skipped
-before any model call. The skip looks at the returned body length only.
-full_snapshot_chars inside a compact diff does not skip the task.
-Each Playwright MCP arm uses --isolated only. @playwright/mcp@0.0.84 rejects
---isolated together with --user-data-dir. The Stagehand arm uses its own
-user-data-dir. Sequential arms do not share the workspace Chrome profile.
-
---warm-replay runs after the cold 3x4. It re-runs the same 3 tasks on
-macro_replay and diff_fast_act and records replay hit rate and wall. The
-replay cache is the same file, so a sequence stored on the cold pass can hit.
-When script_first is selected it is re-run too. Its cached-script file is new
-for each probe, so the cold pass stays cold and only stores scripts the
-evidence judge passed. Cold and warm are summarized separately. Each summary
-records the tier that answered (cache_hit, patched, fresh) and the model calls.
-
---no-model-only is optional. It puts diff_fast_act and macro_replay back on
-decide() with no outer model. That path cannot close the Stagehand gap. It
-is not the competitive measurement.
-
-Do not pass --execute from a checkout that has no ANTHROPIC_API_KEY. This
-tree does not call Claude. Box commands, from the repo root:
-
-    python -m bench.probe
-    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute
-    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay
-    python -m bench.probe --execute --no-model-only
-    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand
-    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms script_first --warm-replay
-    ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand --split held-out
-
-The first prints the plan and exits. The second is the competitive 3x4.
-The third is that 3x4 plus the warm second pass. Do not run it from this
-checkout. The fourth is the optional no-model path for the two proxy arms only.
-The fifth is the script_first comparison. The sixth is script_first cold, then
-warm from its cached scripts. Both stop Claude at $2. The project
-abort stays $40. The operator envelope is $50. Do not pass --execute from
-this VM. script_first writes one Playwright script for the whole task and
-runs it with no per-click settle or snapshot.
-
---split probe is the three tuned tasks and the default. --split dev is the
-wider tune set. --split held-out is the scored set. Dev and held-out are
-disjoint, so the tasks we tune are not the tasks we score. Do not run the
-held-out command from this checkout. It is a live Claude probe.
---split heldout2 selects twenty independently authored public tasks.
---split heldout3a and --split heldout3b select thirty more each, and
---split heldout3c and --split heldout3d forty more each, from
-bench/tasks_heldout3_*.py. --split heldout3 is all four: the frozen test
-set. --split dev3 selects forty public tune tasks from bench/tasks_dev3.py.
---split val3 selects forty validation tasks from bench/tasks_val3.py,
-an aggregate-only gate. Without --execute they only list the plan, like
-every other split.
-
---honest is the live comparison. It selects playwright_mcp, script_first,
-stagehand, and browser_use on the held-out scored set, and a warm replay of
-script_first only. The dev tasks are not scored. The cold pass leaves the
-script cache empty. The per-run ceiling is $8, held under the $50 lifetime
-cap and the $40 project abort. A task is not started unless the reserve
-still fits under all three. --repeats N runs each cold task N times and
-reports the mean, median, p90, and a 95%% confidence interval of the mean
-wall time. The default is 1. Later cold repeats do not read the script
-cache. The warm pass still reads the cache the first cold pass filled.
-At the published PR #18 per-task rate, one cold pass of the scored set is
-about $6, which is above $3–$5. Dry run:
-
-    python -m bench.probe --honest
-
-That prints the plan and does not open a network connection. Live, on a
-machine that already has the key and the shared ledger:
-
-    CU_SPEND_LEDGER="$CU_SPEND_LEDGER" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --honest
-
-A ledger below $16.639436 is refused. This file does not write that number.
-
-Environment variables it reads, by name only:
-
-    ANTHROPIC_API_KEY     outer model for every competitive arm
-    NEBIUS_API_KEY        optional, do_task_segment's cheap fallback only
-    NEBIUS_BASE_URL       optional, with NEBIUS_API_KEY
-    NEBIUS_FAST_MODEL     optional, with NEBIUS_API_KEY
-    BROWSERBASE_API_KEY   not used to open a session; local Chrome either way
-    BROWSERBASE_PROJECT_ID
-    SETTLE_QUIET_MS       default 500
-    SETTLE_TIMEOUT_MS     default 3000
-    REPLAY_CACHE_PATH     macro_replay cache file
-    CU_SPEND_LEDGER       shared spend.json. Missing file: live run refuses
-    PLAYWRIGHT_MCP_PROXY_CHILD   optional override for the proxy's browser
-    PLAYWRIGHT_MCP_HEADLESS      set on the proxy process when the probe is headless
-
-No variable value is printed.
+The default arms are script_first, browser_use, and playwright_mcp. Stagehand
+remains selectable. --warm-replay measures the script_first cache separately.
+No client is constructed without --execute.
 """
 
 from __future__ import annotations
@@ -111,16 +18,13 @@ from pathlib import Path
 
 from bench.arms import (
     ARM_BROWSER_USE,
-    ARM_ENDPOINT,
     ARM_PLAYWRIGHT,
     ARM_SCRIPT_FIRST,
     ARM_STAGEHAND,
     ARMS,
     BASELINE_ARMS,
-    NO_MODEL_CAPABLE,
     SCRIPT_FIRST_MAX_CALLS,
     SELECTABLE_ARMS,
-    arm_needs_claude,
 )
 from bench.budget import (
     ALLOWED_MODEL,
@@ -132,12 +36,13 @@ from bench.budget import (
     SpendLedger,
     estimate_usd,
 )
-from bench.judge import check_text_present, check_url_contains
+from bench.measurement import grade_fields, measurement_fields
 from bench.tasks import (
     DEV_TASK_IDS,
     HELD_OUT_TASK_IDS,
     SPLIT_DEV3,
     SPLIT_DEV4NAV,
+    SPLIT_DEV5TITLE,
     SPLIT_DEV4_FORM,
     SPLIT_DEV4SPA,
     SPLIT_HELDOUT2,
@@ -213,7 +118,7 @@ REPORT_FIELDS = (
     "warm_replay_wall_ms",
 )
 HUGE_SNAPSHOT_CHARS = 40_000
-WARM_ARMS = ("macro_replay", "diff_fast_act")
+WARM_ARMS = ()
 RUNS_DIR = Path(__file__).resolve().parent / "runs"
 
 # Exact commands for a box that has the key. This checkout does not run them.
@@ -221,7 +126,6 @@ BOX_COMMANDS = (
     "python -m bench.probe",
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute',
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay',
-    "python -m bench.probe --execute --no-model-only",
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand',
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand --split held-out',
     'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms script_first --warm-replay',
@@ -233,10 +137,10 @@ BOX_COMMANDS = (
 def filter_task_kinds(tasks: list[dict], only_kind: str = "") -> list[dict]:
     """Optional reporting/selection filter; never passed to an agent or router.
 
-    only_kind (--only-kind, or CU_PROBE_ONLY_KIND when it is empty) is a comma
+    only_kind (--only-kind) is a comma
     list of task-type words: the second word of the task id.
     """
-    spec = only_kind or os.environ.get("CU_PROBE_ONLY_KIND", "")
+    spec = only_kind
     kinds = {word.strip().casefold() for word in spec.split(",") if word.strip()}
     if not kinds:
         return tasks
@@ -258,7 +162,7 @@ def probe_tasks(split: str | None = None, only_kind: str = "") -> list[dict]:
 
 
 def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
-    """Default is the four-arm probe. A comma string selects, including script_first."""
+    """Default is script_first, browser_use, and playwright_mcp. A comma string selects, including script_first."""
     if spec is None:
         return ARMS
     if isinstance(spec, str):
@@ -278,16 +182,8 @@ def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, .
 
 
 def warm_arms_for(arms: tuple[str, ...], *, honest: bool = False) -> tuple[str, ...]:
-    """The proxy replay arms, plus script_first when it was selected.
-
-    The honest probe warms script_first only. The cached-script tier is the
-    warm pass. The other honest arms stay cold.
-    """
-    if honest:
-        return (ARM_SCRIPT_FIRST,)
-    if ARM_SCRIPT_FIRST in arms:
-        return WARM_ARMS + (ARM_SCRIPT_FIRST,)
-    return WARM_ARMS
+    """Warm only the selected script_first cache."""
+    return (ARM_SCRIPT_FIRST,) if ARM_SCRIPT_FIRST in arms else ()
 
 
 def honest_task_reserve_usd() -> float:
@@ -353,8 +249,8 @@ def honest_refusal(project_spent: float) -> str | None:
 
 
 def claude_budget_for(arms: tuple[str, ...]) -> float:
-    """script_first's execute path stops at $2. The four-arm probe stays at $5."""
-    if ARM_SCRIPT_FIRST in arms:
+    """Probes containing script_first stop at $2; other arm sets stop at $5."""
+    if ARM_SCRIPT_FIRST in arms or "cascade" in arms:
         return SCRIPT_FIRST_CLAUDE_BUDGET_USD
     return PROBE_CLAUDE_BUDGET_USD
 
@@ -391,7 +287,6 @@ def resolve_repeats(spec: int | None) -> int:
 
 def plan_probe(
     *,
-    no_model_only: bool = False,
     warm_replay: bool = False,
     arms: str | tuple[str, ...] | list[str] | None = None,
     split: str | None = None,
@@ -411,7 +306,7 @@ def plan_probe(
     try:
         spent = SpendLedger.load().running_total_usd
     except LedgerMissing:
-        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_DEV4NAV, SPLIT_DEV4_FORM, SPLIT_DEV4SPA, SPLIT_VAL3):
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_DEV4NAV, SPLIT_DEV5TITLE, SPLIT_DEV4_FORM, SPLIT_DEV4SPA, SPLIT_VAL3):
             raise
         # Listing the new catalog needs no spend authority. Unknown is not
         # zero; live execution and existing splits retain strict ledger checks.
@@ -424,15 +319,13 @@ def plan_probe(
         budget = claude_budget_for(chosen)
     plan = {
         "execute": False,
-        "mode": "no_model_only" if no_model_only else "outer_claude",
+        "mode": "outer_claude",
         "split": chosen_split,
         "tasks": [task["id"] for task in probe_tasks(chosen_split, only_kind)],
         "arms": list(chosen),
         "available_arms": list(SELECTABLE_ARMS),
         "baseline_arms": list(BASELINE_ARMS),
-        "claude_arms": [arm for arm in chosen if arm_needs_claude(arm, no_model_only=no_model_only)],
-        "no_model_arms": [arm for arm in chosen if not arm_needs_claude(arm, no_model_only=no_model_only)],
-        "no_model_only_arms": [arm for arm in chosen if arm in NO_MODEL_CAPABLE],
+        "claude_arms": list(chosen),
         "outer_model": ALLOWED_MODEL,
         "honest": honest,
         "claude_budget_usd": budget,
@@ -448,13 +341,10 @@ def plan_probe(
         "repeats": chosen_repeats,
         "browser_isolation": {
             "playwright_mcp": "--isolated only (0.0.84 rejects --user-data-dir with --isolated)",
-            "diff_fast_act": "proxy child --isolated only",
-            "macro_replay": "proxy child --isolated only",
             "stagehand": "a unique --user-data-dir via launch_persistent_context",
             "script_first": "local Chrome via the Playwright Python API, own user-data-dir, no per-click settle",
-            "endpoint": "direct fetch of the task start URL; no browser; the fetch URL is not rewritten",
             "browser_use": (
-                "browser-use 1.0.3 local Chrome over CDP via Browser('chromium'); "
+                "browser-use 1.0.6 local Chrome over CDP via Browser('chromium'); "
                 "model claude-sonnet-5-5"
             ),
         },
@@ -539,61 +429,6 @@ def claude_block_reason(
     return None
 
 
-def deterministic_success(task: dict, url: str, text: str) -> tuple[bool | None, str]:
-    """URL and text checks only. The LLM judge is not called."""
-    if task.get("check_url_contains"):
-        result = check_url_contains(url, task["check_url_contains"])
-        return result.success, result.reason
-    if task.get("check_text"):
-        result = check_text_present(text, task["check_text"])
-        return result.success, result.reason
-    return None, "no deterministic check; LLM judge was not called"
-
-
-def _grade_claim(answer: str, claimed):
-    """The claim the shared check sees. A bare answer stays an answer-only claim."""
-    from bench.script_first import ClaimedEvidence
-
-    if claimed is None:
-        return ClaimedEvidence(answer=answer or "")
-    if answer and not claimed.answer:
-        return ClaimedEvidence(
-            url=claimed.url,
-            title=claimed.title,
-            h1=claimed.h1,
-            answer=answer,
-            key_text=claimed.key_text,
-            values=claimed.values,
-            rejected=claimed.rejected,
-        )
-    return claimed
-
-
-def _live_return_failure(url: str, text: str, claimed) -> str:
-    """Why the script's own return is not on the live page. Empty when it is.
-
-    URL, key text, and values are the live-page evidence check. A claim that
-    returned none of them leaves the task's own check alone. Title rides along
-    on the same object. UNKNOWN is not a failure here.
-    """
-    if claimed is None:
-        return ""
-    returned = bool(
-        claimed.rejected
-        or (claimed.key_text or "").strip()
-        or any((item or "").strip() for item in claimed.values)
-        or (claimed.url or "").startswith(("http://", "https://"))
-    )
-    if not returned:
-        return ""
-    from bench.script_first import FAIL, PageEvidence, evidence_verdict
-
-    verdict = evidence_verdict({}, PageEvidence(url=url, text=text), claimed)
-    if verdict.verdict == FAIL:
-        return verdict.reason
-    return ""
-
-
 def shared_end_state(
     task: dict,
     url: str,
@@ -604,36 +439,13 @@ def shared_end_state(
     page_text: str = "",
     claimed=None,
 ) -> tuple[bool | None, str]:
-    """The one shared check. A missing check is None, which is not a pass.
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
 
-    URL and text checks use the same strings they always have. A task whose
-    end state is the live value of answer_equals_selector, and which has no
-    URL or text check, is decided by that read. An empty read is a failure.
-    A script return (URL, title, key text, values) is checked against that
-    same page. Text that is not on the page fails the check.
-    """
-    claim = _grade_claim(answer, claimed)
-    body = page_text or text
-    checked, reason = deterministic_success(task, url, text)
-    if checked is not None:
-        if checked is True:
-            problem = _live_return_failure(url, body, claim)
-            if problem:
-                return False, problem
-        return checked, reason
-    markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
-    if not (markers or {}).get("answer_equals_selector"):
-        return None, reason
-    from bench.script_first import PASS, PageEvidence, evidence_verdict
-
-    verdict = evidence_verdict(
-        markers,
-        PageEvidence(url=url, text=body, selector_text=selector_text),
-        claim,
+    return grade.shared_end_state(
+        task, url, text, selector_text=selector_text, answer=answer,
+        page_text=page_text, claimed=claimed,
     )
-    if verdict.verdict == PASS:
-        return True, verdict.reason
-    return False, verdict.reason
 
 
 def shared_check_passes(
@@ -680,34 +492,14 @@ def grade_arm(
     page_text: str = "",
     claimed=None,
 ) -> tuple[bool, str, bool | None, str]:
-    """One rule for every arm. Pass only when the applicable signals agree.
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
 
-    The shared check must be True. None and False are failures. When the arm
-    has an evidence verdict, that verdict must be PASS. UNKNOWN is not a pass.
-    `completed` is the harness completion bit for arms that have one. True is
-    not a pass by itself. False blocks a pass. None means the arm has no such bit.
-    """
-    shared_ok, shared_reason = shared_end_state(
-        task,
-        url,
-        text,
-        selector_text=selector_text,
-        answer=answer,
-        page_text=page_text,
-        claimed=claimed,
+    return grade.grade_arm(
+        task, url, text, evidence=evidence, evidence_reason=evidence_reason,
+        completed=completed, completion_reason=completion_reason,
+        selector_text=selector_text, answer=answer, page_text=page_text, claimed=claimed,
     )
-    if shared_ok is not True:
-        if shared_ok is None:
-            return False, "no shared end-state check", shared_ok, shared_reason
-        return False, shared_reason, shared_ok, shared_reason
-    if evidence is not None and evidence != "PASS":
-        if evidence == "UNKNOWN":
-            reason = evidence_reason if evidence_reason.startswith("UNKNOWN") else "UNKNOWN is not success"
-            return False, reason, shared_ok, shared_reason
-        return False, evidence_reason or "evidence judge did not pass", shared_ok, shared_reason
-    if completed is False:
-        return False, completion_reason or "the run did not finish", shared_ok, shared_reason
-    return True, shared_reason, shared_ok, shared_reason
 
 
 def grade_observation(
@@ -722,55 +514,34 @@ def grade_observation(
     run_verdict: str | None = None,
     claimed=None,
 ) -> tuple[bool, str, bool | None, str]:
-    """The one grade for every arm.
+    """Delegate to the frozen post-run grader; apply the runtime gate on top."""
+    from bench import grade
 
-    `text` is the page text read after the run. A task with end markers gets
-    one evidence verdict from that read and the full claim. A task with no
-    markers gets no marker gate. UNKNOWN is not a pass. TASK_COMPLETE is not
-    a pass by itself: `completed` False still blocks, and True does not.
-    `run_verdict` is script_first's own end state. It has to be PASS, and the
-    shared page check has to pass too. The claim's URL, title, key text, and
-    values are part of that page check.
-    """
-    claim = _grade_claim(answer, claimed)
-    markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
-    evidence = None
-    evidence_reason = ""
-    if markers:
-        from bench.script_first import PageEvidence, evidence_verdict
-
-        verdict = evidence_verdict(
-            markers,
-            PageEvidence(url=url, text=text or "", selector_text=selector_text),
-            claim,
-        )
-        evidence = verdict.verdict
-        evidence_reason = verdict.reason
-    if run_verdict is not None:
-        own = run_verdict if run_verdict in {"PASS", "FAIL", "UNKNOWN"} else "UNKNOWN"
-        if own != "PASS":
-            evidence = own
-            if own == "UNKNOWN":
-                if completion_reason.startswith("UNKNOWN"):
-                    evidence_reason = completion_reason
-                elif completion_reason:
-                    evidence_reason = f"UNKNOWN: {completion_reason}"
-                else:
-                    evidence_reason = "UNKNOWN is not success"
-            else:
-                evidence_reason = completion_reason or evidence_reason or "evidence judge did not pass"
-    return grade_arm(
-        task,
-        url,
-        text or "",
-        evidence=evidence,
-        evidence_reason=evidence_reason,
-        completed=completed,
-        completion_reason=completion_reason,
-        selector_text=selector_text,
-        answer=claim.answer,
-        page_text=text or "",
-        claimed=claim,
+    page_grade = grade.grade_observation(
+        task, url, text, selector_text=selector_text, answer=answer,
+        completed=completed, completion_reason=completion_reason, claimed=claimed,
+    )
+    if run_verdict is None or run_verdict == "PASS":
+        return page_grade
+    own = run_verdict if run_verdict in {"FAIL", "UNKNOWN"} else "UNKNOWN"
+    if own == "UNKNOWN":
+        if completion_reason.startswith("UNKNOWN"):
+            reason = completion_reason
+        else:
+            reason = f"UNKNOWN: {completion_reason}" if completion_reason else "UNKNOWN is not success"
+    else:
+        markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
+        evidence_reason = ""
+        if markers:
+            evidence_reason = grade.evidence_verdict(
+                markers, grade.PageEvidence(url=url, text=text or "", selector_text=selector_text),
+                grade._grade_claim(answer, claimed),
+            ).reason
+        reason = completion_reason or evidence_reason or "evidence judge did not pass"
+    return grade.grade_arm(
+        task, url, text or "", evidence=own, evidence_reason=reason,
+        completed=completed, completion_reason=completion_reason,
+        selector_text=selector_text, answer=answer, page_text=text or "", claimed=claimed,
     )
 
 
@@ -783,15 +554,12 @@ def grade_page_answer(
     answer: str = "",
     claimed=None,
 ) -> tuple[bool, str]:
-    """Post-run page/answer grade, independent of runtime/completion gating.
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
 
-    Use the identical marker and shared evidence checks as the final grade.
-    This diagnostic must never feed back into the run or its model messages.
-    """
-    ok, reason, _shared, _shared_reason = grade_observation(
+    return grade.grade_page_answer(
         task, url, text, selector_text=selector_text, answer=answer, claimed=claimed,
     )
-    return ok, reason
 
 
 def empty_row(
@@ -800,9 +568,10 @@ def empty_row(
     *,
     reason: str,
     skipped: bool = True,
-    no_model_only: bool = False,
 ) -> dict:
     return {
+        **measurement_fields(),
+        **grade_fields(),
         "arm": arm,
         "task_id": task_id,
         "success": False,
@@ -814,77 +583,129 @@ def empty_row(
         "output_tokens": 0,
         "usd": 0.0,
         "model_ignores_tools": 0,
-        "no_model": not arm_needs_claude(arm, no_model_only=no_model_only),
+        "no_model": False,
         "replay_hit": False,
         "claude": False,
     }
 
 
 async def _peek_snapshot(client, arm: str, url: str) -> tuple[str, float]:
-    """Open the page and return the first snapshot text. No model call.
-
-    script_first does not snapshot before the script. An empty peek is not a
-    huge page, so the model call is not skipped for length.
-    """
+    """Open the initial page for iterative arms; script_first starts without a peek."""
     if arm == ARM_SCRIPT_FIRST:
         return "", 0.0
-    if arm == "stagehand":
+    if arm == ARM_STAGEHAND:
         await client.call_tool("run", {"code": f"page.goto({json.dumps(url)})"})
         return await client.call_tool("snapshot", {})
-    text, elapsed = await client.call_tool("browser_navigate", {"url": url})
-    return text, elapsed
+    return await client.call_tool("browser_navigate", {"url": url})
 
 
-async def run_no_model_arm(arm: str, task: dict, *, headless: bool = True) -> dict:
-    """Optional decide() path. This function does not call Anthropic.
+def script_result_row(task, result, harness, *, arm="script_first", provider="anthropic",
+                      openai_model=None, openai_effort=None):
+    from bench.harness import claim_from_step
 
-    The competitive probe does not call this. A no-model-only run cannot
-    close the Stagehand gap on open WebVoyager tasks.
-    """
-    if arm_needs_claude(arm, no_model_only=True):
-        raise RuntimeError(f"{arm} needs Claude and must not use the no-model runner")
-    from bench.arms import build_client
+    last = result.steps[-1] if result.steps else None
+    final_url = last.page_url if last else ""
+    selector_text = last.selector_text if last else ""
+    claimed_answer = last.claimed_answer if last else ""
+    page_text = last.page_text if last else ""
+    # The same post-run page text for every arm. The snapshot is not the check.
+    graded_text = page_text
+    end_state = result.end_state or ""
+    # script_first has to end on its own PASS and pass the shared page
+    # check. Its returned URL, title, key text, and values go into that
+    # check. The other arms still cannot pass on TASK_COMPLETE alone.
+    run_verdict = end_state if arm == ARM_SCRIPT_FIRST else None
+    claimed = claim_from_step(last) if arm == ARM_SCRIPT_FIRST and last is not None else None
+    completed = None if arm == ARM_SCRIPT_FIRST else result.success
+    page_answer_ok, page_answer_reason = grade_page_answer(
+        task, final_url, graded_text, selector_text=selector_text,
+        answer=claimed_answer, claimed=claimed,
+    )
+    success, reason, substring_ok, substring_reason = grade_observation(
+        task,
+        final_url,
+        graded_text,
+        selector_text=selector_text,
+        answer=claimed_answer,
+        completed=completed,
+        completion_reason=result.success_reason,
+        run_verdict=run_verdict,
+        claimed=claimed,
+    )
+    usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
+    row = {
+        **measurement_fields(
+            browser_launch_ms=harness.browser_launch_ms, grade_read_ms=result.grade_read_ms,
+        ),
+        **grade_fields(final_url, graded_text, selector_text, claimed_answer),
+        "arm": arm,
+        "task_id": task["id"],
+        "success": success,
+        "success_reason": reason,
+        "end_state": end_state,
+        "grade_completed": completed,
+        "grade_completion_reason": result.success_reason,
+        "grade_claim": {
+            "url": claimed.url, "title": claimed.title, "h1": claimed.h1,
+            "answer": claimed.answer, "key_text": claimed.key_text,
+            "values": list(claimed.values), "rejected": claimed.rejected,
+        } if claimed is not None else None,
+        "page_answer_success": page_answer_ok,
+        "page_answer_reason": page_answer_reason,
+        "substring_success": substring_ok,
+        "substring_reason": substring_reason,
+        "skipped": False,
+        "wall_ms": result.total_wall_ms,
+        "steps": result.total_steps,
+        "input_tokens": result.total_input_tokens,
+        "output_tokens": result.total_output_tokens,
+        "usd": usd,
+        "model_ignores_tools": result.model_ignores_tools,
+        "no_model": result.tier == "cache_hit" and result.model_calls == 0,
+        "replay_hit": result.tier == "cache_hit",
+        "tier": result.tier,
+        "model_calls": result.model_calls,
+        "script_steps": result.script_steps,
+        "claude": True,
+        "claimed_answer": claimed_answer,
+        "final_url": final_url,
+        "final_title": last.page_title if last else "",
+        "expected_value": selector_text,
+    }
+    if arm == ARM_SCRIPT_FIRST:
+        row["scripts"] = [
+            step.tool_args["code"]
+            for step in result.steps
+            if step.tool_name == "run_script"
+            and isinstance(step.tool_args, dict)
+            and isinstance(step.tool_args.get("code"), str)
+        ]
+        row["repair_sent"] = result.repair_sent
+        row["repair_reply"] = result.repair_reply
+        row["script_turns"] = result.script_turns
+        # Every script's self-check inputs and verdict, for offline replay.
+        row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
+        row["task_description"] = task.get("description") or ""
+        row["start_url"] = task.get("start_url") or ""
+    if provider == "openai":
+        from bench.openai_spend import price_usd
 
-    started = time.perf_counter()
-    client = build_client(arm, headless=headless)
-    await client.start()
-    try:
-        peeked, _elapsed = await _peek_snapshot(client, arm, task["start_url"])
-        if snapshot_is_huge(peeked):
-            row = empty_row(arm, task["id"], reason=f"skipped: first snapshot is {len(peeked)} chars")
-            row["wall_ms"] = (time.perf_counter() - started) * 1000
-            return row
-        tool = "fast_act" if arm == "diff_fast_act" else "do_task_segment"
-        body, _tool_ms = await client.call_tool(tool, {"task": task["description"]})
-        payload = {}
-        try:
-            payload = json.loads(body)
-        except json.JSONDecodeError:
-            payload = {}
-        url = str(payload.get("url") or "")
-        page = str(payload.get("page") or "") + "\n" + str(payload.get("diff") or "")
-        success, grade_reason, checked, reason = grade_arm(task, url, page)
-        if checked is None:
-            grade_reason = payload.get("summary") or reason
-        return {
-            "arm": arm,
-            "task_id": task["id"],
-            "success": success,
-            "success_reason": grade_reason,
-            "skipped": False,
-            "wall_ms": (time.perf_counter() - started) * 1000,
-            "steps": int(payload.get("cycles") or 0),
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "usd": 0.0,
-            "model_ignores_tools": int(payload.get("model_ignores_tools") or 0),
-            "no_model": int(payload.get("model_calls") or 0) == 0,
-            "replay_hit": payload.get("tier") == "replay",
-            "tier": payload.get("tier") or "",
-            "claude": False,
-        }
-    finally:
-        await client.stop()
+        row["usd"] = price_usd(
+            openai_model or "",
+            result.total_input_tokens,
+            result.total_output_tokens,
+            result.total_cached_tokens,
+            result.total_cache_write_30m_tokens,
+            result.total_cache_write_12h_tokens,
+        )
+        row["claude"] = False
+        row["provider"] = "openai"
+        row["model"] = openai_model
+        row["effort"] = openai_effort
+        row["cached_tokens"] = result.total_cached_tokens
+        row["cache_write_30m_tokens"] = result.total_cache_write_30m_tokens
+        row["cache_write_12h_tokens"] = result.total_cache_write_12h_tokens
+    return row
 
 
 async def run_claude_arm(
@@ -902,7 +723,6 @@ async def run_claude_arm(
     """Outer model for one arm. The default is claude-sonnet-5-5."""
     from bench.harness import BenchmarkHarness, claim_from_step
 
-    started = time.perf_counter()
     # script_first starts at one script plus a completion turn. The harness
     # adds a turn only for a repair or a refused extra script, stops at
     # SCRIPT_FIRST_HARD_CAP, and runs at most SCRIPT_FIRST_MAX_REPAIRS repair scripts.
@@ -912,8 +732,8 @@ async def run_claude_arm(
     if provider == "openai":
         from bench.openai_spend import assert_effort, assert_openai_model
 
-        openai_model = assert_openai_model(model or "")
-        openai_effort = assert_effort(openai_model, effort or "")
+        openai_model = assert_openai_model(model or "gpt-6.1-sol")
+        openai_effort = assert_effort(openai_model, effort or "medium")
         harness = BenchmarkHarness(
             api_key=api_key,
             model=openai_model,
@@ -934,12 +754,17 @@ async def run_claude_arm(
             max_steps=max_steps,
             script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
         )
-    await harness.setup()
+    started = None
+    wall_ms = None
     try:
+        await harness.setup()
+        started = time.perf_counter()
+        harness._task_wall_start = started
         peeked, _elapsed = await _peek_snapshot(harness.mcp_client, arm, task["start_url"])
         if snapshot_is_huge(peeked):
             row = empty_row(arm, task["id"], reason=f"skipped: first snapshot is {len(peeked)} chars")
             row["wall_ms"] = (time.perf_counter() - started) * 1000
+            row.update(measurement_fields(browser_launch_ms=harness.browser_launch_ms))
             row["claude"] = False
             return row
         result = await harness.run_task(
@@ -950,107 +775,21 @@ async def run_claude_arm(
             judge_prompt=task.get("judge_prompt"),
             check_url_contains=task.get("check_url_contains") or "",
         )
-        last = result.steps[-1] if result.steps else None
-        final_url = last.page_url if last else ""
-        selector_text = last.selector_text if last else ""
-        claimed_answer = last.claimed_answer if last else ""
-        page_text = last.page_text if last else ""
-        # The same post-run page text for every arm. The snapshot is not the check.
-        graded_text = page_text
-        end_state = result.end_state or ""
-        # script_first has to end on its own PASS and pass the shared page
-        # check. Its returned URL, title, key text, and values go into that
-        # check. The other arms still cannot pass on TASK_COMPLETE alone.
-        run_verdict = end_state if arm == ARM_SCRIPT_FIRST else None
-        claimed = claim_from_step(last) if arm == ARM_SCRIPT_FIRST and last is not None else None
-        completed = None if arm == ARM_SCRIPT_FIRST else result.success
-        page_answer_ok, page_answer_reason = grade_page_answer(
-            task, final_url, graded_text, selector_text=selector_text,
-            answer=claimed_answer, claimed=claimed,
-        )
-        success, reason, substring_ok, substring_reason = grade_observation(
-            task,
-            final_url,
-            graded_text,
-            selector_text=selector_text,
-            answer=claimed_answer,
-            completed=completed,
-            completion_reason=result.success_reason,
-            run_verdict=run_verdict,
-            claimed=claimed,
-        )
-        usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
-        row = {
-            "arm": arm,
-            "task_id": task["id"],
-            "success": success,
-            "success_reason": reason,
-            "end_state": end_state,
-            "page_answer_success": page_answer_ok,
-            "page_answer_reason": page_answer_reason,
-            "substring_success": substring_ok,
-            "substring_reason": substring_reason,
-            "skipped": False,
-            "wall_ms": result.total_wall_ms or ((time.perf_counter() - started) * 1000),
-            "steps": result.total_steps,
-            "input_tokens": result.total_input_tokens,
-            "output_tokens": result.total_output_tokens,
-            "usd": usd,
-            "model_ignores_tools": result.model_ignores_tools,
-            "no_model": result.tier == "cache_hit" and result.model_calls == 0,
-            "replay_hit": result.replay_hits > 0 or result.tier == "cache_hit",
-            "tier": result.tier,
-            "model_calls": result.model_calls,
-            "script_steps": result.script_steps,
-            "claude": True,
-            "claimed_answer": claimed_answer,
-            "final_url": final_url,
-            "final_title": last.page_title if last else "",
-            "expected_value": selector_text,
-        }
-        if arm == ARM_SCRIPT_FIRST:
-            row["scripts"] = [
-                step.tool_args["code"]
-                for step in result.steps
-                if step.tool_name == "run_script"
-                and isinstance(step.tool_args, dict)
-                and isinstance(step.tool_args.get("code"), str)
-            ]
-            row["repair_sent"] = result.repair_sent
-            row["repair_reply"] = result.repair_reply
-            row["script_turns"] = result.script_turns
-            # Every script's self-check inputs and verdict, for offline replay.
-            row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
-            row["task_description"] = task.get("description") or ""
-            row["start_url"] = task.get("start_url") or ""
-            if result.strategy:
-                row["strategy"] = result.strategy
-                row["strategy_reads"] = result.strategy_reads
-                row["strategy_reason"] = result.strategy_reason
-                row["strategy_steps"] = [
-                    {"action": step.tool_args, "result": step.snapshot_text}
-                    for step in result.steps if step.tool_name == "form_step"
-                ]
-            if result.strategy_detail:
-                row["strategy_detail"] = result.strategy_detail
-        if provider == "openai":
-            from bench.openai_spend import price_usd
+        wall_ms = result.total_wall_ms
+        return script_result_row(task, result, harness, arm=arm, provider=provider,
+                                 openai_model=openai_model, openai_effort=openai_effort)
+    except Exception as exc:
+        from bench.openai_spend import PriceUnknown
 
-            row["usd"] = price_usd(
-                openai_model or "",
-                result.total_input_tokens,
-                result.total_output_tokens,
-                result.total_cached_tokens,
-                result.total_cache_write_30m_tokens,
-                result.total_cache_write_12h_tokens,
-            )
-            row["claude"] = False
-            row["provider"] = "openai"
-            row["model"] = openai_model
-            row["effort"] = openai_effort
-            row["cached_tokens"] = result.total_cached_tokens
-            row["cache_write_30m_tokens"] = result.total_cache_write_30m_tokens
-            row["cache_write_12h_tokens"] = result.total_cache_write_12h_tokens
+        if isinstance(exc, PriceUnknown):
+            raise
+        row = empty_row(arm, task["id"], reason=f"run failed: {type(exc).__name__}", skipped=False)
+        if wall_ms is None:
+            wall_ms = harness._task_wall_ms
+        row["wall_ms"] = wall_ms if wall_ms is not None else (
+            (time.perf_counter() - started) * 1000 if started is not None else 0.0
+        )
+        row.update(measurement_fields(browser_launch_ms=harness.browser_launch_ms))
         return row
     finally:
         await harness.teardown()
@@ -1104,74 +843,6 @@ def cold_summary(rows: list[dict]) -> dict:
     return _summary_for(rows, "cold", tuple(arms))
 
 
-async def _run_endpoint(
-    task: dict,
-    *,
-    headless: bool,
-    api_key: str,
-    probe_spent: float,
-    ledger: SpendLedger,
-    destination: Path,
-    budget_usd: float,
-    opener,
-    task_reserve_usd: float = 0.0,
-    lifetime_cap_usd: float | None = None,
-) -> tuple[dict, float]:
-    """Fetch the start URL. A miss runs script_first. No browser on the fetch."""
-    del headless
-    from bench.endpoint import EndpointError, fetch_start_url, run_endpoint_task
-
-    if opener is None:
-        row = empty_row(
-            ARM_ENDPOINT,
-            task["id"],
-            reason="endpoint live fetch is not run from this checkout; refusing to open a browser",
-        )
-        return row, probe_spent
-    selector = ""
-    markers = task.get("end_markers") or {}
-    if isinstance(markers, dict):
-        selector = str(markers.get("answer_equals_selector") or "")
-    try:
-        page = fetch_start_url(task["start_url"], opener=opener, selector=selector)
-    except EndpointError as exc:
-        return empty_row(ARM_ENDPOINT, task["id"], reason=str(exc)), probe_spent
-
-    async def fallback(missed: dict) -> dict:
-        if not api_key:
-            return empty_row(ARM_SCRIPT_FIRST, missed["id"], reason="ANTHROPIC_API_KEY unset", skipped=False)
-        blocked = claude_block_reason(
-            probe_spent,
-            ledger.running_total_usd,
-            budget_usd=budget_usd,
-            task_reserve_usd=task_reserve_usd,
-            lifetime_cap_usd=lifetime_cap_usd,
-        )
-        if blocked:
-            return empty_row(ARM_SCRIPT_FIRST, missed["id"], reason=blocked, skipped=False)
-        return await run_claude_arm(
-            ARM_SCRIPT_FIRST,
-            missed,
-            api_key=api_key,
-            headless=True,
-            runs_dir=destination,
-        )
-
-    row = await run_endpoint_task(task, page, fallback=fallback)
-    if row.get("arm") == ARM_SCRIPT_FIRST and row.get("claude") and (row.get("input_tokens") or row.get("output_tokens")):
-        ledger.record_task(
-            run_id="probe",
-            task_id=f"{ARM_SCRIPT_FIRST}:{row['task_id']}",
-            input_tokens=row["input_tokens"],
-            output_tokens=row["output_tokens"],
-        )
-        probe_spent += float(row.get("usd") or 0)
-        if ledger.running_total_usd >= PROJECT_BUDGET_USD:
-            ledger.mark_aborted()
-        ledger.save()
-    return row, probe_spent
-
-
 async def _run_browser_use(
     task: dict,
     *,
@@ -1220,31 +891,16 @@ async def _run_one(
     task: dict,
     *,
     headless: bool,
-    no_model_only: bool,
     api_key: str,
     probe_spent: float,
     ledger: SpendLedger,
     destination: Path,
     budget_usd: float,
     script_cache=None,
-    endpoint_opener=None,
     task_reserve_usd: float = 0.0,
     lifetime_cap_usd: float | None = None,
 ) -> tuple[dict, float]:
     """One task on one arm. Returns the row and the probe's Claude spend so far."""
-    if arm == ARM_ENDPOINT:
-        return await _run_endpoint(
-            task,
-            headless=headless,
-            api_key=api_key,
-            probe_spent=probe_spent,
-            ledger=ledger,
-            destination=destination,
-            budget_usd=budget_usd,
-            opener=endpoint_opener,
-            task_reserve_usd=task_reserve_usd,
-            lifetime_cap_usd=lifetime_cap_usd,
-        )
     if arm == ARM_BROWSER_USE:
         return await _run_browser_use(
             task,
@@ -1256,15 +912,12 @@ async def _run_one(
             task_reserve_usd=task_reserve_usd,
             lifetime_cap_usd=lifetime_cap_usd,
         )
-    if not arm_needs_claude(arm, no_model_only=no_model_only):
-        return await run_no_model_arm(arm, task, headless=headless), probe_spent
     if not api_key:
         return (
             empty_row(
                 arm,
                 task["id"],
                 reason="ANTHROPIC_API_KEY unset",
-                no_model_only=no_model_only,
             ),
             probe_spent,
         )
@@ -1276,16 +929,21 @@ async def _run_one(
         lifetime_cap_usd=lifetime_cap_usd,
     )
     if blocked:
-        return empty_row(arm, task["id"], reason=blocked, no_model_only=no_model_only), probe_spent
+        return empty_row(arm, task["id"], reason=blocked), probe_spent
     extra = {"script_cache": script_cache} if script_cache is not None and arm == ARM_SCRIPT_FIRST else {}
-    row = await run_claude_arm(
-        arm,
-        task,
-        api_key=api_key,
-        headless=headless,
-        runs_dir=destination,
-        **extra,
-    )
+    if arm == "cascade":
+        from bench.cascade import run_cascade_task
+
+        row = await run_cascade_task(task, api_key=api_key, headless=headless, runs_dir=destination)
+    else:
+        row = await run_claude_arm(
+            arm,
+            task,
+            api_key=api_key,
+            headless=headless,
+            runs_dir=destination,
+            **extra,
+        )
     if row.get("claude") and (row["input_tokens"] or row["output_tokens"]):
         ledger.record_task(
             run_id="probe",
@@ -1466,10 +1124,8 @@ async def execute_probe(
     headless: bool = True,
     spend_path: Path | None = None,
     runs_dir: Path | None = None,
-    no_model_only: bool = False,
     warm_replay: bool = False,
     arms: tuple[str, ...] | None = None,
-    endpoint_opener=None,
     split: str | None = None,
     honest: bool = False,
     provider: str = "anthropic",
@@ -1482,9 +1138,8 @@ async def execute_probe(
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
-    The default is the competitive outer-Claude matrix, including the two
-    proxy arms. no_model_only keeps those two on decide() and still sends
-    playwright_mcp and stagehand through Claude when a key is set.
+    The default runs script_first, browser_use, and playwright_mcp with
+    the same outer model.
     --honest refuses before any task when the ledger is below the last
     recorded total, the key is unset, or the reserve no longer fits under
     the run ceiling, the $40 abort, or the $50 lifetime cap.
@@ -1508,7 +1163,6 @@ async def execute_probe(
             headless=headless,
             spend_path=spend_path,
             runs_dir=runs_dir,
-            no_model_only=no_model_only,
             warm_replay=warm_replay,
             honest=honest,
             only_kind=only_kind,
@@ -1517,7 +1171,6 @@ async def execute_probe(
         chosen = HONEST_ARMS
         chosen_split = SPLIT_HONEST
         warm_replay = True
-        no_model_only = False
     else:
         chosen = resolve_arms(arms)
         chosen_split = resolve_task_split(split)
@@ -1558,14 +1211,12 @@ async def execute_probe(
             arm,
             task,
             headless=headless,
-            no_model_only=no_model_only,
             api_key=api_key,
             probe_spent=probe_spent,
             ledger=ledger,
             destination=destination,
             budget_usd=budget_usd,
             script_cache=cache,
-            endpoint_opener=endpoint_opener,
             task_reserve_usd=task_reserve,
             lifetime_cap_usd=lifetime_cap,
         )
@@ -1623,18 +1274,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--no-headless", action="store_true", help="Show the browser. Only with --execute.")
     parser.add_argument(
-        "--no-model-only",
-        action="store_true",
-        help=(
-            "Run diff_fast_act and macro_replay through decide() with no outer model. "
-            "Not the competitive measurement. Those arms cannot close the Stagehand gap this way."
-        ),
-    )
-    parser.add_argument(
         "--arms",
         default="",
         help=(
-            "Comma-separated arms. Default is the four-arm probe. "
+            "Comma-separated arms. Default: script_first,browser_use,playwright_mcp. "
             "script_first is the whole-task script arm. "
             "A selection that includes it stops Claude at $2. "
             "browser_use is the browser-use 1.0 local Chrome baseline "
@@ -1654,6 +1297,7 @@ def main(argv: list[str] | None = None) -> int:
             "heldout3 is a, b, c and d together, the frozen test set. "
             "dev3 is a forty-task public tune set. "
             "dev4nav is the nav read step's twelve-task check set. "
+            "dev5title is a fresh seventeen-task title set. "
             "dev4form is the form specialist's twelve fresh form tasks. "
             "dev4spa is the spa specialist's twelve-task tune set. "
             "val3 is the forty-task validation set, an aggregate-only gate. "
@@ -1674,9 +1318,8 @@ def main(argv: list[str] | None = None) -> int:
         "--warm-replay",
         action="store_true",
         help=(
-            "After the cold 3x4, re-run the same 3 tasks on macro_replay and diff_fast_act, "
-            "and on script_first when it is selected. Records replay hit rate and wall, and "
-            "script_first's tier. Uses the same caches. Not run from this checkout."
+            "After the cold pass, re-run script_first when selected, using the same cache. "
+            "Records cache hit rate, wall time, and script_first's tier."
         ),
     )
     parser.add_argument(
@@ -1698,7 +1341,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--model",
         default="",
-        help="OpenAI model. gpt-6.1-sol or gpt-6-luna. The Claude path stays claude-sonnet-5-5.",
+        help="OpenAI model (default gpt-6.1-sol). gpt-6-luna is also supported. The Claude path stays claude-sonnet-5-5.",
     )
     parser.add_argument(
         "--effort",
@@ -1751,7 +1394,6 @@ def main(argv: list[str] | None = None) -> int:
                             model=request.get("model") or "",
                             effort=request.get("effort") or "",
                             one_task=request["one_task"],
-                            no_model_only=args.no_model_only,
                             warm_replay=warm,
                             honest=args.honest,
                             only_kind=args.only_kind,
@@ -1763,7 +1405,6 @@ def main(argv: list[str] | None = None) -> int:
             rows = asyncio.run(
                 execute_probe(
                     headless=not args.no_headless,
-                    no_model_only=args.no_model_only,
                     warm_replay=warm,
                     arms=chosen,
                     split=chosen_split,
@@ -1781,7 +1422,6 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 json.dumps(
                     plan_probe(
-                        no_model_only=args.no_model_only,
                         warm_replay=warm,
                         arms=chosen,
                         split=chosen_split,
@@ -1797,7 +1437,6 @@ def main(argv: list[str] | None = None) -> int:
             rows = asyncio.run(
                 execute_probe(
                     headless=not args.no_headless,
-                    no_model_only=args.no_model_only,
                     warm_replay=warm,
                     arms=chosen,
                     split=chosen_split,

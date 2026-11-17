@@ -15,8 +15,6 @@ from bench.arms import ARM_BROWSER_USE, arm_needs_claude
 from bench.openai_spend import (
     ALLOWED_OPENAI_MODELS,
     DEFAULT_EFFORT,
-    OPENAI_PROJECT_BUDGET_USD,
-    OPENAI_RUN_BUDGET_USD,
     OPENAI_SWEEP_BUDGET_USD,
     EffortNotAllowed,
     OpenAIModelNotAllowed,
@@ -27,6 +25,7 @@ from bench.openai_spend import (
     cap_statement,
     default_openai_spend_path,
     efforts_for,
+    openai_run_budget_usd,
     probe_command,
     rates_for_report,
     sweep_cell_command,
@@ -34,7 +33,6 @@ from bench.openai_spend import (
     sweep_command,
     sweep_task_ids,
 )
-from bench.tasks import tasks_for_split
 
 
 def _key_is_set() -> bool:
@@ -72,7 +70,6 @@ def plan_openai_probe(
     model: str | None,
     effort: str | None,
     one_task: bool,
-    no_model_only: bool,
     warm_replay: bool,
     honest: bool,
     only_kind: str = "",
@@ -80,8 +77,6 @@ def plan_openai_probe(
     """The plan only. No browser, no client, no ledger write."""
     if honest:
         raise ValueError("--honest is the Claude comparison. Refusing to combine it with OpenAI.")
-    if no_model_only:
-        raise ValueError("--no-model-only does not run an OpenAI model. Refusing.")
     if warm_replay:
         raise ValueError("--warm-replay is not part of the OpenAI run. Refusing.")
     request = resolve_openai_request(
@@ -98,7 +93,7 @@ def plan_openai_probe(
             models.append(cell["model"])
     tasks = _tasks(split, one_task=request["one_task"], only_kind=only_kind)
     ledger = OpenAISpendLedger.read()
-    return {
+    plan = {
         "execute": False,
         "provider": "openai",
         "mode": "sweep" if request["sweep"] else "outer_openai",
@@ -114,17 +109,18 @@ def plan_openai_probe(
         "cells": [dict(cell) for cell in cells],
         "same_model_on_every_arm": True,
         "openai_api_key": "set" if _key_is_set() else "unset",
-        "per_run_cap_usd": OPENAI_RUN_BUDGET_USD,
+        "per_run_cap_usd": openai_run_budget_usd(),
         "sweep_cap_usd": OPENAI_SWEEP_BUDGET_USD if request["sweep"] else None,
-        "project_cap_usd": OPENAI_PROJECT_BUDGET_USD,
+        "project_cap_usd": ledger.project_budget_usd,
         "project_spent_usd": ledger.running_total_usd,
         "prices_usd_per_mtok": {name: rates_for_report(name) for name in ALLOWED_OPENAI_MODELS},
-        "cap": cap_statement(),
+        "cap": cap_statement(project_budget_usd=ledger.project_budget_usd),
         "measured_run_usd": None,
         "network": "refused",
         "box_commands": _commands(request["sweep"]),
         "checks": "the same URL, text, and evidence checks as the Claude path",
     }
+    return plan
 
 
 def resolve_openai_request(
@@ -154,11 +150,7 @@ def resolve_openai_request(
         raise EffortNotAllowed("--sweep-effort covers every accepted effort. Refusing a single --effort with it.")
     if sweep:
         return {"provider": "openai", "sweep": True, "one_task": True, "model": None, "effort": None}
-    if not model:
-        raise OpenAIModelNotAllowed(
-            f"An OpenAI run needs --model. Accepted models are {list(ALLOWED_OPENAI_MODELS)}."
-        )
-    chosen = assert_openai_model(model)
+    chosen = assert_openai_model(model or "gpt-6.1-sol")
     name = assert_effort(chosen, effort or DEFAULT_EFFORT)
     return {
         "provider": "openai",
@@ -197,7 +189,7 @@ def _record(row: dict, ledger: OpenAISpendLedger, *, arm: str, model: str, effor
     if not ledger.allows_project():
         ledger.mark_aborted(
             f"OpenAI project total ${ledger.running_total_usd:.2f} would pass "
-            f"${OPENAI_PROJECT_BUDGET_USD:.0f}."
+            f"${ledger.project_budget_usd:.2f}."
         )
     ledger.save()
 
@@ -221,6 +213,12 @@ async def _one(
     try:
         if not arm_needs_claude(arm):
             row = empty_row(arm, task["id"], reason=f"{arm} is not an OpenAI computer-use arm")
+        elif arm == "cascade":
+            from bench.cascade import run_cascade_task
+
+            row = await run_cascade_task(task, api_key=api_key, headless=headless,
+                                         runs_dir=destination, provider="openai",
+                                         model=cell_model, effort=cell_effort)
         elif arm == ARM_BROWSER_USE:
             from bench.browser_use_arm import run_browser_use_task
 
@@ -283,18 +281,17 @@ async def execute_openai_probe(
     headless: bool,
     spend_path: Path | None,
     runs_dir: Path | None,
-    no_model_only: bool,
     warm_replay: bool,
     honest: bool,
     only_kind: str = "",
 ) -> list[dict]:
-    """Run the matrix. Stops at $5 per cell, $15 per sweep, and $20 on the ledger."""
+    """Run the matrix under configured run/project caps and the $15 sweep cap."""
     import os
 
     from bench.probe import ProbeRefused, RUNS_DIR, arm_report
 
-    if honest or no_model_only or warm_replay:
-        raise ProbeRefused("Refusing an OpenAI run with --honest, --no-model-only, or --warm-replay.")
+    if honest or warm_replay:
+        raise ProbeRefused("Refusing an OpenAI run with --honest or --warm-replay.")
     request = resolve_openai_request(
         provider="openai",
         model=model or "",
@@ -304,12 +301,13 @@ async def execute_openai_probe(
     )
     cells = sweep_cells() if request["sweep"] else ({"model": request["model"], "effort": request["effort"]},)
     tasks = _tasks(split, one_task=request["one_task"], only_kind=only_kind)
+    run_budget = openai_run_budget_usd()
     ledger = OpenAISpendLedger.read(spend_path or default_openai_spend_path())
     opening_allowance = ledger.cover_unrecorded_call()
     if not ledger.allows_project():
         raise ProbeRefused(
             f"OpenAI project total ${ledger.running_total_usd:.2f} has reached "
-            f"${OPENAI_PROJECT_BUDGET_USD:.0f}. Refusing before any task."
+            f"${ledger.project_budget_usd:.2f}. Refusing before any task."
         )
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
@@ -321,6 +319,8 @@ async def execute_openai_probe(
     handle = out.open("w", encoding="utf-8")
 
     def sink(row: dict) -> None:
+        if row.get("arm") in ("browser_use", "cascade"):
+            row["browser_use_mode"] = os.environ.get("CU_BU_MODE", "").strip() or "default"
         handle.write(json.dumps(row) + "\n")
         handle.flush()
 
@@ -335,13 +335,13 @@ async def execute_openai_probe(
             carried_allowance = 0.0
             for task in tasks:
                 for arm in arms:
-                    if cell_spent >= OPENAI_RUN_BUDGET_USD:
+                    if cell_spent >= run_budget:
                         _skip(
                             rows,
                             arm,
                             task,
                             cell,
-                            f"OpenAI run spend ${cell_spent:.2f} has reached ${OPENAI_RUN_BUDGET_USD:.0f}",
+                            f"OpenAI run spend ${cell_spent:.2f} has reached ${run_budget:.2f}",
                             sink,
                         )
                         continue
@@ -363,7 +363,7 @@ async def execute_openai_probe(
                             cell,
                             (
                                 f"OpenAI project total ${ledger.running_total_usd:.2f} "
-                                f"has reached ${OPENAI_PROJECT_BUDGET_USD:.0f}"
+                                f"has reached ${ledger.project_budget_usd:.2f}"
                             ),
                             sink,
                         )
@@ -391,9 +391,9 @@ async def execute_openai_probe(
                     "provider": "openai",
                     "sweep": request["sweep"],
                     "cells": [dict(cell) for cell in cells],
-                    "per_run_cap_usd": OPENAI_RUN_BUDGET_USD,
+                    "per_run_cap_usd": run_budget,
                     "sweep_cap_usd": sweep_cap,
-                    "project_cap_usd": OPENAI_PROJECT_BUDGET_USD,
+                    "project_cap_usd": ledger.project_budget_usd,
                     "measured_run_usd": None,
                     "report": arm_report(rows, arms),
                 }

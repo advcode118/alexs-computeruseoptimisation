@@ -6,19 +6,15 @@ import asyncio
 import json
 
 from bench.arms import ARMS, arm_needs_claude, prompt_for
-from bench.budget import SpendLedger, default_spend_path
+from bench.budget import SpendLedger
 from bench.harness import BenchmarkHarness, page_url_from_result, playwright_mcp_args
 from bench.judge import check_url_contains
 from bench.probe import (
     BOX_COMMANDS,
-    PROBE_CLAUDE_BUDGET_USD,
     claude_block_reason,
-    empty_row,
-    execute_probe,
     main,
     plan_probe,
     snapshot_is_huge,
-    warm_summary,
 )
 from bench.stagehand_local import (
     StagehandLocalClient,
@@ -86,17 +82,10 @@ def test_arms_share_the_outer_model_and_stagehand_stays_local(monkeypatch):
     monkeypatch.delenv("BROWSERBASE_API_KEY", raising=False)
     monkeypatch.delenv("BROWSERBASE_PROJECT_ID", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    assert ARMS == ("playwright_mcp", "diff_fast_act", "macro_replay", "stagehand")
+    assert ARMS == ("script_first", "browser_use", "playwright_mcp")
     assert arm_needs_claude("playwright_mcp") is True
     assert arm_needs_claude("stagehand") is True
-    assert arm_needs_claude("diff_fast_act") is True
-    assert arm_needs_claude("macro_replay") is True
-    assert arm_needs_claude("diff_fast_act", no_model_only=True) is False
-    assert arm_needs_claude("macro_replay", no_model_only=True) is False
-    assert arm_needs_claude("stagehand", no_model_only=True) is True
     assert "getByRole" in prompt_for("stagehand")
-    assert "do_task_segment" in prompt_for("macro_replay")
-    assert "fast_act" in prompt_for("diff_fast_act")
     assert "browser_snapshot" in prompt_for("playwright_mcp")
     backend = describe_backend()
     assert backend["backend"] == "local"
@@ -142,24 +131,18 @@ def test_probe_plan_does_not_execute_and_caps_claude(capsys):
     assert plan["execute"] is False
     assert plan["tasks"] == ["wv_wikipedia_search", "wv_python_docs", "wv_hackernews_top"]
     assert plan["mode"] == "outer_claude"
-    assert plan["claude_arms"] == ["playwright_mcp", "diff_fast_act", "macro_replay", "stagehand"]
-    assert plan["no_model_arms"] == []
-    assert plan["no_model_only_arms"] == ["diff_fast_act", "macro_replay"]
+    assert plan["claude_arms"] == list(ARMS)
+    assert plan["warm_arms"] == ["script_first"]
     assert plan["outer_model"] == "claude-sonnet-5-5"
-    assert plan["claude_budget_usd"] == PROBE_CLAUDE_BUDGET_USD == 5.0
+    assert plan["claude_budget_usd"] == 2.0
     assert plan["project_spent_usd"] == SpendLedger.load().running_total_usd
     assert plan["box_commands"] == list(BOX_COMMANDS)
     assert "--warm-replay" in plan["box_commands"][2]
     assert plan["warm_replay"] is False
-    assert plan["warm_arms"] == ["macro_replay", "diff_fast_act"]
     assert plan["huge_snapshot_uses_body_length_only"] is True
     assert plan["browser_isolation"]["playwright_mcp"].startswith("--isolated only")
     assert "rejects --user-data-dir" in plan["browser_isolation"]["playwright_mcp"]
     assert "--user-data-dir" in plan["browser_isolation"]["stagehand"]
-    opted = plan_probe(no_model_only=True)
-    assert opted["mode"] == "no_model_only"
-    assert opted["claude_arms"] == ["playwright_mcp", "stagehand"]
-    assert opted["no_model_arms"] == ["diff_fast_act", "macro_replay"]
     assert snapshot_is_huge("x" * 40_001) is True
     assert snapshot_is_huge("short") is False
     assert snapshot_is_huge('{"full_snapshot_chars": 40001, "diff_chars": 12}') is False
@@ -171,7 +154,6 @@ def test_probe_plan_does_not_execute_and_caps_claude(capsys):
     assert main([]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["execute"] is False
-    assert printed["claude_arms"] == ["playwright_mcp", "diff_fast_act", "macro_replay", "stagehand"]
     assert "opus" not in json.dumps(printed).lower()
 
 
@@ -202,78 +184,6 @@ def test_each_arm_launch_is_a_private_browser(tmp_path, monkeypatch):
     finally:
         asyncio.run(first.stop())
         asyncio.run(second.stop())
-
-
-def test_competitive_probe_uses_outer_claude_for_the_proxy_arms(monkeypatch, tmp_path):
-    """diff_fast_act and macro_replay are not the decide()-only path."""
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "local-test-not-sent")
-    seen: list[tuple[str, str]] = []
-
-    async def fake_claude(arm, task, **kwargs):
-        del kwargs
-        seen.append(("claude", arm))
-        row = empty_row(arm, task["id"], reason="stub", skipped=False)
-        row["claude"] = True
-        return row
-
-    async def fake_no_model(arm, task, **kwargs):
-        del task, kwargs
-        seen.append(("no_model", arm))
-        raise AssertionError(arm)
-
-    monkeypatch.setattr("bench.probe.run_claude_arm", fake_claude)
-    monkeypatch.setattr("bench.probe.run_no_model_arm", fake_no_model)
-    shared = default_spend_path()
-    before = shared.read_text(encoding="utf-8")
-    probe_ledger = tmp_path / "probe-spend.json"
-    SpendLedger.seed(probe_ledger).save()
-    rows = asyncio.run(
-        execute_probe(spend_path=probe_ledger, runs_dir=tmp_path / "runs")
-    )
-    assert len(rows) == 12
-    assert [arm for _kind, arm in seen] == [
-        arm for _task in range(3) for arm in ARMS
-    ]
-    assert all(kind == "claude" for kind, _arm in seen)
-    assert shared.read_text(encoding="utf-8") == before
-    recorded = json.loads(probe_ledger.read_text(encoding="utf-8"))
-    assert recorded["running_total_usd"] == json.loads(before)["running_total_usd"]
-    assert recorded["prior"]["usd"] == 9.645
-    assert recorded["recorded_extra_usd"] == 0
-
-
-def test_no_model_only_is_optional_and_not_the_competitive_path(monkeypatch, tmp_path):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "local-test-not-sent")
-    seen: list[tuple[str, str]] = []
-
-    async def fake_claude(arm, task, **kwargs):
-        del kwargs
-        seen.append(("claude", arm))
-        row = empty_row(arm, task["id"], reason="stub", skipped=False)
-        row["claude"] = True
-        return row
-
-    async def fake_no_model(arm, task, **kwargs):
-        del kwargs
-        seen.append(("no_model", arm))
-        return empty_row(arm, task["id"], reason="decide", skipped=False, no_model_only=True)
-
-    monkeypatch.setattr("bench.probe.run_claude_arm", fake_claude)
-    monkeypatch.setattr("bench.probe.run_no_model_arm", fake_no_model)
-    SpendLedger.seed(tmp_path / "spend.json").save()
-    asyncio.run(
-        execute_probe(
-            spend_path=tmp_path / "spend.json",
-            runs_dir=tmp_path / "runs",
-            no_model_only=True,
-        )
-    )
-    assert seen.count(("no_model", "diff_fast_act")) == 3
-    assert seen.count(("no_model", "macro_replay")) == 3
-    assert seen.count(("claude", "playwright_mcp")) == 3
-    assert seen.count(("claude", "stagehand")) == 3
-    assert ("claude", "diff_fast_act") not in seen
-    assert ("claude", "macro_replay") not in seen
 
 
 def test_url_judge_reads_json_url_and_stagehand_goto_prose():
@@ -453,46 +363,3 @@ def test_stagehand_reads_browser_as_a_property():
     except TypeError:
         return
     raise AssertionError("context.browser is a property and must not be called")
-
-
-def test_warm_replay_reruns_the_proxy_arms(monkeypatch, tmp_path):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "local-test-not-sent")
-    seen: list[str] = []
-
-    async def fake_claude(arm, task, **kwargs):
-        del kwargs
-        seen.append(arm)
-        row = empty_row(arm, task["id"], reason="stub", skipped=False)
-        row["claude"] = True
-        row["replay_hit"] = arm == "macro_replay"
-        row["wall_ms"] = 10.0
-        return row
-
-    async def fake_no_model(arm, task, **kwargs):
-        del arm, task, kwargs
-        raise AssertionError("warm pass stays on the outer model")
-
-    monkeypatch.setattr("bench.probe.run_claude_arm", fake_claude)
-    monkeypatch.setattr("bench.probe.run_no_model_arm", fake_no_model)
-    SpendLedger.seed(tmp_path / "spend.json").save()
-    rows = asyncio.run(
-        execute_probe(
-            spend_path=tmp_path / "spend.json",
-            runs_dir=tmp_path / "runs",
-            warm_replay=True,
-        )
-    )
-    assert len(rows) == 18
-    assert sum(1 for row in rows if row["pass"] == "cold") == 12
-    warm = [row for row in rows if row["pass"] == "warm"]
-    assert [row["arm"] for row in warm] == ["macro_replay", "diff_fast_act"] * 3
-    summary = warm_summary(rows)
-    assert summary["macro_replay"]["replay_hits"] == 3
-    assert summary["macro_replay"]["replay_hit_rate"] == 1
-    assert summary["macro_replay"]["wall_ms"] == 30
-    assert summary["diff_fast_act"]["replay_hits"] == 0
-    assert summary["diff_fast_act"]["tasks"] == 3
-    assert seen.count("macro_replay") == 6
-    assert seen.count("diff_fast_act") == 6
-    assert seen.count("playwright_mcp") == 3
-    assert seen.count("stagehand") == 3

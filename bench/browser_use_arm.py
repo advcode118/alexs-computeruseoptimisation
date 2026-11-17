@@ -17,10 +17,11 @@ import time
 
 from bench.arms import ARM_BROWSER_USE, prompt_for
 from bench.budget import ALLOWED_MODEL, assert_allowed_model, estimate_usd
+from bench.measurement import grade_fields, measurement_fields
 from bench.probe import grade_observation
 from bench.script_first import _PAGE_EVIDENCE_JS, text_from_page_read
 
-BROWSER_USE_VERSION = "1.0.3"
+BROWSER_USE_VERSION = "1.0.6"
 LOCAL_BROWSER = "chromium"
 BROWSER_USE_MAX_STEPS = 30
 # The same page-evidence read script_first uses, as one CDP expression.
@@ -76,6 +77,19 @@ def _daemon_cdp_fn():
     from browser_use.browser.browser import _daemon_cdp
 
     return _daemon_cdp
+
+
+def _attach_target(browser, target_id: str) -> dict:
+    name = browser.name
+    cdp = _daemon_cdp_fn()
+    request = _daemon_request_fn()
+    session = cdp(name, "Target.attachToTarget", targetId=target_id, flatten=True)["sessionId"]
+    request(name, {"meta": "set_session", "session_id": session, "target_id": target_id})
+    browser.remember_tab()
+    current = request(name, {"meta": "current_tab"}, 5)
+    if current.get("targetId") != target_id:
+        raise RuntimeError("browser-use did not attach to the handoff target")
+    return current
 
 
 def _explicit_page(browser) -> tuple[str, str, str] | None:
@@ -181,6 +195,8 @@ async def read_page(browser, *, selector: str = "") -> tuple[str, str, str]:
 
 def _base_row(task_id: str) -> dict:
     return {
+        **measurement_fields(),
+        **grade_fields(),
         "arm": ARM_BROWSER_USE,
         "task_id": task_id,
         "success": False,
@@ -198,6 +214,7 @@ def _base_row(task_id: str) -> dict:
         "model": ALLOWED_MODEL,
         "browser": LOCAL_BROWSER,
         "browser_use": BROWSER_USE_VERSION,
+        "browser_use_mode": os.environ.get("CU_BU_MODE", "").strip() or "default",
         "page_url": "",
     }
 
@@ -330,23 +347,26 @@ async def run_browser_use_task(
     *,
     api_key: str,
     headless: bool = True,
-    model: str = ALLOWED_MODEL,
+    model: str | None = None,
     loader=None,
     provider: str = "anthropic",
     effort: str | None = None,
+    external_browser=None,
+    external_target_id: str | None = None,
+    task_text_override: str | None = None,
 ) -> dict:
     """One task. Local Chrome, bench model. No cloud browser and no gateway model."""
     if provider == "openai":
         from bench.openai_spend import assert_effort, assert_openai_model
 
-        chosen = assert_openai_model(model)
-        chosen_effort = assert_effort(chosen, effort or "")
+        chosen = assert_openai_model(model or "gpt-6.1-sol")
+        chosen_effort = assert_effort(chosen, effort or "medium")
     elif provider == "anthropic":
         if effort not in (None, ""):
             from bench.openai_spend import EffortNotAllowed
 
             raise EffortNotAllowed("Claude does not take --effort.")
-        chosen = assert_allowed_model(model)
+        chosen = assert_allowed_model(model or ALLOWED_MODEL)
         chosen_effort = None
     else:
         raise ValueError(f"unknown provider {provider!r}")
@@ -362,17 +382,29 @@ async def run_browser_use_task(
             row["effort"] = chosen_effort
             row["claude"] = False
         return row
-    started = time.perf_counter()
-    browser = None
+    started = None
+    launch_start = None
+    run_finished = False
+    browser = external_browser
     try:
         agent_cls, browser_cls, llm_cls = loader() if loader is not None else load_browser_use() if provider != "openai" else load_browser_use(provider)
-        browser = browser_cls(LOCAL_BROWSER, headless=headless, keep_alive=True)
+        launch_start = time.perf_counter()
+        if browser is None:
+            browser = browser_cls(LOCAL_BROWSER, headless=headless, keep_alive=True)
+        await browser.start()
+        if external_target_id is not None:
+            initial = await asyncio.to_thread(_attach_target, browser, external_target_id)
+            row["browser_use_initial_url"] = initial.get("url", "")
+            row["browser_use_initial_target_id"] = initial["targetId"]
+            row["browser_use_cdp_url"] = browser.cdp_url
+        row["browser_launch_ms"] = (time.perf_counter() - launch_start) * 1000
+        started = time.perf_counter()
         llm = _chat_model(llm_cls, chosen, api_key, chosen_effort)
         # CU_BU_MODE=ultrafast runs browser-use's own fast mode as a control. Unset keeps its default.
         mode = os.environ.get("CU_BU_MODE", "").strip()
         extra = {"mode": mode} if mode else {}
         agent = agent_cls(
-            task_text(task),
+            task_text(task) if task_text_override is None else task_text_override,
             llm=llm,
             browser=browser,
             web_search=False,
@@ -380,8 +412,17 @@ async def run_browser_use_task(
             **extra,
         )
         result = await agent.run(max_steps=BROWSER_USE_MAX_STEPS)
-        url, text, selector_text = await read_page(browser, selector=_task_selector(task))
+        if external_browser is not None:
+            row["_run_finished_at"] = time.perf_counter()
+        row["wall_ms"] = (time.perf_counter() - started) * 1000
+        run_finished = True
+        grade_start = time.perf_counter()
+        try:
+            url, text, selector_text = await read_page(browser, selector=_task_selector(task))
+        finally:
+            row["grade_read_ms"] = (time.perf_counter() - grade_start) * 1000
         answer = _reported_answer(result)
+        row.update(grade_fields(url, text, selector_text, answer))
         success, reason = _judge(
             task,
             url,
@@ -402,7 +443,6 @@ async def run_browser_use_task(
                 "success": success,
                 "success_reason": reason,
                 "skipped": False,
-                "wall_ms": (time.perf_counter() - started) * 1000,
                 "steps": steps,
                 "input_tokens": incoming,
                 "output_tokens": outgoing,
@@ -421,18 +461,31 @@ async def run_browser_use_task(
             row["cache_write_30m_tokens"] = written
             row["cache_write_12h_tokens"] = 0
         return row
-    except ImportError:
-        row["skipped"] = True
-        row["success_reason"] = f"browser-use=={BROWSER_USE_VERSION} is not installed"
-        row["wall_ms"] = (time.perf_counter() - started) * 1000
-        return row
     except Exception as exc:
         from bench.openai_spend import PriceUnknown
 
         if isinstance(exc, PriceUnknown):
             raise
+        if isinstance(exc, ImportError) and external_browser is None:
+            row["skipped"] = True
+            row["success_reason"] = f"browser-use=={BROWSER_USE_VERSION} is not installed"
+            return row
         row["success_reason"] = f"browser_use run failed: {type(exc).__name__}"
-        row["wall_ms"] = (time.perf_counter() - started) * 1000
+        if external_browser is not None:
+            row["_run_finished_at"] = time.perf_counter()
+            row["wall_ms"] = (time.perf_counter() - started) * 1000 if started else 0.0
+            run_finished = True
+            grade_start = time.perf_counter()
+            url, text, selector_text = await read_page(browser, selector=_task_selector(task))
+            row["grade_read_ms"] = (time.perf_counter() - grade_start) * 1000
+            row.update(grade_fields(url, text, selector_text, ""))
+            row["success"], row["grade_error_reason"] = _judge(task, url, text, selector_text=selector_text)
+            row["page_url"] = url
         return row
     finally:
-        await _stop(browser)
+        if started is None and launch_start is not None:
+            row["browser_launch_ms"] = (time.perf_counter() - launch_start) * 1000
+        elif started is not None and not run_finished:
+            row["wall_ms"] = (time.perf_counter() - started) * 1000
+        if external_browser is None:
+            await _stop(browser)

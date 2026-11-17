@@ -1,0 +1,13 @@
+{
+  "replicate": 1,
+  "browser_use_mode": "ultrafast",
+  "arms": [
+    "browser_use"
+  ],
+  "ledger_before_usd": 3.178912,
+  "project_cap_usd": 9,
+  "run_cap_usd": 3,
+  "status": "completed",
+  "rows": 40,
+  "ledger_after_usd": 6.277727
+}

@@ -457,8 +457,8 @@ def test_spoken_claim_drops_the_completion_token():
 def test_playwright_and_stagehand_record_the_same_claim(monkeypatch, tmp_path):
     """TASK_COMPLETE text is the claim, and the live selector is the same check.
 
-    A bare completion is still an empty answer. A sentence that is not the
-    title fails the shared check. The selector stays out of the model transcript.
+    A bare completion is still an empty answer. A light sentence frame around
+    the title passes. The selector stays out of the model transcript.
     """
     from bench.probe import run_claude_arm
 
@@ -598,8 +598,8 @@ def test_playwright_and_stagehand_record_the_same_claim(monkeypatch, tmp_path):
     sentence = asyncio.run(
         run_claude_arm("playwright_mcp", hn, api_key="local-test-not-sent", headless=True, runs_dir=tmp_path)
     )
-    assert sentence["success"] is False
-    assert sentence["success_reason"] == "answer is not the marked value"
+    assert sentence["success"] is True
+    assert sentence["success_reason"] == "the page evidence matches the markers"
     assert sentence["claimed_answer"] == "The top story is Fixture Story."
     assert sentence["expected_value"] == "Fixture Story"
     assert ".titleline" not in json.dumps(model.seen)
@@ -670,8 +670,8 @@ def test_rfc_heading_stays_in_the_page_text_and_the_judge_does_not_soften():
     assert prefix.reason == "answer is not in the page text"
 
 
-def test_padded_hacker_news_sentence_fails():
-    """The claim is the live title. Case and spacing may differ. A sentence does not."""
+def test_wrapped_hacker_news_title_passes():
+    """The claim is the live title after stripping light wrappers."""
     task = _hn_task()
     title = "Fixture Story"
     page = f"{title}\nSecond Story"
@@ -684,8 +684,8 @@ def test_padded_hacker_news_sentence_fails():
         answer=padded,
         page_text=page,
     )
-    assert ok is False
-    assert why == "answer is not the marked value"
+    assert ok is True
+    assert why == "the page evidence matches the markers"
 
     spaced, spaced_why = shared_end_state(
         task,
@@ -706,8 +706,8 @@ def test_padded_hacker_news_sentence_fails():
         answer=f'"{title}"',
         page_text=page,
     )
-    assert quoted is False
-    assert quoted_why == "answer is not the marked value"
+    assert quoted is True
+    assert quoted_why == "the page evidence matches the markers"
 
     wrong, wrong_why = shared_end_state(
         task,

@@ -16,7 +16,7 @@ from bench.script_first import (
     script_runtime_verdict,
     task_asks_value,
 )
-from bench.tasks import get_all_tasks
+from bench.tasks import BENCHMARK_TASKS
 
 LIVE = "https://example.com/item"
 BODY = "Visible heading and more."
@@ -127,7 +127,7 @@ def _navigation_only(task: dict) -> bool:
 
 
 def test_task_asks_value_precision_on_every_task():
-    tasks = get_all_tasks()
+    tasks = BENCHMARK_TASKS
     assert tasks
     counts = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
     false_positives = []

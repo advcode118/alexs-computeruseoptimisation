@@ -1,0 +1,311 @@
+{
+  "by_rep": {
+    "rep1/baseline": {
+      "rows": 24,
+      "graded": 24,
+      "interrupted": 0,
+      "passes": 18,
+      "false_accepts": 2,
+      "false_rejects": 0,
+      "runtime_pass": 20,
+      "first_script_pass": 3,
+      "model_calls": 56,
+      "script_steps": 49,
+      "tool_steps": 54,
+      "cost_usd": 0.01972,
+      "wall_s_mean": 12.0,
+      "wall_s_median": 10.0,
+      "wall_s_p90": 22.3,
+      "wall_s_total": 289.2,
+      "cost_per_pass": 0.001096,
+      "wall_s_per_pass": 16.1,
+      "families": {
+        "form": "3/6",
+        "nav": "4/4",
+        "search": "4/4",
+        "spa": "4/6",
+        "value": "3/4"
+      },
+      "split_status": {
+        "dev3": "completed",
+        "dev4form": "completed",
+        "dev4spa": "completed"
+      }
+    },
+    "rep1/observe": {
+      "rows": 24,
+      "graded": 24,
+      "interrupted": 0,
+      "passes": 15,
+      "false_accepts": 1,
+      "false_rejects": 0,
+      "runtime_pass": 16,
+      "first_script_pass": 7,
+      "model_calls": 51,
+      "script_steps": 50,
+      "tool_steps": 47,
+      "cost_usd": 0.018122,
+      "wall_s_mean": 11.6,
+      "wall_s_median": 9.5,
+      "wall_s_p90": 22.0,
+      "wall_s_total": 278.0,
+      "cost_per_pass": 0.001208,
+      "wall_s_per_pass": 18.5,
+      "families": {
+        "form": "2/6",
+        "nav": "4/4",
+        "search": "3/4",
+        "spa": "4/6",
+        "value": "2/4"
+      },
+      "split_status": {
+        "dev3": "completed",
+        "dev4form": "completed",
+        "dev4spa": "completed"
+      }
+    },
+    "rep1/segments": {
+      "rows": 15,
+      "graded": 14,
+      "interrupted": 1,
+      "passes": 13,
+      "false_accepts": 0,
+      "false_rejects": 1,
+      "runtime_pass": 13,
+      "first_script_pass": 4,
+      "model_calls": 53,
+      "script_steps": 67,
+      "tool_steps": 53,
+      "cost_usd": 0.028158,
+      "wall_s_mean": 15.1,
+      "wall_s_median": 14.2,
+      "wall_s_p90": 26.8,
+      "wall_s_total": 210.9,
+      "cost_per_pass": 0.002166,
+      "wall_s_per_pass": 16.2,
+      "families": {
+        "form": "2/2",
+        "nav": "4/4",
+        "search": "4/4",
+        "value": "3/4"
+      },
+      "split_status": {
+        "dev3": "completed",
+        "dev4form": "stopped"
+      }
+    }
+  },
+  "pooled": {
+    "baseline": {
+      "rows": 24,
+      "graded": 24,
+      "interrupted": 0,
+      "passes": 18,
+      "false_accepts": 2,
+      "false_rejects": 0,
+      "runtime_pass": 20,
+      "first_script_pass": 3,
+      "model_calls": 56,
+      "script_steps": 49,
+      "tool_steps": 54,
+      "cost_usd": 0.01972,
+      "wall_s_mean": 12.0,
+      "wall_s_median": 10.0,
+      "wall_s_p90": 22.3,
+      "wall_s_total": 289.2,
+      "cost_per_pass": 0.001096,
+      "wall_s_per_pass": 16.1,
+      "families": {
+        "form": "3/6",
+        "nav": "4/4",
+        "search": "4/4",
+        "spa": "4/6",
+        "value": "3/4"
+      }
+    },
+    "observe": {
+      "rows": 24,
+      "graded": 24,
+      "interrupted": 0,
+      "passes": 15,
+      "false_accepts": 1,
+      "false_rejects": 0,
+      "runtime_pass": 16,
+      "first_script_pass": 7,
+      "model_calls": 51,
+      "script_steps": 50,
+      "tool_steps": 47,
+      "cost_usd": 0.018122,
+      "wall_s_mean": 11.6,
+      "wall_s_median": 9.5,
+      "wall_s_p90": 22.0,
+      "wall_s_total": 278.0,
+      "cost_per_pass": 0.001208,
+      "wall_s_per_pass": 18.5,
+      "families": {
+        "form": "2/6",
+        "nav": "4/4",
+        "search": "3/4",
+        "spa": "4/6",
+        "value": "2/4"
+      }
+    },
+    "segments": {
+      "rows": 15,
+      "graded": 14,
+      "interrupted": 1,
+      "passes": 13,
+      "false_accepts": 0,
+      "false_rejects": 1,
+      "runtime_pass": 13,
+      "first_script_pass": 4,
+      "model_calls": 53,
+      "script_steps": 67,
+      "tool_steps": 53,
+      "cost_usd": 0.028158,
+      "wall_s_mean": 15.1,
+      "wall_s_median": 14.2,
+      "wall_s_p90": 26.8,
+      "wall_s_total": 210.9,
+      "cost_per_pass": 0.002166,
+      "wall_s_per_pass": 16.2,
+      "families": {
+        "form": "2/2",
+        "nav": "4/4",
+        "search": "4/4",
+        "value": "3/4"
+      }
+    }
+  },
+  "paired": {
+    "rep1/observe": {
+      "n": 24,
+      "cand_only": [],
+      "base_only": [
+        "dev3_search_metacpan_moose",
+        "dev3_value_mysql_mediumint",
+        "dev4_form_roman_convert"
+      ]
+    },
+    "rep1/segments": {
+      "n": 14,
+      "cand_only": [
+        "dev4_form_epoch_timestamp"
+      ],
+      "base_only": []
+    }
+  },
+  "per_task": {
+    "dev3_nav_erlang_getting_started": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": "P"
+    },
+    "dev3_nav_express_middleware": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": "P"
+    },
+    "dev3_nav_ffmpeg_ffprobe": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": "P"
+    },
+    "dev3_nav_freedesktop_desktop_entry": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": "P"
+    },
+    "dev3_search_erlang_lists": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": "P"
+    },
+    "dev3_search_godot_signals": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": "P"
+    },
+    "dev3_search_hex_plug": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": "P"
+    },
+    "dev3_search_metacpan_moose": {
+      "rep1/baseline": "P",
+      "rep1/observe": "F",
+      "rep1/segments": "P"
+    },
+    "dev3_value_commonmark_028": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": "P"
+    },
+    "dev3_value_exif_gpsaltref": {
+      "rep1/baseline": "FA",
+      "rep1/observe": "F",
+      "rep1/segments": "F"
+    },
+    "dev3_value_ffmpeg_codename": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": "P"
+    },
+    "dev3_value_mysql_mediumint": {
+      "rep1/baseline": "P",
+      "rep1/observe": "F",
+      "rep1/segments": "P"
+    },
+    "dev4_form_epoch_timestamp": {
+      "rep1/baseline": "F",
+      "rep1/observe": "F",
+      "rep1/segments": "P"
+    },
+    "dev4_form_giga_percent": {
+      "rep1/baseline": "F",
+      "rep1/observe": "F"
+    },
+    "dev4_form_lambdatest_input": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P",
+      "rep1/segments": null
+    },
+    "dev4_form_playground_enquiry": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P"
+    },
+    "dev4_form_roman_convert": {
+      "rep1/baseline": "P",
+      "rep1/observe": "FA",
+      "rep1/segments": "P"
+    },
+    "dev4_form_testmu_radio": {
+      "rep1/baseline": "FA",
+      "rep1/observe": "F"
+    },
+    "dev4spa_js_jqueryui_section_three": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P"
+    },
+    "dev4spa_js_jqueryui_tab_three": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P"
+    },
+    "dev4spa_js_shoelace_advanced": {
+      "rep1/baseline": "F",
+      "rep1/observe": "F"
+    },
+    "dev4spa_spa_artifacthub_nginx_app": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P"
+    },
+    "dev4spa_spa_deps_react_dependency": {
+      "rep1/baseline": "F",
+      "rep1/observe": "F"
+    },
+    "dev4spa_spa_docsify_serve": {
+      "rep1/baseline": "P",
+      "rep1/observe": "P"
+    }
+  }
+}

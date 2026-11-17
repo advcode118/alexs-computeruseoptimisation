@@ -1,0 +1,3543 @@
+{
+  "grader_sha256": "7ff695b598c715cf5cc4426b77827819ec374b23699ca08d5ad881ca21a97e24",
+  "command": "python tools/regrade.py --out <output-directory>",
+  "sources": [
+    {
+      "path": "docs/results/2026-11-10/probe_20261110_214520.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "dfed5d6bf6a5f215b52ec4a7a712c33cd6642fe9e35882c9ff02aa6a8cf5e51b",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "dev",
+          "rows": 8,
+          "regradable": 8,
+          "old_pass": 8,
+          "comparable_old_pass": 8,
+          "new_pass": 8,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 8
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "playwright_mcp",
+          "split": "dev",
+          "rows": 8,
+          "regradable": 8,
+          "old_pass": 8,
+          "comparable_old_pass": 8,
+          "new_pass": 8,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 8
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "script_first",
+          "split": "dev",
+          "rows": 8,
+          "regradable": 8,
+          "old_pass": 8,
+          "comparable_old_pass": 8,
+          "new_pass": 8,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 8
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "stagehand",
+          "split": "dev",
+          "rows": 8,
+          "regradable": 8,
+          "old_pass": 7,
+          "comparable_old_pass": 7,
+          "new_pass": 7,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 8
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 87.5,
+          "new_rate": 87.5,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/2026-11-10/probe_20261110_215922.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "4ce3fe4ccdd9fcabd936aa2363d94bebf78d3b760dd0341636a683cdf3d6e9db",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "dev",
+          "rows": 3,
+          "regradable": 3,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 2,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 2,
+            "answer-side re-grade": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 66.66666666666667,
+          "new_rate": 66.66666666666667,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "playwright_mcp",
+          "split": "dev",
+          "rows": 3,
+          "regradable": 3,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 2,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 2,
+            "answer-side re-grade": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 66.66666666666667,
+          "new_rate": 66.66666666666667,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "script_first",
+          "split": "dev",
+          "rows": 3,
+          "regradable": 3,
+          "old_pass": 3,
+          "comparable_old_pass": 3,
+          "new_pass": 3,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 2,
+            "answer-side re-grade": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "stagehand",
+          "split": "dev",
+          "rows": 3,
+          "regradable": 3,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 2,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 2,
+            "answer-side re-grade": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 66.66666666666667,
+          "new_rate": 66.66666666666667,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/2026-11-10/probe_20261110_220242.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "6df57914af2c27963fc3be987fb34f1ecaeefc063d1ecd295283d8c2914ac67c",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "dev",
+          "rows": 3,
+          "regradable": 3,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 3,
+          "pass_to_fail": 0,
+          "fail_to_pass": 1,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 2,
+            "answer-side re-grade": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 66.66666666666667,
+          "new_rate": 100.0,
+          "delta_pp": 33.333333333333336
+        },
+        {
+          "arm": "playwright_mcp",
+          "split": "dev",
+          "rows": 3,
+          "regradable": 3,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 2,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 2,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 66.66666666666667,
+          "new_rate": 66.66666666666667,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "script_first",
+          "split": "dev",
+          "rows": 3,
+          "regradable": 3,
+          "old_pass": 3,
+          "comparable_old_pass": 3,
+          "new_pass": 3,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 2,
+            "answer-side re-grade": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "stagehand",
+          "split": "dev",
+          "rows": 3,
+          "regradable": 3,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 2,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 2,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 66.66666666666667,
+          "new_rate": 66.66666666666667,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "827116dce7b42d85bb500572dd9edc4f8065561fb9b35e9327bc7eb462375e9f",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "extdev",
+          "rows": 40,
+          "regradable": 22,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 5,
+          "pass_to_fail": 0,
+          "fail_to_pass": 3,
+          "not_regradable": {},
+          "categories": {
+            "full re-grade": 22,
+            "skipped": 18
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 18,
+          "old_rate": 9.090909090909092,
+          "new_rate": 22.727272727272727,
+          "delta_pp": 13.636363636363637
+        },
+        {
+          "arm": "cascade",
+          "split": "extdev",
+          "rows": 40,
+          "regradable": 22,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 4,
+          "pass_to_fail": 0,
+          "fail_to_pass": 2,
+          "not_regradable": {},
+          "categories": {
+            "full re-grade": 22,
+            "skipped": 18
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 18,
+          "old_rate": 9.090909090909092,
+          "new_rate": 18.181818181818183,
+          "delta_pp": 9.090909090909092
+        },
+        {
+          "arm": "playwright_mcp",
+          "split": "extdev",
+          "rows": 40,
+          "regradable": 22,
+          "old_pass": 0,
+          "comparable_old_pass": 0,
+          "new_pass": 0,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "full re-grade": 22,
+            "skipped": 18
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 18,
+          "old_rate": 0.0,
+          "new_rate": 0.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "script_first",
+          "split": "extdev",
+          "rows": 40,
+          "regradable": 22,
+          "old_pass": 0,
+          "comparable_old_pass": 0,
+          "new_pass": 1,
+          "pass_to_fail": 0,
+          "fail_to_pass": 1,
+          "not_regradable": {},
+          "categories": {
+            "full re-grade": 22,
+            "skipped": 18
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 18,
+          "old_rate": 0.0,
+          "new_rate": 4.545454545454546,
+          "delta_pp": 4.545454545454546
+        }
+      ]
+    },
+    {
+      "path": "docs/results/extdev_control_20261117/raw/probe_20261117_015118.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "a297c33ea5367f01e3ae7e142f07b417842ff63bd8cf3a50a630bb6c87a58fae",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "extdev",
+          "rows": 40,
+          "regradable": 40,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 6,
+          "pass_to_fail": 0,
+          "fail_to_pass": 4,
+          "not_regradable": {},
+          "categories": {
+            "full re-grade": 40
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 5.0,
+          "new_rate": 15.0,
+          "delta_pp": 10.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/extdev_control_20261117/smoke/probe_20261117_011924.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "038a2d860470d8ec75007d745dc9625dccdf6672deb1d621a3602d7f711fdf68",
+      "groups": [
+        {
+          "arm": "cascade",
+          "split": "extdev",
+          "rows": 3,
+          "regradable": 3,
+          "old_pass": 0,
+          "comparable_old_pass": 0,
+          "new_pass": 0,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "full re-grade": 3
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 0.0,
+          "new_rate": 0.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/form_specialist_20261114/dev3_off.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "59d6223d985c6d43da1b7bb296d25259c4899115ce51ca557fd14968883d99e1",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev3",
+          "rows": 6,
+          "regradable": 6,
+          "old_pass": 4,
+          "comparable_old_pass": 4,
+          "new_pass": 3,
+          "pass_to_fail": 1,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 4,
+            "unchanged (own-verdict gate)": 2
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 66.66666666666667,
+          "new_rate": 50.0,
+          "delta_pp": -16.666666666666668
+        }
+      ]
+    },
+    {
+      "path": "docs/results/form_specialist_20261114/dev3_on.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "9be6c9bc3b91eacb2f0d36e6f03a7e015872c7d1afcfdc7503b2bcec56e4375e",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev3",
+          "rows": 6,
+          "regradable": 6,
+          "old_pass": 6,
+          "comparable_old_pass": 6,
+          "new_pass": 5,
+          "pass_to_fail": 1,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 6
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 83.33333333333333,
+          "delta_pp": -16.666666666666668
+        }
+      ]
+    },
+    {
+      "path": "docs/results/form_specialist_20261114/dev4form_off.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "e567872ebefa250aeacdb04ce6675408158ad05ea1dfd6aae43abc2d3d3e79e5",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev4form",
+          "rows": 12,
+          "regradable": 12,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 2,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unchanged (own-verdict gate)": 8,
+            "answer-side re-grade": 3,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 16.666666666666668,
+          "new_rate": 16.666666666666668,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/form_specialist_20261114/dev4form_on.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "e89a5916ea7de12f868aa909911ab18f5143a953fc69eb375b4bba9c3ac14ace",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev4form",
+          "rows": 12,
+          "regradable": 12,
+          "old_pass": 9,
+          "comparable_old_pass": 9,
+          "new_pass": 8,
+          "pass_to_fail": 1,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unchanged (own-verdict gate)": 2,
+            "answer-side re-grade": 10
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 75.0,
+          "new_rate": 66.66666666666667,
+          "delta_pp": -8.333333333333334
+        }
+      ]
+    },
+    {
+      "path": "docs/results/form_specialist_20261114/held-out_off.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "edc05fb949cca646e89210170f189436c92bee253e9e0254a54467e912eacc21",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 6,
+          "regradable": 6,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 2,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 4,
+            "unchanged (non-answer failure)": 1,
+            "unaffected (no answer marker)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 33.333333333333336,
+          "new_rate": 33.333333333333336,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/form_specialist_20261114/held-out_on.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "347abb8e71c85a95ab57bcaee3cd7475e1adf6d6509b611aa4c4074d1e9d5acd",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 6,
+          "regradable": 6,
+          "old_pass": 3,
+          "comparable_old_pass": 3,
+          "new_pass": 3,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 4,
+            "unchanged (non-answer failure)": 1,
+            "unaffected (no answer marker)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 50.0,
+          "new_rate": 50.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/form_specialist_20261114/heldout2_off.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "f1302995c49b8de14a79429e73449eda94e019ddaae9b65cc7b0131fa1c105fe",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 2,
+          "regradable": 2,
+          "old_pass": 1,
+          "comparable_old_pass": 1,
+          "new_pass": 1,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unchanged (own-verdict gate)": 1,
+            "answer-side re-grade": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 50.0,
+          "new_rate": 50.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/form_specialist_20261114/heldout2_on.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "6fbcb8cb2324acb83d7ab0485c51fd05e1652146ad918569011fa0f2838a2060",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 2,
+          "regradable": 2,
+          "old_pass": 2,
+          "comparable_old_pass": 2,
+          "new_pass": 2,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 2
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout2_tip2_20261113/probe_20261113_013521.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "9e9cf4cb875d6e0b502ff2ee3d8dc16d13d8fafffb9563860c521d1104a5f7ed",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 14,
+          "comparable_old_pass": 14,
+          "new_pass": 14,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 5,
+            "unchanged (own-verdict gate)": 5
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 70.0,
+          "new_rate": 70.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout2_tip2_20261113/probe_20261113_013754.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "8ac638dfd48ef1f24732cc2f732c18e1999bedb3686c78034db88980684700f5",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 20,
+          "comparable_old_pass": 20,
+          "new_pass": 20,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 10
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout2_tip2_20261113/probe_20261113_014409.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "12de3357c40367e83e8b5b0c0787e476d6dd6e21039f91ab5cbdb77a0639992a",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 20,
+          "comparable_old_pass": 20,
+          "new_pass": 20,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 10
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout2_tip2_20261113/probe_20261113_015006.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "8ffa83ddabf38a818a5356ff316367b97f50e6d14671e8ca4e8567276b3d96e6",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 16,
+          "comparable_old_pass": 16,
+          "new_pass": 16,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 7,
+            "unchanged (own-verdict gate)": 3
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 80.0,
+          "new_rate": 80.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout2_tip2_20261113/probe_20261113_015231.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "7e64fab1169cc1d7d12230bdd8d85e6fd11fb045e75c2eeab74b268b10ab3aff",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 13,
+          "comparable_old_pass": 13,
+          "new_pass": 13,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 6,
+            "unchanged (own-verdict gate)": 4
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 65.0,
+          "new_rate": 65.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout2_tip2_20261113/probe_20261113_015509.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "fa2b511a76d1e26f8680f2eedf2d796910f925bd32d5b2b8dc9d6bb3d8b2e81e",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 20,
+          "comparable_old_pass": 20,
+          "new_pass": 20,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 10
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout2_tip2_20261113/probe_20261113_101338.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "68607373e3a8996f0a7971dae4ba9b48c04eed935a38b4655e74c6eb2214c5cb",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 20,
+          "comparable_old_pass": 20,
+          "new_pass": 20,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 10
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "playwright_mcp",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 10,
+          "comparable_old_pass": 10,
+          "new_pass": 10,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "unchanged (non-answer failure)": 10
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 50.0,
+          "new_rate": 50.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout2_tip2_20261113/probe_20261113_105059.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "08226f14d0bd937a72936498b9d9941f376e8797d7acd6025ea9fcc3bab476c4",
+      "groups": [
+        {
+          "arm": "playwright_mcp",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 20,
+          "comparable_old_pass": 20,
+          "new_pass": 20,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 10
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 100.0,
+          "new_rate": 100.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout_luna_medium_20261111.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "eafd43bf61152926e949fcb0325ca2a4b93f0cc38365b21448f8cc5babaee4e9",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 49,
+          "old_pass": 40,
+          "comparable_old_pass": 40,
+          "new_pass": 40,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {
+            "not re-gradable: needs page text (would pass if marker is on the page)": 1
+          },
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 14,
+            "unchanged (non-answer failure)": 3,
+            "not re-gradable: needs page text (would pass if marker is on the page)": 1
+          },
+          "potential_fail_to_pass": 1,
+          "skipped": 0,
+          "old_rate": 81.63265306122449,
+          "new_rate": 81.63265306122449,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "playwright_mcp",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 28,
+          "comparable_old_pass": 28,
+          "new_pass": 28,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "unchanged (non-answer failure)": 18
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 56.0,
+          "new_rate": 56.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 27,
+          "comparable_old_pass": 27,
+          "new_pass": 27,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 11,
+            "unchanged (own-verdict gate)": 7
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 54.0,
+          "new_rate": 54.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/heldout_sol_medium_20261111.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "33d3516c7ff6dae6f2515ebd75743be95cf2144b83c49cfe61ecf9b0e8b6d6df",
+      "groups": [
+        {
+          "arm": "browser_use",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 41,
+          "comparable_old_pass": 41,
+          "new_pass": 41,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 15,
+            "unchanged (non-answer failure)": 3
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 82.0,
+          "new_rate": 82.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "playwright_mcp",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 38,
+          "comparable_old_pass": 38,
+          "new_pass": 38,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 12,
+            "unchanged (non-answer failure)": 6
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 76.0,
+          "new_rate": 76.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 37,
+          "comparable_old_pass": 37,
+          "new_pass": 37,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 14,
+            "unchanged (own-verdict gate)": 4
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 74.0,
+          "new_rate": 74.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/nav_reader_20261114_post.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "dd585d91c947d5b502ff7a46bab84f766008e5fae9a2f981a53b4ce534bb79cf",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev3",
+          "rows": 42,
+          "regradable": 42,
+          "old_pass": 33,
+          "comparable_old_pass": 33,
+          "new_pass": 32,
+          "pass_to_fail": 1,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unchanged (own-verdict gate)": 5,
+            "answer-side re-grade": 34,
+            "unchanged (non-answer failure)": 3
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 78.57142857142857,
+          "new_rate": 76.19047619047619,
+          "delta_pp": -2.380952380952381
+        },
+        {
+          "arm": "script_first",
+          "split": "dev4nav",
+          "rows": 12,
+          "regradable": 12,
+          "old_pass": 9,
+          "comparable_old_pass": 9,
+          "new_pass": 9,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unchanged (own-verdict gate)": 2,
+            "answer-side re-grade": 10
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 75.0,
+          "new_rate": 75.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/nav_reader_20261114_pre.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "bf2c1cb5c6a69886a655328b899e134af7175e59cc6fbadc18bfbf641061ce4a",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev3",
+          "rows": 144,
+          "regradable": 144,
+          "old_pass": 113,
+          "comparable_old_pass": 113,
+          "new_pass": 103,
+          "pass_to_fail": 10,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 116,
+            "unchanged (own-verdict gate)": 24,
+            "unchanged (non-answer failure)": 4
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 78.47222222222223,
+          "new_rate": 71.52777777777777,
+          "delta_pp": -6.944444444444445
+        },
+        {
+          "arm": "script_first",
+          "split": "dev4nav",
+          "rows": 36,
+          "regradable": 36,
+          "old_pass": 25,
+          "comparable_old_pass": 25,
+          "new_pass": 23,
+          "pass_to_fail": 2,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unchanged (own-verdict gate)": 9,
+            "answer-side re-grade": 27
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 69.44444444444444,
+          "new_rate": 63.888888888888886,
+          "delta_pp": -5.555555555555555
+        },
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 32,
+          "regradable": 32,
+          "old_pass": 20,
+          "comparable_old_pass": 20,
+          "new_pass": 20,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 16,
+            "unchanged (non-answer failure)": 2,
+            "unaffected (no answer marker)": 8,
+            "unchanged (own-verdict gate)": 6
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 62.5,
+          "new_rate": 62.5,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 16,
+          "regradable": 16,
+          "old_pass": 12,
+          "comparable_old_pass": 12,
+          "new_pass": 12,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 14,
+            "unchanged (own-verdict gate)": 2
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 75.0,
+          "new_rate": 75.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/strategy_spa_20261114/dev3_off_first.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "a1ca0a9daa07237d9ddec7c13bbacc4c8849203c67b2b8c09b8e78ef01c2872d",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev3",
+          "rows": 4,
+          "regradable": 4,
+          "old_pass": 3,
+          "comparable_old_pass": 3,
+          "new_pass": 3,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unchanged (own-verdict gate)": 1,
+            "answer-side re-grade": 3
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 75.0,
+          "new_rate": 75.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/strategy_spa_20261114/dev3_on_first.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "6853590797a831ba4debf9b576a8eb5ca4927689e970d565bf0546d12edc78bc",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev3",
+          "rows": 4,
+          "regradable": 4,
+          "old_pass": 3,
+          "comparable_old_pass": 3,
+          "new_pass": 3,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unchanged (own-verdict gate)": 1,
+            "answer-side re-grade": 3
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 75.0,
+          "new_rate": 75.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/strategy_spa_20261114/dev4spa_off_final.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "96a916ba90431629022a1a637bdd0450049fe9551be34e4b7bbf9e60b7c26251",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev4spa",
+          "rows": 12,
+          "regradable": 12,
+          "old_pass": 10,
+          "comparable_old_pass": 10,
+          "new_pass": 10,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 10,
+            "unchanged (own-verdict gate)": 2
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 83.33333333333333,
+          "new_rate": 83.33333333333333,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/strategy_spa_20261114/dev4spa_off_first.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "152894ffb3440dacb6a3bd66f6bf81fdd36750a0894a69577ef9fed5ba76b09e",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev4spa",
+          "rows": 12,
+          "regradable": 12,
+          "old_pass": 10,
+          "comparable_old_pass": 10,
+          "new_pass": 10,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 10,
+            "unchanged (own-verdict gate)": 2
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 83.33333333333333,
+          "new_rate": 83.33333333333333,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/strategy_spa_20261114/dev4spa_on_final.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "5fcd2160b6c94886916f33e2582872d0e24232701ed1cd74b965b362001b4fb2",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev4spa",
+          "rows": 12,
+          "regradable": 12,
+          "old_pass": 11,
+          "comparable_old_pass": 11,
+          "new_pass": 11,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 11,
+            "unchanged (own-verdict gate)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 91.66666666666667,
+          "new_rate": 91.66666666666667,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/strategy_spa_20261114/dev4spa_on_first.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "b90b16a23328689b2f18528ecd1b4246d1f1a86ff9fdbe3357568db39f34af83",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev4spa",
+          "rows": 12,
+          "regradable": 12,
+          "old_pass": 10,
+          "comparable_old_pass": 10,
+          "new_pass": 10,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "answer-side re-grade": 10,
+            "unchanged (own-verdict gate)": 2
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 83.33333333333333,
+          "new_rate": 83.33333333333333,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/decisions_off_luna_medium_20261111.jsonl",
+      "branch": "origin/t3/decisions-second-opinion",
+      "commit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+      "sha256": "4c7aeffbf81aebb60d7ef0ee0a3e156405aeb1992c0e6c2dbe161033b399e2b0",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 30,
+          "comparable_old_pass": 30,
+          "new_pass": 30,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 11,
+            "unchanged (non-answer failure)": 1,
+            "unchanged (own-verdict gate)": 6
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 60.0,
+          "new_rate": 60.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/decisions_on_luna_medium_20261111.jsonl",
+      "branch": "origin/t3/decisions-second-opinion",
+      "commit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+      "sha256": "74259ad24ae017d13f06ae777231f0db9b45b3273f67dd9ed1d007cfe95d82c4",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 33,
+          "comparable_old_pass": 33,
+          "new_pass": 33,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 10,
+            "unchanged (non-answer failure)": 4,
+            "unchanged (own-verdict gate)": 4
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 66.0,
+          "new_rate": 66.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/decisions_shadow_luna_medium_20261111.jsonl",
+      "branch": "origin/t3/decisions-second-opinion",
+      "commit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+      "sha256": "6344ebef7dc609e237f7e411a74658b0835fb0a10b89acb89e7b557b1c229b95",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 28,
+          "comparable_old_pass": 28,
+          "new_pass": 28,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 9,
+            "unchanged (own-verdict gate)": 7,
+            "unchanged (non-answer failure)": 2
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 56.0,
+          "new_rate": 56.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/paired_dev3.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "c6686ba8a30cfaa4c6e064dfe4a7ed90361333750d70dabbdc4863e6370a5132",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev3",
+          "rows": 80,
+          "regradable": 80,
+          "old_pass": 61,
+          "comparable_old_pass": 61,
+          "new_pass": 56,
+          "pass_to_fail": 5,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "unchanged (own-verdict gate)": 8,
+            "answer-side re-grade": 39,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 76.25,
+          "new_rate": 70.0,
+          "delta_pp": -6.25
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_partial_A2_heldout2_221225.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "46e15cd2c3d13b9ff386ff764f237e7a2bbd91641f8f414a02d945081d41e5c2",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 6,
+          "regradable": 6,
+          "old_pass": 1,
+          "comparable_old_pass": 1,
+          "new_pass": 1,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 6
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 16.666666666666668,
+          "new_rate": 16.666666666666668,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_probe_20261113_210925.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "0713d4d5a4a185e38ba0910a0467b9ade63271e436198760ad8816f77ebb2d99",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 14,
+          "comparable_old_pass": 14,
+          "new_pass": 14,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 7,
+            "unchanged (own-verdict gate)": 3
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 70.0,
+          "new_rate": 70.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_probe_20261113_211214.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "d924f6042c24a808762af70390a7ece639473e120accd9879716cebb157b67a2",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 38,
+          "comparable_old_pass": 38,
+          "new_pass": 37,
+          "pass_to_fail": 1,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 12,
+            "unchanged (own-verdict gate)": 6
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 76.0,
+          "new_rate": 74.0,
+          "delta_pp": -2.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_probe_20261113_213141.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "d050b7136a88e9c475709f362b6153654c242c834f5bd7fbbc26e8c822528f99",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 15,
+          "comparable_old_pass": 15,
+          "new_pass": 15,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "unchanged (own-verdict gate)": 3,
+            "answer-side re-grade": 6,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 75.0,
+          "new_rate": 75.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_probe_20261113_214621.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "0f5e0556f595a0371a4bae0f6d2cf963d97d80630afb5444148491f1fbe063ed",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 17,
+          "comparable_old_pass": 17,
+          "new_pass": 16,
+          "pass_to_fail": 1,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 9,
+            "unchanged (own-verdict gate)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 85.0,
+          "new_rate": 80.0,
+          "delta_pp": -5.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_probe_20261113_214914.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "8c546af4ec1485d4ba8ee48be290ca8e205b264a5545ddcc446ff67fc5fcf7b6",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 37,
+          "comparable_old_pass": 37,
+          "new_pass": 36,
+          "pass_to_fail": 1,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 12,
+            "unchanged (own-verdict gate)": 5,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 74.0,
+          "new_rate": 72.0,
+          "delta_pp": -2.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_probe_20261113_215659.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "5052afad46b730cc6dd4269aad3c1c50af7c4ed825394ca4d27dc73cc1cb0316",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "heldout2",
+          "rows": 20,
+          "regradable": 20,
+          "old_pass": 15,
+          "comparable_old_pass": 15,
+          "new_pass": 15,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 10,
+            "answer-side re-grade": 6,
+            "unchanged (own-verdict gate)": 4
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 75.0,
+          "new_rate": 75.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_probe_20261113_220037.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "41f13af0473713254abe1e64709e77313b3914a4a48732855aded4ac3ea35f29",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 36,
+          "comparable_old_pass": 36,
+          "new_pass": 36,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 12,
+            "unchanged (own-verdict gate)": 5,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 72.0,
+          "new_rate": 72.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_probe_20261113_221244.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "b79cbcc0f0c0833e4ca3d6bd033bfaf0493177d8d4583c4316fc3208eae5b9e2",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 38,
+          "comparable_old_pass": 38,
+          "new_pass": 38,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 12,
+            "unchanged (own-verdict gate)": 5,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 76.0,
+          "new_rate": 76.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/robust_executor_20261114/recovered_probe_20261113_221300.jsonl",
+      "branch": "origin/t3/robust-executor",
+      "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+      "sha256": "8c9e38138021235ada886513592522ee45580a9ca596b1a0305773b5b3d5e224",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev3",
+          "rows": 40,
+          "regradable": 40,
+          "old_pass": 26,
+          "comparable_old_pass": 26,
+          "new_pass": 22,
+          "pass_to_fail": 4,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 16,
+            "unchanged (own-verdict gate)": 7,
+            "answer-side re-grade": 17
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 65.0,
+          "new_rate": 55.0,
+          "delta_pp": -10.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/rules_off_run1_luna_medium_20261111.jsonl",
+      "branch": "origin/t3/decisions-second-opinion",
+      "commit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+      "sha256": "11e15fc6e4dbb76c0819f65c6c43d8b7a42b646923980153b648e1b7a71fb071",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 31,
+          "comparable_old_pass": 31,
+          "new_pass": 31,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 12,
+            "unchanged (own-verdict gate)": 4,
+            "unchanged (non-answer failure)": 2
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 62.0,
+          "new_rate": 62.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/rules_off_run2_luna_medium_20261111.jsonl",
+      "branch": "origin/t3/decisions-second-opinion",
+      "commit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+      "sha256": "a1efc016028bed2a4d63122951d6dd761d4e167536d0284f2c6f0f9a648aa54f",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 36,
+          "comparable_old_pass": 36,
+          "new_pass": 34,
+          "pass_to_fail": 2,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 12,
+            "unchanged (own-verdict gate)": 5,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 72.0,
+          "new_rate": 68.0,
+          "delta_pp": -4.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/rules_off_run3_luna_medium_20261111.jsonl",
+      "branch": "origin/t3/decisions-second-opinion",
+      "commit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+      "sha256": "5a0de7f2b3fc411291d0f2d62c7fc194ca1eee0ed71ac482c3e01ce6a555f578",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 31,
+          "comparable_old_pass": 31,
+          "new_pass": 31,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 10,
+            "unchanged (own-verdict gate)": 7,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 62.0,
+          "new_rate": 62.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/rules_on_run1_luna_medium_20261111.jsonl",
+      "branch": "origin/t3/decisions-second-opinion",
+      "commit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+      "sha256": "0356b4f7b094f363b8ae3868f935387a56e7570b6eaddc0a15a234e1c838a7a9",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 29,
+          "comparable_old_pass": 29,
+          "new_pass": 29,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 9,
+            "unchanged (non-answer failure)": 3,
+            "unchanged (own-verdict gate)": 6
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 58.0,
+          "new_rate": 58.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/rules_on_run2_luna_medium_20261111.jsonl",
+      "branch": "origin/t3/decisions-second-opinion",
+      "commit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+      "sha256": "0785706600ab07a09158416df4c2cd2532c562f22cc12a2e62354f98c8206467",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 35,
+          "comparable_old_pass": 35,
+          "new_pass": 35,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 11,
+            "unchanged (non-answer failure)": 2,
+            "unchanged (own-verdict gate)": 5
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 70.0,
+          "new_rate": 70.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/results/rules_on_run3_luna_medium_20261111.jsonl",
+      "branch": "origin/t3/decisions-second-opinion",
+      "commit": "6b59b525ea279041158b5fc2d320594cdb11261e",
+      "sha256": "8f77eac3c106444d2ba33dde0e86db0eb965f5a61c631fbcc86472203b95d0d9",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "held-out",
+          "rows": 50,
+          "regradable": 50,
+          "old_pass": 37,
+          "comparable_old_pass": 37,
+          "new_pass": 37,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {},
+          "categories": {
+            "unaffected (no answer marker)": 32,
+            "answer-side re-grade": 11,
+            "unchanged (own-verdict gate)": 6,
+            "unchanged (non-answer failure)": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 74.0,
+          "new_rate": 74.0,
+          "delta_pp": 0.0
+        }
+      ]
+    },
+    {
+      "path": "docs/PR_INTEGRATION_20261116/pilot/pilot_rows.json",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "pilot": true,
+      "sha256": "2aa4e7046b1f52447f6bc178b86d6e56a0e53ae403bb29ae819816f5e082ff25",
+      "groups": [
+        {
+          "arm": "script_first",
+          "split": "dev3",
+          "rows": 36,
+          "regradable": 27,
+          "old_pass": 31,
+          "comparable_old_pass": 23,
+          "new_pass": 23,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {
+            "not re-gradable: claimed answer was not saved": 8,
+            "not re-gradable: failure reason was not saved": 1
+          },
+          "categories": {
+            "unaffected (no answer marker)": 24,
+            "not re-gradable: claimed answer was not saved": 8,
+            "not re-gradable: failure reason was not saved": 1,
+            "unchanged (own-verdict gate)": 3
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 85.18518518518519,
+          "new_rate": 85.18518518518519,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "script_first",
+          "split": "dev4form",
+          "rows": 15,
+          "regradable": 5,
+          "old_pass": 7,
+          "comparable_old_pass": 0,
+          "new_pass": 0,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {
+            "not re-gradable: claimed answer was not saved": 7,
+            "not re-gradable: failure reason was not saved": 2,
+            "not re-gradable: interrupted/ungraded row": 1
+          },
+          "categories": {
+            "unchanged (own-verdict gate)": 5,
+            "not re-gradable: claimed answer was not saved": 7,
+            "not re-gradable: failure reason was not saved": 2,
+            "not re-gradable: interrupted/ungraded row": 1
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 0.0,
+          "new_rate": 0.0,
+          "delta_pp": 0.0
+        },
+        {
+          "arm": "script_first",
+          "split": "dev4spa",
+          "rows": 12,
+          "regradable": 4,
+          "old_pass": 8,
+          "comparable_old_pass": 0,
+          "new_pass": 0,
+          "pass_to_fail": 0,
+          "fail_to_pass": 0,
+          "not_regradable": {
+            "not re-gradable: claimed answer was not saved": 8
+          },
+          "categories": {
+            "unchanged (own-verdict gate)": 4,
+            "not re-gradable: claimed answer was not saved": 8
+          },
+          "potential_fail_to_pass": 0,
+          "skipped": 0,
+          "old_rate": 0.0,
+          "new_rate": 0.0,
+          "delta_pp": 0.0
+        }
+      ]
+    }
+  ],
+  "datasets": [
+    {
+      "dataset": "Nov 10",
+      "arm": "browser_use",
+      "rows": 14,
+      "regradable": 14,
+      "old_pass": 12,
+      "comparable_old_pass": 12,
+      "new_pass": 13,
+      "pass_to_fail": 0,
+      "fail_to_pass": 1,
+      "not_regradable": {},
+      "categories": {
+        "unaffected (no answer marker)": 12,
+        "answer-side re-grade": 2
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 85.71428571428571,
+      "new_rate": 92.85714285714286,
+      "delta_pp": 7.142857142857143
+    },
+    {
+      "dataset": "Nov 10",
+      "arm": "playwright_mcp",
+      "rows": 14,
+      "regradable": 14,
+      "old_pass": 12,
+      "comparable_old_pass": 12,
+      "new_pass": 12,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "unaffected (no answer marker)": 12,
+        "answer-side re-grade": 1,
+        "unchanged (non-answer failure)": 1
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 85.71428571428571,
+      "new_rate": 85.71428571428571,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "Nov 10",
+      "arm": "script_first",
+      "rows": 14,
+      "regradable": 14,
+      "old_pass": 14,
+      "comparable_old_pass": 14,
+      "new_pass": 14,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "unaffected (no answer marker)": 12,
+        "answer-side re-grade": 2
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 100.0,
+      "new_rate": 100.0,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "Nov 10",
+      "arm": "stagehand",
+      "rows": 14,
+      "regradable": 14,
+      "old_pass": 11,
+      "comparable_old_pass": 11,
+      "new_pass": 11,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "unaffected (no answer marker)": 12,
+        "answer-side re-grade": 1,
+        "unchanged (non-answer failure)": 1
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 78.57142857142857,
+      "new_rate": 78.57142857142857,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "dev3",
+      "arm": "script_first",
+      "rows": 326,
+      "regradable": 326,
+      "old_pass": 249,
+      "comparable_old_pass": 249,
+      "new_pass": 227,
+      "pass_to_fail": 22,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "answer-side re-grade": 222,
+        "unchanged (own-verdict gate)": 48,
+        "unchanged (non-answer failure)": 8,
+        "unaffected (no answer marker)": 48
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 76.38036809815951,
+      "new_rate": 69.6319018404908,
+      "delta_pp": -6.748466257668712
+    },
+    {
+      "dataset": "dev4form",
+      "arm": "script_first",
+      "rows": 24,
+      "regradable": 24,
+      "old_pass": 11,
+      "comparable_old_pass": 11,
+      "new_pass": 10,
+      "pass_to_fail": 1,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "unchanged (own-verdict gate)": 10,
+        "answer-side re-grade": 13,
+        "unchanged (non-answer failure)": 1
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 45.833333333333336,
+      "new_rate": 41.666666666666664,
+      "delta_pp": -4.166666666666667
+    },
+    {
+      "dataset": "dev4nav",
+      "arm": "script_first",
+      "rows": 48,
+      "regradable": 48,
+      "old_pass": 34,
+      "comparable_old_pass": 34,
+      "new_pass": 32,
+      "pass_to_fail": 2,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "unchanged (own-verdict gate)": 11,
+        "answer-side re-grade": 37
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 70.83333333333333,
+      "new_rate": 66.66666666666667,
+      "delta_pp": -4.166666666666667
+    },
+    {
+      "dataset": "dev4spa",
+      "arm": "script_first",
+      "rows": 48,
+      "regradable": 48,
+      "old_pass": 41,
+      "comparable_old_pass": 41,
+      "new_pass": 41,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "answer-side re-grade": 41,
+        "unchanged (own-verdict gate)": 7
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 85.41666666666667,
+      "new_rate": 85.41666666666667,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "heldout (Nov 11 Luna/Sol)",
+      "arm": "browser_use",
+      "rows": 100,
+      "regradable": 99,
+      "old_pass": 81,
+      "comparable_old_pass": 81,
+      "new_pass": 81,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {
+        "not re-gradable: needs page text (would pass if marker is on the page)": 1
+      },
+      "categories": {
+        "unaffected (no answer marker)": 64,
+        "answer-side re-grade": 29,
+        "unchanged (non-answer failure)": 6,
+        "not re-gradable: needs page text (would pass if marker is on the page)": 1
+      },
+      "potential_fail_to_pass": 1,
+      "skipped": 0,
+      "old_rate": 81.81818181818181,
+      "new_rate": 81.81818181818181,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "heldout (Nov 11 Luna/Sol)",
+      "arm": "playwright_mcp",
+      "rows": 100,
+      "regradable": 100,
+      "old_pass": 66,
+      "comparable_old_pass": 66,
+      "new_pass": 66,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "unaffected (no answer marker)": 64,
+        "unchanged (non-answer failure)": 24,
+        "answer-side re-grade": 12
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 66.0,
+      "new_rate": 66.0,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "heldout (Nov 11 Luna/Sol)",
+      "arm": "script_first",
+      "rows": 794,
+      "regradable": 794,
+      "old_pass": 528,
+      "comparable_old_pass": 528,
+      "new_pass": 524,
+      "pass_to_fail": 4,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "answer-side re-grade": 192,
+        "unchanged (non-answer failure)": 24,
+        "unaffected (no answer marker)": 490,
+        "unchanged (own-verdict gate)": 88
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 66.49874055415617,
+      "new_rate": 65.99496221662469,
+      "delta_pp": -0.5037783375314862
+    },
+    {
+      "dataset": "heldout2",
+      "arm": "browser_use",
+      "rows": 80,
+      "regradable": 80,
+      "old_pass": 80,
+      "comparable_old_pass": 80,
+      "new_pass": 80,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "unaffected (no answer marker)": 40,
+        "answer-side re-grade": 40
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 100.0,
+      "new_rate": 100.0,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "heldout2",
+      "arm": "playwright_mcp",
+      "rows": 40,
+      "regradable": 40,
+      "old_pass": 30,
+      "comparable_old_pass": 30,
+      "new_pass": 30,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "unaffected (no answer marker)": 20,
+        "unchanged (non-answer failure)": 10,
+        "answer-side re-grade": 10
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 75.0,
+      "new_rate": 75.0,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "heldout2",
+      "arm": "script_first",
+      "rows": 166,
+      "regradable": 166,
+      "old_pass": 120,
+      "comparable_old_pass": 120,
+      "new_pass": 119,
+      "pass_to_fail": 1,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "unchanged (own-verdict gate)": 26,
+        "answer-side re-grade": 63,
+        "unaffected (no answer marker)": 76,
+        "unchanged (non-answer failure)": 1
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 72.28915662650603,
+      "new_rate": 71.6867469879518,
+      "delta_pp": -0.6024096385542169
+    },
+    {
+      "dataset": "heldout3 interim",
+      "arm": "browser_use",
+      "rows": 0,
+      "regradable": 0,
+      "old_pass": 0,
+      "comparable_old_pass": 0,
+      "new_pass": 0,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {},
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": null,
+      "new_rate": null,
+      "delta_pp": null,
+      "raw_rows_missing": [
+        "docs/results/heldout3_20261113/interim_luna_sf2_bu1.json"
+      ]
+    },
+    {
+      "dataset": "heldout3 interim",
+      "arm": "script_first",
+      "rows": 0,
+      "regradable": 0,
+      "old_pass": 0,
+      "comparable_old_pass": 0,
+      "new_pass": 0,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {},
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": null,
+      "new_rate": null,
+      "delta_pp": null,
+      "raw_rows_missing": [
+        "docs/results/heldout3_20261113/interim_luna_sf2_bu1.json",
+        "docs/results/heldout3_20261113/interim_sol_sf1.json"
+      ]
+    },
+    {
+      "dataset": "other",
+      "arm": "browser_use",
+      "rows": 80,
+      "regradable": 62,
+      "old_pass": 4,
+      "comparable_old_pass": 4,
+      "new_pass": 11,
+      "pass_to_fail": 0,
+      "fail_to_pass": 7,
+      "not_regradable": {},
+      "categories": {
+        "full re-grade": 62,
+        "skipped": 18
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 18,
+      "old_rate": 6.451612903225806,
+      "new_rate": 17.741935483870968,
+      "delta_pp": 11.290322580645162
+    },
+    {
+      "dataset": "other",
+      "arm": "cascade",
+      "rows": 43,
+      "regradable": 25,
+      "old_pass": 2,
+      "comparable_old_pass": 2,
+      "new_pass": 4,
+      "pass_to_fail": 0,
+      "fail_to_pass": 2,
+      "not_regradable": {},
+      "categories": {
+        "full re-grade": 25,
+        "skipped": 18
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 18,
+      "old_rate": 8.0,
+      "new_rate": 16.0,
+      "delta_pp": 8.0
+    },
+    {
+      "dataset": "other",
+      "arm": "playwright_mcp",
+      "rows": 40,
+      "regradable": 22,
+      "old_pass": 0,
+      "comparable_old_pass": 0,
+      "new_pass": 0,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {
+        "full re-grade": 22,
+        "skipped": 18
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 18,
+      "old_rate": 0.0,
+      "new_rate": 0.0,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "other",
+      "arm": "script_first",
+      "rows": 40,
+      "regradable": 22,
+      "old_pass": 0,
+      "comparable_old_pass": 0,
+      "new_pass": 1,
+      "pass_to_fail": 0,
+      "fail_to_pass": 1,
+      "not_regradable": {},
+      "categories": {
+        "full re-grade": 22,
+        "skipped": 18
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 18,
+      "old_rate": 0.0,
+      "new_rate": 4.545454545454546,
+      "delta_pp": 4.545454545454546
+    },
+    {
+      "dataset": "pilot",
+      "arm": "script_first",
+      "rows": 63,
+      "regradable": 36,
+      "old_pass": 46,
+      "comparable_old_pass": 23,
+      "new_pass": 23,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {
+        "not re-gradable: claimed answer was not saved": 23,
+        "not re-gradable: failure reason was not saved": 3,
+        "not re-gradable: interrupted/ungraded row": 1
+      },
+      "categories": {
+        "unaffected (no answer marker)": 24,
+        "not re-gradable: claimed answer was not saved": 23,
+        "not re-gradable: failure reason was not saved": 3,
+        "unchanged (own-verdict gate)": 12,
+        "not re-gradable: interrupted/ungraded row": 1
+      },
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": 63.888888888888886,
+      "new_rate": 63.888888888888886,
+      "delta_pp": 0.0
+    },
+    {
+      "dataset": "val3",
+      "arm": "script_first",
+      "rows": 0,
+      "regradable": 0,
+      "old_pass": 0,
+      "comparable_old_pass": 0,
+      "new_pass": 0,
+      "pass_to_fail": 0,
+      "fail_to_pass": 0,
+      "not_regradable": {},
+      "categories": {},
+      "potential_fail_to_pass": 0,
+      "skipped": 0,
+      "old_rate": null,
+      "new_rate": null,
+      "delta_pp": null,
+      "raw_rows_missing": [
+        "docs/results/val3_gates_20261114/repair.json",
+        "docs/results/val3_gates_20261114/verifier.json",
+        "docs/results/tip4_gate_20261114/aggregate.json"
+      ]
+    }
+  ],
+  "flipped_rows": [
+    {
+      "task_id": "wv_hackernews_top",
+      "file": "docs/results/2026-11-10/probe_20261110_220242.jsonl",
+      "arm": "browser_use",
+      "direction": "fail->pass",
+      "old_reason": "answer is not the marked value",
+      "new_reason": "the page evidence matches the markers",
+      "code": "the_page_evidence_matches_the_markers",
+      "answer": "The top Hacker News story is “.name Grandfathered.”"
+    },
+    {
+      "task_id": "extdev_value_nba_2021_leaders",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "arm": "browser_use",
+      "direction": "fail->pass",
+      "old_reason": "answer too long",
+      "new_reason": "URL contains '/nba/stats/_/season/2021/seasontype/2'",
+      "code": "full_grade_pass",
+      "answer": "Points: Stephen Curry — 32.0\nAssists: Russell Westbrook — 11.7\n3-Pointers Made: Stephen Curry — 5.3\nRebounds: Clint Cape"
+    },
+    {
+      "task_id": "extdev_value_nba_2021_leaders",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "arm": "cascade",
+      "direction": "fail->pass",
+      "old_reason": "answer too long",
+      "new_reason": "URL contains '/nba/stats/_/season/2021/seasontype/2'",
+      "code": "full_grade_pass",
+      "answer": "Points: Stephen Curry — 32.0\nAssists: Russell Westbrook — 11.7\n3-Pointers Made: Stephen Curry — 5.3\nRebounds: Clint Cape"
+    },
+    {
+      "task_id": "extdev_value_icse_2004_chair",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "arm": "browser_use",
+      "direction": "fail->pass",
+      "old_reason": "answer is not in the page text",
+      "new_reason": "URL contains '/history.html'",
+      "code": "full_grade_pass",
+      "answer": "May 23-28, 2004; Anthony Finkelstein"
+    },
+    {
+      "task_id": "extdev_nav_nets_schedule",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "arm": "browser_use",
+      "direction": "fail->pass",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'",
+      "code": "full_grade_pass",
+      "answer": "https://www.espn.com/nba/team/schedule/_/name/bkn/brooklyn-nets"
+    },
+    {
+      "task_id": "extdev_nav_nets_schedule",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "arm": "script_first",
+      "direction": "fail->pass",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'",
+      "code": "full_grade_pass",
+      "answer": "https://www.espn.com/nba/team/schedule/_/name/bkn/brooklyn-nets"
+    },
+    {
+      "task_id": "extdev_nav_nets_schedule",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "arm": "cascade",
+      "direction": "fail->pass",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'",
+      "code": "full_grade_pass",
+      "answer": "https://www.espn.com/nba/team/schedule/_/name/bkn/brooklyn-nets"
+    },
+    {
+      "task_id": "extdev_value_nba_2021_leaders",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_015118.jsonl",
+      "arm": "browser_use",
+      "direction": "fail->pass",
+      "old_reason": "answer too long",
+      "new_reason": "URL contains '/nba/stats/_/season/2021/seasontype/2'",
+      "code": "full_grade_pass",
+      "answer": "Points: Stephen Curry — 32.0\nAssists: Russell Westbrook — 11.7\n3-Pointers Made: Stephen Curry — 5.3\nRebounds: Clint Cape"
+    },
+    {
+      "task_id": "extdev_value_icse_2004_chair",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_015118.jsonl",
+      "arm": "browser_use",
+      "direction": "fail->pass",
+      "old_reason": "answer is not in the page text",
+      "new_reason": "URL contains '/history.html'",
+      "code": "full_grade_pass",
+      "answer": "May 23-28, 2004; Anthony Finkelstein"
+    },
+    {
+      "task_id": "extdev_nav_nets_schedule",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_015118.jsonl",
+      "arm": "browser_use",
+      "direction": "fail->pass",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'",
+      "code": "full_grade_pass",
+      "answer": "https://www.espn.com/nba/team/schedule/_/name/bkn/brooklyn-nets"
+    },
+    {
+      "task_id": "extdev_nav_commuter_benefits",
+      "file": "docs/results/extdev_control_20261117/raw/probe_20261117_015118.jsonl",
+      "arm": "browser_use",
+      "direction": "fail->pass",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/solutions/commuter-benefits'",
+      "code": "full_grade_pass",
+      "answer": "https://spothero.com/solutions/commuter-benefits"
+    },
+    {
+      "task_id": "dev3_form_guru99_register",
+      "file": "docs/results/form_specialist_20261114/dev3_off.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/test/newtours/register'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "Thank you for registering. You may now sign-in using the user name and password you've just entered."
+    },
+    {
+      "task_id": "dev3_form_guru99_register",
+      "file": "docs/results/form_specialist_20261114/dev3_on.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/test/newtours/register'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "Thank you for registering. You may now sign-in using the user name and password you've just entered."
+    },
+    {
+      "task_id": "dev4_form_giga_percent",
+      "file": "docs/results/form_specialist_20261114/dev4form_on.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains 'percentage-calculator.php'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "Result 17.50% of 368 is 64.40"
+    },
+    {
+      "task_id": "dev3_value_khronos_gl46",
+      "file": "docs/results/nav_reader_20261114_post.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/opengl/'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "OpenGL 4.6 at a Glance\n\nThe OpenGL 4.6 and OpenGL Shading Language 4.60 Specifications were released on July 31, 2017"
+    },
+    {
+      "task_id": "dev3_value_commonmark_028",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains 'spec.commonmark.org'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "0.30 (2021-06-19) (view changes | test cases) 0.29 (2019-04-06) (view changes | test cases) 0.28 (2017-08-01) (view chan"
+    },
+    {
+      "task_id": "dev3_value_khronos_gl46",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/opengl/'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "OpenGL 4.6 and OpenGL Shading Language 4.60 Specifications were released on July 31, 2017."
+    },
+    {
+      "task_id": "dev3_value_mslearn_decimal",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/builtin-types/floating-point-numeric-types'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "decimal\t±1.0 x 10-28 to ±7.9228 x 1028\t28-29 digits\t16 bytes\tSystem.Decimal"
+    },
+    {
+      "task_id": "dev3_value_commonmark_028",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains 'spec.commonmark.org'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "0.28 (2017-08-01) (view changes | test cases)"
+    },
+    {
+      "task_id": "dev3_value_commonmark_028",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains 'spec.commonmark.org'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "0.28 (2017-08-01) (view changes | test cases)"
+    },
+    {
+      "task_id": "dev3_value_exif_gpsaltref",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/TagNames/GPS.html'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "Tag ID\tTag Name\tWritable\tValues / Notes\n0x0000\tGPSVersionID\tint8u[4]:\t \n0x0001\tGPSLatitudeRef\tstring[2]\t(tags 0x0001-0x0"
+    },
+    {
+      "task_id": "dev3_value_mslearn_decimal",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/builtin-types/floating-point-numeric-types'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "decimal\t±1.0 x 10-28 to ±7.9228 x 1028\t28-29 digits\t16 bytes\tSystem.Decimal"
+    },
+    {
+      "task_id": "dev3_value_commonmark_028",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains 'spec.commonmark.org'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "0.28 (2017-08-01) (view changes | test cases)"
+    },
+    {
+      "task_id": "dev3_value_commonmark_028",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains 'spec.commonmark.org'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "(2017-08-01) (view changes | test cases)"
+    },
+    {
+      "task_id": "dev3_value_mysql_mediumint",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/doc/refman/8.4/en/storage-requirements.html'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "MEDIUMINT\t3 bytes"
+    },
+    {
+      "task_id": "dev4nav_value_gradle_java21",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/userguide/compatibility.html'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "8.5 and after"
+    },
+    {
+      "task_id": "dev4nav_value_gradle_java21",
+      "file": "docs/results/nav_reader_20261114_pre.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/userguide/compatibility.html'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "8.5 and after"
+    },
+    {
+      "task_id": "dev3_value_mysql_mediumint",
+      "file": "docs/results/robust_executor_20261114/paired_dev3.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/doc/refman/8.4/en/storage-requirements.html'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "MEDIUMINT\t3 bytes"
+    },
+    {
+      "task_id": "dev3_value_fileformat_snowman",
+      "file": "docs/results/robust_executor_20261114/paired_dev3.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/info/unicode/char/2603/'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "UTF-8 (hex)\t0xE2 0x98 0x83 (e29883)\nUTF-8 (binary)\t11100010:10011000:10000011"
+    },
+    {
+      "task_id": "dev3_value_khronos_gl46",
+      "file": "docs/results/robust_executor_20261114/paired_dev3.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/opengl/'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": ". OpenGL exposes all the features of the latest graphics hardware.\n\nLATEST FEATURES AND EXTENSIONS\n\nOpenGL 4.6 at a Glan"
+    },
+    {
+      "task_id": "dev3_form_formy_complete",
+      "file": "docs/results/robust_executor_20261114/paired_dev3.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/thanks'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "FORMY\nForm\nComponents \nThanks for submitting your form\nThe form was successfully submitted!"
+    },
+    {
+      "task_id": "dev3_spa_demoqa_origin",
+      "file": "docs/results/robust_executor_20261114/paired_dev3.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/tabs'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "Latin professor at Hampden-Sydney College in Virginia, looked up one of the more obscure Latin words, consectetur, from "
+    },
+    {
+      "task_id": "ho_httpbin_customer_form",
+      "file": "docs/results/robust_executor_20261114/recovered_probe_20261113_211214.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains 'httpbin.org/post'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "custname\": \"Taylor Example\","
+    },
+    {
+      "task_id": "ho2_value_color_rebecca",
+      "file": "docs/results/robust_executor_20261114/recovered_probe_20261113_214621.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/colors/colors_names.asp'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "RebeccaPurple\n\n#663399\nRed\n\n#FF0000\nRosyBrown\n\n#BC8F8F\nRoyalBlue\n\n#4169E1\nSaddleBrown\n\n#8B4513\nSalmon\n\n#FA8072\nSa"
+    },
+    {
+      "task_id": "ho_table_iana_https",
+      "file": "docs/results/robust_executor_20261114/recovered_probe_20261113_214914.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains 'service-names-port-numbers'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "https\t443\ttcp\thttp protocol over TLS/SSL\tIESG\tIETF Chair\t\t2021-10-01\tRFC 9110"
+    },
+    {
+      "task_id": "dev3_value_fileformat_snowman",
+      "file": "docs/results/robust_executor_20261114/recovered_probe_20261113_221300.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/info/unicode/char/2603/'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "UTF-8 (hex)\t0xE2 0x98 0x83 (e29883)"
+    },
+    {
+      "task_id": "dev3_value_khronos_gl46",
+      "file": "docs/results/robust_executor_20261114/recovered_probe_20261113_221300.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/opengl/'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "OpenGL 4.6 at a Glance\n\nThe OpenGL 4.6 and OpenGL Shading Language 4.60 Specifications were released on July 31, 2017.\n\n"
+    },
+    {
+      "task_id": "dev3_value_mslearn_decimal",
+      "file": "docs/results/robust_executor_20261114/recovered_probe_20261113_221300.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/builtin-types/floating-point-numeric-types'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "decimal\t±1.0 x 10-28 to ±7.9228 x 1028\t28-29 digits\t16 bytes\tSystem.Decimal"
+    },
+    {
+      "task_id": "dev3_form_guru99_register",
+      "file": "docs/results/robust_executor_20261114/recovered_probe_20261113_221300.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/test/newtours/register'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "Thank you for registering. You may now sign-in using the user name and password you've just entered."
+    },
+    {
+      "task_id": "ho_form_httpbin_phone",
+      "file": "docs/results/rules_off_run2_luna_medium_20261111.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '://httpbin.org/post'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "{\n  \"args\": {},\n  \"headers\": {\n    \"Accept\": \"text/html,application/xhtml+xml,application/xml;q=0.9,image/jxl,image/avif"
+    },
+    {
+      "task_id": "ho_find_wiki_gold",
+      "file": "docs/results/rules_off_run2_luna_medium_20261111.jsonl",
+      "arm": "script_first",
+      "direction": "pass->fail",
+      "old_reason": "URL contains '/wiki/Gold'",
+      "new_reason": "answer too long",
+      "code": "answer_too_long",
+      "answer": "Atomic number (Z)\t79"
+    }
+  ],
+  "heldout3_flips": [],
+  "timing": [
+    {
+      "arm": "browser_use",
+      "split": "dev",
+      "recorded_rows": 14,
+      "recorded_mean_ms": 14323.536549428743,
+      "recorded_median_ms": 11660.09902550286,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 14
+      }
+    },
+    {
+      "arm": "browser_use",
+      "split": "extdev",
+      "recorded_rows": 62,
+      "recorded_mean_ms": 31239.47947959675,
+      "recorded_median_ms": 27368.51012049988,
+      "derived_rows": 62,
+      "derived_mean_ms": 31239.47947959675,
+      "derived_median_ms": 27368.51012049988,
+      "status": {
+        "version 2": 62
+      }
+    },
+    {
+      "arm": "browser_use",
+      "split": "held-out",
+      "recorded_rows": 100,
+      "recorded_mean_ms": 18846.239682999876,
+      "recorded_median_ms": 16952.191300002596,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 100
+      }
+    },
+    {
+      "arm": "browser_use",
+      "split": "heldout2",
+      "recorded_rows": 80,
+      "recorded_mean_ms": 18074.368062500434,
+      "recorded_median_ms": 17694.23779999488,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 80
+      }
+    },
+    {
+      "arm": "cascade",
+      "split": "extdev",
+      "recorded_rows": 25,
+      "recorded_mean_ms": 24354.137839199982,
+      "recorded_median_ms": 23427.63779300003,
+      "derived_rows": 25,
+      "derived_mean_ms": 24354.137839199982,
+      "derived_median_ms": 23427.63779300003,
+      "status": {
+        "version 2": 25
+      }
+    },
+    {
+      "arm": "playwright_mcp",
+      "split": "dev",
+      "recorded_rows": 14,
+      "recorded_mean_ms": 10915.533313143116,
+      "recorded_median_ms": 10807.287634503155,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 14
+      }
+    },
+    {
+      "arm": "playwright_mcp",
+      "split": "extdev",
+      "recorded_rows": 22,
+      "recorded_mean_ms": 5919.369689090915,
+      "recorded_median_ms": 5656.413666999924,
+      "derived_rows": 22,
+      "derived_mean_ms": 5919.369689090915,
+      "derived_median_ms": 5656.413666999924,
+      "status": {
+        "version 2": 22
+      }
+    },
+    {
+      "arm": "playwright_mcp",
+      "split": "held-out",
+      "recorded_rows": 100,
+      "recorded_mean_ms": 15425.53978900054,
+      "recorded_median_ms": 13606.991550001112,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 100
+      }
+    },
+    {
+      "arm": "playwright_mcp",
+      "split": "heldout2",
+      "recorded_rows": 40,
+      "recorded_mean_ms": 16465.722747502878,
+      "recorded_median_ms": 14996.837049999158,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 40
+      }
+    },
+    {
+      "arm": "script_first",
+      "split": "dev",
+      "recorded_rows": 14,
+      "recorded_mean_ms": 3999.7367570010415,
+      "recorded_median_ms": 3714.8581455039675,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 14
+      }
+    },
+    {
+      "arm": "script_first",
+      "split": "dev3",
+      "recorded_rows": 362,
+      "recorded_mean_ms": 9260.184152208822,
+      "recorded_median_ms": 6826.653449999867,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 362
+      }
+    },
+    {
+      "arm": "script_first",
+      "split": "dev4form",
+      "recorded_rows": 38,
+      "recorded_mean_ms": 18112.579252629075,
+      "recorded_median_ms": 15814.692349988036,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 38,
+        "wall not saved": 1
+      }
+    },
+    {
+      "arm": "script_first",
+      "split": "dev4nav",
+      "recorded_rows": 48,
+      "recorded_mean_ms": 9469.352152082138,
+      "recorded_median_ms": 9101.333599974168,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 48
+      }
+    },
+    {
+      "arm": "script_first",
+      "split": "dev4spa",
+      "recorded_rows": 60,
+      "recorded_mean_ms": 10096.944936664659,
+      "recorded_median_ms": 7345.079299993813,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 60
+      }
+    },
+    {
+      "arm": "script_first",
+      "split": "extdev",
+      "recorded_rows": 22,
+      "recorded_mean_ms": 10267.32783536365,
+      "recorded_median_ms": 9638.072551999925,
+      "derived_rows": 22,
+      "derived_mean_ms": 10267.32783536365,
+      "derived_median_ms": 9638.072551999925,
+      "status": {
+        "version 2": 22
+      }
+    },
+    {
+      "arm": "script_first",
+      "split": "held-out",
+      "recorded_rows": 794,
+      "recorded_mean_ms": 6782.587068639351,
+      "recorded_median_ms": 4956.643349996739,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 794
+      }
+    },
+    {
+      "arm": "script_first",
+      "split": "heldout2",
+      "recorded_rows": 166,
+      "recorded_mean_ms": 7092.198553011214,
+      "recorded_median_ms": 5189.545699991868,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 166
+      }
+    },
+    {
+      "arm": "stagehand",
+      "split": "dev",
+      "recorded_rows": 14,
+      "recorded_mean_ms": 47551.398191927416,
+      "recorded_median_ms": 44469.896712500486,
+      "derived_rows": 0,
+      "derived_mean_ms": null,
+      "derived_median_ms": null,
+      "status": {
+        "not re-derivable from saved fields": 14
+      }
+    }
+  ],
+  "not_regradable_files": [
+    {
+      "path": "docs/results/heldout3_20261113/interim_luna_sf2_bu1.json",
+      "reason": "not re-gradable: raw rows not in repo",
+      "references": [
+        {
+          "path": "bench/runs/probe_20261113_110106.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_112234.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_122151.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_130842.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_133452.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_210518.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_220832.jsonl",
+          "sha256": "not recorded"
+        }
+      ],
+      "dataset": "heldout3 interim",
+      "arms": [
+        "browser_use",
+        "script_first"
+      ]
+    },
+    {
+      "path": "docs/results/heldout3_20261113/interim_sol_sf1.json",
+      "reason": "not re-gradable: raw rows not in repo",
+      "references": [
+        {
+          "path": "bench/runs/probe_20261113_110106.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_112234.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_122151.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_130842.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_133452.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_210518.jsonl",
+          "sha256": "not recorded"
+        },
+        {
+          "path": "bench/runs/probe_20261113_220832.jsonl",
+          "sha256": "not recorded"
+        }
+      ],
+      "dataset": "heldout3 interim",
+      "arms": [
+        "script_first"
+      ]
+    },
+    {
+      "path": "docs/results/val3_gates_20261114/repair.json",
+      "reason": "not re-gradable: raw rows not in repo",
+      "references": [
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-tip3\\bench\\runs\\probe_20261114_024016.jsonl",
+          "sha256": "50a7801f3fab2b8d20414c88a31647f765460a4b6c2471ee92009e95a0619b88"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-tip3\\bench\\runs\\probe_20261114_025419.jsonl",
+          "sha256": "8ced50233ece56d8fadc7b4a583818c2b7fbcabc52a852e117acc76f8fbe4361"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-tip3\\bench\\runs\\probe_20261114_030745.jsonl",
+          "sha256": "2207591c9f0a918db7b5ba8c48b1c88bcca8f921d06e72d45e4baad3d2885b12"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-tip3\\bench\\runs\\probe_20261114_023318.jsonl",
+          "sha256": "562f1aaa8397ee6ec254d671e9d0c4b9ac5c05ad1943a37542bae0c61b749787"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-tip3\\bench\\runs\\probe_20261114_024643.jsonl",
+          "sha256": "4c86649893a55a6ed31862a85a0c11dbb5f83eaff62d32b508dbc0de59a4436c"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-tip3\\bench\\runs\\probe_20261114_025956.jsonl",
+          "sha256": "20e1f9f26d5e653c75960d6bd472934e8587f87a621f622ae138776d1ddfce48"
+        }
+      ],
+      "dataset": "val3",
+      "arms": [
+        "script_first"
+      ]
+    },
+    {
+      "path": "docs/results/val3_gates_20261114/verifier.json",
+      "reason": "not re-gradable: raw rows not in repo",
+      "references": [
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-before\\bench\\runs\\probe_20261114_144613.jsonl",
+          "sha256": "bde8422c481881d70b900317125d5bea7615c3022c5498faa5ce2a8fd4a2330a"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-before\\bench\\runs\\probe_20261114_150051.jsonl",
+          "sha256": "2c624f5ba7d19a75e254200398ed68253e7e24f7615d4d5706b9ea5f2ce02a2b"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-before\\bench\\runs\\probe_20261114_151552.jsonl",
+          "sha256": "a0b07adf220d90e53cb2a9bda54a7f3c2d4e5e2cf5b761540bda68510ca87b8a"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-tip3\\bench\\runs\\probe_20261114_143819.jsonl",
+          "sha256": "90808f34c91aca10d4af16de346ec13a304426c1c8bd7be6d4e985171433ea78"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-tip3\\bench\\runs\\probe_20261114_145344.jsonl",
+          "sha256": "d292a0bc83b3eefd5eb4a5da3fd7fa84d9e323ed09ebe4314d9f08aff5d36b74"
+        },
+        {
+          "path": "C:\\Users\\epicd\\Projects\\cuo-tip3\\bench\\runs\\probe_20261114_150725.jsonl",
+          "sha256": "ebd6d85974fa49ad8dfb899a952de422fad71408acdc902d4ca00a3f27dfb4d4"
+        }
+      ],
+      "dataset": "val3",
+      "arms": [
+        "script_first"
+      ]
+    },
+    {
+      "path": "docs/results/tip4_gate_20261114/aggregate.json",
+      "reason": "not re-gradable: raw rows not in repo",
+      "references": [
+        {
+          "path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3a87c58e-4cfc2720f96b0431\\bench\\runs\\probe_20261114_163936.jsonl",
+          "sha256": "85d7e943896644e06c778cd12e03972c9ead3eea2a2b17ae7c0321bc6c7a0b12"
+        },
+        {
+          "path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3a87c58e-4cfc2720f96b0431\\bench\\runs\\probe_20261114_165726.jsonl",
+          "sha256": "3600f610bbab752cb41b684749ad6af4b352389733ae3c4c721991c5613fea23"
+        },
+        {
+          "path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3a87c58e-4cfc2720f96b0431\\bench\\runs\\probe_20261114_171632.jsonl",
+          "sha256": "75f0dbd75399d39bbac32aa8c42b131bd2a6c488ae56e26ada7a2b88363380fb"
+        },
+        {
+          "path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3a87c58e-4cfc2720f96b0431\\bench\\runs\\probe_20261114_164715.jsonl",
+          "sha256": "f563b7daf1c897ff0ecc3422d7da74259cabf4b7b1b8dd556536cc38173d5ca5"
+        },
+        {
+          "path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3a87c58e-4cfc2720f96b0431\\bench\\runs\\probe_20261114_170535.jsonl",
+          "sha256": "6bb687964cce5d39b81d6a20907a48ad222286f355885120f0f5151ae2fb3f69"
+        },
+        {
+          "path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3a87c58e-4cfc2720f96b0431\\bench\\runs\\probe_20261114_172459.jsonl",
+          "sha256": "5f294c5a544ece7dcb83e00611c0bd553de1a7cf63815f5c6f5e7e31db6ee018"
+        },
+        {
+          "path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3a87c58e-4cfc2720f96b0431\\bench\\runs\\probe_20261114_173452.jsonl",
+          "sha256": "57ed5401ee55a65be9b00c56486df4df2a72048022f50b58c8ced47091fb770b"
+        },
+        {
+          "path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3a87c58e-4cfc2720f96b0431\\bench\\runs\\probe_20261114_174405.jsonl",
+          "sha256": "315b7cbb3b7c464fd2040388a5be0351c11afa268bb0e920ff5d001d0a330860"
+        },
+        {
+          "path": "C:\\Users\\epicd\\.t3\\worktrees\\computeruseoptimisation\\t3-3a87c58e-4cfc2720f96b0431\\bench\\runs\\probe_20261114_175309.jsonl",
+          "sha256": "8dad144fb0bb6a3acb7f5b7903127502414d74f464bcdb9ec1fd810fa736421b"
+        }
+      ],
+      "dataset": "val3",
+      "arms": [
+        "script_first"
+      ]
+    },
+    {
+      "path": "docs/results/tip4_gate_20261114/spend.json",
+      "reason": "no gradable rows (metadata only)",
+      "references": [],
+      "dataset": "val3",
+      "arms": [
+        "script_first"
+      ]
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/authoring_extdev.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "97960b310d18f1de0213457c00e7938252220b0d63cb5ae7fb8416926f27708f",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/authoring_extdev_step2.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "49b0b60e06a2d8d0479dede615140f52ba3efa610921593a53f8010f4228d016",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/candidates_extdev.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "a10f7553b793cc8cc9f04834eb6c58f3606c73da4acfc94572172c66bcce221e",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/candidates_extdev_step2.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "6a9e34d9da73c5ab3c4e8e731b14995dc1f519bb12075426ee68dd63d74b304f",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/pool.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "44cc01a575ad428afab813bad84450068486ca5ed20451c4443e5cf42f9c5691",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/screening.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "2787c0855698554e4e99a3c4df85b5a81da66c72fda3d6786306127a02462a83",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/screening_step2.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "2ad67e1ad88b243c25f937f6de4f68b87b2858e4baf2e858e560e49b5ae6bd73",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_extdev.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "5b84dee01410ff0a574f6d99c992fab8b473943fbf96f7f9e14ff5c4ffb4d8ee",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_extdev_initial.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "6dfdbe2a8d31e13cfaed1e9b316866f72012e18ce8e8447934c924e378007ce6",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_extdev_rechecks.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "35e8af76d405462bf8ec571211b695c98d4a019e3d483c5abad038ab6f28ce8c",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_extdev_step2.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "ff9f2b5e13aaecd29eb9e4a8b782f5cbc895d7f88023132a3b9fde16f21a7c39",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_extdev_step3_initial.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "f50f176f34b33408aa19e0ff3dd2c06d2694e5eeef3ec741a40c3b35ba433c91",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_extdev_step3_keyfix.jsonl",
+      "branch": "devin/1794878057-extdev-control",
+      "commit": "c0a890983c3a6e611b712d39c203b63681d97668",
+      "sha256": "d5dc09379250a4d5a3b56b44d8559b2752b62f7677c6735ca68787fd2e6fc2b1",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/search_20261114/author_attempt1.jsonl",
+      "branch": "origin/t3/strategy-search",
+      "commit": "9c6f391b647f9536756e9846739a4a93b8e0617c",
+      "sha256": "0f3b8fed02e65d6e5467024448454258ecf1893b4ce6fc689fd3898d675c9a04",
+      "reason": "no gradable rows",
+      "references": []
+    },
+    {
+      "path": "docs/results/search_20261114/author_attempt2.jsonl",
+      "branch": "origin/t3/strategy-search",
+      "commit": "9c6f391b647f9536756e9846739a4a93b8e0617c",
+      "sha256": "09acfd7f7c8d791105bbe8bfd45218db3679a9dc144295eaab8e24dbf89b3870",
+      "reason": "no gradable rows",
+      "references": []
+    }
+  ]
+}

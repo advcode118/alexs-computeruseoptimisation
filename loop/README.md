@@ -112,6 +112,35 @@ Point Cursor at the server from the repository root. `.cursor/mcp.json` is:
 
 Deterministic tools: `open_url`, `check_page`, `reload`, `console_errors`, `failed_requests`, `run_saved_test`. None of them call a model.
 
+### Score a local site over MCP
+
+Start your site (for example `npm run dev` on port 3000). Run the server from the repository root; it speaks MCP over stdio, so an MCP client starts it for you:
+
+```bash
+python -m loop.mcp_server
+```
+
+Call the `check_page` tool with a start url and at least one end assertion (`url`, `title`, or `text`):
+
+```json
+{"name": "check_page", "arguments": {"start_url": "http://localhost:3000", "title": "My app"}}
+```
+
+The result is JSON: `ok` is `true` only when every assertion passes and the load had no `console.error`, no failed request, and no 404 asset (`reason` says which). `console_errors` and `failed_requests` list them, and `model_calls` is always `0`. A page that does not load within 5 seconds, or an unreachable url, comes back as a tool error with `ok: false`. Note that a missing `/favicon.ico` is a 404 and fails the check.
+
+From Python, with the official `mcp` SDK (`tests/test_check_page_local.py` does this against a local server):
+
+```python
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+params = StdioServerParameters(command="python", args=["-m", "loop.mcp_server"])
+async with stdio_client(params) as (read, write):
+    async with ClientSession(read, write) as session:
+        await session.initialize()
+        result = await session.call_tool("check_page", {"start_url": "http://localhost:3000", "title": "My app"})
+```
+
 ## Tests
 
 ```bash

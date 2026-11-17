@@ -29,7 +29,6 @@ from bench.harness import (
 )
 from bench.judge import check_url_contains
 from bench.probe import (
-    PROBE_CLAUDE_BUDGET_USD,
     SCRIPT_FIRST_CLAUDE_BUDGET_USD,
     claude_block_reason,
     empty_row,
@@ -46,7 +45,6 @@ from bench.script_first import (
     next_script_first_limit,
     parse_task_script,
     repair_request,
-    run_on_mcp,
     run_on_page,
     script_made_progress,
 )
@@ -116,9 +114,8 @@ class _Page:
 
 
 def test_script_first_is_selectable_and_uses_sonnet_5_5():
-    assert ARM_SCRIPT_FIRST not in ARMS
+    assert ARM_SCRIPT_FIRST in ARMS
     assert arm_needs_claude("script_first") is True
-    assert arm_needs_claude("script_first", no_model_only=True) is True
     prompt = prompt_for("script_first")
     assert "run_script" in prompt
     assert "page.evaluate" in prompt
@@ -137,7 +134,7 @@ def test_script_first_is_selectable_and_uses_sonnet_5_5():
     assert "one script" in prompt.casefold()
     assert 3 < SCRIPT_FIRST_MAX_CALLS <= SCRIPT_FIRST_HARD_CAP
     # One first script plus the grounded repairs.
-    assert SCRIPT_FIRST_MAX_SCRIPTS == 1 + SCRIPT_FIRST_MAX_REPAIRS == 4
+    assert SCRIPT_FIRST_MAX_SCRIPTS == 1 + SCRIPT_FIRST_MAX_REPAIRS == 2
     client = build_client("script_first")
     assert isinstance(client, ScriptFirstClient)
     tools = client.tools_for_claude()
@@ -247,41 +244,6 @@ def test_unsafe_script_does_not_touch_the_page():
     assert json.loads(text.splitlines()[0])["ok"] is False
 
 
-def test_mcp_evaluate_path_never_calls_the_unsafe_tool():
-    calls: list[tuple[str, dict]] = []
-
-    async def call_tool(name, arguments):
-        if name == "browser_run_code_unsafe":
-            raise AssertionError(name)
-        calls.append((name, arguments))
-        if name == "browser_navigate":
-            return f"- Page URL: {arguments['url']}\n", 1.0
-        if arguments.get("function") == "() => location.href":
-            return "https://news.ycombinator.com/", 1.0
-        return "null", 1.0
-
-    script = """
-    await page.goto("https://news.ycombinator.com/");
-    await page.evaluate(() => document.querySelector(".titleline").innerText);
-    """
-    text = asyncio.run(run_on_mcp(call_tool, script))
-    assert [name for name, _args in calls] == [
-        "browser_navigate",
-        "browser_evaluate",
-        "browser_evaluate",
-    ]
-    assert "browser_snapshot" not in [name for name, _args in calls]
-    url = page_url_from_result(text)
-    assert url == "https://news.ycombinator.com/"
-    assert check_url_contains(url, "news.ycombinator.com").success is True
-    calls.clear()
-    try:
-        asyncio.run(run_on_mcp(call_tool, 'page.getByRole("button", { name: "Search" }).click()'))
-    except ScriptError as exc:
-        assert "page.evaluate" in str(exc)
-    else:
-        raise AssertionError("locator script must not run on the MCP evaluate path")
-    assert calls == []
 
 
 def test_probe_plan_selects_script_first_and_stops_at_two_dollars(capsys):
@@ -296,7 +258,7 @@ def test_probe_plan_selects_script_first_and_stops_at_two_dollars(capsys):
     assert "no per-click settle" in plan["browser_isolation"]["script_first"]
     default = plan_probe()
     assert default["arms"] == list(ARMS)
-    assert default["claude_budget_usd"] == PROBE_CLAUDE_BUDGET_USD == 5.0
+    assert default["claude_budget_usd"] == SCRIPT_FIRST_CLAUDE_BUDGET_USD == 2.0
     assert default["outer_model"] == "claude-sonnet-5-5"
     assert any(
         "script_first" in command and "--warm-replay" in command for command in default["box_commands"]
@@ -329,7 +291,6 @@ def test_script_first_execute_path_stops_after_two_dollars(monkeypatch, tmp_path
         return row
 
     monkeypatch.setattr("bench.probe.run_claude_arm", fake_claude)
-    monkeypatch.setattr("bench.probe.run_no_model_arm", fake_claude)
     shared = default_spend_path()
     before = shared.read_text(encoding="utf-8")
     probe_ledger = tmp_path / "probe-spend.json"
@@ -747,9 +708,8 @@ def test_script_first_stops_when_a_repair_fails_the_same_way(tmp_path):
             start_url="https://news.ycombinator.com/",
         )
     )
-    # Three scripts ended on the same page with the same reason: no fourth model call.
-    assert client.calls == 3 < SCRIPT_FIRST_MAX_SCRIPTS
-    assert len(model.seen) == 3
+    assert client.calls == SCRIPT_FIRST_MAX_SCRIPTS == 2
+    assert len(model.seen) == 2
     assert result.success is False
     assert result.end_state == "FAIL"
     assert result.success_reason != "Max steps reached"
@@ -774,8 +734,7 @@ def test_script_first_stops_when_the_repair_stays_on_main_page(tmp_path):
             check_url_contains="Ada_Lovelace",
         )
     )
-    # The same start-page failure three times in a row ends the repairs.
-    assert client.calls == 3
+    assert client.calls == SCRIPT_FIRST_MAX_SCRIPTS == 2
     assert result.success is False
     assert "start page" in result.success_reason
 
@@ -1045,8 +1004,8 @@ def test_script_first_cache_breakpoint_is_sent_and_the_api_is_not_called(monkeyp
     asyncio.run(other.teardown())
 
 
-def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
-    """The launch begins before the model returns and finishes before run_script."""
+def test_chrome_is_ready_before_the_model_writes(tmp_path):
+    """Launch finishes before the model or script can start."""
     order: list[str] = []
     prose = _page("https://en.wikipedia.org/wiki/Ada_Lovelace")
 
@@ -1057,6 +1016,7 @@ def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
         def begin_launch(self):
             order.append("launch")
             self.launch = asyncio.get_running_loop().create_future()
+            asyncio.get_running_loop().call_soon(self.launch.set_result, None)
             return self.launch
 
         def tools_for_claude(self):
@@ -1078,8 +1038,7 @@ def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
             self.calls += 1
             order.append("model")
             assert order[0] == "launch"
-            assert not self.client.launch.done()
-            self.client.launch.set_result(None)
+            assert self.client.launch.done()
             return _tool_reply('page.goto("https://en.wikipedia.org/wiki/Ada_Lovelace")'), 1.0
 
     client = Client()
@@ -1097,7 +1056,7 @@ def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
     assert result.success is True
 
 
-def test_script_first_setup_returns_before_chrome_is_open(tmp_path, monkeypatch):
+def test_script_first_setup_waits_until_chrome_is_open(tmp_path, monkeypatch):
     hold = asyncio.Event()
     order: list[str] = []
 
@@ -1118,13 +1077,17 @@ def test_script_first_setup_returns_before_chrome_is_open(tmp_path, monkeypatch)
             arm="script_first",
             runs_dir=tmp_path / "script",
         )
-        await script.setup()
+        setup = asyncio.create_task(script.setup())
+        await asyncio.sleep(0)
         await asyncio.sleep(0)
         assert order == ["open-start"]
+        assert not setup.done()
         assert script._browser_launch is not None
         assert not script._browser_launch.done()
         assert script.anthropic.cache_prefix is True
         hold.set()
+        await setup
+        assert script._browser_launch.done()
         await script.teardown()
         assert order == ["open-start", "open-done"]
         other = BenchmarkHarness(

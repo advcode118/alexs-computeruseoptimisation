@@ -1,9 +1,8 @@
 """Whole-task Playwright script arm. No per-click settle and no snapshot loop.
 
 The outer model emits one short script. This module runs it on local Chrome
-through the Playwright Python API. A page.evaluate sequence can also be
-driven through MCP browser_evaluate. browser_run_code_unsafe is rejected
-and is not a tool.
+through the Playwright Python API. browser_run_code_unsafe is rejected and
+is not a tool.
 """
 
 from __future__ import annotations
@@ -15,6 +14,7 @@ import shutil
 import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from bench.judge import is_search_results_url
@@ -767,7 +767,9 @@ def evidence_verdict(
     return EvidenceVerdict(FAIL, "empty evidence", "")
 
 
-def _returned_problem(claimed: ClaimedEvidence, page_text: str, scored: str) -> EvidenceVerdict | None:
+def _returned_problem(
+    claimed: ClaimedEvidence, page_text: str, scored: str, *, ignore_spacing: bool = False
+) -> EvidenceVerdict | None:
     """FAIL or UNKNOWN when the script's own return disagrees with the live page.
 
     A return that matches, or a script that returned none of these fields,
@@ -785,8 +787,14 @@ def _returned_problem(claimed: ClaimedEvidence, page_text: str, scored: str) -> 
     if not (page_text or "").strip():
         return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
     folded = _norm_answer(page_text)
+    # Runtime only: a long key_text read as innerText of several elements joins without the
+    # page's line breaks, so its spacing is not evidence. Short values keep the exact match
+    # ("alexexample" must not match "Alex Example"). The grade keeps the exact (folded) match.
+    squeezed = "".join(folded.split()) if ignore_spacing else ""
     for item in needed:
-        if _norm_answer(item) not in folded:
+        norm = _norm_answer(item)
+        loose = ignore_spacing and item is key and len(norm.split()) >= 4
+        if norm not in folded and not (loose and "".join(norm.split()) in squeezed):
             return EvidenceVerdict(FAIL, "returned evidence is not on the page", scored)
     return None
 
@@ -803,23 +811,6 @@ def _evidence_from_claim(claimed: dict) -> ClaimedEvidence:
         values=values,
         rejected=bool(claimed.get("rejected")) or bad_values or bad_key,
     )
-
-
-def check_returned_evidence(
-    markers: dict | None,
-    trusted: PageEvidence,
-    returned,
-) -> EvidenceVerdict:
-    """Check the evidence object a script returned. No model call.
-
-    `trusted` is the live page. `returned` is the script's object. UNKNOWN
-    is not a pass. Text the script returned has to be on that page.
-    """
-    if isinstance(returned, ClaimedEvidence):
-        claimed = returned
-    else:
-        claimed = _evidence_from_claim(_claim_from_value(returned))
-    return evidence_verdict(markers, trusted, claimed)
 
 
 def trusted_from_payload(payload: dict | None, *, url: str = "", title: str = "") -> PageEvidence:
@@ -1169,6 +1160,14 @@ def _site_name(trusted: PageEvidence) -> str:
     if len(parts) < 2:
         return ""
     site = _norm_runtime(parts[-1])
+    # "Site - Entry" titles ("GIMP - Luminosity Masks" on gimp.org): the site part is the one
+    # the host name spells. With no such part, the last part stays the site.
+    host = re.sub(r"[^a-z0-9]", "", (urlsplit(trusted.url or "").hostname or "").casefold())
+    if host:
+        spelled = [part for part in parts if len(re.sub(r"[^a-z0-9]", "", part.casefold())) >= 3
+                   and re.sub(r"[^a-z0-9]", "", part.casefold()) in host]
+        if len(spelled) == 1:
+            site = _norm_runtime(spelled[0])
     return site if 0 < len(site.split()) <= 4 else ""
 
 
@@ -1339,7 +1338,7 @@ def runtime_verdict(
                 return EvidenceVerdict(UNKNOWN, "page text was not read", scored)
             elif not in_text:
                 return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
-    problem = _returned_problem(claimed, page_text, scored)
+    problem = _returned_problem(claimed, page_text, scored, ignore_spacing=True)
     if problem is not None:
         return problem
     if task:
@@ -1768,29 +1767,6 @@ def format_page_snapshot(data: dict | None, *, cap: int = _SNAPSHOT_CAP) -> str:
     return rendered[:cap]
 
 
-def look_enabled() -> bool:
-    """The opt-in look tool. Off unless CU_SF_LOOK=1, so the default arm is unchanged."""
-    import os
-
-    return os.environ.get("CU_SF_LOOK", "") == "1"
-
-
-LOOK_TOOL = {
-    "name": "look",
-    "description": (
-        "Open a URL and return a compact view of that page: headings, forms with their fields, "
-        "visible links and buttons with their names, and lines that match the task. "
-        "No check runs. Use it at most once, only when you do not know the page's controls "
-        "or where the value is; then send run_script, which starts from that page."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {"url": {"type": "string", "description": "http(s) URL to open."}},
-        "required": ["url"],
-    },
-}
-
-
 SNAPSHOT_BEGIN = "--- PAGE NOW ---"
 SNAPSHOT_END = "--- END PAGE ---"
 _SNAPSHOT_DROPPED = "(older page snapshot dropped; see the newest one)"
@@ -1899,18 +1875,6 @@ def drop_old_snapshots(messages: list[dict]) -> None:
 
 def normalized_script(code: str) -> str:
     return "".join((code or "").split())
-
-
-def repair_outcome_key(verdict, payload: dict | None) -> tuple:
-    """Two scripts with this same key failed the same way on the same page."""
-    payload = payload if isinstance(payload, dict) else {}
-    claimed = payload.get("claimed") if isinstance(payload.get("claimed"), dict) else {}
-    return (
-        str(payload.get("url") or ""),
-        getattr(verdict, "reason", ""),
-        payload.get("ok") is not False,
-        str(claimed.get("answer") or ""),
-    )
 
 
 def script_made_progress(previous: dict | None, current: dict) -> bool:
@@ -2309,12 +2273,14 @@ async def read_marked_page(client, selector: str) -> tuple[str, str]:
     same page-evidence function, then the same selector read. An arm that
     cannot read returns empty strings. This is not a model prompt.
     """
+    client._grade_read_url = ""
     page = getattr(client, "_page", None)
     if page is not None:
         try:
             evidence = await collect_page_evidence(page, selector=selector)
         except Exception:
             return "", ""
+        client._grade_read_url = evidence.url
         return evidence.text, evidence.selector_text
     if "browser_evaluate" not in _client_tool_names(client):
         return "", ""
@@ -2326,7 +2292,10 @@ async def read_marked_page(client, selector: str) -> tuple[str, str]:
     except Exception:
         return "", ""
     raw = result[0] if isinstance(result, tuple) else result
-    page_text = text_from_page_read(mcp_evaluate_value(str(raw or "")))
+    value = mcp_evaluate_value(str(raw or ""))
+    if isinstance(value, dict) and isinstance(value.get("url"), str):
+        client._grade_read_url = value["url"]
+    page_text = text_from_page_read(value)
     if not selector:
         return page_text, ""
     try:
@@ -2557,74 +2526,20 @@ async def run_on_page(
     )
 
 
-async def _mcp_text(call_tool, name: str, arguments: dict) -> str:
-    if name == "browser_run_code_unsafe":
-        raise ScriptError("browser_run_code_unsafe is not available")
-    result = await call_tool(name, arguments)
-    if isinstance(result, tuple):
-        return str(result[0])
-    return str(result)
 
 
-def _href_from_text(text: str) -> str:
-    from bench.harness import page_url_from_result
-
-    cleaned = (text or "").strip().strip("\"'")
-    if cleaned.startswith(("http://", "https://")) and "\n" not in cleaned and " " not in cleaned:
-        return cleaned
-    return page_url_from_result(text)
-
-
-async def run_on_mcp(call_tool, source: str) -> str:
-    """Run page.goto and page.evaluate through MCP. Locator lines are refused.
-
-    Navigation uses browser_navigate. Page functions use browser_evaluate.
-    The final URL is read with another browser_evaluate of location.href.
-    There is no snapshot and no settle.
-    """
-    steps = parse_task_script(source)
-    if any(step.kind not in {"goto", "evaluate"} for step in steps):
-        raise ScriptError("the MCP evaluate runner accepts page.goto and page.evaluate only")
-    url = ""
-    done = 0
-    try:
-        for step in steps:
-            if step.kind == "goto":
-                action = step.action
-                if action is None:
-                    raise ScriptError(f"line {step.line}: missing action")
-                text = await _mcp_text(call_tool, "browser_navigate", {"url": action.value})
-                found = _href_from_text(text)
-                if found:
-                    url = found
-            else:
-                await _mcp_text(
-                    call_tool,
-                    "browser_evaluate",
-                    {"function": wrap_evaluate(step.function)},
-                )
-            done += 1
-        href = await _mcp_text(call_tool, "browser_evaluate", {"function": "() => location.href"})
-        found = _href_from_text(href)
-        if found:
-            url = found
-    except ScriptError:
-        raise
-    except Exception as exc:
-        return format_run_result(ok=False, url=url, step_count=done, error=str(exc))
-    return format_run_result(ok=True, url=url, step_count=len(steps))
 
 
 class ScriptFirstClient:
     """One run_script tool on a private local Chrome profile."""
 
-    def __init__(self, headless: bool = True, page=None):
+    def __init__(self, headless: bool = True, page=None, remote_debugging: bool = False):
+        self.remote_debugging = remote_debugging
+        self.cdp_url = ""
         self.headless = headless
         self._page = page
         self._owns_page = page is None
         self.end_markers: dict = {}
-        # The task text for the opt-in look tool's matching lines. The harness sets it.
-        self.look_task = ""
         self._playwright = None
         self._browser = None
         self._context = None
@@ -2632,7 +2547,7 @@ class ScriptFirstClient:
         self._launch_task: asyncio.Task | None = None
 
     def tools_for_claude(self) -> list[dict]:
-        return [
+        tools = [
             {
                 "name": "run_script",
                 "description": (
@@ -2673,7 +2588,8 @@ class ScriptFirstClient:
                     "required": ["reason"],
                 },
             }
-        ] + ([dict(LOOK_TOOL)] if look_enabled() else [])
+        ]
+        return tools
 
     def begin_launch(self) -> asyncio.Future:
         """Launch local Chrome if it is not already up.
@@ -2710,6 +2626,7 @@ class ScriptFirstClient:
                 self._context = await self._playwright.chromium.launch_persistent_context(
                     profile,
                     **kwargs,
+                    **({"args": ["--remote-debugging-port=0"]} if self.remote_debugging else {}),
                 )
                 self._profile_dir = profile
                 launch_error = None
@@ -2722,6 +2639,9 @@ class ScriptFirstClient:
             await self._playwright.stop()
             self._playwright = None
             raise RuntimeError(f"Could not launch local Chrome for script_first. {launch_error}")
+        if self.remote_debugging:
+            port = (Path(self._profile_dir) / "DevToolsActivePort").read_text().splitlines()[0]
+            self.cdp_url = f"http://127.0.0.1:{int(port)}"
         self._browser = context_browser(self._context)
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
 
@@ -2746,21 +2666,6 @@ class ScriptFirstClient:
             if profile:
                 shutil.rmtree(profile, ignore_errors=True)
 
-    async def _look(self, arguments: dict, start: float) -> tuple[str, float]:
-        url = str(arguments.get("url") or "").strip()
-        error = ""
-        if _http(url):
-            try:
-                await self._page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
-            except Exception as exc:
-                error = " ".join(str(exc).split())[:200]
-        elif url:
-            error = "look needs an http(s) URL"
-        snapshot, _ms = await self.page_snapshot(self.look_task)
-        lines = [f"LOOK (no check ran){': ' + error if error else ''}", SNAPSHOT_BEGIN, snapshot or "(the page could not be read)", SNAPSHOT_END]
-        lines.append("Now send run_script. It starts from this page.")
-        return "\n".join(lines), (time.perf_counter() - start) * 1000
-
     async def page_snapshot(self, task: str = "") -> tuple[str, float]:
         """The compact repair snapshot of the live page, and the ms it took."""
         start = time.perf_counter()
@@ -2782,8 +2687,6 @@ class ScriptFirstClient:
         if self._page is None:
             raise RuntimeError("script_first client is not started")
         start = time.perf_counter()
-        if name == "look" and look_enabled():
-            return await self._look(arguments or {}, start)
         if name != "run_script":
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""

@@ -18,6 +18,7 @@ fails closed.
 from __future__ import annotations
 
 import json
+import math
 import os
 from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
@@ -61,10 +62,10 @@ UNRECORDED_CALL_ALLOWANCE_USD = 0.05
 # A later call whose usage cannot be priced. Saved before the process aborts.
 UNPRICED_CALL_RESERVE_USD = 1.0
 LONG_CONTEXT_INPUT_TOKENS = 272_000
-OPENAI_PROJECT_BUDGET_USD = 20.0
+OPENAI_PROJECT_BUDGET_USD = 15.0
 OPENAI_RUN_BUDGET_USD = 5.0
 # One sweep is both models at every accepted effort. The ceiling sits at the
-# top of the $10–$15 band and under the $20 project cap. Each cell still
+# top of the $10–$15 band and under the $15 project cap. Each cell still
 # stops at $5. One tuned task per cell keeps the sweep from repeating the
 # three-task Claude set at every effort.
 OPENAI_SWEEP_BUDGET_USD = 15.0
@@ -84,12 +85,33 @@ class PriceUnknown(RuntimeError):
     """No published price, or the usage object is not one this ledger can price."""
 
 
+def _budget_from_env(name: str, default: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise PriceUnknown(f"{name} must be a finite positive dollar amount.") from exc
+    if not math.isfinite(value) or value <= 0:
+        raise PriceUnknown(f"{name} must be a finite positive dollar amount.")
+    return value
+
+
+def openai_run_budget_usd() -> float:
+    return _budget_from_env("CU_OPENAI_RUN_BUDGET_USD", OPENAI_RUN_BUDGET_USD)
+
+
+def openai_project_budget_usd() -> float:
+    return _budget_from_env("CU_OPENAI_PROJECT_BUDGET_USD", OPENAI_PROJECT_BUDGET_USD)
+
+
 def default_openai_spend_path() -> Path:
     """The OpenAI ledger. CU_OPENAI_SPEND_LEDGER wins. Never the Claude file."""
     override = os.environ.get("CU_OPENAI_SPEND_LEDGER", "").strip()
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".cu-optimisation" / "openai-spend.json"
+    return Path.home() / ".cu-optimisation" / "openai-spend-20261117.json"
 
 
 def assert_openai_model(model: str) -> str:
@@ -203,16 +225,16 @@ def price_usd(
 
 
 def tokens_at_run_cap(model: str) -> dict:
-    """How many tokens $5 buys on one axis. Not a measured run."""
+    """How many tokens the run cap buys on one axis. Not a measured run."""
     rates = published_rates(model)
-    cap = Decimal(str(OPENAI_RUN_BUDGET_USD))
+    cap = Decimal(str(openai_run_budget_usd()))
     million = Decimal(1_000_000)
 
     def tokens(rate: Decimal) -> int:
         return int((cap * million / rate).to_integral_value(rounding=ROUND_HALF_UP))
 
     return {
-        "cap_usd": OPENAI_RUN_BUDGET_USD,
+        "cap_usd": openai_run_budget_usd(),
         "context": "standard short context, one side only, no cached tokens",
         "uncached_input_tokens": tokens(rates["input_usd_per_mtok"]),
         "output_tokens": tokens(rates["output_usd_per_mtok"]),
@@ -276,17 +298,17 @@ def sweep_cell_command(model: str, effort: str) -> str:
     )
 
 
-def cap_statement() -> dict:
+def cap_statement(*, project_budget_usd: float | None = None) -> dict:
     """What the code can say before any API call. A finished run's bill needs token counts."""
     return {
-        "per_run_cap_usd": OPENAI_RUN_BUDGET_USD,
+        "per_run_cap_usd": openai_run_budget_usd(),
         "sweep_cap_usd": OPENAI_SWEEP_BUDGET_USD,
-        "project_cap_usd": OPENAI_PROJECT_BUDGET_USD,
+        "project_cap_usd": openai_project_budget_usd() if project_budget_usd is None else project_budget_usd,
         "measured_run_usd": None,
         "note": (
             "A run's dollar cost is priced from the token counts the API returns. "
-            "It is not known before that. A run stops once it has reached $5. "
-            "A sweep stops once it has reached $15. The project ledger stops at $20."
+            "It is not known before that. Run and project caps are checked between tasks; "
+            "an in-flight task can exceed them. A sweep stops once it has reached $15."
         ),
         "usd_5_buys": {model: tokens_at_run_cap(model) for model in ALLOWED_OPENAI_MODELS},
     }
@@ -319,13 +341,13 @@ class OpenAISpendLedger:
 
     @property
     def budget_usd(self) -> float:
-        """The cap the current process is enforcing. The file keeps the $20 project cap."""
+        """The cap the current process is enforcing."""
         if self.run_ceiling_usd is None:
             return self.project_budget_usd
         return min(self.project_budget_usd, self.run_ceiling_usd)
 
     def allows_another_task(self) -> bool:
-        """False once this run's ceiling or the $20 project cap is reached."""
+        """False once this run's ceiling or the project cap is reached."""
         if not self.allows_project():
             return False
         if self.run_ceiling_usd is not None and self.running_total_usd >= self.run_ceiling_usd:
@@ -414,7 +436,7 @@ class OpenAISpendLedger:
         return {
             "provider": "openai",
             "project_budget_usd": self.project_budget_usd,
-            "per_run_budget_usd": OPENAI_RUN_BUDGET_USD,
+            "per_run_budget_usd": openai_run_budget_usd(),
             "prices_usd_per_mtok": {model: rates_for_report(model) for model in ALLOWED_OPENAI_MODELS},
             "tasks": self.tasks,
             "recorded_extra_usd": self.recorded_extra_usd,
@@ -435,8 +457,9 @@ class OpenAISpendLedger:
     def read(cls, path: Path | None = None) -> OpenAISpendLedger:
         """Read an existing file or an unsaved zero ledger. Does not create the file."""
         target = Path(path) if path is not None else default_openai_spend_path()
+        project_cap = openai_project_budget_usd()
         if not target.exists():
-            return cls(path=target)
+            return cls(path=target, project_budget_usd=project_cap)
         data = json.loads(target.read_text(encoding="utf-8"))
         if data.get("provider") not in (None, "openai"):
             raise PriceUnknown(
@@ -453,7 +476,10 @@ class OpenAISpendLedger:
             assert_effort(str(item.get("model")), str(item.get("effort") or ""))
         ledger = cls(
             path=target,
-            project_budget_usd=float(data.get("project_budget_usd", OPENAI_PROJECT_BUDGET_USD)),
+            project_budget_usd=(
+                project_cap if os.environ.get("CU_OPENAI_PROJECT_BUDGET_USD", "").strip()
+                else float(data.get("project_budget_usd", OPENAI_PROJECT_BUDGET_USD))
+            ),
             tasks=tasks,
             recorded_extra_usd=float(data.get("recorded_extra_usd") or 0.0),
             aborted=bool(data.get("aborted", False)),

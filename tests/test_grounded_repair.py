@@ -1,4 +1,4 @@
-"""Grounded multi-turn repair for script_first. Offline, no model, no browser."""
+"""One grounded repair for script_first. Offline, no model, no browser."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ import json
 from bench.arms import SCRIPT_FIRST_MAX_REPAIRS, SCRIPT_FIRST_MAX_SCRIPTS
 from bench.harness import BenchmarkHarness
 from bench.script_first import (
+    ScriptFirstClient,
     SNAPSHOT_BEGIN,
     SNAPSHOT_END,
-    EvidenceVerdict,
     drop_old_snapshots,
     failed_step_note,
     format_page_snapshot,
@@ -18,13 +18,45 @@ from bench.script_first import (
     grounded_repair_request,
     model_visible_script_result,
     normalized_script,
-    repair_outcome_key,
     task_terms,
 )
 
 GOTO = "await page.goto('https://example.org/a')"
 CLICK = "await page.getByRole('button', { name: 'Go' }).click()"
 EVAL = "page.evaluate(() => ({url: location.href, answer: 'x'}))"
+
+
+def test_client_repair_snapshot_reads_task_terms_without_a_look_tool():
+    class Page:
+        url = "https://example.org/form"
+
+        async def evaluate(self, source):
+            assert '"201"' in source
+            return _snapshot_data()
+
+    client = ScriptFirstClient(page=Page())
+    text, elapsed = asyncio.run(client.page_snapshot("What is HTTP status 201?"))
+    assert 'textbox "Contact name"' in text
+    assert elapsed >= 0
+    assert [tool["name"] for tool in client.tools_for_claude()] == ["run_script", "task_failed"]
+
+
+def test_client_repair_snapshot_without_a_page():
+    assert asyncio.run(ScriptFirstClient().page_snapshot("Read page")) == ("", 0.0)
+
+
+def test_client_repair_snapshot_evaluate_error_keeps_url_and_title():
+    class Page:
+        url = "https://example.org/form"
+
+        async def evaluate(self, source):
+            raise RuntimeError("page changed")
+
+        async def title(self):
+            return "Order"
+
+    text, _ = asyncio.run(ScriptFirstClient(page=Page()).page_snapshot("Read page"))
+    assert "https://example.org/form" in text and "Order" in text
 
 
 def _snapshot_data() -> dict:
@@ -91,10 +123,10 @@ def test_grounded_request_carries_reason_step_claim_and_snapshot():
         code=code,
         payload=payload,
         snapshot="url: https://example.org/a",
-        repair_number=2,
-        max_repairs=3,
+        repair_number=1,
+        max_repairs=1,
     )
-    assert text.startswith("END_STATE_FAILED (repair 2 of 3): answer is not in the page text.")
+    assert text.startswith("END_STATE_FAILED (repair 1 of 1): answer is not in the page text.")
     assert 'answer="42"' in text
     assert SNAPSHOT_BEGIN in text and SNAPSHOT_END in text
     assert "starts from this page" in text
@@ -126,11 +158,7 @@ def test_hide_page_drops_page_text_links_and_controls():
     assert "text" not in shown and "links" not in shown and "controls" not in shown
 
 
-def test_outcome_key_and_normalized_script():
-    verdict = EvidenceVerdict("FAIL", "answer is not in the page text", "")
-    one = repair_outcome_key(verdict, {"url": "https://a/", "ok": True, "claimed": {"answer": "1"}})
-    two = repair_outcome_key(verdict, {"url": "https://a/", "ok": True, "claimed": {"answer": "2"}})
-    assert one != two
+def test_normalized_script():
     assert normalized_script("a;\n  b") == normalized_script("a; b")
 
 
@@ -210,15 +238,14 @@ def test_first_pass_never_reads_a_snapshot(tmp_path):
 
 
 def test_grounded_repair_then_pass_on_a_later_turn(tmp_path):
-    model = _Model([_reply(_code(1)), _reply(_code(2)), _reply(_code(3))])
-    client = _Client([_fail("https://example.org/1"), _fail("https://example.org/2"), _pass("https://example.org/3")])
+    model = _Model([_reply(_code(1)), _reply(_code(2))])
+    client = _Client([_fail("https://example.org/1"), _pass("https://example.org/2")])
     result = _run(model, client, tmp_path=tmp_path)
     assert result.success is True and result.end_state == "PASS"
-    assert client.calls == 3 and client.snapshots == 2
+    assert client.calls == 2 and client.snapshots == 1
     last_seen = json.dumps(model.seen[-1])
-    assert "repair 2 of 3" in last_seen
-    # The first snapshot was replaced by a stub; the newest one is in full.
-    assert "now1" not in last_seen and "now2" in last_seen
+    assert "repair 1 of 1" in last_seen
+    assert "now1" in last_seen
     # A grounded result does not carry the raw page text any more.
     assert "page body" not in last_seen
 
@@ -268,50 +295,10 @@ def test_the_snapshot_reader_gets_the_task(tmp_path):
     assert client.tasks == ["What is the value? Report it."]
 
 
-def test_same_failure_three_times_ends_the_repairs(tmp_path):
-    model = _Model([_reply(_code(n)) for n in range(1, 6)])
-    client = _Client([_fail("https://example.org/same") for _ in range(5)])
-    result = _run(model, client, tmp_path=tmp_path)
-    assert client.calls == 3 and client.snapshots == 2
-    assert result.success is False and result.end_state == "FAIL"
-
-
-def test_look_is_off_by_default(monkeypatch):
-    from bench.arms import _SCRIPT_FIRST_PROMPT, prompt_for
-    from bench.script_first import ScriptFirstClient
-
-    monkeypatch.delenv("CU_SF_LOOK", raising=False)
-    assert [t["name"] for t in ScriptFirstClient().tools_for_claude()] == ["run_script", "task_failed"]
-    assert prompt_for("script_first") == _SCRIPT_FIRST_PROMPT
-    monkeypatch.setenv("CU_SF_LOOK", "1")
-    assert "look" in [t["name"] for t in ScriptFirstClient().tools_for_claude()]
-    assert "look(url)" in prompt_for("script_first")
-
-
-def test_a_look_does_not_use_up_a_turn(tmp_path):
-    look = {
-        "content": [{"type": "tool_use", "id": "l1", "name": "look", "input": {"url": "https://example.org/"}}],
-        "stop_reason": "tool_use",
-        "usage": {"input_tokens": 1, "output_tokens": 1},
-    }
-    codes = [_code(n) for n in range(1, 5)]
-    model = _Model([look] + [_reply(c) for c in codes])
-
-    class LookClient(_Client):
-        async def call_tool(self, name, arguments):
-            if name == "look":
-                return "LOOK (no check ran)", 1.0
-            return await super().call_tool(name, arguments)
-
-    client = LookClient([_fail(f"https://example.org/{n}") for n in range(1, 4)] + [_pass("https://example.org/4")])
-    result = _run(model, client, tmp_path=tmp_path)
-    assert client.calls == 4 and result.success is True
-
-
 def test_repair_hint_follows_the_fail_reason():
     def ask(reason):
         return grounded_repair_request(reason, code=GOTO, payload={"ok": True, "steps": 1}, snapshot="url: x",
-                                       repair_number=1, max_repairs=3)
+                                       repair_number=1, max_repairs=1)
 
     assert "next to its label" in ask("returned evidence is not on the page")
     assert "next to its label" in ask("answer is not in the page text")
@@ -320,28 +307,6 @@ def test_repair_hint_follows_the_fail_reason():
     assert "leave the start page" in ask("the script ended on the start page and returned nothing")
     assert "location.href" in ask("claimed URL does not match the live page")
     assert "copy them" not in ask("the script stopped before it finished (Timeout)")
-
-
-def test_blind_mode_is_tip2_one_blind_repair(tmp_path, monkeypatch):
-    monkeypatch.setenv("CU_SF_REPAIR", "blind")
-    model = _Model([_reply(_code(n)) for n in range(1, 5)] + [_reply(_code(9))])
-    client = _Client([_fail(f"https://example.org/{n}") for n in range(1, 5)])
-    result = _run(model, client, tmp_path=tmp_path)
-    assert client.snapshots == 0
-    seen = json.dumps(model.seen[1])
-    assert "END_STATE_FAILED: " in seen and SNAPSHOT_BEGIN not in seen
-    # One repair: a third script is refused, never run.
-    assert client.calls == 2
-    assert result.success is False
-
-
-def test_max_repairs_env_caps_grounded_repairs(tmp_path, monkeypatch):
-    monkeypatch.setenv("CU_SF_MAX_REPAIRS", "1")
-    model = _Model([_reply(_code(n)) for n in range(1, 5)])
-    client = _Client([_fail(f"https://example.org/{n}") for n in range(1, 5)])
-    result = _run(model, client, tmp_path=tmp_path)
-    assert client.calls == 2 and client.snapshots == 1 and len(model.seen) == 2
-    assert result.end_state == "FAIL"
 
 
 def test_script_turns_record_each_verdict_and_time(tmp_path):

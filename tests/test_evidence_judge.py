@@ -20,7 +20,7 @@ from bench.script_first import (
     evidence_verdict,
     format_run_result,
 )
-from bench.tasks import HELD_OUT_TASK_IDS, get_held_out_tasks, markers_for_task
+from bench.tasks import HELD_OUT_TASK_IDS, tasks_for_split, markers_for_task
 
 FIXTURES = Path(__file__).parent / "fixtures" / "evidence"
 WIKI = markers_for_task("wv_wikipedia_search")
@@ -301,7 +301,7 @@ def test_prompt_has_no_probe_answers_and_held_out_tasks_stay_judge_only():
     for secret in leaked:
         assert secret not in prompt
         assert secret not in description
-    held = get_held_out_tasks()
+    held = tasks_for_split("held-out")
     assert len(held) >= 5
     assert [task["id"] for task in held] == list(HELD_OUT_TASK_IDS)
     probe_ids = {task["id"] for task in probe_tasks()}

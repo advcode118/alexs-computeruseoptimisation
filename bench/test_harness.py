@@ -36,11 +36,6 @@ from bench.harness import (
     snapshot_tokens_for,
 )
 from bench.judge import llm_judge
-from bench.replay_shortcuts import (
-    HANDMADE_SNAPSHOT_NOTE,
-    load_snapshots_from_run,
-    parse_aria_snapshot_to_observation,
-)
 from bench.run import build_parser
 
 
@@ -273,18 +268,10 @@ def test_run_saves_the_full_page_and_caps_what_the_model_sees(tmp_path: Path):
     assert "[ref=e12]" in second["snapshot_text"]
     assert extract_page_snapshot(navigate) == first["snapshot_text"]
 
-    observation = parse_aria_snapshot_to_observation(
-        first["snapshot_text"],
-        url=first["url"],
-        title=first["title"],
-    )
-    assert any(control.ref == "e4" for control in observation.controls)
-
     run_file = harness.save_result(result, "run42")
-    loaded = load_snapshots_from_run(run_file)
-    assert len(loaded) == 2
-    assert all(item.snapshot_text.strip() for item in loaded)
-    assert loaded[0].model_tool_name == "browser_find"
+    logged = json.loads(run_file.read_text().splitlines()[0])
+    assert len(logged["steps"]) == 2
+    assert logged["steps"][0]["tool_name"] == "browser_navigate"
 
 
 def test_prior_spend_is_the_recorded_m0_total():
@@ -442,21 +429,6 @@ def test_opus_and_retired_sonnet_are_refused_before_http(monkeypatch: pytest.Mon
 
 def test_default_model_is_claude_sonnet_5_5():
     assert DEFAULT_MODEL == "claude-sonnet-5-5"
-    assert build_parser().get_default("model") == "claude-sonnet-5-5"
+    assert build_parser().get_default("model") is None
     assert "20250514" not in DEFAULT_MODEL
     assert DEFAULT_MODEL != "claude-sonnet-4-6"
-
-
-def test_handmade_figure_stays_the_five_file_set():
-    assert "40%" in HANDMADE_SNAPSHOT_NOTE
-    assert "50%" in HANDMADE_SNAPSHOT_NOTE
-    assert "hand-made" in HANDMADE_SNAPSHOT_NOTE
-    report_path = Path(__file__).parent.joinpath("runs", "shortcut_replay_output.md")
-    snapshots = Path(__file__).parent.joinpath("snapshots")
-    if not report_path.is_file() or not snapshots.is_dir():
-        pytest.skip("bench/runs and bench/snapshots are gitignored and absent from this worktree")
-    report = report_path.read_text(encoding="utf-8")
-    assert "40%" in report
-    assert "50%" in report
-    assert "hand-made" in report
-    assert len(list(snapshots.glob("*.json"))) == 5

@@ -18,6 +18,6 @@ def isolated_spend_ledger(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolated_openai_spend_ledger(tmp_path, monkeypatch):
-    path = tmp_path / "openai-spend.json"
+    path = tmp_path / "openai-spend-20261117.json"
     monkeypatch.setenv("CU_OPENAI_SPEND_LEDGER", str(path))
     return path

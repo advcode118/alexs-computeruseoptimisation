@@ -24,9 +24,11 @@ from bench.tasks_heldout3_d import HELDOUT3D_TASK_IDS, HELDOUT3D_TASKS
 from bench.tasks_heldout3_c import HELDOUT3C_TASK_IDS, HELDOUT3C_TASKS
 from bench.tasks_dev3 import DEV3_TASK_IDS, DEV3_TASKS
 from bench.tasks_dev4_nav import DEV4_NAV_TASK_IDS, DEV4_NAV_TASKS
+from bench.tasks_dev5_title import DEV5_TITLE_TASK_IDS, DEV5_TITLE_TASKS
 from bench.tasks_dev4_form import DEV4_FORM_TASK_IDS, DEV4_FORM_TASKS
 from bench.tasks_dev4_spa import DEV4_SPA_TASK_IDS, DEV4_SPA_TASKS
 from bench.tasks_val3 import VAL3_TASK_IDS, VAL3_TASKS
+from bench.tasks_extdev import EXTDEV_TASK_IDS, EXTDEV_TASKS
 
 FIXTURE_DIR = Path(__file__).parent.parent / "loop" / "fixture"
 
@@ -1208,11 +1210,14 @@ WEBVOYAGER_TASKS += HELDOUT3C_TASKS
 WEBVOYAGER_TASKS += DEV3_TASKS
 # dev4nav: the nav read step's first-contact set. See bench/tasks_dev4_nav.py.
 WEBVOYAGER_TASKS += DEV4_NAV_TASKS
+# dev5title: fresh title tasks for the title false-accept work. See bench/tasks_dev5_title.py.
+WEBVOYAGER_TASKS += DEV5_TITLE_TASKS
 # dev4form is the form specialist's fresh tune set. See bench/tasks_dev4_form.py.
 WEBVOYAGER_TASKS += DEV4_FORM_TASKS
 # dev4spa is the spa specialist's tune set, never scored. See bench/tasks_dev4_spa.py.
 WEBVOYAGER_TASKS += DEV4_SPA_TASKS
 WEBVOYAGER_TASKS += VAL3_TASKS
+WEBVOYAGER_TASKS += EXTDEV_TASKS
 # The frozen heldout3 test set: all four blind-authored splits. See docs/HELDOUT3_PLAN.md.
 # Dropped by the pre-run rule on 13 Nov 2026: each failed a same-day live reproducer run.
 HELDOUT3_DROPPED_TASK_IDS = ("ho3d_spa_toolshop_pliers", "ho3d_form_parabank_login")
@@ -1308,14 +1313,20 @@ SPLIT_HELDOUT3C = "heldout3c"
 SPLIT_HELDOUT3 = "heldout3"
 SPLIT_DEV3 = "dev3"
 SPLIT_DEV4NAV = "dev4nav"
+SPLIT_DEV5TITLE = "dev5title"
 SPLIT_DEV4_FORM = "dev4form"
 SPLIT_DEV4SPA = "dev4spa"
 SPLIT_VAL3 = "val3"
+SPLIT_EXTDEV = "extdev"
 SPLIT_HONEST = "honest"
 # The scored set is held-out only. Dev is what we tune, and it is not scored.
 HONEST_TASK_IDS = HELD_OUT_TASK_IDS
 
 BENCHMARK_TASKS = FIXTURE_TASKS + WEBVOYAGER_TASKS
+
+
+def get_all_tasks() -> list[dict]:
+    return list(BENCHMARK_TASKS)
 
 
 def get_fixture_tasks() -> list[dict]:
@@ -1326,11 +1337,6 @@ def get_fixture_tasks() -> list[dict]:
 def get_webvoyager_tasks() -> list[dict]:
     """Get only WebVoyager tasks (require network)."""
     return WEBVOYAGER_TASKS
-
-
-def get_all_tasks() -> list[dict]:
-    """Get all benchmark tasks."""
-    return BENCHMARK_TASKS
 
 
 def task_by_id(task_id: str) -> dict | None:
@@ -1372,6 +1378,7 @@ def resolve_task_split(spec: str | None) -> str:
     names start with a through m.
     dev3 is a forty-task public tune set, not scored.
     dev4nav is the nav read step's twelve-task first-contact set.
+    dev5title is a fresh seventeen-task title set, not scored.
     dev4spa is the spa specialist's twelve-task tune set, not scored.
     val3 is a forty-task validation set on n-z sites, disjoint from all of
     those. It is an aggregate-only gate.
@@ -1400,12 +1407,16 @@ def resolve_task_split(spec: str | None) -> str:
         return SPLIT_DEV3
     if key in ("dev4nav", "dev4-nav"):
         return SPLIT_DEV4NAV
+    if key == "dev5title":
+        return SPLIT_DEV5TITLE
     if key == "dev4form":
         return SPLIT_DEV4_FORM
     if key == "dev4spa":
         return SPLIT_DEV4SPA
     if key == "val3":
         return SPLIT_VAL3
+    if key == "extdev":
+        return SPLIT_EXTDEV
     if key == "honest":
         return SPLIT_HONEST
     raise ValueError(f"unknown split {spec!r}")
@@ -1434,25 +1445,19 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
         return _tasks_in_order(DEV3_TASK_IDS)
     if name == SPLIT_DEV4NAV:
         return _tasks_in_order(DEV4_NAV_TASK_IDS)
+    if name == SPLIT_DEV5TITLE:
+        return _tasks_in_order(DEV5_TITLE_TASK_IDS)
     if name == SPLIT_DEV4_FORM:
         return _tasks_in_order(DEV4_FORM_TASK_IDS)
     if name == SPLIT_DEV4SPA:
         return _tasks_in_order(DEV4_SPA_TASK_IDS)
     if name == SPLIT_VAL3:
         return _tasks_in_order(VAL3_TASK_IDS)
+    if name == SPLIT_EXTDEV:
+        return _tasks_in_order(EXTDEV_TASK_IDS)
     if name == SPLIT_HONEST:
         return _tasks_in_order(HONEST_TASK_IDS)
     return _tasks_in_order(TUNED_PROBE_TASK_IDS)
-
-
-def get_dev_tasks() -> list[dict]:
-    """Public tasks we tune on. Not the held-out set we score."""
-    return tasks_for_split(SPLIT_DEV)
-
-
-def get_held_out_tasks() -> list[dict]:
-    """Held-out public tasks. Not the tasks the arms were tuned on."""
-    return tasks_for_split(SPLIT_HELD_OUT)
 
 
 # Every arm reads the same task message. The answer line is the same for all

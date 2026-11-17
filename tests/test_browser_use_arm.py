@@ -7,6 +7,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 from backends.playwright_mcp import PLAYWRIGHT_MCP_VERSION as BACKEND_MCP
 from bench.arms import (
     ARM_BROWSER_USE,
@@ -32,7 +34,7 @@ from bench.browser_use_arm import (
 from bench.budget import PROJECT_BUDGET_USD, ModelNotAllowed, SpendLedger, estimate_usd
 from bench.harness import PLAYWRIGHT_MCP_VERSION as HARNESS_MCP
 from bench.probe import execute_probe, main, plan_probe
-from bench.tasks import ANSWER_FORMAT, BENCHMARK_TASKS, get_held_out_tasks, task_message
+from bench.tasks import ANSWER_FORMAT, BENCHMARK_TASKS, tasks_for_split, task_message
 from proxy.child import PLAYWRIGHT_MCP_VERSION as CHILD_MCP
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +75,9 @@ class _World:
                 self.page_text = world.page_text
                 self.page_selector_text = world.page_selector_text
                 self.stopped = False
+
+            async def start(self):
+                return None
 
             async def stop(self):
                 self.stopped = True
@@ -117,15 +122,14 @@ def _secrets(task: dict) -> list[str]:
     return found
 
 
-def test_browser_use_is_a_baseline_and_the_default_probe_stays_four():
-    assert ARMS == ("playwright_mcp", "diff_fast_act", "macro_replay", "stagehand")
+def test_browser_use_is_a_baseline_in_the_default_probe():
+    assert ARMS == ("script_first", "browser_use", "playwright_mcp")
     assert BASELINE_ARMS == (ARM_PLAYWRIGHT, ARM_BROWSER_USE)
     assert ARM_BROWSER_USE in SELECTABLE_ARMS
-    assert ARM_BROWSER_USE not in ARMS
+    assert ARM_BROWSER_USE in ARMS
     assert arm_needs_claude("browser_use") is True
-    assert arm_needs_claude("browser_use", no_model_only=True) is True
     assert HARNESS_MCP == CHILD_MCP == BACKEND_MCP == "0.0.84"
-    assert BROWSER_USE_VERSION == "1.0.3"
+    assert BROWSER_USE_VERSION == "1.0.6"
     assert LOCAL_BROWSER == "chromium"
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert f"browser-use=={BROWSER_USE_VERSION}" in pyproject
@@ -154,9 +158,20 @@ def test_browser_use_is_a_baseline_and_the_default_probe_stays_four():
         raise AssertionError("start launched a client")
 
 
+@pytest.mark.parametrize("mode,expected", [(None, "default"), ("", "default"), ("ultrafast", "ultrafast")])
+def test_browser_use_mode_is_recorded_even_when_skipped(monkeypatch, mode, expected):
+    if mode is None:
+        monkeypatch.delenv("CU_BU_MODE", raising=False)
+    else:
+        monkeypatch.setenv("CU_BU_MODE", mode)
+    row = asyncio.run(run_browser_use_task({"id": "synthetic"}, api_key=""))
+    assert row["skipped"]
+    assert row["browser_use_mode"] == expected
+
+
 def test_prompts_carry_the_task_and_not_the_judge_fields():
     prompt = prompt_for("browser_use")
-    tasks = list(BENCHMARK_TASKS) + get_held_out_tasks()
+    tasks = list(BENCHMARK_TASKS) + tasks_for_split("held-out")
     assert tasks
     for task in tasks:
         text = task_text(task)
@@ -207,7 +222,7 @@ def test_local_agent_uses_the_bench_model_and_the_page_not_the_claim():
     assert row["page_url"].endswith("Ada_Lovelace")
     assert row["model"] == "claude-sonnet-5-5"
     assert row["browser"] == "chromium"
-    assert row["browser_use"] == "1.0.3"
+    assert row["browser_use"] == "1.0.6"
     assert row["claude"] is True
     assert row["usd"] == estimate_usd(100, 10)
     assert row["usd"] != 999
@@ -286,7 +301,7 @@ def test_a_failed_run_still_stops_and_hides_the_exception_text():
         )
     )
     assert skipped["skipped"] is True
-    assert skipped["success_reason"] == "browser-use==1.0.3 is not installed"
+    assert skipped["success_reason"] == "browser-use==1.0.6 is not installed"
     assert "Ada_Lovelace" not in skipped["success_reason"]
 
 
@@ -382,8 +397,8 @@ def test_hacker_news_passes_only_when_the_live_title_matches():
     )
     sentence.page_selector_text = "Fixture Story"
     said = asyncio.run(run_browser_use_task(task, api_key="local-test-not-sent", loader=sentence.loader))
-    assert said["success"] is False
-    assert said["success_reason"] == "answer is not the marked value"
+    assert said["success"] is True
+    assert said["success_reason"] == "the page evidence matches the markers"
     assert said["claimed_answer"] == 'The top story on Hacker News is "Fixture Story".'
     assert said["expected_value"] == "Fixture Story"
 
@@ -412,13 +427,7 @@ def test_probe_selects_the_arm_without_a_live_run(monkeypatch, capsys):
     assert "0.0.84" in plan["browser_isolation"]["playwright_mcp"]
     assert plan_probe()["arms"] == list(ARMS)
     assert "browser_use" in plan_probe()["available_arms"]
-    assert plan_probe(arms="browser_use", warm_replay=True)["warm_arms"] == [
-        "macro_replay",
-        "diff_fast_act",
-    ]
-    opted = plan_probe(no_model_only=True, arms="browser_use,stagehand")
-    assert opted["claude_arms"] == ["browser_use", "stagehand"]
-    assert opted["no_model_arms"] == []
+    assert plan_probe(arms="browser_use", warm_replay=True)["warm_arms"] == []
     assert main(["--arms", "playwright_mcp,stagehand,browser_use"]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["execute"] is False

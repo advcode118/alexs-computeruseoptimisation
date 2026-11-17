@@ -1,0 +1,18 @@
+SEED=20261116; reachable pool target=2x quota; cap=3 per site overall
+set         source           reachable  quota  pool_target
+heldout4    Mind2Web-Live           94     55          110
+heldout4    WebWalkerQA             68     50          100
+heldout4    WebVoyager               9     15           30
+heldout4    AssistantBench          11     10           20
+extdev      Mind2Web-Live           23     16           32
+extdev      WebWalkerQA             16     16           32
+extdev      WebVoyager               8      5           10
+extdev      AssistantBench           3      3            6
+Exclusions:
+  domain_overlap: 132
+  non_english: 433
+  site_cap: 781
+  unreachable: 320
+Unreachable detail:
+  captcha_or_bot_block: 232
+  unreachable: 88
