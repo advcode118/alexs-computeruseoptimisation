@@ -1,0 +1,970 @@
+INFO     [browser_use.telemetry.service] Using anonymized usage telemetry: model, steps, cost, timing, helper names, the URLs visited (without query strings), error messages and the final result. Never the task text, typed text, code or secrets. ANONYMIZED_TELEMETRY=false or `browser-use telemetry disable` turns it off.
+INFO     [browser_use.agent.service] Task: Task: Find thrill rides in Six Flags Great America, Chicago, IL on sixflags
+
+Start URL: https://www.sixflags.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact v (workspace /tmp/browser-use-a8mex7qc)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.sixflags.com/')
+INFO     [browser_use.agent.loop] step 2: q=cdp('DOM.getBoxModel',backendNodeId=121)['model']['content'];click_at_xy(sum(q[0::2])/4,sum(q[1::2])/4)
+INFO     [browser_use.agent.loop] step 3: print(js('document.body.innerText').__str__()[:12000])
+INFO     [browser_use.agent.loop] step 4: goto_url('https://www.sixflags.com/select-park')
+INFO     [browser_use.agent.loop] step 5: print(js("Array.from(document.querySelectorAll('a')).filter(a=>/Great America/i.test(a.textContent)).map(a=>({text:a.tex
+INFO     [browser_use.agent.loop] step 6: cdp('DOM.scrollIntoViewIfNeeded',backendNodeId=1241)
+INFO     [browser_use.agent.loop] step 7: print(js("Array.from(document.querySelectorAll('a')).filter(a=>/Learn More|Rides|Attractions/.test(a.textContent)).map(a
+INFO     [browser_use.agent.loop] step 8: goto_url('https://www.sixflags.com/greatamerica/attractions?ride-category=thrill') ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 9: print(page_info())
+INFO     [browser_use.agent.service] completed in 10 steps, 24s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Reading document.body immediately after navigation produced a null-body JavaScript error; a subsequent read returned the loaded filtered results.
+  gotcha: The property selector exposed park choices as buttons rather than links.
+INFO     [browser_use.agent.service] Task: Task: Find thrill rides in Six Flags Great America, Chicago, IL on sixflags
+
+Start URL: https://www.sixflags.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact v (workspace /tmp/browser-use-3zqxfcue)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n
+INFO     [browser_use.agent.loop] step 2: goto_url('https://www.sixflags.com/greatamerica'); print(page_info()); print([(n.get('role',{}).get('value'),n.get('name
+INFO     [browser_use.agent.loop] step 3: print(js("Array.from(document.querySelectorAll('a')).filter(a=>a.textContent.includes('Learn More')||a.textContent.trim(
+INFO     [browser_use.agent.loop] step 4: goto_url('https://www.sixflags.com/greatamerica/attractions?ride-category=thrill'); print(page_info()); print([(n.get('r
+INFO     [browser_use.agent.loop] step 5: print(js('document.body.innerText')); print(cdp('Page.getFrameTree'))
+INFO     [browser_use.agent.service] completed in 6 steps, 13s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The initial /greatamerica/rides-experiences URL returned Page Not Found; the homepage linked to the working /greatamerica/attractions?ride-category=thrill page.
+  gotcha: The initial accessibility-tree read did not include ride results; a subsequent body-text read showed the active category filter and all three results.
+INFO     [browser_use.agent.service] Task: Task: Who were the NBA season leaders from the 2020-21 regular season? in espn
+
+Start URL: https://www.espn.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact va (workspace /tmp/browser-use-oag9fii5)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.espn.com/nba/stats/_/season/2021/seasontype/2'); print(page_info()); print([(n.get('role',{}).get(
+INFO     [browser_use.agent.loop] step 2: print(page_info()); print(js('document.body.innerText')[:22000])
+INFO     [browser_use.agent.service] completed in 3 steps, 7s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The initial navigation returned an empty title and accessibility tree; a subsequent page read returned the loaded statistics.
+INFO     [browser_use.agent.service] Task: Task: Who were the NBA season leaders from the 2020-21 regular season? in espn
+
+Start URL: https://www.espn.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact va (workspace /tmp/browser-use-oyuq4ore)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); nodes=cdp('Accessibility.getFullAXTree')['nodes']; print([(n.get('role',{}).get('value'),n.get('name
+INFO     [browser_use.agent.loop] step 2: text=js('document.body.innerText'); print(text[:14500])
+INFO     [browser_use.agent.service] completed in 3 steps, 7s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: Find Dota 2 game and add all DLC to cart in steam
+
+Start URL: https://store.steampowered.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value from the  (workspace /tmp/browser-use-e9fknxl6)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://store.steampowered.com/'); print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).
+INFO     [browser_use.agent.loop] step 2: print(js("({inputs:[...document.querySelectorAll('input')].map(e=>({id:e.id,placeholder:e.placeholder,type:e.type})),lin
+INFO     [browser_use.agent.loop] step 3: js("document.querySelector('input[placeholder=\"Search the store\"]').focus()"); type_text('Dota 2'); press_key('Enter')
+INFO     [browser_use.agent.loop] step 4: print(page_info()); print(js("[...document.querySelectorAll('a')].filter(e=>/Dota 2/i.test(e.textContent)).map(e=>({text
+INFO     [browser_use.agent.loop] step 5: goto_url('https://store.steampowered.com/app/570/Dota_2/');
+INFO     [browser_use.agent.loop] step 6: print(js("document.body.innerText")[ -22000:]); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.ge
+INFO     [browser_use.agent.loop] step 7: cdp('DOM.scrollIntoViewIfNeeded',backendNodeId=14204); q=cdp('DOM.getBoxModel',backendNodeId=14204)['model']['content'];
+INFO     [browser_use.agent.loop] step 8: print(page_info()); print(js('document.body.innerText')[-15000:])
+INFO     [browser_use.agent.service] completed in 9 steps, 25s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The bulk DLC cart action added only the paid content, leaving the listed free content out of the cart.
+INFO     [browser_use.agent.service] Task: Task: Find Dota 2 game and add all DLC to cart in steam
+
+Start URL: https://store.steampowered.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value from the  (workspace /tmp/browser-use-g0zlujqs)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n
+INFO     [browser_use.agent.loop] step 2: screenshot(); print(js('document.body.innerText'))
+INFO     [browser_use.agent.loop] step 3: q=cdp('DOM.getBoxModel',backendNodeId=485)['model']['content']; click_at_xy(sum(q[0::2])/4,sum(q[1::2])/4)
+INFO     [browser_use.agent.loop] step 4: print(page_info()); print(js('document.body.innerText'))
+INFO     [browser_use.agent.service] completed in 5 steps, 12s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The content section listed a free add-on alongside a paid add-on; the bulk-add total and confirmed cart contained only the paid item.
+INFO     [browser_use.agent.service] Task: Task: Find a 4 star rated Hotel in New York Timesquare for 2 adults in booking
+
+Start URL: https://www.booking.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact (workspace /tmp/browser-use-eeuiay1g)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.booking.com/'); print(page_info()); print([(n.get('role',{}).get('value'), n.get('name',{}).get('v
+INFO     [browser_use.agent.loop] step 2: print([(n.get('role',{}).get('value'), n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in cdp('Accessibil
+INFO     [browser_use.agent.loop] step 3: def clicknode(n):
+INFO     [browser_use.agent.loop] step 4: print(js("Array.from(document.querySelectorAll('input')).map(e=>({ph:e.placeholder,role:e.getAttribute('role'),type:e.ty
+INFO     [browser_use.agent.loop] step 5: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 6: cdp('DOM.focus',backendNodeId=42); type_text('4 star hotel in Times Square New York for 2 adults'); clicknode(114)
+INFO     [browser_use.agent.loop] step 7: print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n
+INFO     [browser_use.agent.loop] step 8: screenshot(); print(js("document.body.innerText.slice(0,2300)"))
+INFO     [browser_use.agent.loop] step 9: print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n
+INFO     [browser_use.agent.loop] step 10: click_at_xy(308,650); clicknode(6100)
+INFO     [browser_use.agent.loop] step 11: print(page_info()); print(js("document.body.innerText.slice(0,5500)")); print([(n.get('role',{}).get('value'),n.get('nam
+INFO     [browser_use.agent.loop] step 12: print(js("document.body.innerText.slice(0,7500)")); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),
+INFO     [browser_use.agent.loop] step 13: goto_url('https://www.booking.com/district/us/new-york/timessquare.html');
+INFO     [browser_use.agent.loop] step 14: print(js("Array.from(document.querySelectorAll('a')).filter(e=>e.innerText.includes('LUMA')).map(e=>({text:e.innerText,h
+INFO     [browser_use.agent.loop] step 15: goto_url('https://www.booking.com/hotel/us/luma-times-square.html')
+INFO     [browser_use.agent.loop] step 16: print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value')) for n in cdp('Accessibility.get
+INFO     [browser_use.agent.loop] step 17: print(js("Array.from(document.querySelectorAll('[data-testid*=rating], [aria-label], [title]')).filter(e=>/star/i.test((
+INFO     [browser_use.agent.loop] step 18: print(js("Array.from(document.querySelectorAll('script[type=\"application/ld+json\"]')).map(e=>e.textContent).join('\n') -> RuntimeError: JavaScript evaluation failed at line 0, column 103: SyntaxError: Invalid or unexpected token; expression: Array.from(document.querySelectorAll('script[type="application/ld+json"]')).map(
+INFO     [browser_use.agent.loop] step 19: print(js("Array.from(document.querySelectorAll('script[type=\"application/ld+json\"]')).map(e=>e.textContent)"))
+INFO     [browser_use.agent.loop] step 20: goto_url('https://www.booking.com/district/us/new-york/timessquare.html')
+INFO     [browser_use.agent.loop] step 21: print(js("Array.from(document.querySelectorAll('a')).filter(e=>e.textContent.trim()==='4 stars').map(e=>({text:e.textCon
+INFO     [browser_use.agent.loop] step 22: print(js("Array.from(document.scripts).map(s=>s.textContent).filter(t=>/hotel_class|classRating|starRating|class_rating/
+INFO     [browser_use.agent.loop] step 23: goto_url('https://www.booking.com/fourstars/city/us/new-york.html')
+INFO     [browser_use.agent.loop] step 24: print(page_info()); print(js("document.body.innerText.slice(0,6500)"))
+INFO     [browser_use.agent.service] completed in 25 steps, 70s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Clicking the rating filter led to a search-results page with no property results visible in repeated reads.
+  gotcha: The dedicated star-category page supplied the classification evidence missing from the property's accessible text.
+  gotcha: A JavaScript extraction failed with a syntax error; a subsequent extraction without the join operation succeeded.
+INFO     [browser_use.agent.service] Task: Task: Find a 4 star rated Hotel in New York Timesquare for 2 adults in booking
+
+Start URL: https://www.booking.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact (workspace /tmp/browser-use-gy9rpirh)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); nodes=cdp('Accessibility.getFullAXTree')['nodes']; print([(n.get('role',{}).get('value'),n.get('name
+INFO     [browser_use.agent.loop] step 2: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in nodes if any(w i
+INFO     [browser_use.agent.service] completed in 3 steps, 7s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: What are the family rides available at frontier city? on sixflags
+
+Start URL: https://www.sixflags.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value (workspace /tmp/browser-use-wfsqirs0)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.sixflags.com/')
+INFO     [browser_use.agent.loop] step 2: print(js("Array.from(document.querySelectorAll('a')).map(a=>({text:a.innerText,href:a.href})).filter(a=>/frontier|proper
+INFO     [browser_use.agent.loop] step 3: goto_url('https://www.sixflags.com/select-park')
+INFO     [browser_use.agent.loop] step 4: print(page_info()); print(js('document.body.innerText')[:13000]); print(js("Array.from(document.querySelectorAll('a')).m
+INFO     [browser_use.agent.loop] step 5: nodes=cdp('Accessibility.getFullAXTree')['nodes']; print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n
+INFO     [browser_use.agent.loop] step 6: cdp('DOM.scrollIntoViewIfNeeded',backendNodeId=1124)
+INFO     [browser_use.agent.loop] step 7: print(page_info()); print(js("Array.from(document.querySelectorAll('a')).map(a=>({text:a.innerText,href:a.href})).filter
+INFO     [browser_use.agent.loop] step 8: goto_url('https://www.sixflags.com/frontiercity/attractions')
+INFO     [browser_use.agent.loop] step 9: print(js('document.body.innerText')); print(js("Array.from(document.querySelectorAll('select')).map(s=>({html:s.outerHTM
+INFO     [browser_use.agent.loop] step 10: js("const s=document.querySelector('#header-filter-category'); s.value='family';s.dispatchEvent(new Event('input',{bubbl
+INFO     [browser_use.agent.loop] step 11: print(page_info());print(js('document.body.innerText'))
+INFO     [browser_use.agent.service] completed in 12 steps, 24s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The property selector exposed the destination as a button rather than a link; clicking that button opened the park page.
+  gotcha: Changing the category selector and dispatching input/change events updated the URL and reduced the listing to seven results.
+INFO     [browser_use.agent.service] Task: Task: What are the family rides available at frontier city? on sixflags
+
+Start URL: https://www.sixflags.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value (workspace /tmp/browser-use-xkdvq044)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print(js('document.body.innerText')[:22000])
+INFO     [browser_use.agent.loop] step 2: goto_url('https://www.sixflags.com/frontiercity'); print(js('document.body.innerText')[:20000]); print(js('Array.from(do ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 3: print(page_info()); print(js('document.body.innerText')[:18000]); print(js('Array.from(document.querySelectorAll("a")).m
+INFO     [browser_use.agent.loop] step 4: goto_url('https://www.sixflags.com/frontiercity/attractions');
+INFO     [browser_use.agent.loop] step 5: print(js('document.body.innerText')[:24000]); print(js('Array.from(document.querySelectorAll("select")).map(s=>({html:s.
+INFO     [browser_use.agent.loop] step 6: js('let s=document.querySelector("#header-filter-category");s.value="family";s.dispatchEvent(new Event("input",{bubbles:
+INFO     [browser_use.agent.loop] step 7: print(js('document.body.innerText')[:22000]); print(page_info())
+INFO     [browser_use.agent.service] completed in 8 steps, 17s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The supplied legacy URL displayed a Page Not Found response; navigation through the park homepage led to the current attractions listing.
+  gotcha: Reading document.body immediately after navigation produced a null-reference error; a subsequent read succeeded.
+  gotcha: Applying the category filter updated the listing from 28 results to seven.
+INFO     [browser_use.agent.service] Task: Task: Contact the support service on spothero
+
+Start URL: https://spothero.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value from the page as your answer, (workspace /tmp/browser-use-e_j8qxv8)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://spothero.com/')
+INFO     [browser_use.agent.loop] step 2: wait_for_load()
+INFO     [browser_use.agent.loop] step 3: cdp('DOM.scrollIntoViewIfNeeded',backendNodeId=1150)
+INFO     [browser_use.agent.service] completed in 4 steps, 14s
+INFO     [browser_use.agent.service] Judge: failure: The agent opened the contact form but did not send a message or otherwise contact support.
+  gotcha: The contact page displayed a reCAPTCHA checkbox above the submit button.
+  gotcha: Opening the contact page exposed a message form, but the agent stopped without filling or submitting it.
+INFO     [browser_use.agent.service] Task: Task: I want to see mansions for 3 adults to stay in in europe during any month in airbnb
+
+Start URL: https://www.airbnb.com/
+
+If the task asks for a value, such as a title, a name, or a number, give  (workspace /tmp/browser-use-y9pl14s7)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.airbnb.com/')
+INFO     [browser_use.agent.loop] step 2: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 3: click_at_xy(421,214)
+INFO     [browser_use.agent.loop] step 4: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 5: def ck(n):
+INFO     [browser_use.agent.loop] step 6: ck(754)
+INFO     [browser_use.agent.loop] step 7: screenshot()
+INFO     [browser_use.agent.loop] step 8: ck(754)
+INFO     [browser_use.agent.loop] step 9: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 10: ck(4568)
+INFO     [browser_use.agent.loop] step 11: screenshot()
+INFO     [browser_use.agent.loop] step 12: ck(5581);ck(5581);ck(5581)
+INFO     [browser_use.agent.loop] step 13: screenshot()
+INFO     [browser_use.agent.loop] step 14: ck(7918);ck(7354)
+INFO     [browser_use.agent.loop] step 15: time.sleep(.6)
+INFO     [browser_use.agent.loop] step 16: ck(7354);time.sleep(.7)
+INFO     [browser_use.agent.loop] step 17: screenshot()
+INFO     [browser_use.agent.loop] step 18: print(js("[...document.querySelectorAll('[role=dialog]')].map(x=>x.innerText)"))
+INFO     [browser_use.agent.loop] step 19: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 20: cdp('DOM.scrollIntoViewIfNeeded',backendNodeId=18859);ck(18859);time.sleep(.4)
+INFO     [browser_use.agent.loop] step 21: ck(18525)
+INFO     [browser_use.agent.loop] step 22: ck(7359);time.sleep(.5)
+INFO     [browser_use.agent.loop] step 23: cdp('DOM.focus',backendNodeId=19172);type_text('Mansions in Europe for 3 adults, any month, flexible dates');press_key('
+INFO     [browser_use.agent.loop] step 24: time.sleep(2)
+INFO     [browser_use.agent.service] completed in 25 steps, 84s
+INFO     [browser_use.agent.service] Judge: failure: The requested accommodation category was not applied or verified; the final page still showed general accommodation results.
+  gotcha: Expanding Property type exposed only broad accommodation types, not the requested category.
+  gotcha: Submitting the requested category through AI search returned general listings rather than verified category-specific results.
+  gotcha: Selecting the first dialog element returned an AI-description notice; enumerating dialogs exposed the actual Filters dialog.
+INFO     [browser_use.agent.service] Task: Task: I want to see mansions for 3 adults to stay in in europe during any month in airbnb
+
+Start URL: https://www.airbnb.com/
+
+If the task asks for a value, such as a title, a name, or a number, give  (workspace /tmp/browser-use-xo1p5kmb)
+INFO     [browser_use.agent.loop] step 1: print(page_info())
+INFO     [browser_use.agent.loop] step 2: def clicknode(n):
+INFO     [browser_use.agent.loop] step 3: clicknode(5059)
+INFO     [browser_use.agent.loop] step 4: print([(n.get('backendDOMNodeId'),n.get('role',{}).get('value'),n.get('name',{}).get('value')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 5: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'), n.get('properties')) for n in cdp('Accessibility.ge
+INFO     [browser_use.agent.loop] step 6: print(page_info()); print(js('document.body.innerText.slice(0,550)'))
+INFO     [browser_use.agent.service] completed in 7 steps, 17s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: What were the exact dates and the General Chair for the ICSE conference in 2004?
+
+Start URL: http://www.icse-conferences.org/
+
+If the task asks for a value, such as a title, a name, or a number, (workspace /tmp/browser-use-jlel_2ar)
+INFO     [browser_use.agent.loop] step 1: goto_url('http://www.icse-conferences.org/')
+INFO     [browser_use.agent.loop] step 2: links=js('[...document.links].map(a=>({text:a.innerText,url:a.href})).filter(a=>/2004|history/i.test(a.text))');print(li
+INFO     [browser_use.agent.loop] step 3: goto_url('https://www.icse-conferences.org/2004/index.html')
+INFO     [browser_use.agent.loop] step 4: print(js('[...document.links].map(a=>({text:a.innerText,title:a.title,img:a.querySelector("img")?.alt,url:a.href}))'))
+INFO     [browser_use.agent.loop] step 5: goto_url('https://www.icse-conferences.org/history.html')
+INFO     [browser_use.agent.loop] step 6: print(text[:1200])
+INFO     [browser_use.agent.service] completed in 7 steps, 14s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: What were the exact dates and the General Chair for the ICSE conference in 2004?
+
+Start URL: http://www.icse-conferences.org/
+
+If the task asks for a value, such as a title, a name, or a number, (workspace /tmp/browser-use-1ivn3_ib)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print(js('document.body.innerText'))
+INFO     [browser_use.agent.loop] step 2: print(js('Array.from(document.querySelectorAll("a")).map(a=>({text:a.innerText,title:a.title,img:a.querySelector("img")?
+INFO     [browser_use.agent.loop] step 3: goto_url('http://www.icse-conferences.org/2004/main_info_frame.htm'); print(js('document.body.innerText')); print(js('Ar ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 4: print(page_info()); print(js('document.body?.innerText')); print(cdp('Page.getFrameTree'))
+INFO     [browser_use.agent.loop] step 5: print(js('Array.from(document.querySelectorAll("frame")).map(f=>({url:f.src,text:f.contentDocument.body.innerText,links:
+INFO     [browser_use.agent.loop] step 6: goto_url('http://www.icse-conferences.org/2004/org_ctte.htm')
+INFO     [browser_use.agent.loop] step 7: print(js('document.body.innerText'))
+INFO     [browser_use.agent.service] completed in 8 steps, 13s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Reading body text immediately after navigation produced a null-body JavaScript error; a subsequent read succeeded.
+  gotcha: The information page used frames with no useful top-level body text; inspecting the child frames exposed the organising committee link.
+INFO     [browser_use.agent.service] Task: Task: When and where was the ICSE duplicate submission statement agreed upon?
+
+Start URL: http://www.icse-conferences.org/
+
+If the task asks for a value, such as a title, a name, or a number, give tha (workspace /tmp/browser-use-opwsc_ff)
+INFO     [browser_use.agent.loop] step 1: goto_url('http://www.icse-conferences.org/')
+INFO     [browser_use.agent.loop] step 2: print(js('document.body.innerText')); print(js('Array.from(document.querySelectorAll("a")).map(a=>({text:a.innerText,hre
+INFO     [browser_use.agent.loop] step 3: goto_url('https://www.icse-conferences.org/reports.html')
+INFO     [browser_use.agent.loop] step 4: goto_url('https://www.icse-conferences.org/organization.html')
+INFO     [browser_use.agent.loop] step 5: goto_url('https://www.icse-conferences.org/duplicate.html')
+INFO     [browser_use.agent.service] completed in 6 steps, 12s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: When and where was the ICSE duplicate submission statement agreed upon?
+
+Start URL: http://www.icse-conferences.org/
+
+If the task asks for a value, such as a title, a name, or a number, give tha (workspace /tmp/browser-use-g3g665eb)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print(js("document.body.innerText"))
+INFO     [browser_use.agent.loop] step 2: print(js("Array.from(document.links).map(a=>({text:a.innerText,url:a.href}))"))
+INFO     [browser_use.agent.loop] step 3: goto_url('http://www.icse-conferences.org/organization.html'); print(js('document.body.innerText')); print(js("Array.fro ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 4: wait_for_load(); print(js('document.body.innerText')); print(js("Array.from(document.links).filter(a=>/duplic|submi/i.te
+INFO     [browser_use.agent.loop] step 5: goto_url('http://www.icse-conferences.org/duplicate.html'); wait_for_load(); print(js('document.body.innerText'))
+INFO     [browser_use.agent.service] completed in 6 steps, 12s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Reading the document body immediately after navigation produced a null-body error; waiting for the page to load allowed extraction to succeed.
+INFO     [browser_use.agent.service] Task: Task: Who were the program committee chairs for the ICSE 2002 conference, and when and where was this conference held?
+
+Start URL: http://www.icse-conferences.org/
+
+If the task asks for a value, such  (workspace /tmp/browser-use-j8lfhtmr)
+INFO     [browser_use.agent.loop] step 1: goto_url('http://www.icse-conferences.org/')
+INFO     [browser_use.agent.loop] step 2: print(js('document.body.innerText')); print(js('Array.from(document.querySelectorAll("a")).map(a=>({text:a.innerText,url
+INFO     [browser_use.agent.loop] step 3: goto_url('https://www.icse-conferences.org/2002/index.html')
+INFO     [browser_use.agent.loop] step 4: goto_url('https://www.icse-conferences.org/2002/info/pcommittee.html')
+INFO     [browser_use.agent.loop] step 5: goto_url('https://www.icse-conferences.org/2002/info/ccommittee.html')
+INFO     [browser_use.agent.service] completed in 6 steps, 12s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The Program Committee page listed members, while the Conference Committee page identified the program chairs.
+INFO     [browser_use.agent.service] Task: Task: Who were the program committee chairs for the ICSE 2002 conference, and when and where was this conference held?
+
+Start URL: http://www.icse-conferences.org/
+
+If the task asks for a value, such  (workspace /tmp/browser-use-57gy1fxj)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print(js("document.body.innerText"))
+INFO     [browser_use.agent.service] completed in 2 steps, 3s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: Who is responsible for overseeing the Angry Birds brand strategy during the 15th anniversary celebrations, and what major project is highlighted as part of these celebrations?
+
+Start URL: https: (workspace /tmp/browser-use-ixvbp8pg)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.rovio.com/'); print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('valu
+INFO     [browser_use.agent.loop] step 2: print(js('document.body.innerText').strip()[:16000]); print(js('Array.from(document.querySelectorAll("a")).map(a=>({text
+INFO     [browser_use.agent.loop] step 3: goto_url('https://www.rovio.com/?s=15th'); print(js('document.body.innerText')); print(js('Array.from(document.querySele
+INFO     [browser_use.agent.loop] step 4: goto_url('https://www.rovio.com/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/')
+INFO     [browser_use.agent.loop] step 5: goto_url('https://www.rovio.com/?s=15'); print(js('document.querySelector("main").innerText')[:13000]);
+INFO     [browser_use.agent.loop] step 6: goto_url('https://www.rovio.com/?s=Ben%20Mattes'); print(js('document.querySelector("main").innerText')[:16000]); print(
+INFO     [browser_use.agent.loop] step 7: goto_url('https://www.rovio.com/?s=Eeva'); print(js('document.querySelector("main").innerText')); print(js('Array.from(d
+INFO     [browser_use.agent.loop] step 8: goto_url('https://www.rovio.com/articles/eeva-aaltonen/'); print(js('document.querySelector("main").innerText'))
+INFO     [browser_use.agent.service] completed in 9 steps, 23s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The initial accessibility-tree query returned no links or headings; reading the DOM text subsequently exposed the site's content.
+  gotcha: The site's search returned results for an anniversary ordinal but no results for the corresponding bare number.
+INFO     [browser_use.agent.service] Task: Task: Who is responsible for overseeing the Angry Birds brand strategy during the 15th anniversary celebrations, and what major project is highlighted as part of these celebrations?
+
+Start URL: https: (workspace /tmp/browser-use-ts1kjlc5)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.rovio.com/')
+INFO     [browser_use.agent.loop] step 2: print(js("document.body.innerText").__str__()[:16000])
+INFO     [browser_use.agent.loop] step 3: goto_url('https://www.rovio.com/?s=15th')
+INFO     [browser_use.agent.loop] step 4: goto_url('https://www.rovio.com/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/')
+INFO     [browser_use.agent.loop] step 5: goto_url('https://www.rovio.com/?s=brand%20strategy')
+INFO     [browser_use.agent.loop] step 6: goto_url('https://www.rovio.com/articles/eeva-aaltonen/')
+INFO     [browser_use.agent.service] completed in 7 steps, 16s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: What proactive steps did the APEC 12th Tourism Ministerial Meeting conclude to address the challenges in tourism due to sea level rise?
+
+Start URL: https://www.apec.org/
+
+If the task asks for a  (workspace /tmp/browser-use-wzhb2itc)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.apec.org/'); print(page_info()); print(js("Array.from(document.querySelectorAll('input')).map(x=>(
+INFO     [browser_use.agent.loop] step 2: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 3: def clicknode(n):
+INFO     [browser_use.agent.loop] step 4: js("document.querySelector('#siteSearch').focus()"); type_text('sea level rise'); press_key('Enter'); wait_for_load(); p
+INFO     [browser_use.agent.loop] step 5: print(js("Array.from(document.querySelectorAll('a')).filter(a=>a.innerText.includes('Assessing')).map(a=>({text:a.innerT ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 6: wait_for_load(); print(js('document.body.innerText')); print(js("Array.from(document.querySelectorAll('a')).filter(a=>/1
+INFO     [browser_use.agent.loop] step 7: goto_url('https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/12th-apec-tourism-ministerial-meetin
+INFO     [browser_use.agent.loop] step 8: goto_url('https://www.apec.org/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-
+INFO     [browser_use.agent.loop] step 9: goto_url('https://www.apec.org/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'); wait_for_load();
+INFO     [browser_use.agent.loop] step 10: print(js("Array.from(document.querySelectorAll('a')).filter(a=>/Chair/.test(a.innerText)).map(a=>({text:a.innerText,url:
+INFO     [browser_use.agent.loop] step 11: goto_url('https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meetin
+INFO     [browser_use.agent.loop] step 12: goto_url('https://www.apec.org/press/blogs/2024/transforming-travel--embracing-sustainable--innovative-and-inclusive-pra
+INFO     [browser_use.agent.loop] step 13: goto_url('https://www.apec.org/what-we-do/som-steering-committee-on-economic-and-technical-cooperation/tourism'); wait_f
+INFO     [browser_use.agent.service] completed in 14 steps, 50s
+INFO     [browser_use.agent.service] Judge: failure: The answer gives general resilience commitments without establishing the meeting’s specific response to the sea-level-related challenges asked about.
+  gotcha: Reading page text immediately after navigation produced a null-body JavaScript error; waiting for loading allowed the text to be read.
+  gotcha: The final answer used a general risk-management passage without verifying its connection to the specific challenge in the question.
+INFO     [browser_use.agent.service] Task: Task: What proactive steps did the APEC 12th Tourism Ministerial Meeting conclude to address the challenges in tourism due to sea level rise?
+
+Start URL: https://www.apec.org/
+
+If the task asks for a  (workspace /tmp/browser-use-wcyt6ri6)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); text=js('document.body.innerText'); print(text)
+INFO     [browser_use.agent.loop] step 2: goto_url('https://www.apec.org/'); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOM
+INFO     [browser_use.agent.loop] step 3: print(js('Array.from(document.querySelectorAll("a,button,input")).map(e=>({tag:e.tagName,text:e.innerText||e.getAttribut
+INFO     [browser_use.agent.loop] step 4: js('document.querySelector("button[aria-label=\"Toggle search\"]").click()'); print([(n.get('role',{}).get('value'),n.ge -> RuntimeError: JavaScript evaluation failed at line 0, column 23: SyntaxError: missing ) after argument list; expression: document.querySelector("button[aria-label="Toggle search"]").click()
+INFO     [browser_use.agent.loop] step 5: js('Array.from(document.querySelectorAll("button")).find(e=>e.innerText==="Toggle search" || e.getAttribute("aria-label"
+INFO     [browser_use.agent.loop] step 6: cdp('DOM.focus',backendNodeId=16); type_text('sea level rise'); press_key('Enter'); wait_for_load(); print(js('document.
+INFO     [browser_use.agent.loop] step 7: print(page_info()); print(js('Array.from(document.querySelectorAll("input")).map(e=>({name:e.name,value:e.value,type:e.t
+INFO     [browser_use.agent.loop] step 8: goto_url('https://www.apec.org/search?indexCatalogue=site&searchQuery=12th%20tourism'); wait_for_load(); print(js('docum
+INFO     [browser_use.agent.loop] step 9: goto_url('https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/12th-apec-tourism-ministerial-meetin
+INFO     [browser_use.agent.loop] step 10: goto_url('https://www.apec.org/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-
+INFO     [browser_use.agent.loop] step 11: goto_url('https://www.apec.org/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'); wait_for_load();
+INFO     [browser_use.agent.loop] step 12: print(js('Array.from(document.querySelectorAll("a")).filter(e=>/Chair/.test(e.innerText)).map(e=>({text:e.innerText,url:
+INFO     [browser_use.agent.loop] step 13: goto_url('https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meetin
+INFO     [browser_use.agent.loop] step 14: goto_url('https://www.apec.org/press/blogs/2024/transforming-travel--embracing-sustainable--innovative-and-inclusive-pra
+INFO     [browser_use.agent.loop] step 15: goto_url('https://www.apec.org/what-we-do/som-steering-committee-on-economic-and-technical-cooperation/tourism'); wait_f
+INFO     [browser_use.agent.service] completed in 16 steps, 40s
+INFO     [browser_use.agent.service] Judge: failure: The final answer supplies a general resilience commitment but does not establish the proactive steps specifically addressing sea-level-rise challenges.
+  gotcha: The handoff URL returned a page-not-found title; site search located the meeting's actual page.
+  gotcha: A JavaScript selector failed with a quoting syntax error; a revised element lookup successfully opened search.
+  gotcha: The final quotation was present in the statement, but the retrieved passage did not establish its connection to the specific environmental challenge.
+INFO     [browser_use.agent.service] Task: Task: What is the target for international tourist arrivals in Peru for 2024?
+
+Start URL: https://www.apec.org/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact val (workspace /tmp/browser-use-ob6nxwc1)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.apec.org/')
+INFO     [browser_use.agent.loop] step 2: print(js('document.body.innerText').strip()[:16000])
+INFO     [browser_use.agent.loop] step 3: js('document.querySelector("button").click()')
+INFO     [browser_use.agent.loop] step 4: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 5: cdp('DOM.focus',backendNodeId=60)
+INFO     [browser_use.agent.loop] step 6: print(js('Array.from(document.querySelectorAll("a")).filter(e=>/Transforming Travel|Towards a More|Safeguard Tourism/.te
+INFO     [browser_use.agent.loop] step 7: goto_url('https://www.apec.org/press/blogs/2024/transforming-travel--embracing-sustainable--innovative-and-inclusive-pra ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 8: print(page_info())
+INFO     [browser_use.agent.loop] step 9: goto_url('https://www.apec.org/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-
+INFO     [browser_use.agent.service] completed in 10 steps, 26s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Reading the page body immediately after navigation produced a null-body JavaScript error; a subsequent read successfully retrieved the article.
+INFO     [browser_use.agent.service] Task: Task: What is the target for international tourist arrivals in Peru for 2024?
+
+Start URL: https://www.apec.org/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact val (workspace /tmp/browser-use-6ovla4nu)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.apec.org/'); print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value
+INFO     [browser_use.agent.loop] step 2: print(js("document.body.innerText.slice(0,16000)")); print(js("Array.from(document.querySelectorAll('input')).map(x=>({t
+INFO     [browser_use.agent.loop] step 3: print(js("Array.from(document.querySelectorAll('form')).map(x=>({action:x.action,text:x.innerText.slice(0,500)}))")); pr
+INFO     [browser_use.agent.loop] step 4: js("document.querySelector('.site-header__ctrl--search-toggle').click()"); print([(n.get('role',{}).get('value'),n.get('
+INFO     [browser_use.agent.loop] step 5: cdp('DOM.focus',backendNodeId=3); type_text('Peru tourism 2024'); press_key('Enter'); wait_for_load(); print(page_info()
+INFO     [browser_use.agent.loop] step 6: links=js("Array.from(document.querySelectorAll('a')).filter(x=>/Transforming Travel|Towards a More/.test(x.innerText)).m ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 7: wait_for_load(); text=js('document.body.innerText'); print(text)
+INFO     [browser_use.agent.loop] step 8: goto_url(links[1]['url']); wait_for_load(); text2=js('document.body.innerText'); print(text2)
+INFO     [browser_use.agent.loop] step 9: goto_url('https://www.apec.org/search?indexCatalogue=site&searchQuery=Peru%20tourism%202024'); wait_for_load(); l=js("Ar
+INFO     [browser_use.agent.service] completed in 10 steps, 25s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The initial handoff identified a Google access-block page; navigation to the official site and its search produced relevant results.
+  gotcha: Reading the article body immediately after navigation failed because the body was null; waiting for the page to load allowed successful extraction.
+INFO     [browser_use.agent.service] Task: Task: Who chaired the APEC Tourism Ministers Meeting on June 9, 2024?
+
+Start URL: https://www.apec.org/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value from  (workspace /tmp/browser-use-ffjte0fy)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.apec.org/'); print(page_info()); print(js("Array.from(document.querySelectorAll('input')).map(x=>(
+INFO     [browser_use.agent.loop] step 2: print([(n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 3: q=cdp('DOM.getBoxModel',backendNodeId=11)['model']['content']; click_at_xy(sum(q[0::2])/4,sum(q[1::2])/4); print([(n.get
+INFO     [browser_use.agent.loop] step 4: cdp('DOM.focus',backendNodeId=22); type_text('Tourism Ministers June 2024'); press_key('Enter');
+INFO     [browser_use.agent.loop] step 5: print(page_info()); print(js('document.body.innerText')[:16000])
+INFO     [browser_use.agent.loop] step 6: links=js("Array.from(document.querySelectorAll('a')).filter(a=>a.textContent.includes('12th')).map(a=>({text:a.textConte
+INFO     [browser_use.agent.loop] step 7: text=js('document.body.innerText'); print(text[:16000])
+INFO     [browser_use.agent.service] completed in 8 steps, 15s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: Who chaired the APEC Tourism Ministers Meeting on June 9, 2024?
+
+Start URL: https://www.apec.org/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value from  (workspace /tmp/browser-use-0hk5y647)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print(js("document.body.innerText"))
+INFO     [browser_use.agent.loop] step 2: goto_url('https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism'); print(js('document.body.innerText ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 3: print(page_info()); print(js('document.body?.innerText')); print(js("Array.from(document.querySelectorAll('a')).filter(a
+INFO     [browser_use.agent.loop] step 4: goto_url('https://www.apec.org/');
+INFO     [browser_use.agent.loop] step 5: print(js("Array.from(document.querySelectorAll('a')).filter(a=>/Declarations|Statements|Tourism/.test(a.textContent)).ma
+INFO     [browser_use.agent.loop] step 6: goto_url('https://www.apec.org/meeting-papers/listings/sectoral-ministerial-meetings/tourism');
+INFO     [browser_use.agent.loop] step 7: print(js("Array.from(document.querySelectorAll('a')).filter(a=>/2024/.test(a.textContent)).map(a=>({text:a.textContent,u
+INFO     [browser_use.agent.loop] step 8: goto_url('https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/12th-apec-tourism-ministerial-meetin
+INFO     [browser_use.agent.loop] step 9: text=js('document.body.innerText'); print(text[:10000])
+INFO     [browser_use.agent.service] completed in 10 steps, 22s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The handoff URL and its parent returned 'Page not found'; the homepage's Tourism link led to a working listing and meeting page.
+  gotcha: Reading document.body.innerText immediately after navigation failed because the body was null; a subsequent read succeeded.
+INFO     [browser_use.agent.service] Task: Task: Search for properties in Los Angeles, browse the results page to see what filters are available, list some of them.
+
+Start URL: https://www.booking.com/
+
+If the task asks for a value, such as a  (workspace /tmp/browser-use-p44nhrlb)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.booking.com/')
+INFO     [browser_use.agent.loop] step 2: wait_for_load()
+INFO     [browser_use.agent.loop] step 3: cdp('DOM.focus',backendNodeId=56) -> RuntimeError: {'code': -32000, 'message': 'Element is not focusable'}
+INFO     [browser_use.agent.loop] step 4: print(js('Array.from(document.querySelectorAll("input")).map(e=>({placeholder:e.placeholder,role:e.getAttribute("role"),
+INFO     [browser_use.agent.loop] step 5: click_at_xy(982,287)
+INFO     [browser_use.agent.loop] step 6: print([(n.get('backendDOMNodeId'),n.get('role',{}).get('value'),n.get('name',{}).get('value')) for n in cdp('Accessibili
+INFO     [browser_use.agent.loop] step 7: def clicknode(n):
+INFO     [browser_use.agent.loop] step 8: print(page_info())
+INFO     [browser_use.agent.loop] step 9: print(js('document.body.innerText.slice(0,10500)'))
+INFO     [browser_use.agent.service] completed in 10 steps, 21s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Focusing the search input initially returned an element-not-focusable error; closing the sign-in modal allowed text entry.
+  gotcha: Submitting a destination without dates opened a city listings page with a calendar, while filter options remained available in the page text.
+INFO     [browser_use.agent.service] Task: Task: Search for properties in Los Angeles, browse the results page to see what filters are available, list some of them.
+
+Start URL: https://www.booking.com/
+
+If the task asks for a value, such as a  (workspace /tmp/browser-use-azpwxwe2)
+INFO     [browser_use.agent.loop] step 1: print(page_info())
+INFO     [browser_use.agent.loop] step 2: print(js("document.body.innerText.slice(0,6500)"))
+INFO     [browser_use.agent.loop] step 3: cdp('DOM.scrollIntoViewIfNeeded',backendNodeId=1739)
+INFO     [browser_use.agent.loop] step 4: goto_url('https://www.booking.com/searchresults.html?dest_id=20014181;dest_type=city')
+INFO     [browser_use.agent.loop] step 5: nodes=cdp('Accessibility.getFullAXTree')['nodes']
+INFO     [browser_use.agent.service] completed in 6 steps, 18s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Opening the all-properties link produced a search-results page with navigation and footer text but no property listings in the captured output.
+  gotcha: Navigating to the destination-specific search-results URL redirected to the city page, where listings and filter options were available.
+INFO     [browser_use.agent.service] Task: Task: Check the Dataset Viewer for ai2lumos/lumos_complex_qa_plan_onetime on Hugging face. what is the content corresponding to user in the first message?
+
+Start URL: https://huggingface.co/
+
+If the t (workspace /tmp/browser-use-sgn68vv3)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://huggingface.co/datasets/ai2lumos/lumos_complex_qa_plan_onetime'); print(page_info()); print(js('docume
+INFO     [browser_use.agent.service] completed in 2 steps, 5s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: Check the Dataset Viewer for ai2lumos/lumos_complex_qa_plan_onetime on Hugging face. what is the content corresponding to user in the first message?
+
+Start URL: https://huggingface.co/
+
+If the t (workspace /tmp/browser-use-vw1v8uj8)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print(js("document.body.innerText").__str__()[:24000])
+INFO     [browser_use.agent.service] completed in 2 steps, 4s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: Check out Text Embeddings Inference in Hugging face's Doc to summarise the strengths of the toolkit.
+
+Start URL: https://huggingface.co/
+
+If the task asks for a value, such as a title, a name, o (workspace /tmp/browser-use-ejbwff6g)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://huggingface.co/')
+INFO     [browser_use.agent.loop] step 2: print(js("Array.from(document.querySelectorAll('a')).filter(a=>/^(Documentation|Docs)$/.test(a.textContent.trim())).map(
+INFO     [browser_use.agent.loop] step 3: goto_url('https://huggingface.co/docs/text-embeddings-inference')
+INFO     [browser_use.agent.service] completed in 4 steps, 11s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: Check out Text Embeddings Inference in Hugging face's Doc to summarise the strengths of the toolkit.
+
+Start URL: https://huggingface.co/
+
+If the task asks for a value, such as a title, a name, o (workspace /tmp/browser-use-db_vcp15)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print(js("document.querySelector('main')?.innerText || document.body.innerText")[:24000])
+INFO     [browser_use.agent.service] completed in 2 steps, 5s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: Find the statistics of the player Cristiano Ronaldo for the national team of Portugal in all the world cups in espn.com.
+
+Start URL: https://www.espn.com/
+
+If the task asks for a value, such as  (workspace /tmp/browser-use-vzaxtggf)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.espn.com/'); print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value
+INFO     [browser_use.agent.loop] step 2: print(js("document.body.innerText.slice(0,11000)")); print(js("[...document.querySelectorAll('a')].filter(a=>/soccer/i.t
+INFO     [browser_use.agent.loop] step 3: print(js("[...document.querySelectorAll('input,button')].map(a=>({tag:a.tagName,type:a.type,aria:a.getAttribute('aria-la
+INFO     [browser_use.agent.loop] step 4: print(js("[...document.querySelectorAll('a')].filter(a=>/ronaldo|portugal|search/i.test(a.textContent+' '+a.href)).map(a
+INFO     [browser_use.agent.loop] step 5: def clicknode(n):
+INFO     [browser_use.agent.loop] step 6: print(js("[...document.querySelectorAll('a')].filter(a=>/ronaldo/i.test(a.textContent)).map(a=>({text:a.textContent,url:
+INFO     [browser_use.agent.loop] step 7: press_key('Enter'); print(page_info()); print(js('document.body.innerText.slice(0,7000)'))
+INFO     [browser_use.agent.loop] step 8: print(js('document.body.innerText.slice(0,9000)')); print(js("[...document.querySelectorAll('a')].filter(a=>/ronaldo/i.t
+INFO     [browser_use.agent.loop] step 9: goto_url('https://www.espn.com/soccer/player/_/id/22774/cristiano-ronaldo')
+INFO     [browser_use.agent.loop] step 10: print(js('document.body.innerText.slice(-16000)')); print(js("[...document.querySelectorAll('a')].filter(a=>/stats/i.tes
+INFO     [browser_use.agent.loop] step 11: goto_url('https://www.espn.com/soccer/player/stats/_/id/22774/cristiano-ronaldo')
+INFO     [browser_use.agent.loop] step 12: print(js('document.body.innerText.slice(-17000)')); print(js("[...document.querySelectorAll('select')].map(s=>({html:s.o
+INFO     [browser_use.agent.loop] step 13: print(js("var s=[...document.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='482')); s.value='482'
+INFO     [browser_use.agent.loop] step 14: print(js("[...document.querySelectorAll('select:not([aria-hidden])')].map(s=>({value:s.value,options:[...s.options].map(
+INFO     [browser_use.agent.loop] step 15: print(js("var s=[...document.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='fifa.world')); s.valu
+INFO     [browser_use.agent.loop] step 16: print(js('document.body.innerText.slice(0,4700)')); print(js("[...document.querySelectorAll('table')].map(t=>t.innerText
+INFO     [browser_use.agent.service] completed in 17 steps, 43s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Changing the team filter updated the available competition options; changing the competition filter then displayed the requested historical statistics.
+  gotcha: The search results were initially absent from the page text but appeared on a subsequent read.
+INFO     [browser_use.agent.service] Task: Task: Find the statistics of the player Cristiano Ronaldo for the national team of Portugal in all the world cups in espn.com.
+
+Start URL: https://www.espn.com/
+
+If the task asks for a value, such as  (workspace /tmp/browser-use-jbip8z41)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); nodes=cdp('Accessibility.getFullAXTree')['nodes']; print([(n.get('role',{}).get('value'),n.get('name
+INFO     [browser_use.agent.loop] step 2: print(js("Array.from(document.querySelectorAll('select')).map((s,i)=>({i,value:s.value,options:Array.from(s.options).map
+INFO     [browser_use.agent.loop] step 3: js("var s=document.querySelectorAll('select')[2];s.value='482';s.dispatchEvent(new Event('input',{bubbles:true}));s.disp
+INFO     [browser_use.agent.loop] step 4: print(js("Array.from(document.querySelectorAll('select')).map((s,i)=>({i,value:s.value,options:Array.from(s.options).map
+INFO     [browser_use.agent.loop] step 5: js("var s=document.querySelectorAll('select')[4];s.value='fifa.world';s.dispatchEvent(new Event('input',{bubbles:true}))
+INFO     [browser_use.agent.loop] step 6: print(js("Array.from(document.querySelectorAll('select')).slice(2).map(s=>s.value)"));print(js("Array.from(document.quer
+INFO     [browser_use.agent.loop] step 7: tables=js("Array.from(document.querySelectorAll('table')).map(t=>Array.from(t.rows).map(r=>Array.from(r.cells).map(c=>c.
+INFO     [browser_use.agent.service] completed in 8 steps, 18s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Changing the team filter updated the available competition options; selecting the tournament then displayed the requested statistics.
+  gotcha: The page split season/team labels and statistical values into separate tables; the agent joined their corresponding rows correctly.
+INFO     [browser_use.agent.service] Task: Task: Find the team schedule of the Brooklyn Nets on espn
+
+Start URL: https://www.espn.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value from the page as  (workspace /tmp/browser-use-z0bje631)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.espn.com/'); print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value
+INFO     [browser_use.agent.loop] step 2: print(js("Array.from(document.querySelectorAll('a')).map(a=>({text:a.innerText,url:a.href})).filter(a=>/NBA|Nets/i.test(
+INFO     [browser_use.agent.loop] step 3: goto_url('https://www.espn.com/nba/'); print(js("Array.from(document.querySelectorAll('a')).map(a=>({text:a.innerText,ur
+INFO     [browser_use.agent.loop] step 4: print(js("Array.from(document.querySelectorAll('a')).map(a=>({text:a.innerText,url:a.href})).filter(a=>/Teams|Nets/i.tes
+INFO     [browser_use.agent.loop] step 5: goto_url('https://www.espn.com/nba/team/_/name/bkn/brooklyn-nets');
+INFO     [browser_use.agent.loop] step 6: print(js("Array.from(document.querySelectorAll('a')).map(a=>({text:a.innerText,url:a.href})).filter(a=>/Schedule/i.test(
+INFO     [browser_use.agent.loop] step 7: goto_url('https://www.espn.com/nba/team/schedule/_/name/bkn/brooklyn-nets');
+INFO     [browser_use.agent.loop] step 8: print(page_info()); print(js("document.querySelector('h1')?.innerText")); print(js("document.querySelector('table')?.inn
+INFO     [browser_use.agent.service] completed in 9 steps, 19s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Link queries immediately after navigation returned empty results; subsequent queries on the same pages returned the navigation links.
+INFO     [browser_use.agent.service] Task: Task: Show me all the events at any six flags park in Texas in sixflags
+
+Start URL: https://www.sixflags.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value (workspace /tmp/browser-use-u9ji2isx)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.sixflags.com/')
+INFO     [browser_use.agent.loop] step 2: print(js("Array.from(document.querySelectorAll('a')).map(a=>({text:a.innerText,url:a.href})).filter(a=>/Property|Texas|F
+INFO     [browser_use.agent.loop] step 3: goto_url('https://www.sixflags.com/select-park') ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 4: print(page_info())
+INFO     [browser_use.agent.loop] step 5: nodes=cdp('Accessibility.getFullAXTree')['nodes']
+INFO     [browser_use.agent.loop] step 6: def clicknode(n):
+INFO     [browser_use.agent.loop] step 7: print(js("Array.from(document.querySelectorAll('a')).map(a=>({text:a.innerText,url:a.href})).filter(a=>/event/i.test(a.t
+INFO     [browser_use.agent.loop] step 8: goto_url('https://www.sixflags.com/fiestatexas/events')
+INFO     [browser_use.agent.loop] step 9: print(page_info())
+INFO     [browser_use.agent.loop] step 10: print([(n.get('backendDOMNodeId'),n.get('role',{}).get('value'),n.get('name',{}).get('value'),n.get('properties')) for n
+INFO     [browser_use.agent.loop] step 11: special=js('document.body.innerText')
+INFO     [browser_use.agent.service] completed in 12 steps, 30s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Reading the page body immediately after navigation returned a null-body error; a subsequent read successfully retrieved the page.
+  gotcha: Switching to the group-events category exposed an additional event not shown in the default category.
+INFO     [browser_use.agent.service] Task: Task: Show me all the events at any six flags park in Texas in sixflags
+
+Start URL: https://www.sixflags.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value (workspace /tmp/browser-use-s6vk7rzv)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); print([(n.get('role',{}).get('value'),n.get('name',{}).get('value')) for n in cdp('Accessibility.get
+INFO     [browser_use.agent.loop] step 2: print(js('document.body.innerText')); print(cdp('Page.getFrameTree')); screenshot()
+INFO     [browser_use.agent.loop] step 3: click_at_xy(915,45); print(js("Array.from(document.querySelectorAll('a,button,[role=tab]')).filter(e=> /Our Events|Speci
+INFO     [browser_use.agent.loop] step 4: js("Array.from(document.querySelectorAll('button')).find(e=>e.innerText==='Group Events').click()"); print(js('document.
+INFO     [browser_use.agent.service] completed in 5 steps, 12s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: The accessibility query returned no headings, links, or buttons, while reading the document text exposed the event listings.
+  gotcha: Switching to the group-events category revealed five additional entries beyond the two initially displayed.
+INFO     [browser_use.agent.service] Task: Task: Find career openings in the marketing department in spothero
+
+Start URL: https://spothero.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value from the (workspace /tmp/browser-use-5dxcr4ha)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://spothero.com/')
+INFO     [browser_use.agent.loop] step 2: print(js("Array.from(document.querySelectorAll('a')).map(a=>({text:a.innerText,url:a.href})).filter(a=>/career|jobs|abou
+INFO     [browser_use.agent.loop] step 3: goto_url('https://spothero.com/careers') ->     at <anonymous>:1:15; expression: document.body.innerText
+INFO     [browser_use.agent.loop] step 4: print(page_info())
+INFO     [browser_use.agent.service] completed in 5 steps, 10s
+INFO     [browser_use.agent.service] Judge: success
+  gotcha: Reading document.body.innerText immediately after navigation failed because the body was null; a subsequent read successfully retrieved the careers listings.
+INFO     [browser_use.agent.service] Task: Task: Find career openings in the marketing department in spothero
+
+Start URL: https://spothero.com/
+
+If the task asks for a value, such as a title, a name, or a number, give that exact value from the (workspace /tmp/browser-use-tjo1v11k)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); nodes=cdp('Accessibility.getFullAXTree')['nodes']; print([(n.get('role',{}).get('value'),n.get('name
+INFO     [browser_use.agent.loop] step 2: print(js("Array.from(document.querySelectorAll('h1,h2,h3,h4,h5')).filter(e=>e.textContent.includes('Marketing')).map(e=>
+INFO     [browser_use.agent.service] completed in 3 steps, 6s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: Browse dog food for puppies that is rated at least 4 stars and sort the results by price from low to high in amazon
+
+Start URL: https://www.amazon.com/
+
+If the task asks for a value, such as a t (workspace /tmp/browser-use-ttujp1ay)
+INFO     [browser_use.agent.loop] step 1: goto_url('https://www.amazon.com/')
+INFO     [browser_use.agent.loop] step 2: print(page_info()); print(js('document.body.innerText.slice(0,10000)'))
+INFO     [browser_use.agent.loop] step 3: nodes=cdp('Accessibility.getFullAXTree')['nodes']; print([(n['role']['value'],n.get('name',{}).get('value'),n.get('backe
+INFO     [browser_use.agent.loop] step 4: cdp('DOM.focus',backendNodeId=35); type_text('puppy dog food'); press_key('Enter')
+INFO     [browser_use.agent.loop] step 5: print(page_info()); nodes=cdp('Accessibility.getFullAXTree')['nodes']; print([(n['role']['value'],n.get('name',{}).get('
+INFO     [browser_use.agent.loop] step 6: print([(n['role']['value'],n.get('name',{}).get('value'),n.get('backendDOMNodeId')) for n in nodes if 'up' in n.get('nam
+INFO     [browser_use.agent.loop] step 7: cdp('DOM.scrollIntoViewIfNeeded',backendNodeId=8787); q=cdp('DOM.getBoxModel',backendNodeId=8787)['model']['content']; c
+INFO     [browser_use.agent.loop] step 8: print(page_info()); print(js('document.querySelector("#reviewsRefinements")?.innerText')); print(js('(()=>{let s=documen
+INFO     [browser_use.agent.loop] step 9: print(page_info()); print(js('({search:document.querySelector("#twotabsearchtextbox")?.value,sort:document.querySelector
+INFO     [browser_use.agent.service] completed in 10 steps, 24s
+INFO     [browser_use.agent.service] Judge: success
+INFO     [browser_use.agent.service] Task: Task: Browse dog food for puppies that is rated at least 4 stars and sort the results by price from low to high in amazon
+
+Start URL: https://www.amazon.com/
+
+If the task asks for a value, such as a t (workspace /tmp/browser-use-6mglhin_)
+INFO     [browser_use.agent.loop] step 1: print(page_info()); nodes=cdp('Accessibility.getFullAXTree')['nodes']; print([(n.get('role',{}).get('value'),n.get('name
+INFO     [browser_use.agent.loop] step 2: print(js("JSON.stringify({selects:[...document.querySelectorAll('select')].map(s=>({value:s.value,text:s.options[s.selec
+INFO     [browser_use.agent.loop] step 3: print(js("document.querySelector('#s-refinements')?.innerText.slice(-4500)")); print(js("[...document.querySelectorAll('
+INFO     [browser_use.agent.loop] step 4: js("document.querySelector('a[aria-label=\"Apply Puppy filter to narrow results\"]').click()");
+INFO     [browser_use.agent.loop] step 5: print(page_info()); print(js("({sort:[...document.querySelectorAll('select')].map(s=>s.options[s.selectedIndex]?.text),s
+INFO     [browser_use.agent.service] completed in 6 steps, 18s
+INFO     [browser_use.agent.service] Judge: success
+{"replicate": 1, "browser_use_mode": "default", "arms": ["browser_use", "playwright_mcp", "script_first", "cascade"], "ledger_before_usd": 0.155299, "project_cap_usd": 9, "run_cap_usd": 3, "status": "completed", "rows": 160, "ledger_after_usd": 3.178912}
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Exception ignored in: <function BaseSubprocessTransport.__del__ at 0x7f5cf418e0c0>
+Traceback (most recent call last):
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 126, in __del__
+    self.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_subprocess.py", line 104, in close
+    proto.pipe.close()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 767, in close
+    self.write_eof()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/unix_events.py", line 753, in write_eof
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 799, in call_soon
+    self._check_closed()
+  File "/home/ubuntu/.local/share/uv/python/cpython-3.12.16-linux-x86_64-gnu/lib/python3.12/asyncio/base_events.py", line 545, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed

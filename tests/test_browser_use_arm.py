@@ -7,6 +7,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 from backends.playwright_mcp import PLAYWRIGHT_MCP_VERSION as BACKEND_MCP
 from bench.arms import (
     ARM_BROWSER_USE,
@@ -154,6 +156,17 @@ def test_browser_use_is_a_baseline_in_the_default_probe():
         assert "Playwright" in str(exc)
     else:
         raise AssertionError("start launched a client")
+
+
+@pytest.mark.parametrize("mode,expected", [(None, "default"), ("", "default"), ("ultrafast", "ultrafast")])
+def test_browser_use_mode_is_recorded_even_when_skipped(monkeypatch, mode, expected):
+    if mode is None:
+        monkeypatch.delenv("CU_BU_MODE", raising=False)
+    else:
+        monkeypatch.setenv("CU_BU_MODE", mode)
+    row = asyncio.run(run_browser_use_task({"id": "synthetic"}, api_key=""))
+    assert row["skipped"]
+    assert row["browser_use_mode"] == expected
 
 
 def test_prompts_carry_the_task_and_not_the_judge_fields():

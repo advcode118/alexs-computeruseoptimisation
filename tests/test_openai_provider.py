@@ -98,6 +98,21 @@ def test_configured_run_cap_stops_before_model(monkeypatch, tmp_path):
     assert all("$0.01" in row["success_reason"] for row in rows)
 
 
+def test_ultrafast_mode_is_written_on_budget_skips(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "offline-not-sent")
+    monkeypatch.setenv("CU_OPENAI_RUN_BUDGET_USD", "0.01")
+    monkeypatch.setenv("CU_BU_MODE", "ultrafast")
+    rows = asyncio.run(execute_openai_probe(
+        arms=("browser_use",), split="probe", sweep=False, model="gpt-6.1-sol",
+        effort="medium", one_task=True, headless=True, spend_path=None,
+        runs_dir=tmp_path, warm_replay=False, honest=False,
+    ))
+    assert rows and all(row["skipped"] for row in rows)
+    saved = next(tmp_path.glob("probe_*.jsonl"))
+    records = [json.loads(line) for line in saved.read_text().splitlines()]
+    assert all(row["browser_use_mode"] == "ultrafast" for row in records if "task_id" in row)
+
+
 def test_allow_list_is_exactly_the_two_models():
     assert ALLOWED_OPENAI_MODELS == ("gpt-6.1-sol", "gpt-6-luna")
     for model in ALLOWED_OPENAI_MODELS:

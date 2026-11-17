@@ -214,6 +214,7 @@ def _base_row(task_id: str) -> dict:
         "model": ALLOWED_MODEL,
         "browser": LOCAL_BROWSER,
         "browser_use": BROWSER_USE_VERSION,
+        "browser_use_mode": os.environ.get("CU_BU_MODE", "").strip() or "default",
         "page_url": "",
     }
 

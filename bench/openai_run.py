@@ -319,6 +319,8 @@ async def execute_openai_probe(
     handle = out.open("w", encoding="utf-8")
 
     def sink(row: dict) -> None:
+        if row.get("arm") in ("browser_use", "cascade"):
+            row["browser_use_mode"] = os.environ.get("CU_BU_MODE", "").strip() or "default"
         handle.write(json.dumps(row) + "\n")
         handle.flush()
 
