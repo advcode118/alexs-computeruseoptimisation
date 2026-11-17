@@ -1,0 +1,56 @@
+{
+  "run_records": "docs/results/ext_sample_20261116/verification_heldout4_full_2.jsonl",
+  "hash_provenance": "Bytes and SHA-256 recorded when downloaded or printed in the original run; independently matched to local binary bytes before removing binaries from git history.",
+  "artifacts": [
+    {
+      "path": "docs/results/ext_sample_20261116/verification_heldout4_full_2_artifacts/ho4_value_cigre_2025_full_paper_deadlines_download",
+      "bytes": 221501,
+      "sha256": "d72a7415895187f4003db86201507cab0f7748f9d1721b0cd2558f38ed6cddab",
+      "source_url": "https://cigrenrccsymposium2025.com/onewebmedia/CIGRE%20NRCC%20Symposium%20Trondheim%20Call%20for%20Papers%20V11.pdf",
+      "task_id": "ho4_value_cigre_2025_full_paper_deadlines",
+      "phase": "key",
+      "capture_kind": "browser_download",
+      "source_url_provenance": "download event URL"
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_heldout4_full_2_artifacts/ho4_value_nmun_nyc_deadlines_download",
+      "bytes": 696050,
+      "sha256": "ad93844bf5ff67530776575ec6f4f7c3c34d87af1b12a3df1c770401054b425e",
+      "source_url": "https://www.nmun.org/assets/documents/conference-archives/new-york/2025/nmun-ny25-bgg-ga1.pdf",
+      "task_id": "ho4_value_nmun_nyc_deadlines",
+      "phase": "key",
+      "capture_kind": "browser_download",
+      "source_url_provenance": "download event URL"
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_heldout4_full_2_artifacts/ho4_nav_national_route_map_download",
+      "bytes": 602398407,
+      "sha256": "efeb3c078b457930c323c2e98aa005d6146eb84e7046892a8b75e8779404d136",
+      "source_url": "https://www.amtrak.com/content/dam/projects/dotcom/english/public/documents/Maps/Amtrak-System-Map-081325.pdf",
+      "task_id": "ho4_nav_national_route_map",
+      "phase": "key",
+      "capture_kind": "browser_download",
+      "source_url_provenance": "download event URL"
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_heldout4_full_2_artifacts/ho4_value_google_maps_los_angeles_pdf_key_3.pdf",
+      "bytes": 875203,
+      "sha256": "60e239e143cab0ae8fdeb53ca6b01dcf895182cfb4aa513febe3be5d0ab0c877",
+      "source_url": "https://www.google.com/maps/place/Los+Angeles,+CA/@34.0204789,-118.4117326,10z/data=!3m1!4b1!4m6!3m5!1s0x80c2c75ddc27da13:0xe22fdf6f254608f4!8m2!3d34.0549076!4d-118.242643!16s%2Fm%2F030qb3t?entry=ttu&g_ep=EgoyMDI2MTExMC4wIKXMDSoASAFQAw%3D%3D",
+      "task_id": "ho4_value_google_maps_los_angeles_pdf",
+      "phase": "key",
+      "capture_kind": "browser_print_pdf",
+      "source_url_provenance": "page observation URL"
+    },
+    {
+      "path": "docs/results/ext_sample_20261116/verification_heldout4_full_2_artifacts/ho4_nav_loss_damage_waiver_brochure_download",
+      "bytes": 761901,
+      "sha256": "c54b0a307df49d1a78d1373382feebb6e9148502298b4a99b24fbfe1074f5576",
+      "source_url": "https://www.budget.com/content/dam/budget/na/us/en_US/pdf-files/24_In_112124_BU_protectivecoverages_brochures_updates_19.25x9.5_r3.pdf",
+      "task_id": "ho4_nav_loss_damage_waiver_brochure",
+      "phase": "key",
+      "capture_kind": "browser_download",
+      "source_url_provenance": "download event URL"
+    }
+  ]
+}

@@ -44,7 +44,8 @@ wrong-answer control, but every task had its real wrong-host control.
 Evidence, never merged with run 2:
 
 - `results/ext_sample_20261116/verification_heldout4_20261117T100724469791Z.jsonl`
-- the adjacent `.summary.json` and `_artifacts/` directory
+- the adjacent `.summary.json`
+- `results/ext_sample_20261116/verification_heldout4_20261117T100724469791Z.artifacts.json`
 - `results/ext_sample_20261116/verification_heldout4_full_1.log`
 
 Twenty missing-page-part failures included eighteen multi-page factual keys.
@@ -155,7 +156,18 @@ was made for this non-grading reporting fix.
 - `results/ext_sample_20261116/verification_heldout4_full_2.jsonl`
 - `results/ext_sample_20261116/verification_heldout4_full_2.summary.json`
 - `results/ext_sample_20261116/verification_heldout4_full_2.log` (includes traceback)
-- `results/ext_sample_20261116/verification_heldout4_full_2_artifacts/`
+- `results/ext_sample_20261116/verification_heldout4_full_2.artifacts.json`
+
+Artifact evidence was hashed when downloaded or browser-printed: the original
+JSONL records contain each file's byte count and SHA-256. Those original run
+records remain unchanged. The per-run artifact manifests preserve these exact
+hashes, byte counts, original paths and source URLs (the page URL for generated
+PDFs). All nine local binaries were independently matched against their recorded
+hashes before removal from the unpublished branch history. Binaries are not
+distributed in git or LFS; both artifact directories are ignored. Historical
+paths in the raw records identify manifest entries, not committed files. This
+packaging change made no network requests or new sealing run and changed no
+key, result, count or task-module seal.
 
 Read physical newline-delimited JSON records by iterating the file, not by
 Unicode `str.splitlines()`: real page text can contain Unicode separators in
@@ -330,3 +342,12 @@ Final full suite after that approved test-only change:
 
 Raw output: `results/ext_sample_20261116/heldout4_pytest_final.log`.
 The task-module seal and fixed-grader pin remain unchanged.
+
+Full suite after replacing binary evidence with manifests and adding manifest
+integrity coverage (no new live sealing run):
+
+```text
+1189 passed, 1 skipped in 58.58s
+```
+
+Raw output: `results/ext_sample_20261116/heldout4_pytest_manifest_cleanup.log`.

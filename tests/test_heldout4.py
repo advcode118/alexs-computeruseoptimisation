@@ -36,6 +36,35 @@ def sites(task):
     return {registrable(host) for host in hosts if host}
 
 
+@pytest.mark.parametrize("stem,count", [
+    ("verification_heldout4_20261117T100724469791Z", 4),
+    ("verification_heldout4_full_2", 5),
+])
+def test_artifact_manifests_preserve_capture_hashes_and_sources(stem, count):
+    manifest_path = RESULTS / (stem + ".artifacts.json")
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["run_records"] == str((RESULTS / (stem + ".jsonl")).relative_to(ROOT))
+    assert "recorded when downloaded or printed" in manifest["hash_provenance"]
+    recorded = {}
+    with (RESULTS / (stem + ".jsonl")).open() as records:
+        for line in records:
+            row = json.loads(line)
+            for field, entries in row.items():
+                if field.endswith("_artifacts"):
+                    for entry in entries:
+                        source = entry.get("observed_url") or row[field.replace("_artifacts", "_observation")]["url"]
+                        recorded[entry["path"]] = (entry["bytes"], entry["sha256"], source)
+    assert len(recorded) == len(manifest["artifacts"]) == count
+    assert {entry["path"] for entry in manifest["artifacts"]} == set(recorded)
+    for entry in manifest["artifacts"]:
+        assert (entry["bytes"], entry["sha256"], entry["source_url"]) == recorded[entry["path"]]
+        assert urlsplit(entry["source_url"]).scheme in {"http", "https"}
+        assert entry["bytes"] > 0
+        assert len(bytes.fromhex(entry["sha256"])) == 32
+    summary = json.loads((RESULTS / (stem + ".summary.json")).read_text())
+    assert summary["artifact_manifest"] == str(manifest_path.relative_to(ROOT))
+
+
 def test_schema_ids_registration_and_complete_provenance():
     tasks = tasks_for_split("heldout4")
     assert resolve_task_split("heldout4") == "heldout4"

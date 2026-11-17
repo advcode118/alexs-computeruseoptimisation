@@ -19,3 +19,7 @@ bench/runs/
 bench/results/
 bench/snapshots/
 proxy/replay-cache.sqlite
+
+# Local heldout4 verification binaries
+/docs/results/ext_sample_20261116/verification_heldout4_20261117T100724469791Z_artifacts/
+/docs/results/ext_sample_20261116/verification_heldout4_full_2_artifacts/
