@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -46,15 +47,15 @@ def is_search_results_url(url: str) -> bool:
 def check_url_contains(current_url: str, expected: str) -> JudgeResult:
     """Check if URL contains expected string.
 
-    Search-results URLs fail even when the token is in the query.
+    Search-results URLs fail unless the expected key itself targets search.
     """
-    if is_search_results_url(current_url):
+    if is_search_results_url(current_url) and not is_search_results_url(expected):
         return JudgeResult(
             success=False,
             reason=f"URL is a search page: '{current_url}'",
             confidence=1.0,
         )
-    if expected.lower() in current_url.lower():
+    if _query_url_matches(current_url, expected, normalized=False):
         return JudgeResult(
             success=True,
             reason=f"URL contains '{expected}'",
@@ -237,12 +238,62 @@ def _host_ok(url: str, host) -> bool:
 def _marker_in_url(url: str, token: str) -> bool:
     if not _http(url) or not token:
         return False
+    if "?" in token:
+        return _query_url_matches(url, token, normalized=True)
     if token.casefold() in url.casefold():
         return True
     decoded = unquote(url)
     if token.casefold() in decoded.casefold():
         return True
     return _fold_token(token) in _fold_token(decoded)
+
+
+def _query_url_matches(url: str, expected: str, *, normalized: bool) -> bool:
+    if "?" not in expected:
+        return _marker_in_url(url, expected) if normalized else expected.lower() in url.lower()
+    prefix = expected.split("?", 1)[0]
+    actual_prefix = url.split("?", 1)[0].split("#", 1)[0]
+    path_ok = not prefix or (
+        _marker_in_url(actual_prefix, prefix) if normalized else prefix.lower() in actual_prefix.lower()
+    )
+    actual = Counter(parse_qsl(urlsplit(url).query, keep_blank_values=True))
+    required = Counter(parse_qsl(urlsplit(expected).query, keep_blank_values=True))
+    return path_ok and all(actual[pair] >= count for pair, count in required.items())
+
+
+def _search_denied(url: str, markers: dict) -> bool:
+    return is_search_results_url(url) and not is_search_results_url(markers.get("url_contains") or "")
+
+
+def _task_markers(task: dict) -> dict:
+    markers = dict(task["end_markers"]) if isinstance(task.get("end_markers"), dict) else {}
+    for key in ("full_answer", "answer_parts", "url_answer_ok"):
+        if key in task:
+            markers[key] = task[key]
+    expected = task.get("check_url_contains") or ""
+    if not markers.get("url_contains") and expected and (
+        markers.get("url_answer_ok") is True or is_search_results_url(expected)
+    ):
+        markers["url_contains"] = task["check_url_contains"]
+    return markers
+
+
+def _answer_url(answer: str) -> str:
+    pairs = (("\"", "\""), ("'", "'"), ("“", "”"), ("‘", "’"), ("`", "`"), ("<", ">"))
+    value = answer.strip()
+    while True:
+        previous = value
+        value = value.rstrip(".").strip()
+        for left, right in pairs:
+            if len(value) >= 2 and value.startswith(left) and value.endswith(right):
+                value = value[len(left):-len(right)].strip()
+                break
+        link = re.fullmatch(r"\[[^\]\r\n]*\]\((https?://[^\s<>]+)\)", value)
+        if link:
+            value = link[1]
+        if value == previous:
+            break
+    return value if re.fullmatch(r"https?://[^\s<>\"`]+", value) else ""
 
 
 def _path_suffix_ok(url: str, suffix: str) -> bool:
@@ -294,7 +345,7 @@ def _same_page(left: str, right: str) -> bool:
 def _url_matches(url: str, markers: dict) -> bool:
     if not _http(url):
         return False
-    if is_search_results_url(url) or _deny_hit(url, markers.get("deny") or []):
+    if _search_denied(url, markers) or _deny_hit(url, markers.get("deny") or []):
         return False
     if not _host_ok(url, markers.get("host")):
         return False
@@ -319,7 +370,7 @@ def _scored_url(live: str, canonical: str, markers: dict) -> str:
     if _http(live) and _url_matches(live, markers):
         return live
     if _http(canonical) and _url_matches(canonical, markers) and not (
-        _http(live) and (is_search_results_url(live) or _deny_hit(live, markers.get("deny") or []))
+        _http(live) and (_search_denied(live, markers) or _deny_hit(live, markers.get("deny") or []))
     ):
         return canonical
     if _http(live):
@@ -355,7 +406,7 @@ def evidence_verdict(
     if not has_page and not has_body and not (claimed.answer or claimed.url):
         return EvidenceVerdict(FAIL, "empty evidence", "")
 
-    if _http(live) and (is_search_results_url(live) or _deny_hit(live, markers.get("deny") or [])):
+    if _http(live) and (_search_denied(live, markers) or _deny_hit(live, markers.get("deny") or [])):
         why = _deny_hit(live, markers.get("deny") or []) or "search"
         return EvidenceVerdict(FAIL, f"the page is denied ({why})", live)
 
@@ -385,14 +436,51 @@ def evidence_verdict(
         problem = _returned_problem(claimed, page_text, result.scored_url)
         return problem if problem is not None else result
 
-    if selector or answer_in_text:
+    if markers.get("url_answer_ok") is True:
+        answer_url = _answer_url(answer)
+        if answer_url:
+            if needs_url and _url_matches(answer_url, markers) and _url_matches(live, markers):
+                return gate(EvidenceVerdict(PASS, "the URL answer matches the expected page", live))
+            return EvidenceVerdict(FAIL, "the URL answer does not match the expected page", scored)
+
+    parts = markers.get("answer_parts")
+    if selector or answer_in_text or parts is not None:
         if not answer:
             return EvidenceVerdict(FAIL, "empty answer", scored)
         marker = str(answer_in_text) if answer_in_text else (trusted.selector_text or "").strip()
-        if len(answer) > 3 * len(marker) + 40:
+        reference = markers.get("full_answer", marker)
+        if not isinstance(reference, str):
+            return EvidenceVerdict(FAIL, "invalid full answer key", scored)
+        reference_length = len(_norm_answer(reference))
+        if len(answer) > 3 * len(reference) + 40:
             return EvidenceVerdict(FAIL, "answer too long", scored)
         candidates = _answer_candidates(answer)
-        if selector:
+        if parts is not None:
+            if not isinstance(parts, list) or any(not isinstance(part, str) or not part.strip() for part in parts):
+                return EvidenceVerdict(FAIL, "invalid answer parts key", scored)
+            required = list(parts)
+            if marker and marker not in required:
+                required.append(marker)
+            if not required:
+                return EvidenceVerdict(FAIL, "empty answer parts key", scored)
+            if selector and not marker:
+                return gate(EvidenceVerdict(UNKNOWN, "page text was not read", scored))
+            candidates = tuple(
+                core for core in candidates if all(_phrase_at_boundary(part, core) for part in required)
+            )
+            if not candidates:
+                return EvidenceVerdict(FAIL, "answer does not satisfy the required parts", scored)
+            candidates = tuple(
+                core for core in candidates
+                if len(_norm_answer(core)) - reference_length <= max(8, reference_length)
+            )
+            if not candidates:
+                return EvidenceVerdict(FAIL, "answer too long", scored)
+            if not page_text.strip():
+                return gate(EvidenceVerdict(UNKNOWN, "page text was not read", scored))
+            if not all(_phrase_at_boundary(part, page_text) for part in required):
+                return EvidenceVerdict(FAIL, "answer part is not in the page text", scored)
+        elif selector:
             truth = (trusted.selector_text or "").strip()
             if not truth or not page_text.strip():
                 return gate(EvidenceVerdict(UNKNOWN, "page text was not read", scored))
@@ -403,7 +491,7 @@ def evidence_verdict(
             candidates = tuple(core for core in candidates if _norm_answer(core) in _norm_answer(page_text))
             if not candidates:
                 return EvidenceVerdict(FAIL, "answer is not in the page text", scored)
-        if answer_in_text:
+        if answer_in_text and parts is None:
             if not page_text.strip():
                 return gate(EvidenceVerdict(UNKNOWN, "page text was not read", scored))
             candidates = tuple(core for core in candidates if _phrase_at_boundary(str(answer_in_text), core))
@@ -411,7 +499,7 @@ def evidence_verdict(
                 return EvidenceVerdict(FAIL, "answer does not satisfy the marker", scored)
             candidates = tuple(
                 core for core in candidates
-                if len(_norm_answer(core)) - len(_norm_answer(marker)) <= max(8, len(_norm_answer(marker)))
+                if len(_norm_answer(core)) - reference_length <= max(8, reference_length)
             )
             if not candidates:
                 return EvidenceVerdict(FAIL, "answer too long", scored)
@@ -489,7 +577,7 @@ def _grade_claim(answer: str, claimed):
     return claimed
 
 
-def _live_return_failure(url: str, text: str, claimed) -> str:
+def _live_return_failure(url: str, text: str, claimed, *, expected_url: str = "") -> str:
     """Why the script's own return is not on the live page. Empty when it is.
 
     URL, key text, and values are the live-page evidence check. A claim that
@@ -507,7 +595,8 @@ def _live_return_failure(url: str, text: str, claimed) -> str:
     if not returned:
         return ""
 
-    verdict = evidence_verdict({}, PageEvidence(url=url, text=text), claimed)
+    markers = {"url_contains": expected_url} if is_search_results_url(expected_url) else {}
+    verdict = evidence_verdict(markers, PageEvidence(url=url, text=text), claimed)
     if verdict.verdict == FAIL:
         return verdict.reason
     return ""
@@ -533,14 +622,17 @@ def shared_end_state(
     """
     claim = _grade_claim(answer, claimed)
     body = page_text or text
+    markers = _task_markers(task)
     checked, reason = deterministic_success(task, url, text)
     if checked is not None:
         if checked is True:
-            problem = _live_return_failure(url, body, claim)
+            problem = _live_return_failure(
+                url, body, claim,
+                expected_url=markers.get("url_contains") or task.get("check_url_contains") or "",
+            )
             if problem:
                 return False, problem
         return checked, reason
-    markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
     if not (markers or {}).get("answer_equals_selector"):
         return None, reason
 
@@ -618,7 +710,7 @@ def grade_observation(
     Runtime verdict gating is applied by the caller, above this page grade.
     """
     claim = _grade_claim(answer, claimed)
-    markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
+    markers = _task_markers(task)
     evidence = None
     evidence_reason = ""
     if markers:
