@@ -190,4 +190,4 @@ def test_evidence_storage_cap_and_empty():
 
 
 def test_all_selectable_arms_are_accounted_for():
-    assert set(SELECTABLE_ARMS) == {"playwright_mcp", "stagehand", "script_first", "browser_use"}
+    assert set(SELECTABLE_ARMS) == {"playwright_mcp", "stagehand", "script_first", "browser_use", "cascade"}

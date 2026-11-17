@@ -250,7 +250,7 @@ def honest_refusal(project_spent: float) -> str | None:
 
 def claude_budget_for(arms: tuple[str, ...]) -> float:
     """Probes containing script_first stop at $2; other arm sets stop at $5."""
-    if ARM_SCRIPT_FIRST in arms:
+    if ARM_SCRIPT_FIRST in arms or "cascade" in arms:
         return SCRIPT_FIRST_CLAUDE_BUDGET_USD
     return PROBE_CLAUDE_BUDGET_USD
 
@@ -599,6 +599,115 @@ async def _peek_snapshot(client, arm: str, url: str) -> tuple[str, float]:
     return await client.call_tool("browser_navigate", {"url": url})
 
 
+def script_result_row(task, result, harness, *, arm="script_first", provider="anthropic",
+                      openai_model=None, openai_effort=None):
+    from bench.harness import claim_from_step
+
+    last = result.steps[-1] if result.steps else None
+    final_url = last.page_url if last else ""
+    selector_text = last.selector_text if last else ""
+    claimed_answer = last.claimed_answer if last else ""
+    page_text = last.page_text if last else ""
+    # The same post-run page text for every arm. The snapshot is not the check.
+    graded_text = page_text
+    end_state = result.end_state or ""
+    # script_first has to end on its own PASS and pass the shared page
+    # check. Its returned URL, title, key text, and values go into that
+    # check. The other arms still cannot pass on TASK_COMPLETE alone.
+    run_verdict = end_state if arm == ARM_SCRIPT_FIRST else None
+    claimed = claim_from_step(last) if arm == ARM_SCRIPT_FIRST and last is not None else None
+    completed = None if arm == ARM_SCRIPT_FIRST else result.success
+    page_answer_ok, page_answer_reason = grade_page_answer(
+        task, final_url, graded_text, selector_text=selector_text,
+        answer=claimed_answer, claimed=claimed,
+    )
+    success, reason, substring_ok, substring_reason = grade_observation(
+        task,
+        final_url,
+        graded_text,
+        selector_text=selector_text,
+        answer=claimed_answer,
+        completed=completed,
+        completion_reason=result.success_reason,
+        run_verdict=run_verdict,
+        claimed=claimed,
+    )
+    usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
+    row = {
+        **measurement_fields(
+            browser_launch_ms=harness.browser_launch_ms, grade_read_ms=result.grade_read_ms,
+        ),
+        **grade_fields(final_url, graded_text, selector_text, claimed_answer),
+        "arm": arm,
+        "task_id": task["id"],
+        "success": success,
+        "success_reason": reason,
+        "end_state": end_state,
+        "grade_completed": completed,
+        "grade_completion_reason": result.success_reason,
+        "grade_claim": {
+            "url": claimed.url, "title": claimed.title, "h1": claimed.h1,
+            "answer": claimed.answer, "key_text": claimed.key_text,
+            "values": list(claimed.values), "rejected": claimed.rejected,
+        } if claimed is not None else None,
+        "page_answer_success": page_answer_ok,
+        "page_answer_reason": page_answer_reason,
+        "substring_success": substring_ok,
+        "substring_reason": substring_reason,
+        "skipped": False,
+        "wall_ms": result.total_wall_ms,
+        "steps": result.total_steps,
+        "input_tokens": result.total_input_tokens,
+        "output_tokens": result.total_output_tokens,
+        "usd": usd,
+        "model_ignores_tools": result.model_ignores_tools,
+        "no_model": result.tier == "cache_hit" and result.model_calls == 0,
+        "replay_hit": result.tier == "cache_hit",
+        "tier": result.tier,
+        "model_calls": result.model_calls,
+        "script_steps": result.script_steps,
+        "claude": True,
+        "claimed_answer": claimed_answer,
+        "final_url": final_url,
+        "final_title": last.page_title if last else "",
+        "expected_value": selector_text,
+    }
+    if arm == ARM_SCRIPT_FIRST:
+        row["scripts"] = [
+            step.tool_args["code"]
+            for step in result.steps
+            if step.tool_name == "run_script"
+            and isinstance(step.tool_args, dict)
+            and isinstance(step.tool_args.get("code"), str)
+        ]
+        row["repair_sent"] = result.repair_sent
+        row["repair_reply"] = result.repair_reply
+        row["script_turns"] = result.script_turns
+        # Every script's self-check inputs and verdict, for offline replay.
+        row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
+        row["task_description"] = task.get("description") or ""
+        row["start_url"] = task.get("start_url") or ""
+    if provider == "openai":
+        from bench.openai_spend import price_usd
+
+        row["usd"] = price_usd(
+            openai_model or "",
+            result.total_input_tokens,
+            result.total_output_tokens,
+            result.total_cached_tokens,
+            result.total_cache_write_30m_tokens,
+            result.total_cache_write_12h_tokens,
+        )
+        row["claude"] = False
+        row["provider"] = "openai"
+        row["model"] = openai_model
+        row["effort"] = openai_effort
+        row["cached_tokens"] = result.total_cached_tokens
+        row["cache_write_30m_tokens"] = result.total_cache_write_30m_tokens
+        row["cache_write_12h_tokens"] = result.total_cache_write_12h_tokens
+    return row
+
+
 async def run_claude_arm(
     arm: str,
     task: dict,
@@ -667,109 +776,8 @@ async def run_claude_arm(
             check_url_contains=task.get("check_url_contains") or "",
         )
         wall_ms = result.total_wall_ms
-        last = result.steps[-1] if result.steps else None
-        final_url = last.page_url if last else ""
-        selector_text = last.selector_text if last else ""
-        claimed_answer = last.claimed_answer if last else ""
-        page_text = last.page_text if last else ""
-        # The same post-run page text for every arm. The snapshot is not the check.
-        graded_text = page_text
-        end_state = result.end_state or ""
-        # script_first has to end on its own PASS and pass the shared page
-        # check. Its returned URL, title, key text, and values go into that
-        # check. The other arms still cannot pass on TASK_COMPLETE alone.
-        run_verdict = end_state if arm == ARM_SCRIPT_FIRST else None
-        claimed = claim_from_step(last) if arm == ARM_SCRIPT_FIRST and last is not None else None
-        completed = None if arm == ARM_SCRIPT_FIRST else result.success
-        page_answer_ok, page_answer_reason = grade_page_answer(
-            task, final_url, graded_text, selector_text=selector_text,
-            answer=claimed_answer, claimed=claimed,
-        )
-        success, reason, substring_ok, substring_reason = grade_observation(
-            task,
-            final_url,
-            graded_text,
-            selector_text=selector_text,
-            answer=claimed_answer,
-            completed=completed,
-            completion_reason=result.success_reason,
-            run_verdict=run_verdict,
-            claimed=claimed,
-        )
-        usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
-        row = {
-            **measurement_fields(
-                browser_launch_ms=harness.browser_launch_ms, grade_read_ms=result.grade_read_ms,
-            ),
-            **grade_fields(final_url, graded_text, selector_text, claimed_answer),
-            "arm": arm,
-            "task_id": task["id"],
-            "success": success,
-            "success_reason": reason,
-            "end_state": end_state,
-            "grade_completed": completed,
-            "grade_completion_reason": result.success_reason,
-            "grade_claim": {
-                "url": claimed.url, "title": claimed.title, "h1": claimed.h1,
-                "answer": claimed.answer, "key_text": claimed.key_text,
-                "values": list(claimed.values), "rejected": claimed.rejected,
-            } if claimed is not None else None,
-            "page_answer_success": page_answer_ok,
-            "page_answer_reason": page_answer_reason,
-            "substring_success": substring_ok,
-            "substring_reason": substring_reason,
-            "skipped": False,
-            "wall_ms": result.total_wall_ms,
-            "steps": result.total_steps,
-            "input_tokens": result.total_input_tokens,
-            "output_tokens": result.total_output_tokens,
-            "usd": usd,
-            "model_ignores_tools": result.model_ignores_tools,
-            "no_model": result.tier == "cache_hit" and result.model_calls == 0,
-            "replay_hit": result.tier == "cache_hit",
-            "tier": result.tier,
-            "model_calls": result.model_calls,
-            "script_steps": result.script_steps,
-            "claude": True,
-            "claimed_answer": claimed_answer,
-            "final_url": final_url,
-            "final_title": last.page_title if last else "",
-            "expected_value": selector_text,
-        }
-        if arm == ARM_SCRIPT_FIRST:
-            row["scripts"] = [
-                step.tool_args["code"]
-                for step in result.steps
-                if step.tool_name == "run_script"
-                and isinstance(step.tool_args, dict)
-                and isinstance(step.tool_args.get("code"), str)
-            ]
-            row["repair_sent"] = result.repair_sent
-            row["repair_reply"] = result.repair_reply
-            row["script_turns"] = result.script_turns
-            # Every script's self-check inputs and verdict, for offline replay.
-            row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
-            row["task_description"] = task.get("description") or ""
-            row["start_url"] = task.get("start_url") or ""
-        if provider == "openai":
-            from bench.openai_spend import price_usd
-
-            row["usd"] = price_usd(
-                openai_model or "",
-                result.total_input_tokens,
-                result.total_output_tokens,
-                result.total_cached_tokens,
-                result.total_cache_write_30m_tokens,
-                result.total_cache_write_12h_tokens,
-            )
-            row["claude"] = False
-            row["provider"] = "openai"
-            row["model"] = openai_model
-            row["effort"] = openai_effort
-            row["cached_tokens"] = result.total_cached_tokens
-            row["cache_write_30m_tokens"] = result.total_cache_write_30m_tokens
-            row["cache_write_12h_tokens"] = result.total_cache_write_12h_tokens
-        return row
+        return script_result_row(task, result, harness, arm=arm, provider=provider,
+                                 openai_model=openai_model, openai_effort=openai_effort)
     except Exception as exc:
         from bench.openai_spend import PriceUnknown
 
@@ -923,14 +931,19 @@ async def _run_one(
     if blocked:
         return empty_row(arm, task["id"], reason=blocked), probe_spent
     extra = {"script_cache": script_cache} if script_cache is not None and arm == ARM_SCRIPT_FIRST else {}
-    row = await run_claude_arm(
-        arm,
-        task,
-        api_key=api_key,
-        headless=headless,
-        runs_dir=destination,
-        **extra,
-    )
+    if arm == "cascade":
+        from bench.cascade import run_cascade_task
+
+        row = await run_cascade_task(task, api_key=api_key, headless=headless, runs_dir=destination)
+    else:
+        row = await run_claude_arm(
+            arm,
+            task,
+            api_key=api_key,
+            headless=headless,
+            runs_dir=destination,
+            **extra,
+        )
     if row.get("claude") and (row["input_tokens"] or row["output_tokens"]):
         ledger.record_task(
             run_id="probe",

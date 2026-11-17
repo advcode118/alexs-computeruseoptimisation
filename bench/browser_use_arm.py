@@ -337,6 +337,8 @@ async def run_browser_use_task(
     loader=None,
     provider: str = "anthropic",
     effort: str | None = None,
+    external_browser=None,
+    task_text_override: str | None = None,
 ) -> dict:
     """One task. Local Chrome, bench model. No cloud browser and no gateway model."""
     if provider == "openai":
@@ -368,11 +370,12 @@ async def run_browser_use_task(
     started = None
     launch_start = None
     run_finished = False
-    browser = None
+    browser = external_browser
     try:
         agent_cls, browser_cls, llm_cls = loader() if loader is not None else load_browser_use() if provider != "openai" else load_browser_use(provider)
         launch_start = time.perf_counter()
-        browser = browser_cls(LOCAL_BROWSER, headless=headless, keep_alive=True)
+        if browser is None:
+            browser = browser_cls(LOCAL_BROWSER, headless=headless, keep_alive=True)
         await browser.start()
         row["browser_launch_ms"] = (time.perf_counter() - launch_start) * 1000
         started = time.perf_counter()
@@ -381,7 +384,7 @@ async def run_browser_use_task(
         mode = os.environ.get("CU_BU_MODE", "").strip()
         extra = {"mode": mode} if mode else {}
         agent = agent_cls(
-            task_text(task),
+            task_text(task) if task_text_override is None else task_text_override,
             llm=llm,
             browser=browser,
             web_search=False,
@@ -389,6 +392,8 @@ async def run_browser_use_task(
             **extra,
         )
         result = await agent.run(max_steps=BROWSER_USE_MAX_STEPS)
+        if external_browser is not None:
+            row["_run_finished_at"] = time.perf_counter()
         row["wall_ms"] = (time.perf_counter() - started) * 1000
         run_finished = True
         grade_start = time.perf_counter()
@@ -436,20 +441,31 @@ async def run_browser_use_task(
             row["cache_write_30m_tokens"] = written
             row["cache_write_12h_tokens"] = 0
         return row
-    except ImportError:
-        row["skipped"] = True
-        row["success_reason"] = f"browser-use=={BROWSER_USE_VERSION} is not installed"
-        return row
     except Exception as exc:
         from bench.openai_spend import PriceUnknown
 
         if isinstance(exc, PriceUnknown):
             raise
+        if isinstance(exc, ImportError) and external_browser is None:
+            row["skipped"] = True
+            row["success_reason"] = f"browser-use=={BROWSER_USE_VERSION} is not installed"
+            return row
         row["success_reason"] = f"browser_use run failed: {type(exc).__name__}"
+        if external_browser is not None:
+            row["_run_finished_at"] = time.perf_counter()
+            row["wall_ms"] = (time.perf_counter() - started) * 1000 if started else 0.0
+            run_finished = True
+            grade_start = time.perf_counter()
+            url, text, selector_text = await read_page(browser, selector=_task_selector(task))
+            row["grade_read_ms"] = (time.perf_counter() - grade_start) * 1000
+            row.update(grade_fields(url, text, selector_text, ""))
+            row["success"], row["grade_error_reason"] = _judge(task, url, text, selector_text=selector_text)
+            row["page_url"] = url
         return row
     finally:
         if started is None and launch_start is not None:
             row["browser_launch_ms"] = (time.perf_counter() - launch_start) * 1000
         elif started is not None and not run_finished:
             row["wall_ms"] = (time.perf_counter() - started) * 1000
-        await _stop(browser)
+        if external_browser is None:
+            await _stop(browser)
