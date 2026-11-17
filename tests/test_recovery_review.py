@@ -53,3 +53,18 @@ def test_implicit_submit_checks_default_button(script):
 ])
 def test_verification_is_not_commit_intent(description, approval):
     assert classify_task(description, {}).needs_approval is approval
+
+
+@pytest.mark.parametrize('key', ['Tab', 'Escape', 'ArrowDown', 'Enter', 'Space'])
+def test_unfocused_global_keyboard(key):
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.set_content('<input aria-label="Query">')
+            payload = json.loads((await run_on_page(page, f'page.keyboard.press("{key}")')).splitlines()[0])
+            assert payload['ok'], payload.get('error')
+            if key == 'Tab':
+                assert await page.get_by_label('Query').evaluate('el => el === document.activeElement')
+            await browser.close()
+    asyncio.run(run())

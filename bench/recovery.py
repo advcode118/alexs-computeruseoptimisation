@@ -265,7 +265,11 @@ class ActionGate:
                     locator = candidate
                     break
         elif action.finder == "keyboard":
-            locator = page.locator(":focus") if hasattr(page, "locator") else None
+            if op != "press" or action.value.split('+')[-1].lower() not in {'enter', 'space', ' '}:
+                return True, "global keyboard action"
+            locator = page.locator(":focus")
+            if not await locator.count():
+                return True, "no focused control"
         elif action.finder == "page":
             locator = page.locator(action.name) if hasattr(page, "locator") else None
         else:
