@@ -6,6 +6,9 @@ from playwright.async_api import async_playwright
 
 from bench.recovery import ActionGate, classify_task
 from bench.script_first import run_on_page
+from bench.harness import self_check_record
+from bench.recovery import evaluate_checkpoints, plan_checkpoints
+from types import SimpleNamespace
 
 
 @pytest.mark.parametrize('script', [
@@ -68,3 +71,11 @@ def test_unfocused_global_keyboard(key):
                 assert await page.get_by_label('Query').evaluate('el => el === document.activeElement')
             await browser.close()
     asyncio.run(run())
+
+
+def test_filled_checkpoint_survives_self_check_record():
+    payload = {'url': 'https://example.org/', 'controls': [{'role': 'textbox', 'name': 'Query', 'value': 'Guide'}]}
+    record = self_check_record(payload, payload['url'], payload['url'], SimpleNamespace(verdict='PASS', reason=''))
+    checkpoints = plan_checkpoints('Fill "Guide"', classify_task('Fill "Guide"', {}))
+    assert all(result['passed'] for result in evaluate_checkpoints(checkpoints, record['payload']))
+    assert 'controls' not in record['payload']

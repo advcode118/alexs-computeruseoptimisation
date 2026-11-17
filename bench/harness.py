@@ -403,6 +403,11 @@ def self_check_record(payload: dict | None, page_url: str, start_url: str, verdi
     Logged on the probe row only. Controls are dropped to keep rows small.
     """
     data = {k: v for k, v in (payload or {}).items() if k != "controls"} if isinstance(payload, dict) else {}
+    filled = [item['value'] for item in (payload or {}).get('controls', [])
+              if isinstance(item, dict) and item.get('role') in {'textbox', 'searchbox', 'combobox'}
+              and isinstance(item.get('value'), str) and item['value']]
+    if filled:
+        data['filled_values'] = filled
     return {
         "payload": data,
         "page_url": page_url or "",

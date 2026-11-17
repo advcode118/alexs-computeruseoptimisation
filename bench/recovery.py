@@ -137,6 +137,7 @@ def evaluate_checkpoints(checkpoints: list[dict], evidence: dict) -> list[dict]:
         elif kind == "text_present":
             claimed = evidence.get('claimed') or {}
             candidates = [claimed.get('answer', '')]
+            candidates.extend(evidence.get('filled_values', []))
             candidates.extend(item.get('value', '') for item in evidence.get('controls', []) if isinstance(item, dict))
             passed = any(value.casefold() in str(candidate).casefold() for candidate in candidates)
         elif kind == "element_present":
