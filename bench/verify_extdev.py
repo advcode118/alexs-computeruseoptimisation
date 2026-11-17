@@ -19,7 +19,8 @@ from urllib.parse import urlsplit
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError, async_playwright
 
 from bench.ext_sample import effective_authoring_decisions
-from bench.script_first import ClaimedEvidence, collect_page_evidence, evidence_verdict
+from bench import grade as frozen_grade
+from bench.script_first import collect_page_evidence
 from bench.tasks import tasks_for_split
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -144,8 +145,18 @@ async def grade(page, task, answer):
             timeout=15000,
         )
     evidence = await collect_page_evidence(page)
-    verdict = evidence_verdict(task["end_markers"], evidence, ClaimedEvidence(answer=answer))
-    return verdict.verdict, verdict.reason
+    ok, reason, *_ = frozen_grade.grade_observation(task, evidence.url, evidence.text, answer=answer)
+    return ("PASS" if ok else "FAIL"), reason
+
+
+def reference_answer(task):
+    return task.get("full_answer", task["expected_answer"])
+
+
+def synthetic_reference(task, final_url):
+    answer = reference_answer(task)
+    text = "\n".join(task.get("answer_parts") or [answer])
+    return frozen_grade.grade_observation(task, final_url, text, answer=answer)
 
 
 def negative_url(task, final_url):
@@ -171,7 +182,7 @@ async def verify_task(browser, task, final_url):
             await page.get_by_text("By Current Players", exact=True).click()
             await page.get_by_text("By Daily Players", exact=True).click()
             await settle(page)
-        verdict, reason = await grade(page, task, task["expected_answer"])
+        verdict, reason = await grade(page, task, reference_answer(task))
         row["key"] = verdict == "PASS"
         if not row["key"]:
             row["errors"].append(f"key: {verdict}: {reason}")
@@ -181,7 +192,7 @@ async def verify_task(browser, task, final_url):
         if verdict != "FAIL":
             row["errors"].append(f"wrong value: {verdict}: {reason}")
         await goto(page, negative_url(task, final_url))
-        verdict, reason = await grade(page, task, task["expected_answer"])
+        verdict, reason = await grade(page, task, reference_answer(task))
         row["negatives"].append(verdict == "FAIL")
         if verdict != "FAIL":
             row["errors"].append(f"start-page decoy: {verdict}: {reason}")
@@ -196,7 +207,7 @@ async def verify_task(browser, task, final_url):
         row["reproducer"] = False
         try:
             await reproduce(page, task)
-            verdict, reason = await grade(page, task, task["expected_answer"])
+            verdict, reason = await grade(page, task, reference_answer(task))
             row["reproducer"] = verdict == "PASS"
             if verdict != "PASS":
                 row["errors"].append(f"reproducer: {verdict}: {reason}")

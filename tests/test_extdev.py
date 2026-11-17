@@ -10,7 +10,7 @@ import pytest
 
 from bench.browser_use_arm import task_text
 from bench.ext_sample import QUOTAS, SOURCES, authoring_reserve, effective_authoring_decisions, task_fingerprint
-from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
+from bench.grade import ClaimedEvidence, PageEvidence, evidence_verdict, grade_observation
 from bench.tasks import EXTDEV_TASK_IDS, get_all_tasks, resolve_task_split, task_message, tasks_for_split
 from tests.test_dev3 import registrable
 
@@ -141,19 +141,21 @@ def test_authoring_history_replays_quotas_rank_order_and_accepted_only_caps():
 
 @pytest.mark.parametrize("task", tasks_for_split("extdev"), ids=lambda t: t["id"])
 def test_existing_grader_normal_empty_wrong_and_decoy_cases(task):
-    from bench.verify_extdev import negative_url
+    from bench.verify_extdev import negative_url, reference_answer, synthetic_reference
 
     final = next(r["final_url"] for r in effective_authoring_decisions(read("authoring_extdev.jsonl")) if r.get("task_id") == task["id"])
-    evidence = PageEvidence(url=final, text=task["expected_answer"])
-    markers = task["end_markers"]
-    claim = ClaimedEvidence(answer=task["expected_answer"])
-    assert evidence_verdict(markers, evidence, claim).verdict == "PASS"
-    assert evidence_verdict(markers, evidence, ClaimedEvidence()).verdict == "FAIL"
-    assert evidence_verdict(markers, evidence, ClaimedEvidence(answer="Wrong value")).verdict == "FAIL"
-    assert evidence_verdict(markers, PageEvidence(url=negative_url(task, final), text=task["expected_answer"]), claim).verdict == "FAIL"
-    assert evidence_verdict(markers, PageEvidence(), ClaimedEvidence()).verdict == "FAIL"
-    # Unchecked audit text is deliberately not read by the grader.
-    assert all(fragment not in markers.values() for fragment in task["unchecked_fragments"])
+    text = "\n".join(task.get("answer_parts") or [reference_answer(task)])
+    assert synthetic_reference(task, final)[0] is True
+    assert grade_observation(task, final, text, answer="")[0] is False
+    assert grade_observation(task, final, text, answer="Wrong value")[0] is False
+    assert grade_observation(task, negative_url(task, final), text, answer=reference_answer(task))[0] is False
+    assert grade_observation(task, "", "", answer="")[0] is False
+    if task.get("url_answer_ok"):
+        assert task["kind"] == "nav"
+        assert grade_observation(task, final, text, answer=final)[0] is True
+    if "answer_parts" in task:
+        assert task["answer_parts"] == [task["expected_answer"], *task["unchecked_fragments"]]
+        assert task["full_answer"] == "; ".join(task["answer_parts"])
 
 
 def test_corrected_keys_preserve_history_and_query_parameter_order():
@@ -168,10 +170,24 @@ def test_corrected_keys_preserve_history_and_query_parameter_order():
     assert evidence_verdict(task["end_markers"], evidence, ClaimedEvidence(answer=task["expected_answer"])).verdict == "PASS"
 
 
+def test_new_answer_keys_only_reuse_authored_values_and_conservative_page_flags():
+    tasks = tasks_for_split("extdev")
+    assert sum("answer_parts" in t for t in tasks) == 30
+    assert sum("full_answer" in t for t in tasks) == 32
+    flagged = {t["id"].removeprefix("extdev_nav_") for t in tasks if t.get("url_answer_ok")}
+    assert flagged == {"ronaldo_world_cup_stats", "nets_schedule", "spothero_marketing",
+                       "eventbrite_planning", "commuter_benefits"}
+    for task in tasks:
+        if "full_answer" in task:
+            assert task["full_answer"] == "; ".join(task.get("answer_parts") or [task["expected_answer"]])
+        if task.get("url_answer_ok"):
+            assert task["kind"] == "nav"
+
+
 def test_prompt_boundary_selects_only_description_and_start_url():
     task = dict(tasks_for_split("extdev")[0])
     expected = task_message(task["description"], task["start_url"])
-    for field in ("end_markers", "source", "source_id", "licence", "text_edits", "reproducer", "key_scope", "unchecked_fragments"):
+    for field in ("end_markers", "source", "source_id", "licence", "text_edits", "reproducer", "key_scope", "unchecked_fragments", "full_answer", "answer_parts", "url_answer_ok"):
         task[field] = "PRIVATE_JUDGE_ONLY_SENTINEL"
     assert task_text(task) == expected
     assert "PRIVATE_JUDGE_ONLY_SENTINEL" not in task_text(task)

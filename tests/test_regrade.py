@@ -8,6 +8,12 @@ import pytest
 from bench import grade, regrade
 
 
+def test_prohibited_sources_are_filtered_before_read_or_import():
+    assert regrade.allowed_source("docs/results/extdev/raw.jsonl")
+    assert not regrade.allowed_source("docs/results/candidates_heldout4.jsonl")
+    assert not regrade.allowed_source("bench/tasks_HELDOUT4.py")
+
+
 @pytest.fixture
 def catalog():
     return {

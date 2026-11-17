@@ -10,6 +10,22 @@ All numbers below come from the PR descriptions or from the saved probe logs (`b
 
 Make computer use faster than the competition. The bar is Stagehand-class wall time per successful task, with a success rate no more than about 2 points below the stronger baseline. Tom's own approach is **script_first**: the model writes one Playwright script for the whole task, the harness runs it, and the end state is judged. Plain Playwright MCP (many small tool calls) and Stagehand are the baselines.
 
+## 17 Nov 2026 — authored extdev keys and offline re-grade
+
+After the key-driven grader update (SHA256 `7ff695b598c715cf5cc4426b77827819ec374b23699ca08d5ad881ca21a97e24`),
+35 extdev tasks gained optional full-reference/parts/URL-answer keys derived only
+from descriptions and authored provenance, locked before consulting arm answers.
+All 40 reference keys pass synthetically; missing facts and multi-page limitations
+remain explicit. Replaying 131 saved attempts gives paired BU default/ultrafast
+5/22 each, script_first 1/22, cascade 4/22; ultrafast full catalog 6/40.
+Ten outcomes flip FAIL→PASS; smoke is unchanged and MCP still has zero valid rows.
+Cascade misses the best baseline by 4.55 pp, so fails the within-2-pp criterion
+despite its 169 ms lower mean wall time. Fifty older sources and their 31 existing
+flips are unchanged against the previous re-grade. No paid runs or ledger changes:
+total remains $6.277727. Original results remain labelled with the old grader.
+See [key audit](results/extdev_control_20261117/KEY_CHANGES.md) and
+[paired re-grade](results/extdev_control_20261117/README.md).
+
 ## 17 Nov 2026 — extdev control replicate 1 and offline audit
 
 Sol medium, browser-use 1.0.6 / MCP 0.0.84: 22 paired attempted tasks (11 sites),

@@ -754,4 +754,31 @@ EXTDEV_TASKS = [{'id': 'extdev_filter_greatamerica_thrill',
                       'rule': 'website-name to homepage mapping in mind2web_homepages.json',
                       'original': 'airbnb'}]}]
 
+_MULTIPART_VALUES = {
+    'nba_2021_leaders', 'icse_2004_chair', 'icse_duplicate_statement',
+    'icse_2002_chairs', 'rovio_anniversary', 'apec_tourism_actions',
+    'hf_tei_strengths', 'pirate_treasures', 'ironhide_historical_games',
+    'ironhide_arcade_gdc', 'cambridge_euphoria', 'hf_pytorch_tensorflow',
+    'cambridge_gestalt', 'cambridge_innovate',
+}
+_MULTIPART_NAV = {
+    'ronaldo_world_cup_stats', 'fiestatexas_events', 'spothero_marketing',
+    'steam_daily_players',
+}
+_PAGE_NAV = {
+    'ronaldo_world_cup_stats', 'nets_schedule', 'spothero_marketing',
+    'eventbrite_planning', 'commuter_benefits',
+}
+
+for _task in EXTDEV_TASKS:
+    _name = _task['id'].split('_', 2)[2]
+    if (_task['kind'] in {'filter', 'spa', 'search'}
+            or _name in _MULTIPART_VALUES or _name in _MULTIPART_NAV):
+        _task['answer_parts'] = [_task['expected_answer'], *_task['unchecked_fragments']]
+        _task['full_answer'] = '; '.join(_task['answer_parts'])
+    elif _task['key_scope'] == 'partial':
+        _task['full_answer'] = _task['expected_answer']
+    if _name in _PAGE_NAV:
+        _task['url_answer_ok'] = True
+
 EXTDEV_TASK_IDS = tuple(task["id"] for task in EXTDEV_TASKS)
