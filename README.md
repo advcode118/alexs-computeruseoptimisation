@@ -40,17 +40,30 @@ Low-call design, signed off:
 - Draft [PR #106](https://github.com/advcode118/alexs-computeruseoptimisation/pull/106): `run_recovery` stage, per-stage model-call counts, `--fallback none`; offline, **1132 passed, 1 skipped**.
 - Open [PR #105](https://github.com/advcode118/alexs-computeruseoptimisation/pull/105): Sol model/effort comparison.
 
-## Best number
+## Our best number
 
-**8/12 (66.7%) AI-labelled correct** — browser_use, **gpt-6.1-sol**, medium effort, on the 12-task extdev subset `probe_tasks("extdev")[::3][:12]`, **1 cold run**. Frozen grader: **2/12**. Cost: **$0.083571/task ($1.002848 total)**. Source: [PR #105](https://github.com/advcode118/alexs-computeruseoptimisation/pull/105).
+**4/22 (18.2%) — cascade (script_first → browser_use fallback).** On the 22 paired extdev tasks (of 40; 18 budget-skipped), **gpt-6.1-sol medium**, **1 replicate**, offline re-grade under grader `7ff695b5…`. **$0.050565/attempt**, mean wall **25.1 s**, p90 **38.1 s**.
 
-Exact command (recorded invocation, not a request to run):
+3 of the 4 passes came from the browser_use fallback; script_first alone: 1/22, $0.009620/attempt, mean 10.3 s.
+
+**Baseline on the same 22 tasks, same replicate (separate ultrafast invocation): browser_use ultrafast 5/22 (22.7%), $0.053288/attempt, mean 25.3 s — we are one task behind it.**
+
+Source: [extdev control results](docs/results/extdev_control_20261117/README.md).
+
+Recorded execution and offline re-grade commands (not a request to run):
 
 ```bash
-CU_BU_MODE= PYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.1-sol --effort medium --output-root docs/results/extdev_sol_effort_20261117 --spend-baseline 8.583958 --spend-limit 3 --run-cap 1.25 --headroom 0.5
+export CU_OPENAI_SPEND_LEDGER="$HOME/.cu-optimisation/openai-spend-alex15.json"
+export CU_OPENAI_PROJECT_BUDGET_USD=9.00
+export CU_OPENAI_RUN_BUDGET_USD=3.00
+unset CU_BU_MODE
+python tools/extdev_control.py --mode default --execute
+unset OPENAI_API_KEY ANTHROPIC_API_KEY
+.venv/bin/python tools/regrade.py --out docs/results/regrade_20261117
+.venv/bin/python docs/results/extdev_control_20261117/regrade_extdev.py
 ```
 
-AI labels are not human ground truth; frozen grader under-counts (fix is step 1); model calls not yet counted (PR #106 adds it); heldout3 numbers are retired and not shown.
+Model calls counted for the script stage only (PR #106 adds full per-stage counts); keys are literal, not human-verified; heldout3 retired and not shown.
 
 <details>
 <summary><b>Working on this repo</b></summary>

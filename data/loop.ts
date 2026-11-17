@@ -72,8 +72,11 @@ export const CURRENT_UPDATE = {
       body: "Sol model/effort comparison.",
     },
   ],
-  command: "CU_BU_MODE= PYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.1-sol --effort medium --output-root docs/results/extdev_sol_effort_20261117 --spend-baseline 8.583958 --spend-limit 3 --run-cap 1.25 --headroom 0.5",
-  caveat: "AI labels are not human ground truth; frozen grader under-counts (fix is step 1); model calls not yet counted (PR #106 adds it); heldout3 numbers are retired and not shown.",
+  result: "Cascade = script_first → browser_use fallback. On the 22 paired extdev tasks (of 40; 18 budget-skipped), gpt-6.1-sol medium, 1 replicate, offline re-grade under grader 7ff695b5…. $0.050565/attempt, mean wall 25.1 s, p90 38.1 s.",
+  stages: "3 of the 4 passes came from the browser_use fallback; script_first alone: 1/22, $0.009620/attempt, mean 10.3 s.",
+  baseline: "Baseline on the same 22 tasks, same replicate (separate ultrafast invocation): browser_use ultrafast 5/22 (22.7%), $0.053288/attempt, mean 25.3 s — we are one task behind it.",
+  command: "export CU_OPENAI_SPEND_LEDGER=\"$HOME/.cu-optimisation/openai-spend-alex15.json\"\nexport CU_OPENAI_PROJECT_BUDGET_USD=9.00\nexport CU_OPENAI_RUN_BUDGET_USD=3.00\nunset CU_BU_MODE\npython tools/extdev_control.py --mode default --execute\nunset OPENAI_API_KEY ANTHROPIC_API_KEY\n.venv/bin/python tools/regrade.py --out docs/results/regrade_20261117\n.venv/bin/python docs/results/extdev_control_20261117/regrade_extdev.py",
+  caveat: "Model calls counted for the script stage only (PR #106 adds full per-stage counts); keys are literal, not human-verified; heldout3 retired and not shown.",
 };
 
 export const SCALE_PAD = 10;

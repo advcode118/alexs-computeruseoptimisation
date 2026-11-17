@@ -165,15 +165,15 @@ export function Sheet() {
             </div>
           </div>
           <div className="mt-10 border-y border-line py-8">
-            <h3 className="font-mono text-[11px] tracking-[0.22em] text-lime uppercase">Best number · benchmark baseline</h3>
-            <p className="mt-4 font-serif text-5xl tracking-[-0.03em] sm:text-6xl">8/12 (66.7%) <span className="text-2xl text-muted">AI-labelled correct</span></p>
-            <p className="mt-5 leading-relaxed text-muted">
-              browser_use · <strong className="text-paper">gpt-6.1-sol</strong> · medium effort · <strong className="text-paper">1 cold run</strong>.
-              {" "}12-task extdev subset: <code className="break-all">{'probe_tasks("extdev")[::3][:12]'}</code>.
-              {" "}Frozen grader: 2/12. $0.083571/task ($1.002848 total).
-              {" "}Source: <a className="text-amber underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/pull/105">PR #105</a>.
+            <h3 className="font-mono text-[11px] tracking-[0.22em] text-lime uppercase">Our best number</h3>
+            <p className="mt-4 font-serif text-5xl tracking-[-0.03em] sm:text-6xl">4/22 (18.2%) <span className="text-2xl text-muted">cascade</span></p>
+            <p className="mt-5 leading-relaxed text-muted">{CURRENT_UPDATE.result}</p>
+            <p className="mt-4 leading-relaxed text-muted">{CURRENT_UPDATE.stages}</p>
+            <p className="mt-4 leading-relaxed text-muted"><strong className="text-paper">{CURRENT_UPDATE.baseline}</strong></p>
+            <p className="mt-4 leading-relaxed text-muted">
+              Source: <a className="text-amber underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/blob/main/docs/results/extdev_control_20261117/README.md">extdev control results</a>.
             </p>
-            <p className="mt-5 font-mono text-xs text-muted">Exact command · recorded invocation, not a request to run</p>
+            <p className="mt-5 font-mono text-xs text-muted">Recorded execution and offline re-grade commands · not a request to run</p>
             <pre className="mt-3 whitespace-pre-wrap break-all border border-line p-4 font-mono text-xs leading-relaxed"><code>{CURRENT_UPDATE.command}</code></pre>
             <p className="mt-4 text-sm leading-relaxed text-muted">{CURRENT_UPDATE.caveat}</p>
           </div>
