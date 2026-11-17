@@ -1052,6 +1052,9 @@ class BenchmarkHarness:
             return passed, verdict, payload
 
         passed, verdict, payload = await run(entry.script)
+        if getattr(getattr(self.mcp_client, 'gate', None), 'blocked', None) or payload.get('blocked_actions'):
+            outcome['blocked'] = True
+            return outcome
         live_fp = fingerprint_from_payload(payload, start_url)
         if passed and live_fp == entry.fingerprint:
             outcome["tier"] = TIER_CACHE_HIT
@@ -1105,6 +1108,9 @@ class BenchmarkHarness:
                 patched = ""
         if patched:
             passed, verdict, patched_payload = await run(patched, model_ms, input_tokens, output_tokens)
+            if getattr(getattr(self.mcp_client, 'gate', None), 'blocked', None) or patched_payload.get('blocked_actions'):
+                outcome['blocked'] = True
+                return outcome
             if passed:
                 cache.save(
                     task_description,
@@ -1251,6 +1257,7 @@ class BenchmarkHarness:
         last_verdict = None
         markers: dict = {}
         tier = ""
+        cached_blocked = False
         model_calls = 0
         script_steps = 0
         passing_code = ""
@@ -1303,7 +1310,15 @@ class BenchmarkHarness:
                 total_cache_write_30m_tokens += int(cached.get("cache_write_30m_tokens") or 0)
                 total_cache_write_12h_tokens += int(cached.get("cache_write_12h_tokens") or 0)
                 model_calls += cached["model_calls"]
-                if cached["tier"]:
+                if cached.get('blocked'):
+                    cached_blocked = True
+                    last_verdict = cached['verdict']
+                    end_state = UNKNOWN
+                    success = False
+                    success_reason = 'UNKNOWN: needs approval: blocked action'
+                    script_steps = cached['script_steps']
+                    last_url = cached['page_url']
+                elif cached["tier"]:
                     tier = cached["tier"]
                     last_verdict = cached["verdict"]
                     end_state = PASS
@@ -1313,7 +1328,7 @@ class BenchmarkHarness:
                     last_url = cached["page_url"]
             step_base = len(steps)
 
-            while not tier and step_num < turn_limit:
+            while not tier and not cached_blocked and step_num < turn_limit:
                 step_num += 1
 
                 self._begin_browser_launch()
