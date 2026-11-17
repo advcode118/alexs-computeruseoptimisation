@@ -33,3 +33,12 @@ def test_collect_and_audit(tmp_path):
 def test_empty_audit():
     groups, blocked, rejected, failures = asyncio.run(audit([], {}))
     assert not groups and not blocked and not rejected and not failures
+
+
+def test_runtime_evaluate_blocks_are_gate_decisions():
+    script = SavedScript('tests/fixtures/runtime.json:1', 'read',
+                         'page.goto("https://example.org/"); page.evaluate(() => document.forms[0].submit()); page.title()')
+    groups, blocked, rejected, failures = asyncio.run(audit([script], {'https://example.org/': '<form method="post"></form>'}))
+    assert sum(counts['blocked'] for counts in groups.values()) == 1
+    assert len(blocked) == 1 and 'POST submission' in blocked[0]
+    assert not rejected and not failures

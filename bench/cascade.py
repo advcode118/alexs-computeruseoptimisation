@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 from bench.script_first import task_asks_value, task_terms
-from bench.recovery import ActionGate, classify_task, evaluate_checkpoints, plan_checkpoints
+from bench.recovery import configure_gate, classify_task, evaluate_checkpoints, plan_checkpoints
 
 
 class _GroundingParser(HTMLParser):
@@ -203,7 +203,7 @@ async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="
         grounding = await asyncio.to_thread(ground_start_page, task["start_url"], description=task["description"])
         grounding_ms = (time.perf_counter() - started) * 1000
         profile = classify_task(task["description"], grounding)
-        harness.mcp_client.gate = ActionGate(description=task["description"], profile=profile)
+        gate = configure_gate(harness.mcp_client, description=task["description"], profile=profile)
         checkpoints = plan_checkpoints(task, profile)
         script_start = time.perf_counter()
         result = await harness.run_task(task["id"], task["description"], task["start_url"], first_message_extra=grounding_note(grounding))
@@ -211,16 +211,18 @@ async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="
         script = script_result_row(task, result, harness, provider=provider,
                                    openai_model=harness.model, openai_effort=harness.effort)
         checks = script.get("self_checks") or []
-        blocked = [action for check in checks for action in (check.get("payload") or {}).get("blocked_actions", [])]
+        blocked = gate.blocked
         accept, reason = precision_check(task["description"], checks[-1] if checks else {})
         if blocked:
             accept, reason = False, "needs approval: blocked action"
+        elif profile.needs_approval:
+            accept, reason = False, "needs approval: task profile"
         row = dict(script)
         browser_ms = 0.0
         recovery = {}
         answered = "script" if accept else "none"
         finished = script_end
-        if not accept and not blocked and fallback == "browser_use":
+        if not accept and not blocked and not profile.needs_approval and fallback == "browser_use":
             recovery, browser_start = await run_recovery(
                 task, harness=harness, script=script, result=result, reason=reason,
                 row=row, api_key=api_key, headless=headless, provider=provider,

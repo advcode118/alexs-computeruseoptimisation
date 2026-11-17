@@ -31,7 +31,7 @@ def test_classify_task(description, grounding, modality, risk, approval):
 def test_checkpoints():
     profile = TaskProfile("dom", "read", False, ())
     planned = plan_checkpoints('Search https://example.org/ for "Guide"', profile)
-    evidence = {"url": "https://example.org/", "text": "Guide", "controls": [{"role": "textbox"}]}
+    evidence = {"url": "https://example.org/", "claimed": {"answer": "Guide"}, "controls": [{"role": "textbox"}]}
     assert all(item["passed"] for item in evaluate_checkpoints(planned, evidence))
     assert not any(item["passed"] for item in evaluate_checkpoints(planned, {"blocked_actions": [{}]}))
     assert evaluate_checkpoints([], {}) == []
@@ -43,8 +43,8 @@ def test_checkpoints():
     ('page.getByRole("button", {name: "Buy"}).click()', "https://example.org/", False),
     ('page.getByRole("link", {name: "Remove account"}).click()', "https://example.org/", False),
     ('page.getByRole("button", {name: "Search"}).click()', "https://example.org/", True),
-    ('page.goto("https://example.org/payment")', "https://example.org/", False),
-    ('page.getByLabel("Name").fill("A")', "https://example.org/login", False),
+    ('page.goto("https://example.org/payment")', "https://example.org/", True),
+    ('page.getByLabel("Name").fill("A")', "https://example.org/login", True),
     ('page.title()', "https://example.org/checkout", True),
 ])
 def test_action_gate(source, url, allowed):
@@ -83,19 +83,186 @@ def test_evaluate_real_forms():
             try:
                 page = await browser.new_page()
                 for method, allowed in [("get", True), ("post", False)]:
-                    await page.set_content(f'<form method="{method}"><input name="q"><button>Search</button></form>')
                     for function in ['() => document.querySelector("form").requestSubmit()',
                                      '() => { const f = document.querySelector("form"); f.requestSubmit(); }',
                                      '() => document.querySelector("button").click()']:
-                        step = TaskStep("evaluate", 1, function, function=function)
-                        result, _ = await ActionGate().check(step, page)
-                        assert result is allowed
+                        await page.set_content(f'<form method="{method}"><input name="q"><button>Search</button></form>')
+                        result = json.loads((await run_on_page(page, f'page.evaluate({function})')).splitlines()[0])
+                        assert result['ok'] is allowed
                 await page.set_content('<button id="commit">Buy</button>')
                 function = '() => document.querySelector("#commit").click()'
-                result, _ = await ActionGate().check(TaskStep("evaluate", 1, function, function=function), page)
-                assert not result
+                result = json.loads((await run_on_page(page, f'page.evaluate({function})')).splitlines()[0])
+                assert not result['ok']
             finally:
                 await browser.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('expression', [
+    "document.getElementById('commit').click()",
+    "document.forms[0].elements[1].click()",
+    "HTMLFormElement.prototype.submit.call(document.forms[0])",
+    "document.querySelector('#commit').dispatchEvent(new MouseEvent('click',{bubbles:true}))",
+])
+def test_evaluate_runtime_interception(side_effect_server, expression):
+    base, requests = side_effect_server
+
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(f'{base}/checkout.html')
+            gate = ActionGate()
+            result = json.loads((await run_on_page(page, f'page.evaluate(() => {{ {expression}; }})', gate=gate)).splitlines()[0])
+            assert result.get('blocked_actions')
+            assert not any(path.startswith('/effect/checkout') for _, path in requests)
+            again = json.loads((await run_on_page(page, 'page.title()', gate=gate)).splitlines()[0])
+            assert again.get('blocked_actions') == gate.blocked
+            await browser.close()
+    asyncio.run(run())
+
+
+def test_mixed_forms_get_submission(side_effect_server):
+    base, requests = side_effect_server
+
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(base)
+            await page.set_content('<form action="/search"><input name="q" value="guide"></form>'
+                                   '<form method="post" action="/newsletter"></form>')
+            result = json.loads((await run_on_page(page, 'page.evaluate(() => document.forms[0].requestSubmit())')).splitlines()[0])
+            assert result['ok']
+            await page.wait_for_url('**/search?q=guide')
+            assert ('GET', '/search?q=guide') in requests
+            assert not any(method == 'POST' for method, _ in requests)
+            await browser.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('source', ['page.locator("#commit").press("Enter")',
+                                    'page.locator("#commit").press("Space")',
+                                    'page.keyboard.press("Enter")', 'page.keyboard.press("Space")'])
+def test_keyboard_commit(source):
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.set_content('<button id="commit" onclick="window.effect=true">Place order</button>')
+            await page.locator('#commit').focus()
+            result = json.loads((await run_on_page(page, source)).splitlines()[0])
+            assert result.get('blocked_actions')
+            assert not await page.evaluate('window.effect')
+            await browser.close()
+    asyncio.run(run())
+
+
+def test_late_control_and_navigation(side_effect_server):
+    base, _ = side_effect_server
+
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(base)
+            await page.set_content('<script>setTimeout(() => { document.body.innerHTML = `<button onclick="this.textContent=\'Done\'">Search</button>`; }, 1300)</script>')
+            result = json.loads((await run_on_page(page, 'page.getByRole("button", {name: "Search"}).click()')).splitlines()[0])
+            assert result['ok'] and 'Done' in result['text']
+            await page.set_content('<a href="/checkout.html">Next</a>')
+            result = json.loads((await run_on_page(page, 'page.getByText("Next").click(); page.locator("#commit").click()')).splitlines()[0])
+            assert result.get('blocked_actions')
+            await browser.close()
+    asyncio.run(run())
+
+
+def test_read_only_sensitive_page_and_links(side_effect_server):
+    base, _ = side_effect_server
+
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(f'{base}/checkout.html')
+            await page.set_content('<input aria-label="Query"><a href="/guide">Send feedback</a><button>Search</button>')
+            for source in ['page.getByLabel("Query").fill("guide")',
+                           'page.getByRole("button", {name: "Search"}).click()',
+                           'page.getByText("Send feedback").click()']:
+                assert json.loads((await run_on_page(page, source)).splitlines()[0])['ok']
+            await browser.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('label', ['Order', 'Checkout', 'Book', 'Reserve', 'Donate', 'Post',
+                                  'Publish', 'Apply', 'Cancel', 'Unsubscribe', 'Sign up', 'Submit'])
+def test_commit_vocabulary(label):
+    allowed, _ = asyncio.run(ActionGate().check(parse_task_script(f'cu.click("{label}")')[0], SimpleNamespace(url='')))
+    assert not allowed
+
+
+def test_malformed_sensitive_url():
+    assert not ActionGate()._sensitive('https://[bad')
+
+
+def test_goal_checkpoints():
+    checkpoints = plan_checkpoints('Search https://example.org for "Guide"', TaskProfile('dom', 'read', False, ()))
+    evidence = {'url': 'https://example.org/results?q=Guide', 'claimed': {'answer': 'Guide to testing'}}
+    assert all(item['passed'] for item in evaluate_checkpoints(checkpoints, evidence))
+    evidence = {'url': 'https://example.org/results', 'controls': [{'role': 'textbox', 'value': 'Guide'}]}
+    assert all(item['passed'] for item in evaluate_checkpoints(checkpoints, evidence))
+    evidence = {'url': 'https://wrong.org', 'text': 'Guide', 'controls': [{'role': 'textbox'}]}
+    assert not any(item['passed'] for item in evaluate_checkpoints(checkpoints, evidence) if item['kind'] != 'no_blocked_action')
+
+
+def test_live_filled_goal_checkpoint():
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.set_content('<input aria-label="Query"><input type="password" aria-label="Secret" value="hidden">')
+            payload = json.loads((await run_on_page(page, 'page.getByLabel("Query").fill("Guide")')).splitlines()[0])
+            checkpoints = plan_checkpoints('Fill "Guide"', classify_task('Fill "Guide"', {}))
+            assert all(item['passed'] for item in evaluate_checkpoints(checkpoints, payload))
+            assert 'hidden' not in json.dumps(payload)
+            await browser.close()
+    asyncio.run(run())
+
+
+def test_shared_gate_configuration():
+    from bench.recovery import configure_gate
+
+    client = ScriptFirstClient(description='Read')
+    original = client.gate
+    original.record_block('needs approval: test')
+    profile = classify_task('Read', {'forms': [{}]})
+    assert configure_gate(client, description='Read', profile=profile) is original
+    assert configure_gate(client, description='Read').blocked
+    assert client.gate.profile is profile
+    assert not configure_gate(client, description='New task').blocked
+
+
+@pytest.mark.parametrize('description', ['Read the book title', 'Apply filters to search', 'Find the sort order'])
+def test_read_task_vocabulary(description):
+    assert not classify_task(description, {}).needs_approval
+
+
+def test_read_submit_controls_and_submitter(side_effect_server):
+    base, requests = side_effect_server
+
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(base)
+            for label in ['Apply filters', 'Order by price', 'Submit']:
+                await page.set_content(f'<form action="/search"><button>{label}</button></form>')
+                payload = json.loads((await run_on_page(page, f'page.getByRole("button", {{name: "{label}"}}).click()')).splitlines()[0])
+                assert payload['ok']
+            await page.set_content('<form action="/effect/checkout"><button>Buy</button></form>')
+            payload = json.loads((await run_on_page(page, 'page.evaluate(() => document.forms[0].requestSubmit(document.querySelector("button")))')).splitlines()[0])
+            assert payload.get('blocked_actions')
+            assert not any(path.startswith('/effect/checkout') for _, path in requests)
+            await browser.close()
     asyncio.run(run())
 
 
@@ -118,8 +285,7 @@ def test_task_approved_login(side_effect_server):
                 await page.wait_for_url("**/authenticate")
                 assert ("POST", "/authenticate") in requests
                 await page.set_content('<button>Delete</button>')
-                for code in [f'page.goto("{base}/checkout")',
-                             'page.getByRole("button", {name: "Delete"}).click()']:
+                for code in ['page.getByRole("button", {name: "Delete"}).click()']:
                     allowed, _ = await client.gate.check(parse_task_script(code)[0], page)
                     assert not allowed
             finally:
@@ -141,13 +307,16 @@ def test_dom_commit_labels():
                     ('page.getByText("Pay electric bill").click()', True),
                     ('page.getByText("Send a letter").click()', True),
                     ('page.getByRole("button", {name: "Buy"}).click()', False),
-                    ('page.getByRole("link", {name: "Delete"}).click()', False),
+                    ('page.getByRole("link", {name: "Delete"}).click()', True),
                     ('page.locator("input[type=submit]").click()', False),
                     ('page.evaluate(() => document.querySelector("label").click())', True),
                     ('page.evaluate(() => document.querySelector("span").click())', True),
                     ('page.evaluate(() => document.querySelector("button").click())', False),
                 ]:
-                    result, _ = await ActionGate().check(parse_task_script(code)[0], page)
+                    if code.startswith('page.evaluate'):
+                        result = json.loads((await run_on_page(page, code)).splitlines()[0])['ok']
+                    else:
+                        result, _ = await ActionGate().check(parse_task_script(code)[0], page)
                     assert result is allowed
             finally:
                 await browser.close()

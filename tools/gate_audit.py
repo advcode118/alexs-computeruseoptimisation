@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from bench.offline_replay import load_book
-from bench.recovery import ActionGate
+from bench.recovery import ActionGate, ApprovalRequired
 from bench.script_first import _run_step_on_page, parse_task_script
 from proxy.script import ScriptError
 
@@ -93,6 +93,7 @@ async def audit(scripts, pages):
                 gate = ActionGate(description=saved.description)
                 page = None
                 for step in steps:
+                    gate.blocked.clear()
                     action = step.action
                     if action and action.op == "goto":
                         if page:
@@ -120,6 +121,11 @@ async def audit(scripts, pages):
                     elif page:
                         try:
                             await _run_step_on_page(page, step, gate=gate)
+                        except ApprovalRequired as exc:
+                            reason = str(exc)
+                            counts['blocked'] += 1
+                            counts[reason] += 1
+                            blocked.append(f"{saved.source} ({saved.task}), line {step.line}: {reason}\n  {step.source}")
                         except Exception as exc:
                             replay_errors.append(f"{saved.source}, line {step.line}: {type(exc).__name__}")
                             lexical.url = page.url
@@ -135,7 +141,9 @@ async def audit(scripts, pages):
 
 
 def render(groups, blocked, rejected, replay_errors, errors):
-    lines = ["| Source/task set | Scripts | Steps | DOM | Lexical | Parse rejected | Blocked | Reasons |",
+    lines = ["# Planner gate audit", "", "Reproduce offline: `python tools/gate_audit.py --output docs/results/planner_gate_audit.md`.",
+             "Counts retain recorded duplicates. Each step is audited independently (terminal state is reset between audit steps only). Saved HTML uses the real executor, including runtime evaluate interception; missing pages use conservative lexical decisions. Parse rejections are not gate decisions. This is not proof of zero live regressions.", "",
+             "| Source/task set | Scripts | Steps | DOM | Lexical | Parse rejected | Blocked | Reasons |",
              "|---|---:|---:|---:|---:|---:|---:|---|"]
     total = Counter()
     for group, counts in sorted(groups.items()):

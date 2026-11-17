@@ -10,9 +10,9 @@ benchmark/comparison, **never the intended product fallback**.
 Read `AGENTS.md`, `docs/HISTORY.md`, `docs/TEST_RESULTS.md`, `NOTES.md` and
 `docs/CASCADE.md` first. This continuation records the newer product decisions
 where those documents still describe browser-use as the product fallback.
-Design sources: `low_call_stack_review.md` (original attachment, Interfaces/Next
-slices) and `/home/ubuntu/work/low_call_remaining_plan.md`. Their operative
-decisions are captured here; those machine-local files are not prerequisites.
+Design sources: the original `low_call_stack_review.md` attachment
+(Interfaces/Next slices) and `low_call_remaining_plan.md`. Their operative
+decisions are captured here; the original files are not prerequisites.
 
 ## Dependencies and current implementation
 
@@ -25,7 +25,7 @@ parent branch: PRs are squash-merged and their branches deleted. Reconcile each
 dependent branch with landed `main` before merging; do not depend on the old
 parent commit being an ancestor. This document does not authorize a merge.
 
-Implemented through `68361ea` (before this documentation commit):
+Implemented in PR A, including the independent-critique corrections:
 
 - `bench/cascade.py`: HTTP grounding → script_first → deterministic precision
   check → optional recovery on the same Chrome. `run_recovery` is currently a
@@ -40,16 +40,27 @@ Implemented through `68361ea` (before this documentation commit):
   task text plus HTTP grounding (title/h1, links, search forms, error); **zero
   planner model calls**. Model-reported confidence never grants approval.
 - `bench/script_first.py`: the real step executor checks the gate before actions.
-  `ScriptFirstClient` receives description/profile; cascade supplies the grounded
-  profile, and `BenchmarkHarness.run_task` supplies/reset task context for direct
-  script_first runs. Blocked steps do not execute; they record `blocked_actions`,
-  yield UNKNOWN/“needs approval” and cannot hand off around the gate.
-- Live checks allow GET-only form submission and explicitly task-approved login;
-  payment/checkout/billing and commit controls remain guarded. Commit labels on
-  live pages apply to buttons/submit inputs/links, not todo checkboxes or labels.
+  `configure_gate` is the single task-gate factory, shared by client, harness and
+  cascade; updating the grounded profile preserves the instance and terminal
+  `gate.blocked`. Result formatting and cascade read that state directly, even
+  across multiple segments/snapshots. A block yields UNKNOWN/“needs approval”,
+  prevents repair and fallback; `profile.needs_approval` also prevents fallback.
+- Live evaluate steps install capture-phase click/submit interception and native
+  form submit/requestSubmit wrappers, inspecting the actual target rather than
+  parsing JavaScript selectors. GET search submissions pass even beside POST
+  forms; POST blocks except explicit task-approved login. Enter/Space on commit
+  controls (including keyboard focus) are checked. Probes wait for attachment up
+  to the 5s action timeout and pending main-frame navigation to commit.
+- Rules apply to controls, not the current page URL: password fields, sensitive
+  hrefs, POST submits and commit buttons/submit inputs/role controls are guarded.
+  Plain links use sensitive hrefs, not commit-like link text; todo checkboxes and
+  labels pass. Expanded commit vocabulary includes booking/publishing/signup;
+  known GET Submit/Apply and explicit filter/sort controls remain readable.
   Without DOM, unknown submissions and commit-like labels stay conservative.
   This is a heuristic gate, not a general JavaScript security sandbox.
-- Checkpoints are machine-checkable URL/text/element/no-blocked-action predicates.
+- Checkpoints are machine-checkable goal predicates: URL host/path-prefix,
+  quoted text against the claimed answer or live filled values (never password
+  values), and no blocked action. A textbox merely existing is not a goal.
   Cascade stores their results per recorded script self-check in `checkpoints`,
   plus `profile` and `blocked_actions`; they are currently observational, not an
   additional read-only PASS criterion. PR B must evaluate them after each segment.
@@ -61,10 +72,12 @@ Implemented through `68361ea` (before this documentation commit):
 Evidence: `tests/test_recovery.py`, `tests/test_gate_audit.py`,
 `tests/test_cascade.py`, local request-logging fixtures under `bench/fixture/`.
 `python tools/gate_audit.py` reproduces `docs/results/planner_gate_audit.md`:
-363 script occurrences, 849 parsed steps, 13 blocked; only 11 steps have saved-HTML
-DOM replay, 60 scripts are parse-rejected. Remaining lexical blocks include todo
-labels and unknown-method read forms: **not proof of zero live regressions**.
-Latest full suite: 1167 passed, 1 skipped. No paid run was made for A.
+363 script occurrences, 849 parsed steps, 34 blocked; only 11 steps have saved-HTML
+DOM replay, 60 scripts are parse-rejected. Expanded vocabulary adds lexical
+Submit/Apply blocks; missing DOM cannot establish GET methods or plain-link
+semantics. Remaining blocks include todo labels and unknown-method read forms:
+**not proof of zero live regressions**. The audit checks each step independently;
+normal execution keeps blocks terminal. No paid run was made for A.
 
 ## Remaining pieces, in order
 

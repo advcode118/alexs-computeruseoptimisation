@@ -71,7 +71,7 @@ def test_first_message_and_marker_tripwire(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("fallback", ["browser_use", "none"])
-@pytest.mark.parametrize("reject", [False, "FAIL", "precision", "error", "empty", "attach_error"])
+@pytest.mark.parametrize("reject", [False, "FAIL", "precision", "error", "empty", "attach_error", "approval", "blocked_state"])
 @pytest.mark.parametrize("provider", ["anthropic", "openai"])
 def test_cascade_wiring(tmp_path, monkeypatch, reject, provider, fallback):
     from tests.test_script_cache import _run
@@ -105,6 +105,8 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider, fallback):
         async def run_task(self, *args, **kwargs):
             assert self.mcp_client.gate.description == DESCRIPTION
             assert self.mcp_client.gate.profile.signals
+            if reject == 'blocked_state':
+                self.mcp_client.gate.record_block('needs approval: test')
             return result
     built = []
     class Browser:
@@ -137,9 +139,12 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider, fallback):
         return {"targetId": target, "url": "https://x/current"}
     monkeypatch.setattr("bench.browser_use_arm._attach_target", attach)
     monkeypatch.setattr("bench.cascade.ground_start_page", lambda *a, **k: {})
+    if reject == 'approval':
+        from bench.recovery import TaskProfile
+        monkeypatch.setattr('bench.cascade.classify_task', lambda *a: TaskProfile('dom', 'irreversible', True, ('commit intent',)))
     options = {"fallback": "none"} if fallback == "none" else {}
     row = asyncio.run(run_cascade_task({"id": TASK_ID, "description": DESCRIPTION, "start_url": START}, api_key="mock", runs_dir=tmp_path, provider=provider, browser_use_loader=lambda: (Agent, Browser, lambda *a, **k: object()), **options))
-    handed_off = bool(reject) and fallback == "browser_use"
+    handed_off = bool(reject) and reject not in {'approval', 'blocked_state'} and fallback == "browser_use"
     failed = reject in {"error", "attach_error"}
     assert row["answered_by"] == ("script" if not reject else "none" if not handed_off or failed else "browser_use")
     assert bool(built) == handed_off
