@@ -1,0 +1,235 @@
+{
+  "seed": 20261117,
+  "bootstrap_draws": 50000,
+  "paired_task_ids": [
+    "extdev_filter_airbnb_europe_mansions",
+    "extdev_filter_amazon_puppy_food",
+    "extdev_filter_booking_times_square",
+    "extdev_filter_frontiercity_family",
+    "extdev_filter_greatamerica_thrill",
+    "extdev_nav_fiestatexas_events",
+    "extdev_nav_nets_schedule",
+    "extdev_nav_ronaldo_world_cup_stats",
+    "extdev_nav_spothero_contact",
+    "extdev_nav_spothero_marketing",
+    "extdev_search_booking_la_filters",
+    "extdev_spa_dota_dlc_cart",
+    "extdev_value_apec_ministers_chair",
+    "extdev_value_apec_peru_arrivals",
+    "extdev_value_apec_tourism_actions",
+    "extdev_value_hf_first_user_message",
+    "extdev_value_hf_tei_strengths",
+    "extdev_value_icse_2002_chairs",
+    "extdev_value_icse_2004_chair",
+    "extdev_value_icse_duplicate_statement",
+    "extdev_value_nba_2021_leaders",
+    "extdev_value_rovio_anniversary"
+  ],
+  "paired_site_counts": {
+    "airbnb.com": 1,
+    "amazon.com": 1,
+    "apec.org": 3,
+    "booking.com": 2,
+    "espn.com": 3,
+    "huggingface.co": 2,
+    "icse-conferences.org": 3,
+    "rovio.com": 1,
+    "sixflags.com": 3,
+    "spothero.com": 2,
+    "store.steampowered.com": 1
+  },
+  "best_arm": "cascade",
+  "best_baseline": "browser_use ultrafast",
+  "paired": {
+    "browser_use": {
+      "n": 22,
+      "passes": 2,
+      "pass_rate": 0.09090909090909091,
+      "median_wall_ms": 26540.2562685,
+      "mean_wall_ms": 29455.113098363618,
+      "p90_wall_ms": 54878.1420375001,
+      "mean_usd": 0.074627,
+      "pass_rate_ci": [
+        0.0,
+        0.19230769230769232
+      ],
+      "paired_difference_vs_best_arm": 0.0,
+      "paired_difference_ci": [
+        0.0,
+        0.0
+      ],
+      "claims_or_self_check_passes": 22,
+      "false_accepts": 20
+    },
+    "script_first": {
+      "n": 22,
+      "passes": 0,
+      "pass_rate": 0.0,
+      "median_wall_ms": 9638.072551999925,
+      "mean_wall_ms": 10267.32783536365,
+      "p90_wall_ms": 15496.31771030007,
+      "mean_usd": 0.009620454545454545,
+      "pass_rate_ci": [
+        0.0,
+        0.0
+      ],
+      "paired_difference_vs_best_arm": -0.09090909090909091,
+      "paired_difference_ci": [
+        -0.19230769230769232,
+        0.0
+      ],
+      "claims_or_self_check_passes": 6,
+      "false_accepts": 6
+    },
+    "cascade": {
+      "n": 22,
+      "passes": 2,
+      "pass_rate": 0.09090909090909091,
+      "median_wall_ms": 25022.14365650002,
+      "mean_wall_ms": 25126.48714004544,
+      "p90_wall_ms": 38067.97731760016,
+      "mean_usd": 0.050565227272727276,
+      "pass_rate_ci": [
+        0.0,
+        0.19230769230769232
+      ],
+      "paired_difference_vs_best_arm": 0.0,
+      "paired_difference_ci": [
+        0.0,
+        0.0
+      ],
+      "claims_or_self_check_passes": 6,
+      "false_accepts": 6
+    },
+    "browser_use ultrafast": {
+      "n": 22,
+      "passes": 2,
+      "pass_rate": 0.09090909090909091,
+      "median_wall_ms": 27658.924049499772,
+      "mean_wall_ms": 25295.519713227248,
+      "p90_wall_ms": 35355.65972889968,
+      "mean_usd": 0.053288363636363634,
+      "pass_rate_ci": [
+        0.0,
+        0.19230769230769232
+      ],
+      "paired_difference_vs_best_arm": 0.0,
+      "paired_difference_ci": [
+        0.0,
+        0.0
+      ],
+      "claims_or_self_check_passes": 22,
+      "false_accepts": 20
+    }
+  },
+  "ultrafast40": {
+    "n": 40,
+    "passes": 2,
+    "pass_rate": 0.05,
+    "median_wall_ms": 27658.924049499772,
+    "mean_wall_ms": 32220.880989274974,
+    "p90_wall_ms": 59687.704946299906,
+    "mean_usd": 0.077470375,
+    "pass_rate_ci": [
+      0.0,
+      0.12195121951219512
+    ],
+    "false_accepts": 38
+  },
+  "ultrafast40_sites": {
+    "airbnb.com": 3,
+    "amazon.com": 3,
+    "apec.org": 3,
+    "booking.com": 3,
+    "dictionary.cambridge.org": 3,
+    "espn.com": 3,
+    "eventbrite.com": 2,
+    "huggingface.co": 3,
+    "icse-conferences.org": 3,
+    "ironhidegames.com": 3,
+    "rovio.com": 3,
+    "sixflags.com": 3,
+    "spothero.com": 3,
+    "store.steampowered.com": 2
+  },
+  "cascade": {
+    "answered_by": {
+      "browser_use": 20,
+      "script": 2
+    },
+    "handoff_reasons": {
+      "self-check FAIL": 13,
+      "self-check UNKNOWN": 3,
+      "multiline_answer": 2,
+      "long_answer": 1,
+      "search_results_url": 1
+    },
+    "stage_one_pass_replays": [
+      {
+        "task_id": "extdev_nav_spothero_contact",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": true,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "answer does not satisfy the marker",
+        "final_cascade_success": false
+      },
+      {
+        "task_id": "extdev_value_icse_2004_chair",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": false,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "URL 'http://www.icse-conferences.org/2004/index.html' does not contain '/history.html'",
+        "final_cascade_success": false
+      },
+      {
+        "task_id": "extdev_value_apec_peru_arrivals",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": false,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "URL 'https://www.google.com/sorry/index?continue=https://www.google.com/search%3Fq%3Dsite%253Aapec.org%2BPeru%2B2024%2B%2522tourist%2522%2B%2522target%2522%26sei%3Dm7D7aq37IN6z0PEP7tPPkAc&q=EgSM6EACGJvh7tcGIjD8J8kkHS_BX-LpvEK2TLIWjVLsULGFfBxHspLkrDtEpja_TwjK99qn9IO_Kt5-4c8yAVJaAUNgq_rOnqWM1qb8AQ' does not contain '/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-growth'",
+        "final_cascade_success": true
+      },
+      {
+        "task_id": "extdev_nav_nets_schedule",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": true,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "answer does not satisfy the marker",
+        "final_cascade_success": false
+      },
+      {
+        "task_id": "extdev_nav_spothero_marketing",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": false,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "URL 'https://spothero.com/careers' does not contain '/careers/8069541'",
+        "final_cascade_success": false
+      },
+      {
+        "task_id": "extdev_filter_amazon_puppy_food",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": false,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_72%3A1248879011&s=price-asc-rank' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'",
+        "final_cascade_success": false
+      }
+    ],
+    "precision_gate_false_accepts": 2,
+    "difference_vs_best_baseline": 0.0,
+    "difference_vs_best_baseline_ci": [
+      0.0,
+      0.0
+    ],
+    "mean_wall_difference_vs_best_baseline_ms": -169.0325731818084,
+    "mean_wall_difference_ci_ms": [
+      -8417.798379973445,
+      7499.169135499541
+    ],
+    "meets_point_estimate_2pp_and_lower_mean_wall": true,
+    "mean_stage_wall_ms": {
+      "grounding": 186.10806677270892,
+      "script": 7982.414214954515,
+      "browser_use": 16663.66685340913
+    }
+  }
+}

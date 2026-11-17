@@ -10,6 +10,22 @@ All numbers below come from the PR descriptions or from the saved probe logs (`b
 
 Make computer use faster than the competition. The bar is Stagehand-class wall time per successful task, with a success rate no more than about 2 points below the stronger baseline. Tom's own approach is **script_first**: the model writes one Playwright script for the whole task, the harness runs it, and the end state is judged. Plain Playwright MCP (many small tool calls) and Stagehand are the baselines.
 
+## 17 Nov 2026 — extdev control replicate 1 and offline audit
+
+Sol medium, browser-use 1.0.6 / MCP 0.0.84: 22 paired attempted tasks (11 sites),
+18 budget-skipped per default arm; ultrafast also ran all 40 tasks. Frozen passes
+were 2/22 for both BU modes and cascade, 0/22 for script_first. MCP had no valid
+rows because Chrome was missing; an environment-only install subsequently passed
+a model-free launch check. Literal/length/contiguous-span keys reject plausible
+list/compound answers, so these absolute pass rates are not valid accuracy
+estimates. Cascade descriptively ties the best baseline (ultrafast) and is only
+169 ms faster on mean wall time, with no reliable speed advantage. The audit also
+found aggregate long-context pricing risk; no grader or ledger was changed.
+Ledger: $6.277727 including $0.05 opening allowance; baselines + script_first used
+$5.009993, cascade including smoke $1.217734. All further paid runs stopped.
+See the [paired report](results/extdev_control_20261117/README.md), site-clustered
+CIs, ledger reconciliation and detailed offline audit linked there.
+
 ## Hard rules (still in force)
 
 - Claude API calls in code and probes use `claude-sonnet-5-5` only. Never `claude-sonnet-4-6`. Never Opus or Fable through the API.
