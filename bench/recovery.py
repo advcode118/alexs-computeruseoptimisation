@@ -86,8 +86,35 @@ class ActionGate:
         if step.kind == "read" or op in {"title", "url", "textContent", "innerText", "getAttribute"}:
             return True, "read"
         if op == "evaluate":
-            if re.search(r"\.(click|submit|requestSubmit|sendBeacon|assign|replace)\s*\(|location\s*=", step.function):
-                return False, "needs approval: page mutation"
+            function = step.function
+            if re.search(r"\bsendBeacon\s*\(|\b(?:fetch|XMLHttpRequest)\b[\s\S]*?['\"]POST['\"]|\.open\s*\(\s*['\"]POST['\"]", function, re.I):
+                return False, "needs approval: POST request"
+            if re.search(r"\.(submit|requestSubmit)\s*\(", function):
+                selector = re.search(r"document\.querySelector\(\s*(['\"])(.*?)\1\s*\)\.(?:submit|requestSubmit)\(", function)
+                if selector and callable(getattr(type(page), "locator", None)):
+                    method = await page.locator(selector[2]).evaluate("el => (el.method || 'get').toUpperCase()", timeout=1000)
+                    if method == "GET":
+                        return True, "GET navigation"
+                return False, "needs approval: form submission (POST or unknown method)"
+            if re.search(r"\.click\s*\(", function):
+                literals = re.findall(r"(['\"])(.*?)\1|/([^/\n]+)/[gimsuy]*", function)
+                targets = [quoted or regex for _, quoted, regex in literals]
+                checkbox = any(re.search(r"input\[type=['\"]?checkbox", target) for target in targets)
+                if not checkbox and any(_COMMIT.search(target) for target in targets):
+                    return False, "needs approval: commit control in evaluate"
+                if callable(getattr(type(page), "locator", None)):
+                    selectors = re.findall(r"querySelector(?:All)?\(\s*(['\"])(.*?)\1\s*\)", function)
+                    for _, selector in selectors:
+                        controls = await page.locator(selector).evaluate_all("""elements => elements.map(el => {
+                            const form = el.form || el.closest('form');
+                            const post = !!form && form.method.toUpperCase() === 'POST' &&
+                                ((el.tagName === 'BUTTON' && el.type === 'submit') || ['submit','image'].includes(el.type));
+                            return {post, checkbox: el.type === 'checkbox', label: el.innerText || el.value || el.getAttribute('aria-label') || ''};
+                        })""")
+                        if any(control["post"] for control in controls):
+                            return False, "needs approval: POST submission in evaluate"
+                        if any(not control["checkbox"] and _COMMIT.search(control["label"]) for control in controls):
+                            return False, "needs approval: commit control in evaluate"
             return True, "read"
         url = action.value if op == "goto" else getattr(page, "url", "")
         if isinstance(url, str) and _SENSITIVE.search(urlsplit(url).path):

@@ -10,7 +10,7 @@ import pytest
 from playwright.async_api import async_playwright
 
 from bench.recovery import ActionGate, TaskProfile, classify_task, evaluate_checkpoints, plan_checkpoints
-from bench.script_first import parse_task_script, run_on_page, script_runtime_verdict
+from bench.script_first import TaskStep, parse_task_script, run_on_page, script_runtime_verdict
 
 
 @pytest.mark.parametrize("description,grounding,modality,risk,approval", [
@@ -55,6 +55,47 @@ def test_action_gate(source, url, allowed):
     result, reason = asyncio.run(ActionGate().check(parse_task_script(source)[0], page))
     assert result is allowed
     assert reason
+
+
+@pytest.mark.parametrize("function,allowed", [
+    ('() => { location = "/guide"; }', True),
+    ('() => location.assign("/guide")', True),
+    ('() => location.replace("/guide")', True),
+    ('() => "text".replace("text", "guide")', True),
+    ('() => document.querySelector("a.next").click()', True),
+    ('() => document.querySelector("#delete").click()', False),
+    ('() => document.querySelector("form").submit()', False),
+    ('() => document.querySelector("form").requestSubmit()', False),
+    ('() => navigator.sendBeacon("/effect", "x")', False),
+    ('() => fetch("/effect", {method: "POST"})', False),
+    ('() => { const x = new XMLHttpRequest(); x.open("POST", "/effect"); }', False),
+])
+def test_evaluate_gate(function, allowed):
+    step = TaskStep("evaluate", 1, function, function=function)
+    result, _ = asyncio.run(ActionGate().check(step, SimpleNamespace(url="https://example.org/")))
+    assert result is allowed
+
+
+def test_evaluate_real_forms():
+    async def run():
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page()
+                for method, allowed in [("get", True), ("post", False)]:
+                    await page.set_content(f'<form method="{method}"><input name="q"><button>Search</button></form>')
+                    for function in ['() => document.querySelector("form").requestSubmit()',
+                                     '() => document.querySelector("button").click()']:
+                        step = TaskStep("evaluate", 1, function, function=function)
+                        result, _ = await ActionGate().check(step, page)
+                        assert result is allowed
+                await page.set_content('<button id="commit">Buy</button>')
+                function = '() => document.querySelector("#commit").click()'
+                result, _ = await ActionGate().check(TaskStep("evaluate", 1, function, function=function), page)
+                assert not result
+            finally:
+                await browser.close()
+    asyncio.run(run())
 
 
 @pytest.fixture
