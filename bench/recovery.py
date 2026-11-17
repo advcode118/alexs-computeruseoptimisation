@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 
 _COMMIT = re.compile(r"\b(buy|pay|purchase|place order|delete|remove account|send|confirm|subscribe|transfer|order|checkout|book|reserve|donate|post|publish|apply|cancel|unsubscribe|sign up|submit)\b", re.I)
-_COMMIT_INTENT = re.compile(r"\b(buy|pay|purchase|place order|delete|remove account|send|confirm|subscribe|transfer)\b|^(book|reserve|donate|post|publish|cancel|unsubscribe|sign up|checkout)\b", re.I)
+_COMMIT_INTENT = re.compile(r"\b(buy|pay|purchase|place order|delete|remove account|send|confirm\s+(?:(?:the|my|your)\s+)?(?:order|payment|purchase)|subscribe|transfer)\b|^(book|reserve|donate|post|publish|cancel|unsubscribe|sign up|checkout)\b", re.I)
 _PAYMENT = re.compile(r"(?:^|[/_.-])(checkout|payment|billing)(?:$|[/_.-])", re.I)
 _AUTH = re.compile(r"(?:^|[/_.-])(login|log-in|signin|sign-in|auth|oauth|authenticate)(?:$|[/_.-])", re.I)
 

@@ -4,7 +4,7 @@ import json
 import pytest
 from playwright.async_api import async_playwright
 
-from bench.recovery import ActionGate
+from bench.recovery import ActionGate, classify_task
 from bench.script_first import run_on_page
 
 
@@ -44,3 +44,12 @@ def test_implicit_submit_checks_default_button(script):
             assert not await page.evaluate('window.effect')
             await browser.close()
     asyncio.run(run())
+
+
+@pytest.mark.parametrize('description,approval', [
+    ('Find her article and confirm you are on her article page', False),
+    ('Confirm that the title is correct', False),
+    ('Confirm order', True), ('Confirm payment', True), ('Confirm purchase', True),
+])
+def test_verification_is_not_commit_intent(description, approval):
+    assert classify_task(description, {}).needs_approval is approval
