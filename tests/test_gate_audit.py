@@ -42,3 +42,13 @@ def test_runtime_evaluate_blocks_are_gate_decisions():
     assert sum(counts['blocked'] for counts in groups.values()) == 1
     assert len(blocked) == 1 and 'POST submission' in blocked[0]
     assert not rejected and not failures
+
+
+def test_missing_replay_control_is_recorded_and_audit_continues():
+    scripts = [SavedScript('tests/fixtures/missing.json:1', 'missing',
+                           'page.goto("https://example.org/"); page.locator("#missing").click(); page.title()'),
+               SavedScript('tests/fixtures/missing.json:2', 'next', 'cu.click("Buy")')]
+    groups, blocked, rejected, failures = asyncio.run(audit(scripts, {'https://example.org/': '<h1>Read</h1>'}))
+    assert len(failures) == 1 and 'line 2' in failures[0]
+    assert sum(counts['steps'] for counts in groups.values()) == 4
+    assert len(blocked) == 1 and not rejected

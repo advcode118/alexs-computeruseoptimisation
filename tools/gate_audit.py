@@ -113,21 +113,20 @@ async def audit(scripts, pages):
                     target = page or lexical
                     counts["steps"] += 1
                     counts["DOM" if page else "lexical"] += 1
-                    allowed, reason = await gate.check(step, target)
-                    if not allowed:
+                    try:
+                        allowed, reason = await gate.check(step, target)
+                        if not allowed:
+                            raise ApprovalRequired(reason)
+                        if page:
+                            await _run_step_on_page(page, step, gate=gate)
+                    except ApprovalRequired as exc:
+                        reason = str(exc)
                         counts["blocked"] += 1
                         counts[reason] += 1
                         blocked.append(f"{saved.source} ({saved.task}), line {step.line}: {reason}\n  {step.source}")
-                    elif page:
-                        try:
-                            await _run_step_on_page(page, step, gate=gate)
-                        except ApprovalRequired as exc:
-                            reason = str(exc)
-                            counts['blocked'] += 1
-                            counts[reason] += 1
-                            blocked.append(f"{saved.source} ({saved.task}), line {step.line}: {reason}\n  {step.source}")
-                        except Exception as exc:
-                            replay_errors.append(f"{saved.source}, line {step.line}: {type(exc).__name__}")
+                    except Exception as exc:
+                        replay_errors.append(f"{saved.source}, line {step.line}: {type(exc).__name__}: {exc}")
+                        if page:
                             lexical.url = page.url
                             await page.close()
                             page = None
