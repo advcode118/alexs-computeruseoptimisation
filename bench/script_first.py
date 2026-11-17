@@ -16,15 +16,19 @@ import time
 from dataclasses import dataclass
 from urllib.parse import unquote, urlsplit
 
+from bench.fairness import (
+    ACTION_TIMEOUT_MS as _ACTION_TIMEOUT_MS,
+    EVALUATE_TIMEOUT_S as _EVALUATE_TIMEOUT_S,
+    LAND_TIMEOUT_S as _LAND_TIMEOUT_S,
+    NAV_TIMEOUT_MS as _NAV_TIMEOUT_MS,
+    apply_page_timeouts,
+    chrome_launch_attempts,
+)
 from bench.judge import is_search_results_url
 
 # Navigation waits for DOMContentLoaded, not load or networkidle.
-# A click or Enter returns before the next document is current. This wait
-# is only the landing read, not the proxy settle loop.
-_NAV_TIMEOUT_MS = 10000
-_ACTION_TIMEOUT_MS = 5000
-_EVALUATE_TIMEOUT_S = 5
-_LAND_TIMEOUT_S = 0.8
+# A click or Enter returns before the next document is current. The landing
+# read uses the shared settle cap. It is not the proxy settle loop.
 # Headings are kept in front of the body. A 4000-character body prefix
 # dropped RFC section headings that sit further down the same page.
 _PAGE_TEXT_CAP = 8000
@@ -1001,7 +1005,7 @@ async def _read_title(page) -> str:
     try:
         value = title()
         if asyncio.iscoroutine(value):
-            value = await asyncio.wait_for(value, timeout=1)
+            value = await asyncio.wait_for(value, timeout=_EVALUATE_TIMEOUT_S)
     except Exception:
         return ""
     return value.strip() if isinstance(value, str) else ""
@@ -1141,39 +1145,59 @@ def _marked_from_evaluate(value) -> str:
     return ""
 
 
+async def read_shared_evidence(evaluate, selector: str) -> tuple[str, str]:
+    """Page text and the live selector. One call shape for every arm.
+
+    evaluate is called with _PAGE_EVIDENCE_JS, then with marked_selector_source.
+    Both arguments are functions. A dict is the evidence object. A string is
+    body text. This is not a model prompt.
+    """
+    try:
+        raw = evaluate(_PAGE_EVIDENCE_JS)
+        if asyncio.iscoroutine(raw):
+            raw = await asyncio.wait_for(raw, timeout=_EVALUATE_TIMEOUT_S)
+    except Exception:
+        return "", ""
+    text = text_from_page_read(raw if isinstance(raw, (dict, str)) else None)
+    if not selector:
+        return text, ""
+    try:
+        found = evaluate(marked_selector_source(selector))
+        if asyncio.iscoroutine(found):
+            found = await asyncio.wait_for(found, timeout=_EVALUATE_TIMEOUT_S)
+    except Exception:
+        return text, ""
+    if isinstance(found, str):
+        return text, found.strip()
+    return text, _marked_from_evaluate(found)
+
+
 async def read_marked_page(client, selector: str) -> tuple[str, str]:
     """Page text and the live selector, the same read for every arm.
 
-    A page object uses collect_page_evidence. Playwright MCP evaluates the
-    same page-evidence function, then the same selector read. An arm that
-    cannot read returns empty strings. This is not a model prompt.
+    A page object and Playwright MCP both call read_shared_evidence. The
+    function and the call are the same. An arm that cannot read returns
+    empty strings. This is not a model prompt.
     """
     page = getattr(client, "_page", None)
     if page is not None:
-        try:
-            evidence = await collect_page_evidence(page, selector=selector)
-        except Exception:
-            return "", ""
-        return evidence.text, evidence.selector_text
+
+        async def evaluate(source: str):
+            return await _evaluate_value(page, source)
+
+        return await read_shared_evidence(evaluate, selector)
     if "browser_evaluate" not in _client_tool_names(client):
         return "", ""
     call = getattr(client, "call_tool", None)
     if not callable(call):
         return "", ""
-    try:
-        result = await call("browser_evaluate", {"function": _PAGE_EVIDENCE_JS})
-    except Exception:
-        return "", ""
-    raw = result[0] if isinstance(result, tuple) else result
-    page_text = text_from_page_read(mcp_evaluate_value(str(raw or "")))
-    if not selector:
-        return page_text, ""
-    try:
-        result = await call("browser_evaluate", {"function": marked_selector_source(selector)})
-    except Exception:
-        return page_text, ""
-    raw = result[0] if isinstance(result, tuple) else result
-    return page_text, _marked_from_evaluate(mcp_evaluate_value(str(raw or "")))
+
+    async def evaluate(source: str):
+        result = await call("browser_evaluate", {"function": source})
+        raw = result[0] if isinstance(result, tuple) else result
+        return mcp_evaluate_value(str(raw or ""))
+
+    return await read_shared_evidence(evaluate, selector)
 
 
 async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
@@ -1487,11 +1511,7 @@ class ScriptFirstClient:
 
         self._playwright = await async_playwright().start()
         launch_error: Exception | None = None
-        attempts = (
-            {"channel": "chrome", "headless": self.headless},
-            {"headless": self.headless},
-        )
-        for kwargs in attempts:
+        for kwargs in chrome_launch_attempts(self.headless):
             profile = tempfile.mkdtemp(prefix="script-first-arm-")
             try:
                 self._context = await self._playwright.chromium.launch_persistent_context(
@@ -1511,6 +1531,7 @@ class ScriptFirstClient:
             raise RuntimeError(f"Could not launch local Chrome for script_first. {launch_error}")
         self._browser = context_browser(self._context)
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
+        apply_page_timeouts(self._page)
 
     async def stop(self) -> None:
         if not self._owns_page:

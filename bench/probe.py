@@ -314,15 +314,19 @@ def plan_probe(
         "warm_replay": warm_replay,
         "warm_arms": list(warm_arms_for(chosen, honest=honest)),
         "browser_isolation": {
-            "playwright_mcp": "--isolated only (0.0.84 rejects --user-data-dir with --isolated)",
+            "playwright_mcp": (
+                "--isolated only (0.0.84 rejects --user-data-dir with --isolated); "
+                "--browser chrome; action 30000ms; navigation 60000ms; settle 3000ms"
+            ),
             "diff_fast_act": "proxy child --isolated only",
             "macro_replay": "proxy child --isolated only",
-            "stagehand": "a unique --user-data-dir via launch_persistent_context",
-            "script_first": "local Chrome via the Playwright Python API, own user-data-dir, no per-click settle",
+            "stagehand": "Google Chrome via launch_persistent_context, a unique --user-data-dir, shared action and navigation waits",
+            "script_first": "Google Chrome via the Playwright Python API, own user-data-dir, shared waits, no per-click settle",
             "endpoint": "direct fetch of the task start URL; no browser; the fetch URL is not rewritten",
             "browser_use": (
-                "browser-use 1.0.0 local Chrome over CDP via Browser('chromium'); "
-                "model claude-sonnet-5-5"
+                "browser-use 1.0.0 fresh local profile via Browser('chromium') "
+                "on the Google Chrome executable when it is installed; "
+                "the model string is the one the probe was given"
             ),
         },
         "box_commands": list(BOX_COMMANDS),
@@ -768,6 +772,7 @@ async def run_claude_arm(
     else:
         harness = BenchmarkHarness(
             api_key=api_key,
+            model=model or ALLOWED_MODEL,
             headless=headless,
             runs_dir=runs_dir,
             arm=arm,
@@ -839,6 +844,7 @@ async def run_claude_arm(
             "claude": True,
             "claimed_answer": claimed_answer,
             "expected_value": selector_text,
+            "model": harness.model,
         }
         if provider == "openai":
             from bench.openai_spend import price_usd
@@ -989,6 +995,7 @@ async def _run_browser_use(
     budget_usd: float,
     task_reserve_usd: float = 0.0,
     lifetime_cap_usd: float | None = None,
+    model: str | None = None,
 ) -> tuple[dict, float]:
     """browser-use 1.0 on local Chrome. The outer Playwright loop is not used."""
     if not api_key:
@@ -1007,7 +1014,12 @@ async def _run_browser_use(
         return empty_row(ARM_BROWSER_USE, task["id"], reason=blocked), probe_spent
     from bench.browser_use_arm import run_browser_use_task
 
-    row = await run_browser_use_task(task, api_key=api_key, headless=headless)
+    row = await run_browser_use_task(
+        task,
+        api_key=api_key,
+        headless=headless,
+        model=model or ALLOWED_MODEL,
+    )
     if row.get("claude") and (row.get("input_tokens") or row.get("output_tokens")):
         ledger.record_task(
             run_id="probe",
@@ -1037,6 +1049,7 @@ async def _run_one(
     endpoint_opener=None,
     task_reserve_usd: float = 0.0,
     lifetime_cap_usd: float | None = None,
+    model: str | None = None,
 ) -> tuple[dict, float]:
     """One task on one arm. Returns the row and the probe's Claude spend so far."""
     if arm == ARM_ENDPOINT:
@@ -1062,6 +1075,7 @@ async def _run_one(
             budget_usd=budget_usd,
             task_reserve_usd=task_reserve_usd,
             lifetime_cap_usd=lifetime_cap_usd,
+            model=model,
         )
     if not arm_needs_claude(arm, no_model_only=no_model_only):
         return await run_no_model_arm(arm, task, headless=headless), probe_spent
@@ -1091,6 +1105,7 @@ async def _run_one(
         api_key=api_key,
         headless=headless,
         runs_dir=destination,
+        model=model,
         **extra,
     )
     if row.get("claude") and (row["input_tokens"] or row["output_tokens"]):
@@ -1341,6 +1356,7 @@ async def execute_probe(
             endpoint_opener=endpoint_opener,
             task_reserve_usd=task_reserve,
             lifetime_cap_usd=lifetime_cap,
+            model=ALLOWED_MODEL,
         )
         row["pass"] = phase
         rows.append(row)

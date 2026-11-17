@@ -18,6 +18,12 @@ import shutil
 import tempfile
 import time
 
+from bench.fairness import (
+    ACTION_TIMEOUT_MS,
+    NAV_TIMEOUT_MS,
+    apply_page_timeouts,
+    chrome_launch_attempts,
+)
 from proxy.ignores import annotate_tool_description
 from proxy.script import ScriptAction, ScriptError, parse_script
 from proxy.settle import configured_quiet_ms, configured_timeout_ms, parse_settle_result, settle_source
@@ -195,20 +201,20 @@ async def apply_script(page, source: str) -> tuple[list[str], dict]:
     settled = {"settled": True, "reason": "quiet"}
     for action in actions:
         if action.op == "goto":
-            await page.goto(action.value)
+            await page.goto(action.value, timeout=NAV_TIMEOUT_MS)
             summaries.append(f"goto {action.value}")
         else:
             locator = _locator(page, action)
             if action.op == "click":
-                await locator.click()
+                await locator.click(timeout=ACTION_TIMEOUT_MS)
             elif action.op == "fill":
-                await locator.fill(action.value)
+                await locator.fill(action.value, timeout=ACTION_TIMEOUT_MS)
             elif action.op == "press":
-                await locator.press(action.value)
+                await locator.press(action.value, timeout=ACTION_TIMEOUT_MS)
             elif action.op == "check":
-                await locator.check()
+                await locator.check(timeout=ACTION_TIMEOUT_MS)
             elif action.op == "uncheck":
-                await locator.uncheck()
+                await locator.uncheck(timeout=ACTION_TIMEOUT_MS)
             else:
                 raise ScriptError(f"line {action.line}: unsupported action {action.op}")
             summaries.append(f"{action.op} {action.name or action.value}")
@@ -314,11 +320,7 @@ class StagehandLocalClient:
         launch_error: Exception | None = None
         # A fresh directory per arm. This does not use the shared
         # ~/.cache/ms-playwright/mcp-* profile the Playwright MCP arms lock.
-        attempts = (
-            {"channel": "chrome", "headless": self.headless},
-            {"headless": self.headless},
-        )
-        for kwargs in attempts:
+        for kwargs in chrome_launch_attempts(self.headless):
             profile = tempfile.mkdtemp(prefix="stagehand-arm-")
             try:
                 self._context = await self._playwright.chromium.launch_persistent_context(
@@ -338,6 +340,7 @@ class StagehandLocalClient:
             raise RuntimeError(f"Could not launch local Chrome for the Stagehand arm. {launch_error}")
         self._browser = context_browser(self._context)
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
+        apply_page_timeouts(self._page)
 
     async def stop(self) -> None:
         if not self._owns_page:

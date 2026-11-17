@@ -29,6 +29,7 @@ from bench.browser_use_arm import (
     run_browser_use_task,
     task_text,
 )
+from bench.fairness import ARM_RUN_TIMEOUT_S, PAGE_READ_TIMEOUT_S, google_chrome_executable
 from bench.budget import PROJECT_BUDGET_USD, ModelNotAllowed, SpendLedger, estimate_usd
 from bench.harness import PLAYWRIGHT_MCP_VERSION as HARNESS_MCP
 from bench.probe import execute_probe, main, plan_probe
@@ -66,8 +67,8 @@ class _World:
         world = self
 
         class Browser:
-            def __init__(self, kind, *, headless, keep_alive):
-                world.calls.append(("browser", kind, headless, keep_alive))
+            def __init__(self, kind, *, headless, keep_alive, executable_path=None):
+                world.calls.append(("browser", kind, headless, keep_alive, executable_path))
                 self.kind = kind
                 self.page_url = world.page_url
                 self.page_text = world.page_text
@@ -79,7 +80,8 @@ class _World:
                 world.stopped += 1
 
         class LLM:
-            def __init__(self, model, *, api_key):
+            def __init__(self, model, *, api_key, **kwargs):
+                del kwargs
                 world.calls.append(("llm", model, api_key))
                 self.model = model
 
@@ -91,8 +93,8 @@ class _World:
                 self.browser = browser
                 self.task = task
 
-            async def run(self, max_steps):
-                world.calls.append(("run", max_steps))
+            async def run(self, max_steps, timeout=None):
+                world.calls.append(("run", max_steps, timeout))
                 return _Result(world.claim if world.claim is not None else self.task)
 
         return Agent, Browser, LLM
@@ -189,7 +191,7 @@ def test_local_agent_uses_the_bench_model_and_the_page_not_the_claim():
     )
     kinds = [call[0] for call in world.calls]
     assert kinds == ["browser", "llm", "agent", "run"]
-    assert world.calls[0] == ("browser", "chromium", True, True)
+    assert world.calls[0] == ("browser", "chromium", True, True, google_chrome_executable())
     assert world.calls[1][1] == "claude-sonnet-5-5"
     assert world.calls[1][2] == "local-test-not-sent"
     agent = world.calls[2]
@@ -200,12 +202,12 @@ def test_local_agent_uses_the_bench_model_and_the_page_not_the_claim():
     assert agent[3] == "chromium"
     assert agent[4] is False
     assert agent[5] == prompt_for("browser_use")
-    assert world.calls[3] == ("run", BROWSER_USE_MAX_STEPS)
+    assert world.calls[3] == ("run", BROWSER_USE_MAX_STEPS, ARM_RUN_TIMEOUT_S)
     assert world.stopped == 1
     assert row["success"] is True
     assert row["page_url"].endswith("Ada_Lovelace")
     assert row["model"] == "claude-sonnet-5-5"
-    assert row["browser"] == "chromium"
+    assert row["browser"] == ("chrome" if google_chrome_executable() else "chromium")
     assert row["browser_use"] == "1.0.0"
     assert row["claude"] is True
     assert row["usd"] == estimate_usd(100, 10)
@@ -255,8 +257,8 @@ def test_a_failed_run_still_stops_and_hides_the_exception_text():
         agent_cls, browser_cls, llm_cls = world.loader()
 
         class Boom(agent_cls):
-            async def run(self, max_steps):
-                del max_steps
+            async def run(self, max_steps, timeout=None):
+                del max_steps, timeout
                 raise RuntimeError("Ada_Lovelace selector_text")
 
         return Boom, browser_cls, llm_cls
@@ -313,7 +315,7 @@ def test_landed_page_comes_from_the_local_tab(monkeypatch):
     assert url == "https://example.test/finished-page"
     assert text == "milk on the page"
     assert marked == ""
-    assert calls[0] == ("request", "local-daemon", {"meta": "current_tab"}, 5)
+    assert calls[0] == ("request", "local-daemon", {"meta": "current_tab"}, PAGE_READ_TIMEOUT_S)
     assert calls[1][2] == "Target.attachToTarget"
     assert calls[2][2] == "Runtime.evaluate"
     assert calls[2][4]["expression"] == PAGE_TEXT_EXPRESSION

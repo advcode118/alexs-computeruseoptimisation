@@ -36,19 +36,24 @@ class _Locator:
         self.log = log
         self.name = name
 
-    async def click(self):
+    async def click(self, **kwargs):
+        del kwargs
         self.log.append(("click", self.name))
 
-    async def fill(self, value):
+    async def fill(self, value, **kwargs):
+        del kwargs
         self.log.append(("fill", self.name, value))
 
-    async def press(self, value):
+    async def press(self, value, **kwargs):
+        del kwargs
         self.log.append(("press", self.name, value))
 
-    async def check(self):
+    async def check(self, **kwargs):
+        del kwargs
         self.log.append(("check", self.name))
 
-    async def uncheck(self):
+    async def uncheck(self, **kwargs):
+        del kwargs
         self.log.append(("uncheck", self.name))
 
 
@@ -69,7 +74,8 @@ class _Page:
     def get_by_placeholder(self, name):
         return _Locator(self.log, name)
 
-    async def goto(self, url):
+    async def goto(self, url, **kwargs):
+        del kwargs
         self.log.append(("goto", url))
 
     async def evaluate(self, source):
@@ -299,7 +305,8 @@ class _ArticlePage(_Page):
         self.url = "https://en.wikipedia.org/wiki/Main_Page"
         self.explode = explode
 
-    async def goto(self, url):
+    async def goto(self, url, **kwargs):
+        del kwargs
         self.url = url
         self.log.append(("goto", url))
 
@@ -313,13 +320,15 @@ class _ArticleLocator:
         self.page = page
         self.name = name
 
-    async def click(self):
+    async def click(self, **kwargs):
+        del kwargs
         self.page.log.append(("click", self.name))
         self.page.url = "https://en.wikipedia.org/wiki/Ada_Lovelace"
         if self.page.explode:
             raise RuntimeError("click timed out")
 
-    async def fill(self, value):
+    async def fill(self, value, **kwargs):
+        del kwargs
         self.page.log.append(("fill", self.name, value))
 
 

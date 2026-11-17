@@ -28,6 +28,13 @@ from bench.budget import (
     SpendLedger,
     assert_allowed_model,
 )
+from bench.fairness import (
+    ACTION_TIMEOUT_MS,
+    BROWSER,
+    MODEL_HTTP_TIMEOUT_S,
+    NAV_TIMEOUT_MS,
+    SETTLE_TIMEOUT_MS,
+)
 from proxy.ignores import IgnoreCounter, annotate_tool_description
 
 PLAYWRIGHT_MCP_VERSION = "0.0.84"
@@ -417,13 +424,23 @@ def playwright_mcp_args(*, headless: bool, snapshot_mode: str) -> list[str]:
     """Plain Playwright MCP, one private browser per process.
 
     --isolated keeps the profile in memory. @playwright/mcp@0.0.84 rejects
-    --isolated together with --user-data-dir, so this argv is --isolated only.
-    Sequential arms each get their own process.
+    --isolated together with --user-data-dir, so this argv does not pass a
+    profile directory. The browser and the action, navigation, and settle
+    waits are the ones the other arms use. Sequential arms each get their
+    own process.
     """
     args = [
         "npx",
         f"@playwright/mcp@{PLAYWRIGHT_MCP_VERSION}",
         "--isolated",
+        "--browser",
+        BROWSER,
+        "--timeout-action",
+        str(ACTION_TIMEOUT_MS),
+        "--timeout-navigation",
+        str(NAV_TIMEOUT_MS),
+        "--timeout-settle",
+        str(SETTLE_TIMEOUT_MS),
     ]
     if headless:
         args.append("--headless")
@@ -720,7 +737,7 @@ class AnthropicClient:
                 headers=headers,
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=MODEL_HTTP_TIMEOUT_S) as resp:
                 return json.loads(resp.read().decode())
 
         loop = asyncio.get_event_loop()
