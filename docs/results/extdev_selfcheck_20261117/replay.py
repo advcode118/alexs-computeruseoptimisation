@@ -40,7 +40,8 @@ def candidate_rules(description, check):
     grounded = bool(answer) and (normalize(answer) in page or answer.strip() == url)
     bounded = len(answer) <= 80 and "\n" not in answer and "\t" not in answer
     surface = normalize(unquote(" ".join(str(x or "") for x in (url, payload.get("title"), payload.get("h1"), answer))))
-    words = set(re.findall(r"[a-z0-9]+", surface))
+    words = {token.strip(".-_").casefold()
+             for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9.+#_-]*", surface)}
     terms = set(task_terms(description))
     hits = sum(term in words for term in terms)
     scope = bool(terms) and hits / len(terms) >= 0.5

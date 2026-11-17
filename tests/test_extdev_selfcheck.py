@@ -31,6 +31,14 @@ def test_reproduce_saved_script_scores(tmp_path):
     assert report["extdev_row_labels"] == {"correct": 3, "partial": 5, "wrong": 14}
     assert (report["dev_reference_saved_precision"]["TP"], report["dev_reference_saved_precision"]["FP"]) == (85, 5)
     assert report["model_calls"] == report["browser_runs"] == 0
+    for dataset, variant, expected in (
+        ("dev_val_grader", "runtime_scope", (16, 6, 71, 177)),
+        ("dev_val_grader", "precision_all", (13, 1, 74, 182)),
+        ("extdev_strict_AI", "runtime_scope", (3, 1, 0, 12)),
+        ("extdev_partial_positive_AI", "runtime_scope", (4, 0, 4, 8)),
+    ):
+        count = report["scores"][dataset][variant]
+        assert tuple(count[key] for key in ("TP", "FP", "FN", "TN")) == expected
     for name, variants in report["scores"].items():
         for count in variants.values():
             assert sum(count[key] for key in ("TP", "FP", "FN", "TN")) == (270 if name == "dev_val_grader" else 16)
@@ -63,3 +71,14 @@ def test_tightenings_read_only_visible_evidence(replay):
     assert replay.candidate_rules("", {}) == {"grounding": False, "no_dump": True, "scope": False}
     predicted, verdict, *_ = replay.predictions("Find team schedule", {}, [])
     assert verdict == "UNKNOWN" and not any(predicted.values())
+
+
+@pytest.mark.parametrize("term", ["18.2.0", "dependency-tree", "example.test", "source_insights", "C++17"])
+def test_scope_preserves_punctuated_terms_without_evidence_limit(replay, term):
+    description = f"Find {term} dependency missing unrelated"
+    check = {"page_url": "https://example.invalid/", "payload": {
+        "title": " ".join(f"noise{i}" for i in range(20)) + f" {term.upper()}.",
+        "h1": "Dependency"}}
+    assert replay.candidate_rules(description, check)["scope"]
+    check["payload"]["title"] = " ".join(replay.re.findall(r"[A-Za-z0-9]+", term))
+    assert not replay.candidate_rules(description, check)["scope"]
