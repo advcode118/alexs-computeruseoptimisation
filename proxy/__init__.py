@@ -1,1 +1,1 @@
-"""Stdio proxy for @playwright/mcp@0.0.84, plus fast_act, do_task_segment, and page diffs."""
+"""Script parsing, page settling and model-ignore counting shared by the bench arms."""

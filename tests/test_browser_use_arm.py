@@ -9,11 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from backends.playwright_mcp import PLAYWRIGHT_MCP_VERSION as BACKEND_MCP
 from bench.arms import (
     ARM_BROWSER_USE,
     ARM_PLAYWRIGHT,
-    ARM_STAGEHAND,
     ARMS,
     BASELINE_ARMS,
     SELECTABLE_ARMS,
@@ -35,7 +33,6 @@ from bench.budget import PROJECT_BUDGET_USD, ModelNotAllowed, SpendLedger, estim
 from bench.harness import PLAYWRIGHT_MCP_VERSION as HARNESS_MCP
 from bench.probe import execute_probe, main, plan_probe
 from bench.tasks import ANSWER_FORMAT, BENCHMARK_TASKS, tasks_for_split, task_message
-from proxy.child import PLAYWRIGHT_MCP_VERSION as CHILD_MCP
 
 ROOT = Path(__file__).resolve().parents[1]
 _JUDGE_KEYS = ("url_contains", "path_suffix", "answer_equals_selector", "answer_in_text")
@@ -128,7 +125,7 @@ def test_browser_use_is_a_baseline_in_the_default_probe():
     assert ARM_BROWSER_USE in SELECTABLE_ARMS
     assert ARM_BROWSER_USE in ARMS
     assert arm_needs_claude("browser_use") is True
-    assert HARNESS_MCP == CHILD_MCP == BACKEND_MCP == "0.0.84"
+    assert HARNESS_MCP == "0.0.84"
     assert BROWSER_USE_VERSION == "1.0.6"
     assert LOCAL_BROWSER == "chromium"
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -138,7 +135,6 @@ def test_browser_use_is_a_baseline_in_the_default_probe():
         ROOT / "bench" / "arms.py",
         ROOT / "bench" / "probe.py",
         ROOT / "pyproject.toml",
-        ROOT / "proxy" / "child.py",
         ROOT / "bench" / "harness.py",
     ):
         assert "0.0.85" not in path.read_text(encoding="utf-8")

@@ -157,33 +157,12 @@ def test_probe_plan_does_not_execute_and_caps_claude(capsys):
     assert "opus" not in json.dumps(printed).lower()
 
 
-def test_each_arm_launch_is_a_private_browser(tmp_path, monkeypatch):
+def test_each_arm_launch_is_a_private_browser():
     """Sequential arms must not share the Playwright MCP profile lock."""
-    from proxy.child import DEFAULT_CHILD_ARGV, NdjsonChild
-
-    monkeypatch.delenv("PLAYWRIGHT_MCP_PROXY_CHILD", raising=False)
-
     plain = playwright_mcp_args(headless=True, snapshot_mode="full")
     assert plain[:3] == ["npx", "@playwright/mcp@0.0.84", "--isolated"]
     assert "--user-data-dir" not in plain
     assert "--headless" in plain
-    assert DEFAULT_CHILD_ARGV[2] == "--isolated"
-    assert "--user-data-dir" not in DEFAULT_CHILD_ARGV
-    first = NdjsonChild()
-    second = NdjsonChild()
-    try:
-        assert first._owned_profile is None
-        assert second._owned_profile is None
-        assert "--user-data-dir" not in first.argv
-        assert "--user-data-dir" not in second.argv
-        assert "--isolated" in first.argv
-        assert "--isolated" in second.argv
-        assert first.argv != [] and second.argv == first.argv
-        explicit = NdjsonChild(["python", "-c", "pass"])
-        assert explicit._owned_profile is None
-    finally:
-        asyncio.run(first.stop())
-        asyncio.run(second.stop())
 
 
 def test_url_judge_reads_json_url_and_stagehand_goto_prose():

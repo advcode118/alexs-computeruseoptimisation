@@ -134,7 +134,7 @@ def test_await_and_semicolon_are_optional(source, prefix, suffix):
 @pytest.mark.parametrize("exact", [True, False, None])
 def test_exact_is_propagated(method, python_method, exact):
     option = "" if exact is None else f", exact: {str(exact).lower()}"
-    target = f'"button", {{name: "Next"{option}}}' if method == "getByRole" else f'"Next"' + (f', {{exact: {str(exact).lower()}}}' if exact is not None else "")
+    target = f'"button", {{name: "Next"{option}}}' if method == "getByRole" else '"Next"' + (f', {{exact: {str(exact).lower()}}}' if exact is not None else "")
     step, = parse_task_script(f"page.{method}({target}).first().click()")
     assert step.action.exact is exact
     page, _ = fake_page()

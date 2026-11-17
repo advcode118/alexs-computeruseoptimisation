@@ -26,7 +26,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import datetime
-import json
 import os
 import sys
 from pathlib import Path
@@ -55,7 +54,7 @@ def dry_run_output(tasks: list[dict], model: str = DEFAULT_MODEL, provider: str 
         elif "check_text" in task:
             lines.append(f"  - Success: Text present: {task['check_text']}")
         elif "judge_prompt" in task:
-            lines.append(f"  - Success: LLM judge with prompt")
+            lines.append("  - Success: LLM judge with prompt")
         lines.append("")
 
     lines.extend([

@@ -78,7 +78,10 @@ def test_effective_authoring_decisions_and_preserved_history():
     original = read("authoring_extdev_step2.jsonl")
     assert history[:len(original)] == original
     ledger = effective_authoring_decisions(history)
-    key = lambda r: (r["source"], r["source_id"], r["site"], r["rank"])
+
+    def key(r):
+        return r["source"], r["source_id"], r["site"], r["rank"]
+
     assert set(map(key, ledger)) <= set(map(key, candidates))
     assert len(ledger) == len(set(map(key, ledger)))
     tasks = {t["id"]: t for t in tasks_for_split("extdev")}

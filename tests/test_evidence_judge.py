@@ -8,7 +8,6 @@ from pathlib import Path
 
 from bench.arms import prompt_for
 from bench.budget import LedgerMissing
-from bench.harness import BenchmarkHarness
 from bench.judge import check_url_contains
 from bench.probe import main, probe_tasks
 from bench.script_first import (
