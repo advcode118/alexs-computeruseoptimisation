@@ -2550,7 +2550,9 @@ async def run_on_page(
 class ScriptFirstClient:
     """One run_script tool on a private local Chrome profile."""
 
-    def __init__(self, headless: bool = True, page=None, remote_debugging: bool = False):
+    def __init__(self, headless: bool = True, page=None, remote_debugging: bool = False,
+                 *, description: str = "", profile=None):
+        self.gate = ActionGate(description=description, profile=profile)
         self.remote_debugging = remote_debugging
         self.cdp_url = ""
         self.headless = headless
@@ -2708,7 +2710,7 @@ class ScriptFirstClient:
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""
         try:
-            text = await run_on_page(self._page, code, end_markers=self.end_markers)
+            text = await run_on_page(self._page, code, end_markers=self.end_markers, gate=self.gate)
         except ScriptError as exc:
             text = format_run_result(ok=False, url=_page_url(self._page), step_count=0, error=str(exc))
         elapsed_ms = (time.perf_counter() - start) * 1000

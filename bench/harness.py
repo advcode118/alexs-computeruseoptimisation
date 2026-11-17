@@ -34,6 +34,7 @@ from bench.budget import (
     assert_allowed_model,
 )
 from proxy.ignores import IgnoreCounter, annotate_tool_description
+from bench.recovery import ActionGate
 
 PLAYWRIGHT_MCP_VERSION = "0.0.84"
 DEFAULT_MODEL = ALLOWED_MODEL
@@ -1191,6 +1192,10 @@ class BenchmarkHarness:
             )
 
         self._task_wall_ms = None
+        if self.arm == "script_first":
+            gate = getattr(self.mcp_client, "gate", None)
+            if not isinstance(gate, ActionGate) or gate.description != task_description:
+                self.mcp_client.gate = ActionGate(description=task_description)
         if self.arm == "script_first" and self._browser_launch is None:
             launch_start = time.perf_counter()
             try:

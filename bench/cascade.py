@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 from bench.script_first import task_asks_value, task_terms
-from bench.recovery import classify_task, evaluate_checkpoints, plan_checkpoints
+from bench.recovery import ActionGate, classify_task, evaluate_checkpoints, plan_checkpoints
 
 
 class _GroundingParser(HTMLParser):
@@ -203,6 +203,7 @@ async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="
         grounding = await asyncio.to_thread(ground_start_page, task["start_url"], description=task["description"])
         grounding_ms = (time.perf_counter() - started) * 1000
         profile = classify_task(task["description"], grounding)
+        harness.mcp_client.gate = ActionGate(description=task["description"], profile=profile)
         checkpoints = plan_checkpoints(task, profile)
         script_start = time.perf_counter()
         result = await harness.run_task(task["id"], task["description"], task["start_url"], first_message_extra=grounding_note(grounding))

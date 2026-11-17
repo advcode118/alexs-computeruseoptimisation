@@ -24,24 +24,26 @@ class SavedScript:
     task: str
     code: str
     start_url: str = ""
+    description: str = ""
 
 
-def extract_scripts(value, source, task="", start_url=""):
+def extract_scripts(value, source, task="", start_url="", description=""):
     if isinstance(value, dict):
         task = str(value.get("task_id", value.get("idiom", task)))
         start_url = value.get("start_url", start_url) or ""
+        description = value.get("task_description", value.get("description", description)) or ""
         for key, item in value.items():
             if key in {"script", "scripts"}:
                 for index, code in enumerate(item if isinstance(item, list) else [item]):
                     if isinstance(code, str) and code.strip():
-                        yield SavedScript(f"{source}.{key}[{index}]", task, code, start_url)
+                        yield SavedScript(f"{source}.{key}[{index}]", task, code, start_url, description)
             elif key == "source" and "idiom" in value and isinstance(item, str):
-                yield SavedScript(source, task, item, start_url)
+                yield SavedScript(source, task, item, start_url, description)
             else:
-                yield from extract_scripts(item, f"{source}.{key}", task, start_url)
+                yield from extract_scripts(item, f"{source}.{key}", task, start_url, description)
     elif isinstance(value, list):
         for index, item in enumerate(value):
-            yield from extract_scripts(item, f"{source}[{index}]", task, start_url)
+            yield from extract_scripts(item, f"{source}[{index}]", task, start_url, description)
 
 
 def collect(root):
@@ -88,6 +90,7 @@ async def audit(scripts, pages):
                     rejected.append(f"{saved.source} ({saved.task}): {exc}")
                     continue
                 lexical = SimpleNamespace(url=saved.start_url)
+                gate = ActionGate(description=saved.description)
                 page = None
                 for step in steps:
                     action = step.action
@@ -109,14 +112,14 @@ async def audit(scripts, pages):
                     target = page or lexical
                     counts["steps"] += 1
                     counts["DOM" if page else "lexical"] += 1
-                    allowed, reason = await ActionGate().check(step, target)
+                    allowed, reason = await gate.check(step, target)
                     if not allowed:
                         counts["blocked"] += 1
                         counts[reason] += 1
                         blocked.append(f"{saved.source} ({saved.task}), line {step.line}: {reason}\n  {step.source}")
                     elif page:
                         try:
-                            await _run_step_on_page(page, step)
+                            await _run_step_on_page(page, step, gate=gate)
                         except Exception as exc:
                             replay_errors.append(f"{saved.source}, line {step.line}: {type(exc).__name__}")
                             lexical.url = page.url

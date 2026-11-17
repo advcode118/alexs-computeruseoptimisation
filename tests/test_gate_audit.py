@@ -5,10 +5,11 @@ from tools.gate_audit import SavedScript, audit, collect, extract_scripts, rende
 
 
 def test_extract_nested_scripts():
-    data = {"task_id": "read", "scripts": ["page.title()"], "cache": {"script": "page.url()"}}
+    data = {"task_id": "read", "task_description": "Log in and read", "scripts": ["page.title()"], "cache": {"script": "page.url()"}}
     scripts = list(extract_scripts(data, "row"))
     assert [item.code for item in scripts] == ["page.title()", "page.url()"]
     assert all(item.task == "read" for item in scripts)
+    assert all(item.description == "Log in and read" for item in scripts)
     assert list(extract_scripts({"scripts": []}, "row")) == []
 
 

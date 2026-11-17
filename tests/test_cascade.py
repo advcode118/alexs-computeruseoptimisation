@@ -64,6 +64,7 @@ def test_first_message_and_marker_tripwire(tmp_path, monkeypatch):
         monkeypatch.setattr("bench.tasks.markers_for_task", refuse)
         result = await harness.run_task(TASK_ID, DESCRIPTION, START, first_message_extra="grounding example")
         assert result.end_state == "PASS"
+        assert harness.mcp_client.gate.description == DESCRIPTION
         assert len(harness.anthropic.calls) == 1
         assert "grounding example" in harness.anthropic.calls[0]["messages"][0]["content"]
     asyncio.run(run())
@@ -102,6 +103,8 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider, fallback):
         async def teardown(self):
             pass
         async def run_task(self, *args, **kwargs):
+            assert self.mcp_client.gate.description == DESCRIPTION
+            assert self.mcp_client.gate.profile.signals
             return result
     built = []
     class Browser:

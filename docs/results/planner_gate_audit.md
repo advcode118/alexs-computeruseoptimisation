@@ -2,11 +2,11 @@
 |---|---:|---:|---:|---:|---:|---:|---|
 | docs/results/extdev_control_20261117 | 67 | 95 | 0 | 95 | 23 | 0 |  |
 | docs/results/extdev_gpt62_20261117 | 11 | 13 | 0 | 13 | 6 | 0 |  |
-| docs/results/form_specialist_20261114 | 77 | 271 | 0 | 271 | 12 | 9 | needs approval: auth/payment page: 4; needs approval: commit control in evaluate: 1; needs approval: form submission (POST or unknown method): 4 |
+| docs/results/form_specialist_20261114 | 77 | 271 | 0 | 271 | 12 | 5 | needs approval: commit control in evaluate: 1; needs approval: form submission (POST or unknown method): 4 |
 | docs/results/heldout2_tip2_20261113 | 92 | 227 | 0 | 227 | 9 | 2 | needs approval: form submission (POST or unknown method): 2 |
 | docs/results/strategy_spa_20261114 | 88 | 168 | 0 | 168 | 7 | 4 | needs approval: commit control: 4 |
 | tests/fixtures | 28 | 75 | 11 | 64 | 3 | 2 | needs approval: commit control: 1; needs approval: form submission (POST or unknown method): 1 |
-| TOTAL | 363 | 849 | 11 | 838 | 60 | 17 | |
+| TOTAL | 363 | 849 | 11 | 838 | 60 | 13 | |
 
 ## Blocked steps
 docs/results/form_specialist_20261114/dev3_off.jsonl:4.scripts[2] (dev3_form_blazedemo_purchase), line 2: needs approval: form submission (POST or unknown method)
@@ -17,14 +17,6 @@ docs/results/form_specialist_20261114/dev4form_off.jsonl:4.scripts[1] (dev4_form
   page.evaluate(() => { const inputs = [...document.querySelectorAll('input')]; const field = inputs.find(x => x.type === 'number' || /number/i.test(x.name + ' ' + x.id + ' ' + x.placeholder)) || inputs.find(x => x.type !== 'hidden' && x.type !== 'submit'); if (field) { field.value = '2749'; field.dispatchEvent(new Event('input', {bubbles:true})); field.dispatchEvent(new Event('change', {bubbles:true})); } const button = [...document.querySelectorAll('button, input[type="submit"]')].find(x => /convert/i.test(x.innerText || x.value || '')); if (button) button.click(); else if (field?.form) field.form.requestSubmit(); })
 docs/results/form_specialist_20261114/dev4form_off.jsonl:12.scripts[1] (dev4_form_aos_contact), line 3: needs approval: commit control in evaluate
   page.evaluate(() => { const s=[...document.querySelectorAll('select')].find(x=>[...x.options].some(o=>o.textContent.trim()==='Laptops')); if(s){s.value=[...s.options].find(o=>o.textContent.trim()==='Laptops').value;s.dispatchEvent(new Event('change',{bubbles:true}));} const e=[...document.querySelectorAll('input')].find(x=>/email/i.test(x.placeholder||x.name||x.id)); if(e){e.value='alex@example.com';e.dispatchEvent(new Event('input',{bubbles:true}));} const subj=[...document.querySelectorAll('textarea,input')].find(x=>/subject/i.test(x.placeholder||x.name||x.id)); if(subj){subj.value='Battery life question';subj.dispatchEvent(new Event('input',{bubbles:true}));} const b=[...document.querySelectorAll('button,input[type=submit]')].find(x=>/send/i.test(x.innerText||x.value||'')); if(b)b.click(); })
-docs/results/form_specialist_20261114/held-out_off.jsonl:2.scripts[1] (ho_form_internet_secure), line 1: needs approval: auth/payment page
-  page.goto('https://the-internet.herokuapp.com/login')
-docs/results/form_specialist_20261114/held-out_off.jsonl:2.scripts[1] (ho_form_internet_secure), line 2: needs approval: auth/payment page
-  cu.fill('Username', 'tomsmith')
-docs/results/form_specialist_20261114/held-out_off.jsonl:2.scripts[1] (ho_form_internet_secure), line 3: needs approval: auth/payment page
-  cu.fill('Password', 'SuperSecretPassword!')
-docs/results/form_specialist_20261114/held-out_off.jsonl:2.scripts[1] (ho_form_internet_secure), line 4: needs approval: auth/payment page
-  cu.click('Login')
 docs/results/form_specialist_20261114/held-out_on.jsonl:5.scripts[0] (ho_form_w3schools_action), line 2: needs approval: form submission (POST or unknown method)
   page.evaluate(() => { const forms=[...document.forms]; const f=forms.find(x=>x.querySelector('input[type="submit"],button[type="submit"]')); if(f) f.requestSubmit(); })
 docs/results/heldout2_tip2_20261113/probe_20261113_015006.jsonl:18.scripts[1] (ho2_search_flask_blueprints), line 2: needs approval: form submission (POST or unknown method)

@@ -7,7 +7,8 @@ from urllib.parse import urlsplit
 
 
 _COMMIT = re.compile(r"\b(buy|pay|purchase|place order|delete|remove account|send|confirm|subscribe|transfer)\b", re.I)
-_SENSITIVE = re.compile(r"(?:^|[/_.-])(login|log-in|signin|sign-in|auth|oauth|checkout|payment|billing)(?:$|[/_.-])", re.I)
+_PAYMENT = re.compile(r"(?:^|[/_.-])(checkout|payment|billing)(?:$|[/_.-])", re.I)
+_AUTH = re.compile(r"(?:^|[/_.-])(login|log-in|signin|sign-in|auth|oauth|authenticate)(?:$|[/_.-])", re.I)
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,19 @@ class ApprovalRequired(RuntimeError):
 
 
 class ActionGate:
+    def __init__(self, *, description: str = "", profile: TaskProfile | None = None):
+        self.description = description
+        self.profile = profile or classify_task(description, {})
+        self.auth_approved = bool(re.search(r"\b(log(?:ging)?[ -]?in|sign(?:ing)?[ -]?in)\b", description, re.I))
+
+    def _sensitive(self, url):
+        path = urlsplit(url if isinstance(url, str) else "").path
+        return bool(_PAYMENT.search(path) or (not self.auth_approved and _AUTH.search(path)))
+
+    def _approved_login(self, page):
+        path = urlsplit(getattr(page, "url", "") or "").path
+        return self.auth_approved and bool(_AUTH.search(path)) and not _PAYMENT.search(path)
+
     async def check(self, step, page) -> tuple[bool, str]:
         from bench.script_grammar import browser_locator
         from bench.script_helpers import _CLICK, _TYPE, _open
@@ -83,6 +97,7 @@ class ActionGate:
         action = step.action
         helper = step.helper
         op = action.op if action else helper.op if helper else "evaluate"
+        dom = callable(getattr(type(page), "locator", None))
         if step.kind == "read" or op in {"title", "url", "textContent", "innerText", "getAttribute"}:
             return True, "read"
         if op == "evaluate":
@@ -90,17 +105,16 @@ class ActionGate:
             if re.search(r"\bsendBeacon\s*\(|\b(?:fetch|XMLHttpRequest)\b[\s\S]*?['\"]POST['\"]|\.open\s*\(\s*['\"]POST['\"]", function, re.I):
                 return False, "needs approval: POST request"
             if re.search(r"\.(submit|requestSubmit)\s*\(", function):
-                selector = re.search(r"document\.querySelector\(\s*(['\"])(.*?)\1\s*\)\.(?:submit|requestSubmit)\(", function)
-                if selector and callable(getattr(type(page), "locator", None)):
-                    method = await page.locator(selector[2]).evaluate("el => (el.method || 'get').toUpperCase()", timeout=1000)
-                    if method == "GET":
-                        return True, "GET navigation"
+                if dom:
+                    post = await page.locator("form").evaluate_all("forms => forms.some(form => form.method.toUpperCase() === 'POST')")
+                    if not post or self._approved_login(page):
+                        return True, "approved login" if post else "GET navigation"
                 return False, "needs approval: form submission (POST or unknown method)"
             if re.search(r"\.click\s*\(", function):
                 literals = re.findall(r"(['\"])(.*?)\1|/([^/\n]+)/[gimsuy]*", function)
                 targets = [quoted or regex for _, quoted, regex in literals]
                 checkbox = any(re.search(r"input\[type=['\"]?checkbox", target) for target in targets)
-                if not checkbox and any(_COMMIT.search(target) for target in targets):
+                if not dom and not checkbox and any(_COMMIT.search(target) for target in targets):
                     return False, "needs approval: commit control in evaluate"
                 if callable(getattr(type(page), "locator", None)):
                     selectors = re.findall(r"querySelector(?:All)?\(\s*(['\"])(.*?)\1\s*\)", function)
@@ -109,18 +123,19 @@ class ActionGate:
                             const form = el.form || el.closest('form');
                             const post = !!form && form.method.toUpperCase() === 'POST' &&
                                 ((el.tagName === 'BUTTON' && el.type === 'submit') || ['submit','image'].includes(el.type));
-                            return {post, checkbox: el.type === 'checkbox', label: el.innerText || el.value || el.getAttribute('aria-label') || ''};
+                            const commit = el.matches('button, input[type="submit"], input[type="image"], a[href], [role="button"], [role="link"]');
+                            return {post, commit, label: el.innerText || el.value || el.getAttribute('aria-label') || ''};
                         })""")
-                        if any(control["post"] for control in controls):
+                        if any(control["post"] for control in controls) and not self._approved_login(page):
                             return False, "needs approval: POST submission in evaluate"
-                        if any(not control["checkbox"] and _COMMIT.search(control["label"]) for control in controls):
+                        if any(control["commit"] and _COMMIT.search(control["label"]) for control in controls):
                             return False, "needs approval: commit control in evaluate"
             return True, "read"
         url = action.value if op == "goto" else getattr(page, "url", "")
-        if isinstance(url, str) and _SENSITIVE.search(urlsplit(url).path):
+        if self._sensitive(url):
             return False, "needs approval: auth/payment page"
         name = (action.name or "") if action else helper.target if helper else ""
-        if op == "click" and _COMMIT.search(name):
+        if not dom and op == "click" and _COMMIT.search(name):
             return False, "needs approval: commit control"
         if op == "goto" or op == "goBack":
             return True, "navigation"
@@ -143,15 +158,16 @@ class ActionGate:
             info = await locator.evaluate("""el => {
                 const form = el.form || el.closest('form');
                 return {label: el.innerText || el.value || el.getAttribute('aria-label') || '',
+                    commit: el.matches('button, input[type="submit"], input[type="image"], a[href], [role="button"], [role="link"]'),
                     href: el.href || '', password: el.type === 'password',
                     method: form ? (el.getAttribute('formmethod') || form.method || 'get').toUpperCase() : '',
                     submit: !!form && ((el.tagName === 'BUTTON' && el.type === 'submit') || ['submit', 'image'].includes(el.type))};
             }""", timeout=1000)
-            if info["password"] or _SENSITIVE.search(urlsplit(info["href"]).path):
+            if (info["password"] and not self.auth_approved) or self._sensitive(info["href"]):
                 return False, "needs approval: auth/payment control"
-            if op == "click" and _COMMIT.search(info["label"]):
+            if op == "click" and info["commit"] and (_COMMIT.search(info["label"]) or _COMMIT.search(name)):
                 return False, "needs approval: commit control"
             enter = op == "press" and "enter" in (action.value if action else helper.value).lower()
-            if info["method"] == "POST" and ((op == "click" and info["submit"]) or enter):
+            if info["method"] == "POST" and ((op == "click" and info["submit"]) or enter) and not self._approved_login(page):
                 return False, "needs approval: POST submission"
         return True, "read/reversible action"

@@ -10,7 +10,7 @@ import pytest
 from playwright.async_api import async_playwright
 
 from bench.recovery import ActionGate, TaskProfile, classify_task, evaluate_checkpoints, plan_checkpoints
-from bench.script_first import TaskStep, parse_task_script, run_on_page, script_runtime_verdict
+from bench.script_first import ScriptFirstClient, TaskStep, parse_task_script, run_on_page, script_runtime_verdict
 
 
 @pytest.mark.parametrize("description,grounding,modality,risk,approval", [
@@ -85,6 +85,7 @@ def test_evaluate_real_forms():
                 for method, allowed in [("get", True), ("post", False)]:
                     await page.set_content(f'<form method="{method}"><input name="q"><button>Search</button></form>')
                     for function in ['() => document.querySelector("form").requestSubmit()',
+                                     '() => { const f = document.querySelector("form"); f.requestSubmit(); }',
                                      '() => document.querySelector("button").click()']:
                         step = TaskStep("evaluate", 1, function, function=function)
                         result, _ = await ActionGate().check(step, page)
@@ -93,6 +94,61 @@ def test_evaluate_real_forms():
                 function = '() => document.querySelector("#commit").click()'
                 result, _ = await ActionGate().check(TaskStep("evaluate", 1, function, function=function), page)
                 assert not result
+            finally:
+                await browser.close()
+    asyncio.run(run())
+
+
+def test_task_approved_login(side_effect_server):
+    base, requests = side_effect_server
+
+    async def run():
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page()
+                await page.goto(f"{base}/login.html")
+                source = ('cu.fill("Username", "demo"); cu.fill("Password", "demo"); '
+                          'cu.click("Login");')
+                blocked = json.loads((await run_on_page(page, source)).splitlines()[0])
+                assert blocked["blocked_actions"] and not any(method == "POST" for method, _ in requests)
+                client = ScriptFirstClient(page=page, description="Log in and read the secure area")
+                result, _ = await client.call_tool("run_script", {"code": source})
+                assert json.loads(result.splitlines()[0])["ok"]
+                await page.wait_for_url("**/authenticate")
+                assert ("POST", "/authenticate") in requests
+                await page.set_content('<button>Delete</button>')
+                for code in [f'page.goto("{base}/checkout")',
+                             'page.getByRole("button", {name: "Delete"}).click()']:
+                    allowed, _ = await client.gate.check(parse_task_script(code)[0], page)
+                    assert not allowed
+            finally:
+                await browser.close()
+    asyncio.run(run())
+
+
+def test_dom_commit_labels():
+    async def run():
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page()
+                await page.set_content('<label><input type="checkbox">Pay electric bill</label>'
+                                       '<span>Send a letter</span><button>Buy</button>'
+                                       '<a href="/delete">Delete</a><input type="submit" value="Confirm">')
+                for code, allowed in [
+                    ('page.getByRole("checkbox", {name: "Pay electric bill"}).click()', True),
+                    ('page.getByText("Pay electric bill").click()', True),
+                    ('page.getByText("Send a letter").click()', True),
+                    ('page.getByRole("button", {name: "Buy"}).click()', False),
+                    ('page.getByRole("link", {name: "Delete"}).click()', False),
+                    ('page.locator("input[type=submit]").click()', False),
+                    ('page.evaluate(() => document.querySelector("label").click())', True),
+                    ('page.evaluate(() => document.querySelector("span").click())', True),
+                    ('page.evaluate(() => document.querySelector("button").click())', False),
+                ]:
+                    result, _ = await ActionGate().check(parse_task_script(code)[0], page)
+                    assert result is allowed
             finally:
                 await browser.close()
     asyncio.run(run())
