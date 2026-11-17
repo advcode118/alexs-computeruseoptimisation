@@ -49,7 +49,7 @@ export type Part = {
 
 export const CURRENT_UPDATE = {
   plan: [
-    "First: fix the grader — literal/compound answers reject correct ones — and count model calls per stage.",
+    "Per-stage model-call counting is done (PR #106); the grader rewrite is planned but on hold.",
     "One checkpointed planning call, with task classification folded into it.",
     "Executor-side safety gate: irreversible steps pause for Alex’s approval.",
     "At most one repair call.",
@@ -63,7 +63,7 @@ export const CURRENT_UPDATE = {
     },
     {
       pr: 106,
-      status: "Draft",
+      status: "Open",
       body: "run_recovery stage, per-stage model-call counts, --fallback none; offline, 1132 passed, 1 skipped.",
     },
     {

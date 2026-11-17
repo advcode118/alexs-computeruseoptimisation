@@ -15,7 +15,7 @@ Speed from fewer model calls and deterministic execution. Easier maintenance thr
 
 Low-call design, signed off:
 
-1. First: fix the grader — literal/compound answers reject correct ones — and count model calls per stage.
+1. Per-stage model-call counting is done (PR #106); the grader rewrite is planned but on hold.
 2. One checkpointed planning call, with task classification folded into it.
 3. Executor-side safety gate: irreversible steps pause for Alex’s approval.
 4. At most one repair call.
@@ -24,7 +24,7 @@ Low-call design, signed off:
 ## Progress
 
 - Merged [PR #95](https://github.com/advcode118/alexs-computeruseoptimisation/pull/95): browser-use priced per request.
-- Draft [PR #106](https://github.com/advcode118/alexs-computeruseoptimisation/pull/106): `run_recovery` stage, per-stage model-call counts, `--fallback none`; offline, **1132 passed, 1 skipped**.
+- Open [PR #106](https://github.com/advcode118/alexs-computeruseoptimisation/pull/106): `run_recovery` stage, per-stage model-call counts, `--fallback none`; offline, **1132 passed, 1 skipped**.
 - Open [PR #105](https://github.com/advcode118/alexs-computeruseoptimisation/pull/105): Sol model/effort comparison.
 
 ### Current baseline
