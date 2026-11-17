@@ -12,6 +12,7 @@ from the run are written under the run directory for a later offline replay.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import re
@@ -37,6 +38,7 @@ from proxy.ignores import IgnoreCounter, annotate_tool_description
 PLAYWRIGHT_MCP_VERSION = "0.0.84"
 DEFAULT_MODEL = ALLOWED_MODEL
 MCP_LINE_LIMIT = 16 * 1024 * 1024
+MCP_SHUTDOWN_TIMEOUT_S = 5.0
 MAX_HISTORY_PAIRS = 6
 MAX_SNAPSHOT_CHARS = 8000
 _TRUNCATION_NOTE = "\n[snapshot truncated]"
@@ -656,12 +658,8 @@ class PlaywrightMCPClient:
             except asyncio.CancelledError:
                 pass
             self._stderr_task = None
-        if self.process:
-            self.process.terminate()
-            try:
-                await asyncio.wait_for(self.process.wait(), timeout=5.0)
-            except asyncio.TimeoutError:
-                self.process.kill()
+        if self.process is not None:
+            await _shut_down_mcp_process(self.process)
             self.process = None
         self._discard_profile()
 
@@ -670,6 +668,27 @@ class PlaywrightMCPClient:
         self._profile_dir = None
         if profile:
             shutil.rmtree(profile, ignore_errors=True)
+
+
+async def _shut_down_mcp_process(process: asyncio.subprocess.Process) -> None:
+    """End a stdio MCP server: EOF on stdin, then SIGTERM, then SIGKILL.
+
+    npx does not pass SIGTERM on to the server, so a bare terminate() waits
+    out its whole timeout and the kill that follows orphans the server and
+    its Chrome. EOF on stdin is the stdio transport's own shutdown signal.
+    """
+    if process.stdin is not None:
+        process.stdin.close()
+    for escalate in (process.terminate, process.kill, None):
+        try:
+            await asyncio.wait_for(process.wait(), timeout=MCP_SHUTDOWN_TIMEOUT_S)
+            return
+        except asyncio.TimeoutError:
+            # After the kill, a surviving grandchild can still hold the pipes
+            # open and keep wait() pending; give up rather than hang the run.
+            if escalate is not None:
+                with contextlib.suppress(ProcessLookupError):
+                    escalate()
 
 
 def cached_prompt_prefix(system: str, tools: list[dict]) -> tuple[list[dict], list[dict]]:

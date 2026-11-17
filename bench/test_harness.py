@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import signal
+import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -130,6 +133,36 @@ def test_ndjson_framing_skips_notifications_and_content_length_lines():
     note = encode_ndjson({"jsonrpc": "2.0", "method": "notifications/initialized"})
     assert note.endswith(b"\n")
     assert b"Content-Length" not in note
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGTERM") or sys.platform == "win32", reason="POSIX signals")
+def test_stop_ends_a_server_that_ignores_sigterm_by_closing_stdin():
+    """npx swallows SIGTERM. The server still has to stop at once, and cleanly."""
+    server = (
+        "import signal, sys\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "print('ready', flush=True)\n"
+        "sys.stdin.read()\n"
+    )
+
+    async def run() -> tuple[float, int | None]:
+        client = PlaywrightMCPClient()
+        client.process = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-c",
+            server,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+        )
+        process = client.process
+        assert await process.stdout.readline() == b"ready\n"
+        started = time.perf_counter()
+        await client.stop()
+        return time.perf_counter() - started, process.returncode
+
+    elapsed, returncode = asyncio.run(run())
+    assert returncode == 0
+    assert elapsed < 2.0
 
 
 def test_navigate_and_find_count_as_snapshot_tokens():
