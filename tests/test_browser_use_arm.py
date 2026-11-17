@@ -74,6 +74,9 @@ class _World:
                 self.page_selector_text = world.page_selector_text
                 self.stopped = False
 
+            async def start(self):
+                return None
+
             async def stop(self):
                 self.stopped = True
                 world.stopped += 1
@@ -382,8 +385,8 @@ def test_hacker_news_passes_only_when_the_live_title_matches():
     )
     sentence.page_selector_text = "Fixture Story"
     said = asyncio.run(run_browser_use_task(task, api_key="local-test-not-sent", loader=sentence.loader))
-    assert said["success"] is False
-    assert said["success_reason"] == "answer is not the marked value"
+    assert said["success"] is True
+    assert said["success_reason"] == "the page evidence matches the markers"
     assert said["claimed_answer"] == 'The top story on Hacker News is "Fixture Story".'
     assert said["expected_value"] == "Fixture Story"
 

@@ -172,6 +172,8 @@ class TaskResult:
     strategy_detail: dict = field(default_factory=dict)
     segment_mode: str = "off"
     segments: list[dict] = field(default_factory=list)
+    browser_launch_ms: float = 0.0
+    grade_read_ms: float = 0.0
 
 
 def segment_mode_for(arm: str) -> str:
@@ -591,6 +593,7 @@ class PlaywrightMCPClient:
         self._stderr_task = asyncio.create_task(self._drain_stderr())
         try:
             await self._initialize()
+            await self.call_tool("browser_navigate", {"url": "about:blank"})
         except BaseException:
             await self.stop()
             raise
@@ -881,8 +884,10 @@ class BenchmarkHarness:
         self.anthropic: AnthropicClient | None = None
         self._capture_index = 0
         self._pending_snapshot_path: Path | None = None
-        # In flight while the model writes. None for arms that start first.
         self._browser_launch: asyncio.Future | None = None
+        self.browser_launch_ms = 0.0
+        self._task_wall_start: float | None = None
+        self._task_wall_ms: float | None = None
 
     def has_api_key(self) -> bool:
         """Check if we have an API key configured."""
@@ -909,11 +914,7 @@ class BenchmarkHarness:
             await launch
 
     async def setup(self) -> None:
-        """Set up clients.
-
-        script_first returns while Chrome is still launching, so the model
-        can write during that launch. The launch does not open the task URL.
-        """
+        """Launch a ready browser before any task navigation or model call."""
         if self.api_key:
             if self.provider == "openai":
                 from bench.openai_client import OpenAIClient
@@ -926,11 +927,16 @@ class BenchmarkHarness:
 
         from bench.arms import build_client
 
-        self.mcp_client = build_client(self.arm, headless=self.headless)
-        if self.arm == "script_first":
-            self._begin_browser_launch()
-            return
-        await self.mcp_client.start()
+        launch_start = time.perf_counter()
+        try:
+            self.mcp_client = build_client(self.arm, headless=self.headless)
+            if self.arm == "script_first":
+                self._begin_browser_launch()
+                await self._wait_for_browser()
+            else:
+                await self.mcp_client.start()
+        finally:
+            self.browser_launch_ms = (time.perf_counter() - launch_start) * 1000
 
     async def teardown(self) -> None:
         """Close the browser after an in-flight launch has finished."""
@@ -1187,6 +1193,9 @@ class BenchmarkHarness:
         selector = wanted if isinstance(wanted, str) else ""
         last = steps[-1]
         page_text, marked = await read_marked_page(self.mcp_client, selector)
+        grade_url = getattr(self.mcp_client, "_grade_read_url", "")
+        if isinstance(grade_url, str) and grade_url:
+            last.page_url = grade_url
         if page_text:
             last.page_text = page_text
         if marked:
@@ -1213,7 +1222,8 @@ class BenchmarkHarness:
         )
         from bench.tasks import task_message
 
-        wall_start = time.perf_counter()
+        wall_start = self._task_wall_start if self._task_wall_start is not None else time.perf_counter()
+        self._task_wall_start = None
         deadline = wall_start + SEG_WALL_S
         client = self.mcp_client
         client.reset_segments()
@@ -1527,7 +1537,11 @@ class BenchmarkHarness:
             stop(f"Error: {result.error}", UNKNOWN)
         # This is the independent post-run grade read, never controller input.
         result.total_wall_ms = (time.perf_counter() - wall_start) * 1000
+        self._task_wall_ms = result.total_wall_ms
+        grade_start = time.perf_counter()
         await self._read_shared_page(task_id, result.steps)
+        result.grade_read_ms = (time.perf_counter() - grade_start) * 1000
+        result.browser_launch_ms = self.browser_launch_ms
         result.total_steps = len(result.steps)
         result.total_other_ms = result.total_wall_ms - result.total_model_ms - result.total_tool_ms
         return result
@@ -1560,10 +1574,19 @@ class BenchmarkHarness:
                 "MCP client not started",
             )
 
+        self._task_wall_ms = None
+        if self.arm == "script_first" and self._browser_launch is None:
+            launch_start = time.perf_counter()
+            try:
+                self._begin_browser_launch()
+                await self._wait_for_browser()
+            finally:
+                self.browser_launch_ms = (time.perf_counter() - launch_start) * 1000
         if segment_mode_for(self.arm) == "on":
             return await self._run_segment_task(task_id, task_description, start_url)
 
-        wall_start = time.perf_counter()
+        wall_start = self._task_wall_start if self._task_wall_start is not None else time.perf_counter()
+        self._task_wall_start = None
         generic_start = wall_start
         steps: list[StepMetrics] = []
         total_model_ms = 0.0
@@ -2225,6 +2248,8 @@ class BenchmarkHarness:
 
         if spoken_answer and self.arm != "script_first":
             self._apply_spoken_claim(steps, spoken_answer)
+        total_wall_ms = (time.perf_counter() - wall_start) * 1000
+        self._task_wall_ms = total_wall_ms
         # The grade read is the judge's work, not the arm's. Every arm does the
         # same read, and none of them is timed for it.
         grade_start = time.perf_counter()
@@ -2264,7 +2289,6 @@ class BenchmarkHarness:
                     landed_url=landed,
                 )
 
-        total_wall_ms = (time.perf_counter() - wall_start) * 1000 - grade_read_ms
         total_other_ms = total_wall_ms - total_model_ms - total_tool_ms
 
         return TaskResult(
@@ -2299,6 +2323,8 @@ class BenchmarkHarness:
             strategy_reason=strategy_reason,
             strategy_detail=strategy_detail,
             segment_mode=segment_mode_for(self.arm),
+            browser_launch_ms=self.browser_launch_ms,
+            grade_read_ms=grade_read_ms,
         )
 
     def _empty_result(

@@ -1045,8 +1045,8 @@ def test_script_first_cache_breakpoint_is_sent_and_the_api_is_not_called(monkeyp
     asyncio.run(other.teardown())
 
 
-def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
-    """The launch begins before the model returns and finishes before run_script."""
+def test_chrome_is_ready_before_the_model_writes(tmp_path):
+    """Launch finishes before the model or script can start."""
     order: list[str] = []
     prose = _page("https://en.wikipedia.org/wiki/Ada_Lovelace")
 
@@ -1057,6 +1057,7 @@ def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
         def begin_launch(self):
             order.append("launch")
             self.launch = asyncio.get_running_loop().create_future()
+            asyncio.get_running_loop().call_soon(self.launch.set_result, None)
             return self.launch
 
         def tools_for_claude(self):
@@ -1078,8 +1079,7 @@ def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
             self.calls += 1
             order.append("model")
             assert order[0] == "launch"
-            assert not self.client.launch.done()
-            self.client.launch.set_result(None)
+            assert self.client.launch.done()
             return _tool_reply('page.goto("https://en.wikipedia.org/wiki/Ada_Lovelace")'), 1.0
 
     client = Client()
@@ -1097,7 +1097,7 @@ def test_chrome_starts_while_the_model_writes_and_the_tool_waits(tmp_path):
     assert result.success is True
 
 
-def test_script_first_setup_returns_before_chrome_is_open(tmp_path, monkeypatch):
+def test_script_first_setup_waits_until_chrome_is_open(tmp_path, monkeypatch):
     hold = asyncio.Event()
     order: list[str] = []
 
@@ -1118,13 +1118,17 @@ def test_script_first_setup_returns_before_chrome_is_open(tmp_path, monkeypatch)
             arm="script_first",
             runs_dir=tmp_path / "script",
         )
-        await script.setup()
+        setup = asyncio.create_task(script.setup())
+        await asyncio.sleep(0)
         await asyncio.sleep(0)
         assert order == ["open-start"]
+        assert not setup.done()
         assert script._browser_launch is not None
         assert not script._browser_launch.done()
         assert script.anthropic.cache_prefix is True
         hold.set()
+        await setup
+        assert script._browser_launch.done()
         await script.teardown()
         assert order == ["open-start", "open-done"]
         other = BenchmarkHarness(
