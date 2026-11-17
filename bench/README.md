@@ -100,7 +100,7 @@ It requires an existing ledger and never silently imports or clears old spend.
 ## Tasks, grading, and saved evidence
 
 All `bench/tasks*.py` and `bench/verify_*.py` catalogs are retained, including
-local HTML fixtures under `loop/fixture/`. Use `--split` to select the tuned,
+local HTML fixtures under `bench/fixture/`. Use `--split` to select the tuned,
 development, validation, or held-out sets. `--only-kind` is an explicit
 reporting/selection filter; task markers are not sent to the agent.
 
@@ -110,7 +110,5 @@ calls, browsers, or network. All `docs/results/**` evidence is retained.
 Historical arm names in the regrader are necessary to interpret those rows,
 not selectable runtime arms.
 
-`proxy/` retains shared parsing, settling, model-ignore counting, and MCP child
-utilities used by the kept arms; it no longer exposes a proxy arm/server.
-`loop/` remains because shared browser backends import its actions/browser
-and observation types, and task catalogs use its HTML fixtures.
+`proxy/` retains the script parser, page settling and model-ignore counting
+used by the kept arms; it no longer exposes a proxy arm, server or MCP child.

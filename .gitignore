@@ -18,4 +18,3 @@ venv/
 bench/runs/
 bench/results/
 bench/snapshots/
-proxy/replay-cache.sqlite

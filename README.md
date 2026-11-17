@@ -52,7 +52,7 @@ Same pass rate as Playwright MCP at about 3.5x less cost per run, and about 0.7s
 
 The progress site is a Next.js App Router app with Tailwind. All of the copy and every probe number lives in [`data/progress.ts`](https://github.com/advcode118/alexs-computeruseoptimisation/blob/cursor/progress-site-redesign-8676/data/progress.ts) on the `cursor/progress-site-redesign-8676` branch. Edit that file to update the site, and only add numbers that were measured.
 
-The browser loop is separate from the site: `python -m loop demo` (see [`loop/README.md`](https://github.com/advcode118/alexs-computeruseoptimisation/blob/cursor/progress-site-redesign-8676/loop/README.md)).
+The benchmark harness is separate from the site: see [`bench/README.md`](bench/README.md).
 
 **Run locally** (Node.js 20 or newer):
 
