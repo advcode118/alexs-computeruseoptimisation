@@ -113,11 +113,12 @@ def test_ultrafast_mode_is_written_on_budget_skips(monkeypatch, tmp_path):
     assert all(row["browser_use_mode"] == "ultrafast" for row in records if "task_id" in row)
 
 
-def test_allow_list_is_exactly_the_two_models():
-    assert ALLOWED_OPENAI_MODELS == ("gpt-6.1-sol", "gpt-6-luna")
+def test_allow_list_is_exactly_the_priced_models():
+    assert ALLOWED_OPENAI_MODELS == ("gpt-6.1-sol", "gpt-6-luna", "gpt-6.2-astra", "gpt-6.2-sol")
     for model in ALLOWED_OPENAI_MODELS:
         assert assert_openai_model(model) == model
-        assert efforts_for(model) == ("low", "medium", "high", "xhigh")
+        expected = ("medium",) if model.startswith("gpt-6.2-") else ("low", "medium", "high", "xhigh")
+        assert efforts_for(model) == expected
     for name in REFUSED:
         with pytest.raises(OpenAIModelNotAllowed):
             assert_openai_model(name)
@@ -127,11 +128,27 @@ def test_allow_list_is_exactly_the_two_models():
 
 def test_unknown_effort_is_refused_and_xhigh_is_accepted():
     for model in ALLOWED_OPENAI_MODELS:
-        for effort in ("low", "medium", "high", "xhigh"):
+        for effort in efforts_for(model):
             assert assert_effort(model, effort) == effort
         for effort in ("minimal", "none", "max", "x-high", "Low", ""):
             with pytest.raises(EffortNotAllowed):
                 assert_effort(model, effort)
+
+
+@pytest.mark.parametrize("model,multiplier", [("gpt-6.2-astra", 4), ("gpt-6.2-sol", 1)])
+def test_gpt62_standard_prices_and_medium_only(model, multiplier):
+    for incoming, outgoing, cached, write30, write12 in (
+        (0, 0, 0, 0, 0), (100_000, 1200, 20_000, 30_000, 10_000),
+        (300_000, 1200, 20_000, 30_000, 10_000),
+    ):
+        assert price_usd(model, incoming, outgoing, cached, write30, write12) == pytest.approx(
+            multiplier * price_usd("gpt-6.1-sol", incoming, outgoing, cached, write30, write12)
+        )
+    for invalid in ("", "low", "high", "none"):
+        with pytest.raises(EffortNotAllowed):
+            assert_effort(model, invalid)
+    with pytest.raises(PriceUnknown):
+        price_usd(model, -1, 0)
 
 
 def test_prices_are_the_published_standard_rates():
@@ -316,7 +333,7 @@ def test_dry_run_does_not_call_or_rewrite_ledgers(monkeypatch, capsys, isolated_
     assert printed["outer_model"] == "gpt-6.1-sol"
     assert printed["effort"] == "high"
     assert printed["tasks"] == list(TUNED_PROBE_TASK_IDS)
-    assert printed["allowed_models"] == ["gpt-6.1-sol", "gpt-6-luna"]
+    assert printed["allowed_models"] == list(ALLOWED_OPENAI_MODELS)
     assert printed["measured_run_usd"] is None
     assert printed["per_run_cap_usd"] == 5
     assert printed["network"] == "refused"

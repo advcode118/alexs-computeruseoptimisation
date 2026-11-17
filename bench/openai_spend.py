@@ -1,6 +1,6 @@
 """OpenAI spend for the computer-use bench. Separate from the Claude ledger.
 
-The only model ids are gpt-6.1-sol and gpt-6-luna. Any other id is refused
+Only explicitly priced model ids are accepted. Any other id is refused
 before a request. Prices are the published Standard text-token rates. A model
 with no entry in that table is refused. This file does not read or write the
 Claude spend.json.
@@ -25,13 +25,15 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 # Official model ids. Nothing else is accepted.
-ALLOWED_OPENAI_MODELS = ("gpt-6.1-sol", "gpt-6-luna")
+ALLOWED_OPENAI_MODELS = ("gpt-6.1-sol", "gpt-6-luna", "gpt-6.2-astra", "gpt-6.2-sol")
 
 # reasoning.effort values this flag accepts, in sweep order.
 # minimal and xhigh are added only when the model page lists them.
 # none and max are listed for one or both models and are still refused.
 _FLAG_EFFORTS = ("low", "medium", "high", "minimal", "xhigh")
 _API_EFFORTS = {
+    "gpt-6.2-astra": frozenset({"medium"}),
+    "gpt-6.2-sol": frozenset({"medium"}),
     "gpt-6.1-sol": frozenset({"low", "medium", "high", "xhigh", "max"}),
     "gpt-6-luna": frozenset({"none", "low", "medium", "high", "xhigh", "max"}),
 }
@@ -41,7 +43,23 @@ DEFAULT_EFFORT = "medium"
 # https://developers.openai.com/api/docs/pricing
 # https://developers.openai.com/api/docs/models/gpt-6.1-sol
 # https://developers.openai.com/api/docs/models/gpt-6-luna
+# https://developers.openai.com/api/docs/models/gpt-6.2-astra
+# https://developers.openai.com/api/docs/models/gpt-6.2-sol
 _STANDARD_PRICES = {
+    "gpt-6.2-astra": {
+        "input_usd_per_mtok": "8",
+        "cached_input_usd_per_mtok": "0.4",
+        "cache_write_30m_usd_per_mtok": "10",
+        "cache_write_12h_usd_per_mtok": "20",
+        "output_usd_per_mtok": "40",
+    },
+    "gpt-6.2-sol": {
+        "input_usd_per_mtok": "2",
+        "cached_input_usd_per_mtok": "0.1",
+        "cache_write_30m_usd_per_mtok": "2.5",
+        "cache_write_12h_usd_per_mtok": "5",
+        "output_usd_per_mtok": "10",
+    },
     "gpt-6.1-sol": {
         "input_usd_per_mtok": "2",
         "cached_input_usd_per_mtok": "0.1",
@@ -74,7 +92,7 @@ _QUANTUM = Decimal("0.000001")
 
 
 class OpenAIModelNotAllowed(ValueError):
-    """The computer-use model is not gpt-6.1-sol or gpt-6-luna."""
+    """The computer-use model is not explicitly allowed."""
 
 
 class EffortNotAllowed(ValueError):
