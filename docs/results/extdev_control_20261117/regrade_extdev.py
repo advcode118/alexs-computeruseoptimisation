@@ -110,7 +110,9 @@ def main():
     elapsed = metrics['cascade']['mean_wall_ms'] - metrics[baseline]['mean_wall_ms']
     flips = [r for r in audit if r['new'] is not None and r['old'] != r['new']]
     older = older_diff()
-    ledger = json.loads((Path.home()/'.cu-optimisation/openai-spend-alex15.json').read_text())
+    ledger_path = Path.home()/'.cu-optimisation/openai-spend-alex15.json'
+    # The live ledger exists only on the machine that paid for the run; a fresh clone uses the committed summary.
+    ledger = json.loads((ledger_path if ledger_path.exists() else HERE/'ledger_summary.json').read_text())
     assert ledger['running_total_usd'] == 6.277727
     result = {'grader_sha256': hashlib.sha256((ROOT/'bench/grade.py').read_bytes()).hexdigest(),
               'keys_sha256': key_hash, 'seed': original.SEED, 'bootstrap_draws': original.BOOTSTRAPS,
