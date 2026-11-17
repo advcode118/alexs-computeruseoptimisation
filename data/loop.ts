@@ -72,16 +72,8 @@ export const CURRENT_UPDATE = {
       body: "Sol model/effort comparison.",
     },
   ],
-  result: "Extdev paired 22 tasks (of 40; 18 budget-skipped), gpt-6.1-sol medium, 1 replicate. Hand-labelled results — indicative.",
-  rows: [["cascade (ours)","20/22","22/22","$0.050565"],["script_first alone (ours)","3/22","8/22","$0.009620"],["browser_use default (baseline)","21/22","21/22","$0.074627"],["browser_use ultrafast (baseline)","21/22","21/22","$0.053288"]],
-  stages: "Cascade = script_first → browser_use fallback. Mean wall 25.1 s / p90 38.1 s; most cascade answers come from the browser_use fallback (20 of 22 rows).",
-  indicative: "Indicative: one labeller, Devin (an AI agent), not a person; not blind; saved evidence only; 22 tasks, one run — too small for a claim.",
-  comparison: "browser_use only, 12-task extdev subset probe_tasks(\"extdev\")[::3][:12], 1 cold run each; AI-labelled correct (indicative). The gpt-6.2-sol medium run is reused from docs/results/extdev_gpt62_20261117.",
-  comparisonRows: [["gpt-6.2-sol low","4/12","$0.069505"],["gpt-6.2-sol medium","5/12","$0.083444"],["gpt-6.1-sol medium","8/12","$0.083571"]],
-  command: "export CU_OPENAI_SPEND_LEDGER=\"$HOME/.cu-optimisation/openai-spend-alex15.json\"\nexport CU_OPENAI_PROJECT_BUDGET_USD=9.00\nexport CU_OPENAI_RUN_BUDGET_USD=3.00\nunset CU_BU_MODE\npython tools/extdev_control.py --mode default --execute\nunset OPENAI_API_KEY ANTHROPIC_API_KEY\n.venv/bin/python tools/regrade.py --out docs/results/regrade_20261117\n.venv/bin/python docs/results/extdev_control_20261117/regrade_extdev.py\npython docs/results/extdev_hand_labels_20261117/build_labels.py",
-  compareCommands: "CU_BU_MODE= PYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.2-sol --effort low --output-root docs/results/extdev_sol_effort_20261117 --spend-baseline 8.583958 --spend-limit 3 --run-cap 1.25 --headroom 0.5 > docs/results/extdev_sol_effort_20261117/gpt-6.2-sol-low.log 2>&1\nPYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.2-sol\nCU_BU_MODE= PYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.1-sol --effort medium --output-root docs/results/extdev_sol_effort_20261117 --spend-baseline 8.583958 --spend-limit 3 --run-cap 1.25 --headroom 0.5 > docs/results/extdev_sol_effort_20261117/gpt-6.1-sol-medium.log 2>&1",
-  footnote: "Frozen grader passes: paired 22 — cascade 4/22, script_first 1/22, browser_use default 5/22, ultrafast 5/22; PR #105 set (table order) — 1/12, 1/12, 2/12. The grader rejects most correct answers: across 109 labelled non-MCP attempts, 65 rows labelled correct failed it; fixing it is plan step 1.",
-  caveat: "Model calls counted for the script stage only (PR #106 adds full per-stage counts); heldout3 retired and not shown.",
+  promise: "Speed from fewer model calls and deterministic execution. Easier maintenance through scripts you can read and rerun, instead of a model deciding each click. That is the product promise, not a measured speed or accuracy win today.",
+  baseline: "Today’s paired speed is effectively tied: cascade mean wall 25.1 s vs browser_use ultrafast 25.3 s. Sample: 22 paired extdev tasks, gpt-6.1-sol medium, 1 replicate. Recorded runs: python tools/extdev_control.py --mode default --execute and python tools/extdev_control.py --mode ultrafast --execute (CU_BU_MODE=ultrafast). The next fresh paired benchmark will provide the speed claim.",
 };
 
 export const SCALE_PAD = 10;
@@ -95,7 +87,7 @@ export const GROUPS = [
   {
     id: "improves" as const,
     title: "These shorten the loop later",
-    lede: "The first build is already faster without them. Add one when a trace shows the planner spending time on an obvious click.",
+    lede: "Defer these until a trace shows the planner spending time on an obvious click; measure whether each addition helps.",
   },
   {
     id: "hold" as const,
