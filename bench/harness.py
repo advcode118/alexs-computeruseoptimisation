@@ -788,9 +788,11 @@ class BenchmarkHarness:
         script_cache=None,
         provider: str = "anthropic",
         effort: str | None = None,
+        remote_debugging: bool = False,
     ):
         from bench.arms import prompt_for
 
+        self.remote_debugging = remote_debugging
         self.provider = provider
         self.arm = arm
         self.system_prompt = prompt_for(arm)
@@ -869,6 +871,7 @@ class BenchmarkHarness:
         try:
             self.mcp_client = build_client(self.arm, headless=self.headless)
             if self.arm == "script_first":
+                self.mcp_client.remote_debugging = self.remote_debugging
                 self._begin_browser_launch()
                 await self._wait_for_browser()
             else:
@@ -1147,6 +1150,7 @@ class BenchmarkHarness:
         expected_answer: str | None = None,
         judge_prompt: str | None = None,
         check_url_contains: str | None = None,
+        first_message_extra: str = "",
     ) -> TaskResult:
         """Run a single task and collect metrics."""
         del expected_answer, judge_prompt
@@ -1195,7 +1199,7 @@ class BenchmarkHarness:
         from bench.tasks import task_message
 
         messages: list[dict] = [
-            {"role": "user", "content": task_message(task_description, start_url)}
+            {"role": "user", "content": task_message(task_description, start_url) + ("\n\n" + first_message_extra if first_message_extra else "")}
         ]
 
         tools = self.mcp_client.tools_for_claude()

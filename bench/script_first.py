@@ -14,6 +14,7 @@ import shutil
 import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from bench.judge import is_search_results_url
@@ -2532,7 +2533,9 @@ async def run_on_page(
 class ScriptFirstClient:
     """One run_script tool on a private local Chrome profile."""
 
-    def __init__(self, headless: bool = True, page=None):
+    def __init__(self, headless: bool = True, page=None, remote_debugging: bool = False):
+        self.remote_debugging = remote_debugging
+        self.cdp_url = ""
         self.headless = headless
         self._page = page
         self._owns_page = page is None
@@ -2623,6 +2626,7 @@ class ScriptFirstClient:
                 self._context = await self._playwright.chromium.launch_persistent_context(
                     profile,
                     **kwargs,
+                    **({"args": ["--remote-debugging-port=0"]} if self.remote_debugging else {}),
                 )
                 self._profile_dir = profile
                 launch_error = None
@@ -2635,6 +2639,9 @@ class ScriptFirstClient:
             await self._playwright.stop()
             self._playwright = None
             raise RuntimeError(f"Could not launch local Chrome for script_first. {launch_error}")
+        if self.remote_debugging:
+            port = (Path(self._profile_dir) / "DevToolsActivePort").read_text().splitlines()[0]
+            self.cdp_url = f"http://127.0.0.1:{int(port)}"
         self._browser = context_browser(self._context)
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
 

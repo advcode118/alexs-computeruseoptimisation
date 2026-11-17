@@ -7,10 +7,11 @@ ARM_PLAYWRIGHT = "playwright_mcp"
 ARM_STAGEHAND = "stagehand"
 ARM_SCRIPT_FIRST = "script_first"
 ARM_BROWSER_USE = "browser_use"
+ARM_CASCADE = "cascade"
 
 ARMS = (ARM_SCRIPT_FIRST, ARM_BROWSER_USE, ARM_PLAYWRIGHT)
 BASELINE_ARMS = (ARM_PLAYWRIGHT, ARM_BROWSER_USE)
-SELECTABLE_ARMS = ARMS + (ARM_STAGEHAND,)
+SELECTABLE_ARMS = ARMS + (ARM_STAGEHAND, ARM_CASCADE,)
 # One script, one repair, and completion turns.
 SCRIPT_FIRST_MAX_CALLS = 4
 # A FAIL gets a grounded repair: the live page, the failed step, and how far
@@ -82,7 +83,7 @@ def prompt_for(arm: str) -> str:
         return SYSTEM_PROMPT
     if arm == ARM_STAGEHAND:
         return _STAGEHAND_PROMPT
-    if arm == ARM_SCRIPT_FIRST:
+    if arm in (ARM_SCRIPT_FIRST, ARM_CASCADE):
         return _SCRIPT_FIRST_PROMPT
     if arm == ARM_BROWSER_USE:
         return _BROWSER_USE_PROMPT

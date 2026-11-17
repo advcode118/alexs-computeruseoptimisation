@@ -214,6 +214,12 @@ async def _one(
     try:
         if not arm_needs_claude(arm):
             row = empty_row(arm, task["id"], reason=f"{arm} is not an OpenAI computer-use arm")
+        elif arm == "cascade":
+            from bench.cascade import run_cascade_task
+
+            row = await run_cascade_task(task, api_key=api_key, headless=headless,
+                                         runs_dir=destination, provider="openai",
+                                         model=cell_model, effort=cell_effort)
         elif arm == ARM_BROWSER_USE:
             from bench.browser_use_arm import run_browser_use_task
 
