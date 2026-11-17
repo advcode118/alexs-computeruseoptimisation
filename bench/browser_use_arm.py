@@ -306,7 +306,45 @@ def _token(usage: dict, key: str) -> int | None:
     return value
 
 
-def _priced_usage(model: str, usage: dict) -> tuple[int, int, int, int, float]:
+def _request_usages(result, usage: dict) -> list[tuple[int, int, int, int]] | None:
+    """Per-request (input, output, cache_read, cache_write) from the transcript.
+
+    None unless every response is found and the counts sum to the aggregate
+    exactly. Compaction summaries are in the aggregate and not in the
+    transcript, so such a run stays on the aggregate.
+    """
+    found = []
+    for message in getattr(result, "messages", None) or []:
+        one = getattr(message, "usage", None)
+        if one is None or not hasattr(one, "input_tokens"):
+            continue
+        try:
+            found.append(
+                (
+                    int(one.input_tokens or 0),
+                    int(one.output_tokens or 0),
+                    int(getattr(one, "cache_read_tokens", 0) or 0),
+                    int(getattr(one, "cache_write_tokens", 0) or 0),
+                )
+            )
+        except (TypeError, ValueError):
+            return None
+    if not found:
+        return None
+    totals = tuple(sum(column) for column in zip(*found))
+    try:
+        reported = tuple(int(usage.get(key) or 0) for key in ("input", "output", "cache_read", "cache_write"))
+        count = int(usage.get("requests") or len(found))
+    except (TypeError, ValueError):
+        return None
+    if totals != reported or count != len(found):
+        return None
+    return found
+
+
+def _priced_usage(
+    model: str, usage: dict, requests: list[tuple[int, int, int, int]] | None = None
+) -> tuple[int, int, int, int, float]:
     """browser-use usage at the published OpenAI rates. Unknown fields fail closed.
 
     The 1.0 result is input, output, cache_read, cache_write, and requests.
@@ -314,6 +352,10 @@ def _priced_usage(model: str, usage: dict) -> tuple[int, int, int, int, float]:
     does not split a 12-hour lifetime. Both are slices of input. script_first,
     stagehand, and playwright_mcp do not see this object. They price the
     Responses usage in bench.openai_client.
+
+    The long-context rate applies to one request. With requests, each is
+    priced on its own and summed. Without, the aggregate is priced as one
+    request, which can only overstate the cost.
     """
     from bench.openai_spend import PriceUnknown, price_usd
 
@@ -339,7 +381,11 @@ def _priced_usage(model: str, usage: dict) -> tuple[int, int, int, int, float]:
         raise PriceUnknown("browser-use cache reads disagree. Refusing to price.")
     cached = reads[0] if reads else 0
     written = _token(usage, "cache_write") or 0
-    return incoming, outgoing, cached, written, price_usd(model, incoming, outgoing, cached, written, 0)
+    if requests:
+        usd = round(sum(price_usd(model, i, o, r, w, 0) for i, o, r, w in requests), 6)
+    else:
+        usd = price_usd(model, incoming, outgoing, cached, written, 0)
+    return incoming, outgoing, cached, written, usd
 
 
 async def run_browser_use_task(
@@ -435,9 +481,9 @@ async def run_browser_use_task(
         usd = estimate_usd(incoming, outgoing)
         written = 0
         if provider == "openai":
-            incoming, outgoing, cached, written, usd = _priced_usage(
-                chosen, getattr(result, "usage", {}) or {}
-            )
+            reported = getattr(result, "usage", {}) or {}
+            requests = _request_usages(result, reported) if isinstance(reported, dict) else None
+            incoming, outgoing, cached, written, usd = _priced_usage(chosen, reported, requests)
         row.update(
             {
                 "success": success,
@@ -460,6 +506,7 @@ async def run_browser_use_task(
             row["cached_tokens"] = cached
             row["cache_write_30m_tokens"] = written
             row["cache_write_12h_tokens"] = 0
+            row["usd_basis"] = "per_request" if requests else "aggregate"
         return row
     except Exception as exc:
         from bench.openai_spend import PriceUnknown
