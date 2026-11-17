@@ -1,0 +1,36 @@
+line,task_id,baseline,regex_only,metadata_only,extraction_only,combined,newly_parses,metadata_failure,candidate_answer,evidence_assessment
+3,extdev_filter_greatamerica_thrill,wrong,wrong,wrong,wrong,wrong,False,False,,"No complete, task-relevant extraction supported by this template."
+7,extdev_value_nba_2021_leaders,partial,partial,partial,correct,correct,False,False,"POINTS: Stephen Curry — 32.0
+ASSISTS: Russell Westbrook — 11.7
+3-POINTERS MADE: Stephen Curry — 5.3
+REBOUNDS: Clint Capela — 14.3
+BLOCKS: Rudy Gobert — 2.7
+STEALS: Jimmy Butler III — 2.1","All six displayed category leaders, with values."
+11,extdev_spa_dota_dlc_cart,wrong,unknown,wrong,wrong,unknown,True,False,,"No complete, task-relevant extraction supported by this template."
+15,extdev_filter_booking_times_square,wrong,unknown,wrong,wrong,unknown,True,False,,"No complete, task-relevant extraction supported by this template."
+19,extdev_filter_frontiercity_family,correct,correct,correct,correct,correct,False,False,,"No complete, task-relevant extraction supported by this template."
+23,extdev_nav_spothero_contact,wrong,wrong,wrong,partial,partial,False,False,+1 (844) 324-7768,Grounded support number; no evidence of a call or submitted message.
+27,extdev_filter_airbnb_europe_mansions,correct,correct,correct,correct,correct,False,False,,"No complete, task-relevant extraction supported by this template."
+31,extdev_value_icse_2004_chair,partial,unknown,partial,partial,partial,True,False,"May 23–28, 2004",Dates supported; General Chair absent from saved page.
+35,extdev_value_icse_duplicate_statement,wrong,unknown,wrong,wrong,unknown,True,False,,"No complete, task-relevant extraction supported by this template."
+39,extdev_value_icse_2002_chairs,wrong,unknown,unknown,partial,partial,True,True,"Orlando, Florida, USA; May 19–25, 2002",Place and dates supported; program committee chairs absent (General Chair is not the requested role).
+43,extdev_value_rovio_anniversary,wrong,unknown,wrong,wrong,unknown,True,False,,"No complete, task-relevant extraction supported by this template."
+47,extdev_value_apec_tourism_actions,wrong,wrong,wrong,wrong,wrong,False,False,,"No complete, task-relevant extraction supported by this template."
+51,extdev_value_apec_peru_arrivals,wrong,unknown,wrong,wrong,unknown,True,False,,"No complete, task-relevant extraction supported by this template."
+55,extdev_value_apec_ministers_chair,wrong,wrong,wrong,wrong,wrong,False,False,,"No complete, task-relevant extraction supported by this template."
+59,extdev_search_booking_la_filters,wrong,wrong,wrong,wrong,wrong,False,False,,"No complete, task-relevant extraction supported by this template."
+63,extdev_value_hf_first_user_message,wrong,wrong,unknown,wrong,unknown,False,True,,"No complete, task-relevant extraction supported by this template."
+67,extdev_value_hf_tei_strengths,wrong,wrong,unknown,wrong,unknown,False,True,,"No complete, task-relevant extraction supported by this template."
+71,extdev_nav_ronaldo_world_cup_stats,wrong,wrong,wrong,wrong,wrong,False,False,,"No complete, task-relevant extraction supported by this template."
+75,extdev_nav_nets_schedule,correct,correct,correct,correct,correct,False,False,,"No complete, task-relevant extraction supported by this template."
+79,extdev_nav_fiestatexas_events,partial,partial,unknown,correct,correct,False,True,"Holiday in the Park
+Countdown To New Year’s
+New Year’s 360 Fireworks Celebration
+Mardi Gras Festival
+Viva La Fiesta
+Star-Spangled Nights Fireworks presented by M&M’S®
+Oktoberfest
+Fright Fest
+Tricks and Treats",Nine events from the saved events-page menu; each also has a dated card below.
+83,extdev_nav_spothero_marketing,partial,partial,partial,correct,correct,False,False,"Marketing Analyst — Chicago, IL","The one Marketing opening and location, excluding other departments."
+87,extdev_filter_amazon_puppy_food,partial,partial,partial,partial,partial,False,False,,"No complete, task-relevant extraction supported by this template."

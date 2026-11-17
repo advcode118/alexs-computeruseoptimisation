@@ -1,0 +1,316 @@
+{
+  "counts": {
+    "baseline": {
+      "correct": 3,
+      "partial": 5,
+      "wrong": 14,
+      "unknown": 0
+    },
+    "regex_only": {
+      "correct": 3,
+      "partial": 4,
+      "wrong": 8,
+      "unknown": 7
+    },
+    "metadata_only": {
+      "correct": 3,
+      "partial": 4,
+      "wrong": 11,
+      "unknown": 4
+    },
+    "extraction_only": {
+      "correct": 6,
+      "partial": 4,
+      "wrong": 12,
+      "unknown": 0
+    },
+    "combined": {
+      "correct": 6,
+      "partial": 4,
+      "wrong": 5,
+      "unknown": 7
+    }
+  },
+  "syntax": [
+    {
+      "line": 3,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 3,
+      "attempt": 2,
+      "before_error": "line 1: expected a string",
+      "after_error": "line 1: expected a string",
+      "newly_parses": false
+    },
+    {
+      "line": 7,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 7,
+      "attempt": 2,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 11,
+      "attempt": 1,
+      "before_error": "fetch( is not part of this script",
+      "after_error": "fetch( is not part of this script",
+      "newly_parses": false
+    },
+    {
+      "line": 11,
+      "attempt": 2,
+      "before_error": "line 2: expected a string literal",
+      "after_error": "",
+      "newly_parses": true
+    },
+    {
+      "line": 15,
+      "attempt": 1,
+      "before_error": "line 2: expected a literal option",
+      "after_error": "",
+      "newly_parses": true
+    },
+    {
+      "line": 15,
+      "attempt": 2,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 19,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 19,
+      "attempt": 2,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 23,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 23,
+      "attempt": 2,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 27,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 27,
+      "attempt": 2,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 31,
+      "attempt": 1,
+      "before_error": "line 2: expected a literal option",
+      "after_error": "",
+      "newly_parses": true
+    },
+    {
+      "line": 31,
+      "attempt": 2,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 35,
+      "attempt": 1,
+      "before_error": "line 2: expected a literal option",
+      "after_error": "",
+      "newly_parses": true
+    },
+    {
+      "line": 35,
+      "attempt": 2,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 39,
+      "attempt": 1,
+      "before_error": "line 2: expected a literal option",
+      "after_error": "",
+      "newly_parses": true
+    },
+    {
+      "line": 43,
+      "attempt": 1,
+      "before_error": "fetch( is not part of this script",
+      "after_error": "fetch( is not part of this script",
+      "newly_parses": false
+    },
+    {
+      "line": 43,
+      "attempt": 2,
+      "before_error": "line 2: expected a literal option",
+      "after_error": "",
+      "newly_parses": true
+    },
+    {
+      "line": 47,
+      "attempt": 1,
+      "before_error": "line 1: expected a string",
+      "after_error": "line 1: expected a string",
+      "newly_parses": false
+    },
+    {
+      "line": 47,
+      "attempt": 2,
+      "before_error": "line 2: unsupported locator action filter",
+      "after_error": "line 2: unsupported locator action filter",
+      "newly_parses": false
+    },
+    {
+      "line": 51,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 51,
+      "attempt": 2,
+      "before_error": "line 3: expected a literal option",
+      "after_error": "",
+      "newly_parses": true
+    },
+    {
+      "line": 55,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 55,
+      "attempt": 2,
+      "before_error": "fetch( is not part of this script",
+      "after_error": "fetch( is not part of this script",
+      "newly_parses": false
+    },
+    {
+      "line": 59,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 71,
+      "attempt": 1,
+      "before_error": "line 2: expected '.'",
+      "after_error": "line 2: expected '.'",
+      "newly_parses": false
+    },
+    {
+      "line": 71,
+      "attempt": 2,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 75,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 79,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 83,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 87,
+      "attempt": 1,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    },
+    {
+      "line": 87,
+      "attempt": 2,
+      "before_error": "",
+      "after_error": "",
+      "newly_parses": false
+    }
+  ],
+  "metadata": [
+    {
+      "line": 39,
+      "payload": null,
+      "output_chars": null,
+      "dropped": [],
+      "exact_failing_payload": false
+    },
+    {
+      "line": 63,
+      "payload": null,
+      "output_chars": null,
+      "dropped": [],
+      "exact_failing_payload": false
+    },
+    {
+      "line": 67,
+      "payload": null,
+      "output_chars": null,
+      "dropped": [],
+      "exact_failing_payload": false
+    },
+    {
+      "line": 79,
+      "payload": 0,
+      "output_chars": 7133,
+      "dropped": [
+        "claimed"
+      ],
+      "exact_failing_payload": false
+    }
+  ],
+  "paid_model_calls": 0,
+  "browser_runs": 0,
+  "score_caveat": "Scored against AI (Devin) hand labels from PR #97; no human spot-check; indicative only."
+}
