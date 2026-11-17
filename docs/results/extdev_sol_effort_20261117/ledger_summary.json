@@ -1,0 +1,12 @@
+{
+  "opening_usd": 8.583958,
+  "new_usd": 1.836904,
+  "final_usd": 10.420862,
+  "cap_usd": 22.0,
+  "new_tasks": 24,
+  "carry_forward_and_reserve_usd": 3.942581,
+  "new_unpriced_reserve_usd": 0,
+  "prior_tasks_preserved": true,
+  "source_pr103_summary_sha256": "614ed2de206395a518ce4aed40ba1c249d927880120696e896579b96708e19bc",
+  "opening_ledger_sha256": "992906165e12277ad04fd85cf887a2dee06d7756648ecf90e213db00a715bc35"
+}

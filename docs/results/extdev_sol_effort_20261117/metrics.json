@@ -1,0 +1,41 @@
+{
+  "gpt-6.2-sol-medium": {
+    "n": 12,
+    "correct": 5,
+    "partial": 7,
+    "grader_pass": 1,
+    "mean_ms": 29324.013915666645,
+    "median_ms": 21277.080468000007,
+    "p90_ms": 57589.39646369999,
+    "usd": 1.001328,
+    "usd_per_task": 0.083444,
+    "accuracy": 0.4166666666666667,
+    "reused_from_pr103": true
+  },
+  "gpt-6.2-sol-low": {
+    "n": 12,
+    "correct": 4,
+    "partial": 8,
+    "grader_pass": 1,
+    "mean_ms": 24130.78299550001,
+    "median_ms": 25030.130822000006,
+    "p90_ms": 44861.7800935,
+    "usd": 0.834056,
+    "usd_per_task": 0.069505,
+    "accuracy": 0.3333333333333333,
+    "reused_from_pr103": false
+  },
+  "gpt-6.1-sol-medium": {
+    "n": 12,
+    "correct": 8,
+    "partial": 4,
+    "grader_pass": 2,
+    "mean_ms": 35355.495149833325,
+    "median_ms": 30845.283338,
+    "p90_ms": 68386.90079189994,
+    "usd": 1.002848,
+    "usd_per_task": 0.083571,
+    "accuracy": 0.6666666666666666,
+    "reused_from_pr103": false
+  }
+}
