@@ -1,0 +1,164 @@
+..................F..................................................... [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 18%]
+........................................................................ [ 24%]
+........................................................................ [ 30%]
+...................................................................FFFF. [ 36%]
+........................................................................ [ 42%]
+........................................................................ [ 48%]
+......................F................................................. [ 54%]
+........................................................................ [ 60%]
+........................................................................ [ 66%]
+........................................................................ [ 72%]
+........................................................................ [ 78%]
+........................................................................ [ 84%]
+........................................................................ [ 90%]
+........................................................................ [ 97%]
+.................................s.                                      [100%]
+=================================== FAILURES ===================================
+_________________ test_task_asks_value_precision_on_every_task _________________
+
+    def test_task_asks_value_precision_on_every_task():
+        tasks = BENCHMARK_TASKS
+        assert tasks
+        counts = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
+        false_positives = []
+        for task in tasks:
+            predicted = task_asks_value(task["description"])
+            actual = _ground_truth(task)
+            if predicted and actual:
+                counts["tp"] += 1
+            elif predicted and not actual:
+                counts["fp"] += 1
+                false_positives.append(task["id"])
+            elif not predicted and actual:
+                counts["fn"] += 1
+            else:
+                counts["tn"] += 1
+            if _navigation_only(task):
+                assert not predicted, task["id"]
+        predicted_positive = counts["tp"] + counts["fp"]
+        actual_positive = counts["tp"] + counts["fn"]
+        precision = 1.0 if predicted_positive == 0 else counts["tp"] / predicted_positive
+        recall = 1.0 if actual_positive == 0 else counts["tp"] / actual_positive
+        summary = (
+            f"n={len(tasks)} tp={counts['tp']} fp={counts['fp']} "
+            f"fn={counts['fn']} tn={counts['tn']} "
+            f"precision={precision:.0%} recall={recall:.0%} "
+            f"false_positives={false_positives}"
+        )
+>       assert counts["fp"] == 0, summary
+E       AssertionError: n=523 tp=329 fp=21 fn=143 tn=30 precision=94% recall=70% false_positives=['ho4_nav_mbta_reduced_fares', 'ho4_nav_nhl_odds_view', 'ho4_filter_dublin_farefinder_budget', 'ho4_nav_amtrak_ridereserve_terms', 'ho4_filter_ikea_wall_mirrors_budget', 'ho4_nav_nps_volunteer_calendar', 'ho4_filter_radio_city_motorcycle', 'ho4_nav_miami_heat_roster', 'ho4_nav_grand_national_parks_tour', 'ho4_nav_spain_renfe_fare_guide', 'ho4_filter_alaska_cruise_options', 'ho4_nav_nirvana_popular_tracks', 'ho4_filter_venice_beach_mobile_coupons', 'ho4_nav_budget_fastbreak_information', 'ho4_search_south_african_history_podcast', 'ho4_nav_san_francisco_49ers_schedule', 'ho4_filter_koa_california_rv_sites', 'ho4_nav_premier_league_standings', 'ho4_search_jetblue_new_york_jobs', 'ho4_nav_ua_mens_bottoms_size_guide', 'ho4_nav_ensembl_dog_reference_may_2020_files']
+E       assert 21 == 0
+
+tests/test_answer_required.py:158: AssertionError
+____ test_wiki_helpers_land_on_the_saved_article_and_pass_the_shared_grade _____
+
+    def test_wiki_helpers_land_on_the_saved_article_and_pass_the_shared_grade():
+        run = replay_manifest(FIXTURES / "wiki-search.json")
+>       assert run.page_url == ARTICLE
+E       AssertionError: assert 'about:blank' == 'https://en.w.../Ada_Lovelace'
+E         
+E         - https://en.wikipedia.org/wiki/Ada_Lovelace
+E         + about:blank
+
+tests/test_offline_replay.py:43: AssertionError
+________________ test_a_saved_search_url_still_fails_the_grade _________________
+
+    def test_a_saved_search_url_still_fails_the_grade():
+        book = load_book(FIXTURES / "wiki-search.har")
+        task = task_by_id("wv_wikipedia_search")
+        script = """
+        page.goto("https://en.wikipedia.org/wiki/Special:Search?search=Ada_Lovelace");
+        page.evaluate(() => cu.claim({answer: "Ada Lovelace", key_text: "Ada Lovelace", values: ["Ada Lovelace"]}));
+        """
+        run = replay_script(book, script, task)
+>       assert run.page_url == SEARCH
+E       AssertionError: assert 'about:blank' == 'https://en.w...=Ada_Lovelace'
+E         
+E         - https://en.wikipedia.org/wiki/Special:Search?search=Ada_Lovelace
+E         + about:blank
+
+tests/test_offline_replay.py:67: AssertionError
+____ test_packing_helpers_add_the_item_and_do_not_loosen_an_unknown_verdict ____
+
+    def test_packing_helpers_add_the_item_and_do_not_loosen_an_unknown_verdict():
+        run = replay_manifest(FIXTURES / "packing.json")
+>       assert run.page_url == PACKING
+E       AssertionError: assert 'about:blank' == 'https://fixt.../packing.html'
+E         
+E         - https://fixture.local/packing.html
+E         + about:blank
+
+tests/test_offline_replay.py:77: AssertionError
+__________ test_an_unsaved_url_and_a_page_fetch_do_not_open_a_socket ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7b6027881750>
+
+    def test_an_unsaved_url_and_a_page_fetch_do_not_open_a_socket(monkeypatch):
+        def refuse(*args, **kwargs):
+            raise AssertionError("offline replay opened a socket")
+    
+        monkeypatch.setattr(socket, "create_connection", refuse)
+    
+        class Guard(socket.socket):
+            def connect(self, *args, **kwargs):
+                raise AssertionError("offline replay opened a socket")
+    
+            def connect_ex(self, *args, **kwargs):
+                raise AssertionError("offline replay opened a socket")
+    
+        real_socket = socket.socket
+        real_socketpair = socket.socketpair
+    
+        def socketpair(*args, **kwargs):
+            # Windows asyncio builds its self-pipe with socketpair(), which connects
+            # a socket to its own loopback listener. That is not a network fetch.
+            socket.socket = real_socket
+            try:
+                return real_socketpair(*args, **kwargs)
+            finally:
+                socket.socket = Guard
+    
+        monkeypatch.setattr(socket, "socket", Guard)
+        monkeypatch.setattr(socket, "socketpair", socketpair)
+        book = load_book(FIXTURES / "wiki-search.har")
+        task = task_by_id("wv_wikipedia_search")
+        missing = replay_script(book, 'page.goto("https://example.com/not-saved");', task)
+        assert missing.ok is False
+        assert missing.success is False
+        assert "example.com" not in missing.page_url
+        assert "no saved page" in missing.error
+        assert missing.model_calls == 0
+        hostile = book_from_data(
+            {
+                "url": "https://fixture.local/fetch.html",
+                "html": "<html><body><script>fetch('https://example.com/live')</script></body></html>",
+            }
+        )
+        blocked = replay_script(hostile, 'page.goto("https://fixture.local/fetch.html");', task)
+        assert blocked.ok is False
+        assert blocked.success is False
+>       assert "does not open a network connection" in blocked.error
+E       assert 'does not open a network connection' in 'node is required to replay a saved page'
+E        +  where 'node is required to replay a saved page' = ReplayRun(wall_ms=0.40644800174050033, model_calls=0, input_tokens=0, output_tokens=0, usd=0.0, steps=0, ok=False, ver...ain 'Ada_Lovelace'", page_url='about:blank', text='', error='node is required to replay a saved page', shared_ok=False).error
+
+tests/test_offline_replay.py:147: AssertionError
+_______________ test_trusted_link_collector_and_single_evaluate ________________
+
+    def test_trusted_link_collector_and_single_evaluate():
+        from bench.script_first import _PAGE_EVIDENCE_JS, run_on_page
+    
+        node = shutil.which("node")
+>       assert node
+E       assert None
+
+tests/test_repair_delivery.py:230: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_answer_required.py::test_task_asks_value_precision_on_every_task
+FAILED tests/test_offline_replay.py::test_wiki_helpers_land_on_the_saved_article_and_pass_the_shared_grade
+FAILED tests/test_offline_replay.py::test_a_saved_search_url_still_fails_the_grade
+FAILED tests/test_offline_replay.py::test_packing_helpers_add_the_item_and_do_not_loosen_an_unknown_verdict
+FAILED tests/test_offline_replay.py::test_an_unsaved_url_and_a_page_fetch_do_not_open_a_socket
+FAILED tests/test_repair_delivery.py::test_trusted_link_collector_and_single_evaluate
+6 failed, 1180 passed, 1 skipped in 61.57s (0:01:01)

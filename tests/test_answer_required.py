@@ -109,12 +109,23 @@ def _is_url(text: str) -> bool:
 
 
 def _ground_truth(task: dict) -> bool:
-    """end_markers has answer_in_text, or the expected answer is not a URL."""
+    """Text or explicit URL answers; legacy URL targets are navigation only."""
     markers = task.get("end_markers") or {}
     if str(markers.get("answer_in_text") or "").strip():
         return True
     expected = str(task.get("expected_answer") or "").strip()
-    return bool(expected) and not _is_url(expected)
+    return bool(expected) and (not _is_url(expected) or task.get("url_answer_ok") is True)
+
+
+def test_ground_truth_distinguishes_explicit_url_answers_from_legacy_targets():
+    url = "https://example.com/target"
+    assert _ground_truth({"expected_answer": url, "url_answer_ok": True})
+    assert _ground_truth({"expected_answer": "  " + url + "  ", "url_answer_ok": True})
+    assert not _ground_truth({"expected_answer": url})
+    assert not _ground_truth({"expected_answer": url, "url_answer_ok": False})
+    assert not _ground_truth({"expected_answer": " ", "url_answer_ok": True})
+    assert not _ground_truth({"url_answer_ok": True})
+    assert _ground_truth({"expected_answer": "A literal answer"})
 
 
 def _navigation_only(task: dict) -> bool:

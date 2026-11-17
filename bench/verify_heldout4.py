@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from playwright.async_api import async_playwright
+from pypdf import PdfReader
 
 from bench import grade
 from bench.ext_sample import effective_authoring_decisions
@@ -152,6 +153,9 @@ async def observe(page, task):
     checks = {}
     for part, selector in task.get("answer_part_selectors", {}).items():
         locator = page.locator(selector).first
+        await locator.wait_for(state="attached", timeout=15000)
+        if not await locator.evaluate("e => e.tagName === 'OPTION'"):
+            await locator.wait_for(state="visible", timeout=15000)
         value = ""
         if await locator.count():
             value = await locator.evaluate("""e => {
@@ -159,10 +163,19 @@ async def observe(page, task):
                 if (!v.getClientRects().length || getComputedStyle(v).visibility === 'hidden') return '';
                 return 'value' in e && e.tagName !== 'OPTION' ? e.value : e.innerText;
             }""")
-        checks[part] = " ".join(value.casefold().split()) == " ".join(part.casefold().split())
+        expected_value = task.get("answer_part_selector_values", {}).get(part)
+        if expected_value is not None:
+            checks[part] = bool(value) and await locator.evaluate("e => e.value") == expected_value
+        else:
+            checks[part] = " ".join(value.casefold().split()) == " ".join(part.casefold().split())
         texts.append(value)
     if checks:
         channels.append("visible_selected_controls")
+    for selector in task.get("observation_selectors", []):
+        locator = page.locator(selector).first
+        await locator.wait_for(state="visible", timeout=15000)
+        texts.append(await locator.evaluate("e => 'value' in e ? e.value : e.innerText"))
+        channels.append("visible_output_control")
     selector = task.get("end_markers", {}).get("answer_equals_selector", "")
     selector_text = ""
     if selector:
@@ -195,6 +208,9 @@ async def key_observation(page, task, decision, artifact_dir):
         if isinstance(setup, dict):
             await goto(page, setup["url"])
             page, made = await run_steps(page, setup["steps"], artifact_dir, task["id"] + "_setup")
+        elif setup.startswith(("https://", "http://")):
+            await goto(page, setup)
+            made = []
         else:
             await goto(page, task["start_url"])
             steps = decision["repro_steps"]
@@ -213,7 +229,11 @@ async def key_observation(page, task, decision, artifact_dir):
 
     page.on("download", received)
     try:
-        await goto(page, decision["final_url"])
+        if decision.get("key_skip_reload"):
+            if page.url != decision["final_url"]:
+                raise RuntimeError("Session setup did not reach the recorded final URL")
+        else:
+            await goto(page, decision["final_url"])
     except Exception as exc:
         if "Download is starting" not in str(exc):
             raise
@@ -223,10 +243,20 @@ async def key_observation(page, task, decision, artifact_dir):
         await download.save_as(path)
         artifacts.append({"path": str(path.relative_to(ROOT)), "bytes": path.stat().st_size,
                           "sha256": sha(path), "observed_url": download.url})
-        return Observation(download.url, channels=["browser_download_event"]), artifacts
+        text = ""
+        channels = ["browser_download_event"]
+        if "pdf_evidence" in task.get("grader_flags", []):
+            text = pdf_text(path)
+            channels.append("downloaded_pdf_text")
+        return Observation(download.url, text, channels=channels), artifacts
     page, made = await run_steps(page, decision.get("key_steps", []), artifact_dir, task["id"] + "_key")
     artifacts.extend(made)
     return await observe(page, task), artifacts
+
+
+def pdf_text(path):
+    reader = PdfReader(path)
+    return "\n".join(page.extract_text() or "" for page in reader.pages)
 
 
 async def verify_task(browser, task, decision, decoy, artifact_dir):
@@ -347,7 +377,7 @@ async def main(output, concurrency):
           f"{summary['tasks_with_negative']}/{len(tasks)} tasks covered")
     print(f"Full/partial: {summary['full']}/{summary['partial']}")
     print(json.dumps(summary, sort_keys=True))
-    print(f"Run evidence: {output.relative_to(ROOT)}")
+    print(f"Run evidence: {output}")
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ from bench import tasks_heldout4
 from bench.browser_use_arm import task_text
 from bench.ext_sample import QUOTAS, SOURCES, authoring_reserve, effective_authoring_decisions, registrable, task_fingerprint
 from bench.tasks import get_all_tasks, resolve_task_split, task_message, tasks_for_split
-from bench.verify_heldout4 import Observation, control, grade_observation, run_steps, summarize
+from bench.verify_heldout4 import Observation, control, grade_observation, observe, pdf_text, run_steps, summarize
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "docs/results/ext_sample_20261116"
@@ -82,7 +82,13 @@ def test_schema_ids_registration_and_complete_provenance():
             assert task["answer_parts"] == []
         else:
             assert task["answer_parts"]
-            assert {s["part"] for s in task["answer_part_sources"]} == set(task["answer_parts"])
+            unscored = task.get("unscored_parts", [])
+            assert {s["part"] for s in task["answer_part_sources"]} == set(task["answer_parts"]) | {s["part"] for s in unscored}
+            if "multi_page_parts" in task["grader_flags"]:
+                assert task["key_scope"] == "partial"
+                assert unscored
+                assert not set(task["answer_parts"]) & {s["part"] for s in unscored}
+                assert all(s in task["answer_part_sources"] for s in unscored)
             for source in task["answer_part_sources"]:
                 assert source["urls"]
                 assert all(urlsplit(url).scheme in {"http", "https"} for url in source["urls"])
@@ -200,3 +206,119 @@ def test_dropped_ids_are_not_registered_or_silently_removed_from_authoring():
     assert dropped <= {t["id"] for t in authored()}
     assert dropped.isdisjoint(tasks_heldout4.HELDOUT4_TASK_IDS)
     assert len(tasks_for_split("heldout4")) + len(dropped) == 130
+
+
+def test_authorized_multi_page_revisions_preserve_full_reference_and_provenance():
+    original = json.loads((RESULTS / "verification_heldout4_20261117T100724469791Z.summary.json").read_text())
+    assert original["summary"]["tasks"] == 130
+    tasks = {t["id"]: t for t in authored()}
+    decisions = effective_authoring_decisions(read("authoring_heldout4.jsonl"))
+    revisions = [d for d in decisions if d.get("key_revision") and "multi_page_parts" in d.get("grader_flags", [])]
+    assert len(revisions) == 18
+    for decision in revisions:
+        task = tasks[decision["task_id"]]
+        changes = decision["key_revision"]["task_changes"]
+        assert "full_answer" not in changes
+        assert "expected_answer" not in changes
+        assert "answer_part_sources" not in changes
+        assert set(changes["answer_parts"]["before"]) == set(task["answer_parts"]) | {s["part"] for s in task["unscored_parts"]}
+
+
+def test_pdf_extraction_normal_empty_and_error(tmp_path, monkeypatch):
+    from bench import verify_heldout4
+
+    class Page:
+        def __init__(self, text):
+            self.text = text
+
+        def extract_text(self):
+            return self.text
+
+    class Reader:
+        pages = [Page("Real PDF text"), Page(None)]
+
+    monkeypatch.setattr(verify_heldout4, "PdfReader", lambda path: Reader())
+    assert pdf_text(tmp_path / "document.pdf") == "Real PDF text\n"
+    Reader.pages = []
+    assert pdf_text(tmp_path / "empty.pdf") == ""
+
+    def broken(path):
+        raise ValueError("invalid PDF")
+
+    monkeypatch.setattr(verify_heldout4, "PdfReader", broken)
+    with pytest.raises(ValueError, match="invalid PDF"):
+        pdf_text(tmp_path / "broken.pdf")
+
+
+def test_visible_control_readback_uses_real_values_not_reference_literals():
+    from playwright.async_api import async_playwright
+
+    async def check():
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.set_content('<select id="locale"><option value="en-gb">🇬🇧 English (UK)</option>'
+                                   '<option value="en-us">English (US)</option></select>'
+                                   '<textarea id="output">Actual generated code</textarea>')
+            task = {"answer_part_selectors": {"English (UK)": "#locale option:checked"},
+                    "answer_part_selector_values": {"English (UK)": "en-gb"},
+                    "observation_selectors": ["#output"]}
+            result = await observe(page, task)
+            assert result.selector_checks == {"English (UK)": True}
+            assert "Actual generated code" in result.text
+            await page.locator("#locale").select_option("en-us")
+            assert (await observe(page, task)).selector_checks == {"English (UK)": False}
+            await page.locator("#locale").select_option("en-gb")
+            await page.locator("#locale").evaluate("e => e.style.display = 'none'")
+            assert (await observe(page, task)).selector_checks == {"English (UK)": False}
+            assert not (await observe(page, {})).selector_checks
+            await browser.close()
+
+    asyncio.run(check())
+
+
+def test_run_report_accepts_relative_and_external_output_paths(tmp_path, monkeypatch, capsys):
+    from bench import verify_heldout4
+
+    class Browser:
+        chromium = None
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def launch(self, **kwargs):
+            return self
+
+        async def new_context(self):
+            return self
+
+        async def new_page(self):
+            return self
+
+        async def close(self):
+            pass
+
+    async def noop(*args):
+        pass
+
+    async def observation(*args):
+        return Observation("https://example.com/", "Decoy page")
+
+    browser = Browser()
+    browser.chromium = browser
+    monkeypatch.setattr(verify_heldout4, "async_playwright", lambda: browser)
+    monkeypatch.setattr(verify_heldout4, "goto", noop)
+    monkeypatch.setattr(verify_heldout4, "observe", observation)
+    monkeypatch.setattr(verify_heldout4, "tasks_for_split", lambda split: [])
+    monkeypatch.setattr(verify_heldout4, "read_ledger", lambda: [])
+    monkeypatch.setattr(verify_heldout4, "RESULTS", tmp_path)
+    monkeypatch.chdir(tmp_path)
+    for output in [Path("relative.jsonl"), tmp_path / "absolute.jsonl"]:
+        asyncio.run(verify_heldout4.main(output, 1))
+        assert json.loads(output.with_suffix(".summary.json").read_text())["summary"]["tasks"] == 0
+    assert "Run evidence: relative.jsonl" in capsys.readouterr().out
+    with pytest.raises(FileExistsError, match="Preserve prior run"):
+        asyncio.run(verify_heldout4.main(Path("relative.jsonl"), 1))

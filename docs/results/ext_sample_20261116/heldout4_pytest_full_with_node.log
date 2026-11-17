@@ -1,0 +1,57 @@
+..................F..................................................... [  6%]
+........................................................................ [ 12%]
+........................................................................ [ 18%]
+........................................................................ [ 24%]
+........................................................................ [ 30%]
+........................................................................ [ 36%]
+........................................................................ [ 42%]
+........................................................................ [ 48%]
+........................................................................ [ 54%]
+........................................................................ [ 60%]
+........................................................................ [ 66%]
+........................................................................ [ 72%]
+........................................................................ [ 78%]
+........................................................................ [ 84%]
+........................................................................ [ 90%]
+........................................................................ [ 97%]
+.................................s.                                      [100%]
+=================================== FAILURES ===================================
+_________________ test_task_asks_value_precision_on_every_task _________________
+
+    def test_task_asks_value_precision_on_every_task():
+        tasks = BENCHMARK_TASKS
+        assert tasks
+        counts = {"tp": 0, "fp": 0, "fn": 0, "tn": 0}
+        false_positives = []
+        for task in tasks:
+            predicted = task_asks_value(task["description"])
+            actual = _ground_truth(task)
+            if predicted and actual:
+                counts["tp"] += 1
+            elif predicted and not actual:
+                counts["fp"] += 1
+                false_positives.append(task["id"])
+            elif not predicted and actual:
+                counts["fn"] += 1
+            else:
+                counts["tn"] += 1
+            if _navigation_only(task):
+                assert not predicted, task["id"]
+        predicted_positive = counts["tp"] + counts["fp"]
+        actual_positive = counts["tp"] + counts["fn"]
+        precision = 1.0 if predicted_positive == 0 else counts["tp"] / predicted_positive
+        recall = 1.0 if actual_positive == 0 else counts["tp"] / actual_positive
+        summary = (
+            f"n={len(tasks)} tp={counts['tp']} fp={counts['fp']} "
+            f"fn={counts['fn']} tn={counts['tn']} "
+            f"precision={precision:.0%} recall={recall:.0%} "
+            f"false_positives={false_positives}"
+        )
+>       assert counts["fp"] == 0, summary
+E       AssertionError: n=523 tp=329 fp=21 fn=143 tn=30 precision=94% recall=70% false_positives=['ho4_nav_mbta_reduced_fares', 'ho4_nav_nhl_odds_view', 'ho4_filter_dublin_farefinder_budget', 'ho4_nav_amtrak_ridereserve_terms', 'ho4_filter_ikea_wall_mirrors_budget', 'ho4_nav_nps_volunteer_calendar', 'ho4_filter_radio_city_motorcycle', 'ho4_nav_miami_heat_roster', 'ho4_nav_grand_national_parks_tour', 'ho4_nav_spain_renfe_fare_guide', 'ho4_filter_alaska_cruise_options', 'ho4_nav_nirvana_popular_tracks', 'ho4_filter_venice_beach_mobile_coupons', 'ho4_nav_budget_fastbreak_information', 'ho4_search_south_african_history_podcast', 'ho4_nav_san_francisco_49ers_schedule', 'ho4_filter_koa_california_rv_sites', 'ho4_nav_premier_league_standings', 'ho4_search_jetblue_new_york_jobs', 'ho4_nav_ua_mens_bottoms_size_guide', 'ho4_nav_ensembl_dog_reference_may_2020_files']
+E       assert 21 == 0
+
+tests/test_answer_required.py:158: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_answer_required.py::test_task_asks_value_precision_on_every_task
+1 failed, 1185 passed, 1 skipped in 64.61s (0:01:04)
