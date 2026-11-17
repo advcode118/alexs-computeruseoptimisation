@@ -1101,3 +1101,52 @@ def test_script_first_setup_waits_until_chrome_is_open(tmp_path, monkeypatch):
         await other.teardown()
 
     asyncio.run(run())
+
+
+def _counting_page():
+    page = _LatePage()
+
+    async def count_wait(predicate, **kwargs):
+        del predicate, kwargs
+        page.waits += 1
+
+    page.wait_for_url = count_wait
+    return page
+
+
+def test_a_read_after_goto_does_not_wait_for_a_landing():
+    page = _counting_page()
+    script = (
+        'await page.goto("https://en.wikipedia.org/wiki/Ada_Lovelace");\n'
+        "await page.evaluate(() => ({url: location.href, title: document.title, answer: document.title}));"
+    )
+    asyncio.run(run_on_page(page, script))
+    assert page.waits == 0
+
+
+def test_an_evaluate_that_can_navigate_still_waits_for_the_landing():
+    for body in (
+        "document.querySelector('a').click()",
+        "document.forms[0].submit()",
+        "location.href = '/wiki/Ada_Lovelace'",
+        "location.assign('/wiki/Ada_Lovelace')",
+        "history.back()",
+    ):
+        page = _counting_page()
+        script = (
+            'await page.goto("https://en.wikipedia.org/wiki/Main_Page");\n'
+            f"await page.evaluate(() => {{ {body}; }});"
+        )
+        asyncio.run(run_on_page(page, script))
+        assert page.waits == 1, body
+
+
+def test_an_action_after_goto_still_waits_for_the_landing():
+    page = _counting_page()
+    script = (
+        'await page.goto("https://en.wikipedia.org/wiki/Main_Page");\n'
+        'await page.getByRole("combobox", { name: "Search Wikipedia" }).press("Enter");\n'
+        "await page.evaluate(() => ({url: location.href, answer: document.title}));"
+    )
+    asyncio.run(run_on_page(page, script))
+    assert page.waits == 1

@@ -2481,6 +2481,30 @@ async def _run_step_on_page(page, step: TaskStep):
     return None
 
 
+_EVALUATE_NAVIGATES = re.compile(
+    r"\.click\s*\(|\.submit\s*\(|\.requestSubmit\s*\(|dispatchEvent|\blocation\s*=[^=]"
+    r"|\blocation\.(?:href|pathname|search|hash)\s*=[^=]|\blocation\.(?:assign|replace|reload)\b"
+    r"|\bhistory\.|\bopen\s*\("
+)
+
+
+def _may_still_navigate(steps: list[TaskStep]) -> bool:
+    """True when a step after the last goto could have started a navigation.
+
+    goto already waited for DOMContentLoaded. Reads and evaluates that only
+    read the page start nothing, so the landing wait would only time out.
+    """
+    for step in reversed(steps):
+        if step.kind == "goto":
+            return False
+        if step.kind == "read":
+            continue
+        if step.kind == "evaluate" and not _EVALUATE_NAVIGATES.search(step.function):
+            continue
+        return True
+    return False
+
+
 async def run_on_page(
     page,
     source: str,
@@ -2522,7 +2546,7 @@ async def run_on_page(
         extracted=extracted,
         claimed=claimed,
         end_markers=end_markers,
-        wait_for_commit=not ok or (bool(steps) and steps[-1].kind != "goto"),
+        wait_for_commit=not ok or _may_still_navigate(steps),
     )
 
 
