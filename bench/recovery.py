@@ -41,8 +41,14 @@ _CONTROL_POLICY = r"""function policy(el, cfg, submitting = false, submitter = n
         const reason = policy(submitter, cfg);
         if (reason) return reason;
     }
-    const login = cfg.auth && new RegExp(cfg.authPath, 'i').test(location.pathname) &&
-        !new RegExp(cfg.payment, 'i').test(location.pathname);
+    let login = false;
+    if (cfg.auth && form) {
+        try {
+            const destination = new URL(submitter?.getAttribute('formaction') || control.getAttribute('formaction') || form.action, document.baseURI);
+            login = destination.origin === location.origin && !new RegExp(cfg.payment, 'i').test(destination.pathname) &&
+                (!!form.querySelector('input[type="password"]') || new RegExp(cfg.authPath, 'i').test(destination.pathname));
+        } catch {}
+    }
     if (isSubmit && method === 'POST' && !login) return 'POST submission';
     return '';
 }"""
@@ -272,7 +278,10 @@ class ActionGate:
             cfg = {**self._config(), 'activation': activation, 'enter': enter}
             reason = await locator.evaluate("""(el, cfg) => {
                 const policy = POLICY;
-                return policy(el, cfg) || (cfg.enter && el.form ? policy(el.form, cfg, true) : '');
+                const submitter = cfg.enter && el.form ? Array.from(el.form.elements).find(node =>
+                    (node.tagName === 'BUTTON' && node.type === 'submit') ||
+                    (node.tagName === 'INPUT' && ['submit', 'image'].includes(node.type))) : null;
+                return policy(el, cfg) || (cfg.enter && el.form ? policy(el.form, cfg, true, submitter) : '');
             }""".replace('POLICY', _CONTROL_POLICY), cfg, timeout=_ACTION_TIMEOUT_MS)
             if reason:
                 return False, 'needs approval: ' + reason
