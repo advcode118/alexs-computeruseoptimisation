@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import {
+  CURRENT_UPDATE,
   GROUPS,
   PARTS,
   PROPOSAL,
@@ -22,6 +23,7 @@ import {
 } from "@/data/loop";
 
 const NAV = [
+  { href: "#plan", label: "Plan + best number" },
   { href: "#clock", label: "Clock" },
   { href: "#routes", label: "Routes" },
   { href: "#ways", label: "Ways" },
@@ -140,6 +142,42 @@ export function Sheet() {
       </header>
 
       <main id="top" className="overflow-x-clip">
+        <section id="plan" aria-labelledby="plan-title" className="mx-auto max-w-6xl scroll-mt-32 px-5 pt-14 sm:px-8 sm:pt-20">
+          <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">Current direction · signed off</p>
+          <h2 id="plan-title" className="mt-4 font-serif text-5xl leading-none tracking-[-0.03em] sm:text-7xl">The low-call plan.</h2>
+          <div className="mt-8 grid gap-10 lg:grid-cols-2">
+            <div>
+              <h3 className="font-mono text-sm tracking-widest uppercase">Plan</h3>
+              <ol className="mt-4 list-decimal space-y-3 pl-5 leading-relaxed text-muted">
+                {CURRENT_UPDATE.plan.map((step) => <li key={step}>{step}</li>)}
+              </ol>
+            </div>
+            <div>
+              <h3 className="font-mono text-sm tracking-widest uppercase">Progress</h3>
+              <ul className="mt-4 space-y-4 leading-relaxed text-muted">
+                {CURRENT_UPDATE.progress.map((item) => (
+                  <li key={item.pr}>
+                    <a className="text-amber underline underline-offset-4" href={`https://github.com/advcode118/alexs-computeruseoptimisation/pull/${item.pr}`}>{item.status} PR #{item.pr}</a>
+                    {": "}{item.body}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="mt-10 border-y border-line py-8">
+            <h3 className="font-mono text-[11px] tracking-[0.22em] text-lime uppercase">Best number · benchmark baseline</h3>
+            <p className="mt-4 font-serif text-5xl tracking-[-0.03em] sm:text-6xl">8/12 (66.7%) <span className="text-2xl text-muted">AI-labelled correct</span></p>
+            <p className="mt-5 leading-relaxed text-muted">
+              browser_use · <strong className="text-paper">gpt-6.1-sol</strong> · medium effort · <strong className="text-paper">1 cold run</strong>.
+              {" "}12-task extdev subset: <code className="break-all">{'probe_tasks("extdev")[::3][:12]'}</code>.
+              {" "}Frozen grader: 2/12. $0.083571/task ($1.002848 total).
+              {" "}Source: <a className="text-amber underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/pull/105">PR #105</a>.
+            </p>
+            <p className="mt-5 font-mono text-xs text-muted">Exact command · recorded invocation, not a request to run</p>
+            <pre className="mt-3 whitespace-pre-wrap break-all border border-line p-4 font-mono text-xs leading-relaxed"><code>{CURRENT_UPDATE.command}</code></pre>
+            <p className="mt-4 text-sm leading-relaxed text-muted">{CURRENT_UPDATE.caveat}</p>
+          </div>
+        </section>
         <div className="mx-auto max-w-6xl px-5 pt-14 sm:px-8 sm:pt-20">
           <h1 className="max-w-[14ch] font-serif text-6xl leading-[0.9] tracking-[-0.03em] sm:text-7xl lg:text-8xl">
             The model looks again

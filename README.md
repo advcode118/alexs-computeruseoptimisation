@@ -24,33 +24,40 @@ Computer use is slow because the model stops and thinks before every click. **sc
 
 Plain Playwright MCP and Stagehand are the baselines it races.
 
-## Latest numbers
+## Plan
 
-> **Superseded.** The table below is the early PR #18 probe. For current, re-graded results (frozen grader, single timer, external `extdev` control on Sol), see [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md) and [`docs/results/extdev_control_20261117/`](docs/results/extdev_control_20261117/).
+Low-call design, signed off:
 
-PR #18 probe on Claude Sonnet 5.5. Three tasks: Wikipedia search, Python docs, Hacker News top. Scored on wall time per successful task.
+1. First: fix the grader — literal/compound answers reject correct ones — and count model calls per stage.
+2. One checkpointed planning call, with task classification folded into it.
+3. Executor-side safety gate: irreversible steps pause for Alex’s approval.
+4. At most one repair call.
+5. Later: our own interactive agent. browser-use stays as a benchmark baseline only, not the product fallback.
 
-| | Passed | Per success | Per run |
-| :-- | :-: | --: | --: |
-| **script_first** (Alex's tool) | **3/3** | **3.67s** | **$0.047** |
-| Plain Playwright MCP | 3/3 | 2.98s | $0.165 |
-| Stagehand | 3/3 | 4.62s | $0.074 |
+## Progress
 
-Same pass rate as Playwright MCP at about 3.5x less cost per run, and about 0.7s behind it on time. Every script_first task is still 2 steps. Claude spend so far is about $16.64 of the $50 budget.
+- Merged [PR #95](https://github.com/advcode118/alexs-computeruseoptimisation/pull/95): browser-use priced per request.
+- Draft [PR #106](https://github.com/advcode118/alexs-computeruseoptimisation/pull/106): `run_recovery` stage, per-stage model-call counts, `--fallback none`; offline, **1132 passed, 1 skipped**.
+- Open [PR #105](https://github.com/advcode118/alexs-computeruseoptimisation/pull/105): Sol model/effort comparison.
 
-## Done, and next
+## Best number
 
-- [x] A browser loop that owns each step, and an M0 measurement that showed the outer model's thinking is the clock (87% of the time).
-- [x] The speed-layer stack, PRs #7 to #17: an MCP proxy, settle, compact diffs, macros, and replay. Plain Playwright MCP stayed faster, so that stack is **parked**.
-- [x] script_first (PR #16), one repair call that reaches 3/3 (PR #17), and the PR #18 probe above.
-- [ ] **PR #20: stop when the first page is already done.** In progress, not yet measured.
+**8/12 (66.7%) AI-labelled correct** — browser_use, **gpt-6.1-sol**, medium effort, on the 12-task extdev subset `probe_tasks("extdev")[::3][:12]`, **1 cold run**. Frozen grader: **2/12**. Cost: **$0.083571/task ($1.002848 total)**. Source: [PR #105](https://github.com/advcode118/alexs-computeruseoptimisation/pull/105).
+
+Exact command (recorded invocation, not a request to run):
+
+```bash
+CU_BU_MODE= PYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.1-sol --effort medium --output-root docs/results/extdev_sol_effort_20261117 --spend-baseline 8.583958 --spend-limit 3 --run-cap 1.25 --headroom 0.5
+```
+
+AI labels are not human ground truth; frozen grader under-counts (fix is step 1); model calls not yet counted (PR #106 adds it); heldout3 numbers are retired and not shown.
 
 <details>
 <summary><b>Working on this repo</b></summary>
 
 <br>
 
-The progress site is a Next.js App Router app with Tailwind. All of the copy and every probe number lives in [`data/progress.ts`](https://github.com/advcode118/alexs-computeruseoptimisation/blob/cursor/progress-site-redesign-8676/data/progress.ts) on the `cursor/progress-site-redesign-8676` branch. Edit that file to update the site, and only add numbers that were measured.
+The progress site is a Next.js App Router app with Tailwind. Homepage data and benchmark copy live in [`data/loop.ts`](data/loop.ts), with layout and inline copy in [`app/sheet.tsx`](app/sheet.tsx). Only add numbers that were measured.
 
 The benchmark harness is separate from the site: see [`bench/README.md`](bench/README.md).
 

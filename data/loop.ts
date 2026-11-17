@@ -47,6 +47,35 @@ export type Part = {
   windows?: string;
 };
 
+export const CURRENT_UPDATE = {
+  plan: [
+    "First: fix the grader — literal/compound answers reject correct ones — and count model calls per stage.",
+    "One checkpointed planning call, with task classification folded into it.",
+    "Executor-side safety gate: irreversible steps pause for Alex’s approval.",
+    "At most one repair call.",
+    "Later: our own interactive agent. browser-use stays as a benchmark baseline only, not the product fallback.",
+  ],
+  progress: [
+    {
+      pr: 95,
+      status: "Merged",
+      body: "browser-use priced per request.",
+    },
+    {
+      pr: 106,
+      status: "Draft",
+      body: "run_recovery stage, per-stage model-call counts, --fallback none; offline, 1132 passed, 1 skipped.",
+    },
+    {
+      pr: 105,
+      status: "Open",
+      body: "Sol model/effort comparison.",
+    },
+  ],
+  command: "CU_BU_MODE= PYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.1-sol --effort medium --output-root docs/results/extdev_sol_effort_20261117 --spend-baseline 8.583958 --spend-limit 3 --run-cap 1.25 --headroom 0.5",
+  caveat: "AI labels are not human ground truth; frozen grader under-counts (fix is step 1); model calls not yet counted (PR #106 adds it); heldout3 numbers are retired and not shown.",
+};
+
 export const SCALE_PAD = 10;
 
 export const GROUPS = [
