@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import re
 import sys
 from dataclasses import replace
 from datetime import datetime, timezone
