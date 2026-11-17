@@ -205,6 +205,7 @@ async def _one(
     ledger: OpenAISpendLedger,
     rows: list[dict],
     sink=None,
+    fallback: str = "browser_use",
 ) -> None:
     from bench.probe import empty_row, run_claude_arm
 
@@ -218,7 +219,7 @@ async def _one(
 
             row = await run_cascade_task(task, api_key=api_key, headless=headless,
                                          runs_dir=destination, provider="openai",
-                                         model=cell_model, effort=cell_effort)
+                                         model=cell_model, effort=cell_effort, fallback=fallback)
         elif arm == ARM_BROWSER_USE:
             from bench.browser_use_arm import run_browser_use_task
 
@@ -284,6 +285,7 @@ async def execute_openai_probe(
     warm_replay: bool,
     honest: bool,
     only_kind: str = "",
+    fallback: str = "browser_use",
 ) -> list[dict]:
     """Run the matrix under configured run/project caps and the $15 sweep cap."""
     import os
@@ -379,6 +381,7 @@ async def execute_openai_probe(
                         ledger=ledger,
                         rows=rows,
                         sink=sink,
+                        fallback=fallback,
                     )
                     for row in rows[before:]:
                         spent = float(row.get("usd") or 0)

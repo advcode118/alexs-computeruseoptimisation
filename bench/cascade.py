@@ -147,14 +147,48 @@ async def _page_target_id(page):
         await session.detach()
 
 
-async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="anthropic", model=None, effort=None, browser_use_loader=None):
-    from bench.arms import SCRIPT_FIRST_MAX_CALLS
+async def run_recovery(task, *, harness, script, result, reason, row, api_key, headless, provider, browser_use_loader=None):
     from bench.browser_use_arm import _judge, _task_selector, load_browser_use, run_browser_use_task
-    from bench.harness import BenchmarkHarness
     from bench.measurement import grade_fields
     from bench.openai_spend import PriceUnknown
-    from bench.probe import script_result_row
     from bench.script_first import read_marked_page
+
+    browser_start = time.perf_counter()
+    try:
+        loader = browser_use_loader or (lambda: load_browser_use(provider))
+        _, browser_cls, _ = loader()
+        browser = browser_cls(cdp_url=harness.mcp_client.cdp_url, keep_alive=True)
+        current = getattr(harness.mcp_client._page, "url", "") or script.get("final_url", "")
+        target_id = await _page_target_id(harness.mcp_client._page)
+        receipt = handoff_note(task, current,
+            [step.page_url for step in result.steps if step.page_url], reason)
+        row.update(handoff_url=current, handoff_target_id=target_id,
+                   handoff_cdp_url=harness.mcp_client.cdp_url, handoff_receipt=receipt)
+        fallback = await run_browser_use_task(task, api_key=api_key, headless=headless,
+            model=harness.model, provider=provider, effort=harness.effort, loader=loader,
+            external_browser=browser, external_target_id=target_id, task_text_override=receipt)
+    except PriceUnknown:
+        raise
+    except Exception as exc:
+        finished_at = time.perf_counter()
+        grade_start = time.perf_counter()
+        text, marked = await read_marked_page(harness.mcp_client, _task_selector(task))
+        url = getattr(harness.mcp_client, "_grade_read_url", "") or script.get("final_url", "")
+        ok, _ = _judge(task, url, text, selector_text=marked)
+        fallback = {**grade_fields(url, text, marked, ""), "success": ok,
+                    "success_reason": f"browser_use run failed: {type(exc).__name__}",
+                    "page_url": url, "_run_finished_at": finished_at,
+                    "wall_ms": (finished_at-browser_start)*1000,
+                    "grade_read_ms": (time.perf_counter()-grade_start)*1000}
+    return fallback, browser_start
+
+
+async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="anthropic", model=None, effort=None, browser_use_loader=None, fallback="browser_use"):
+    if fallback not in {"browser_use", "none"}:
+        raise ValueError(f"unknown fallback {fallback!r}")
+    from bench.arms import SCRIPT_FIRST_MAX_CALLS
+    from bench.harness import BenchmarkHarness
+    from bench.probe import script_result_row
 
     harness = BenchmarkHarness(api_key=api_key, headless=headless, runs_dir=runs_dir,
                                arm="script_first", max_steps=SCRIPT_FIRST_MAX_CALLS,
@@ -175,59 +209,38 @@ async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="
         accept, reason = precision_check(task["description"], checks[-1] if checks else {})
         row = dict(script)
         browser_ms = 0.0
-        fallback = {}
-        answered = "script"
+        recovery = {}
+        answered = "script" if accept else "none"
         finished = script_end
-        if not accept:
-            browser_start = time.perf_counter()
-            try:
-                loader = browser_use_loader or (lambda: load_browser_use(provider))
-                _, browser_cls, _ = loader()
-                browser = browser_cls(cdp_url=harness.mcp_client.cdp_url, keep_alive=True)
-                current = getattr(harness.mcp_client._page, "url", "") or script.get("final_url", "")
-                target_id = await _page_target_id(harness.mcp_client._page)
-                receipt = handoff_note(task, current,
-                    [step.page_url for step in result.steps if step.page_url], reason)
-                row.update(handoff_url=current, handoff_target_id=target_id,
-                           handoff_cdp_url=harness.mcp_client.cdp_url, handoff_receipt=receipt)
-                fallback = await run_browser_use_task(task, api_key=api_key, headless=headless,
-                    model=harness.model, provider=provider, effort=harness.effort, loader=loader,
-                    external_browser=browser, external_target_id=target_id, task_text_override=receipt)
-            except PriceUnknown:
-                raise
-            except Exception as exc:
-                finished_at = time.perf_counter()
-                grade_start = time.perf_counter()
-                text, marked = await read_marked_page(harness.mcp_client, _task_selector(task))
-                url = getattr(harness.mcp_client, "_grade_read_url", "") or script.get("final_url", "")
-                ok, _ = _judge(task, url, text, selector_text=marked)
-                fallback = {**grade_fields(url, text, marked, ""), "success": ok,
-                            "success_reason": f"browser_use run failed: {type(exc).__name__}",
-                            "page_url": url, "_run_finished_at": finished_at,
-                            "wall_ms": (finished_at-browser_start)*1000,
-                            "grade_read_ms": (time.perf_counter()-grade_start)*1000}
-            finished = fallback.pop("_run_finished_at", time.perf_counter())
-            browser_ms = fallback.get("wall_ms", (finished - browser_start) * 1000)
-            row.update(fallback)
+        if not accept and fallback == "browser_use":
+            recovery, browser_start = await run_recovery(
+                task, harness=harness, script=script, result=result, reason=reason,
+                row=row, api_key=api_key, headless=headless, provider=provider,
+                browser_use_loader=browser_use_loader)
+            finished = recovery.pop("_run_finished_at", time.perf_counter())
+            browser_ms = recovery.get("wall_ms", (finished - browser_start) * 1000)
+            row.update(recovery)
             row["grade_claim"] = None
             row["grade_completed"] = None
             row["grade_completion_reason"] = ""
-            row["final_url"] = fallback.get("page_url", "")
-            row["steps"] = script.get("steps", 0) + fallback.get("steps", 0)
-            answered = "none" if fallback.get("success_reason", "").startswith("browser_use run failed") or fallback.get("skipped") else "browser_use"
+            row["final_url"] = recovery.get("page_url", "")
+            row["steps"] = script.get("steps", 0) + recovery.get("steps", 0)
+            answered = "none" if recovery.get("success_reason", "").startswith("browser_use run failed") or recovery.get("skipped") else "browser_use"
         token_keys = ("input_tokens", "output_tokens", "cached_tokens", "cache_write_30m_tokens", "cache_write_12h_tokens")
-        row.update({key: script.get(key, 0) + fallback.get(key, 0) for key in token_keys})
+        row.update({key: script.get(key, 0) + recovery.get(key, 0) for key in token_keys})
         row.update(arm="cascade", answered_by=answered, handoff_reason="" if accept else reason,
                    wall_ms=(finished - started) * 1000 - result.grade_read_ms,
                    stage_wall_ms={"grounding": grounding_ms, "script": (script_end-script_start)*1000-result.grade_read_ms, "browser_use": browser_ms},
-                   stage_usd={"script": script["usd"], "browser_use": fallback.get("usd", 0)},
-                   stage_tokens={"script": {key: script.get(key, 0) for key in token_keys}, "browser_use": {key: fallback.get(key, 0) for key in token_keys}},
-                   usd=script["usd"] + fallback.get("usd", 0),
+                   stage_model_calls={"script": script.get("model_calls", 0), "browser_use": recovery.get("model_calls", 0)},
+                   model_calls=script.get("model_calls", 0) + recovery.get("model_calls", 0),
+                   stage_usd={"script": script["usd"], "browser_use": recovery.get("usd", 0)},
+                   stage_tokens={"script": {key: script.get(key, 0) for key in token_keys}, "browser_use": {key: recovery.get(key, 0) for key in token_keys}},
+                   usd=script["usd"] + recovery.get("usd", 0),
                    grounding={"ok": not bool(grounding.get("error")), "error": grounding.get("error", ""), "links": len(grounding.get("links", [])), "forms": len(grounding.get("forms", [])), "h1": grounding.get("h1", "")})
         for key in ("scripts", "self_checks", "task_description", "start_url"):
             row[key] = script.get(key)
         row["browser_launch_ms"] = harness.browser_launch_ms
-        row["grade_read_ms"] = result.grade_read_ms + fallback.get("grade_read_ms", 0)
+        row["grade_read_ms"] = result.grade_read_ms + recovery.get("grade_read_ms", 0)
         row["claude"] = provider == "anthropic"
         row["model"] = harness.model
         if provider == "openai":

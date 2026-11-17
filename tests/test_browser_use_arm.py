@@ -162,6 +162,7 @@ def test_browser_use_mode_is_recorded_even_when_skipped(monkeypatch, mode, expec
         monkeypatch.setenv("CU_BU_MODE", mode)
     row = asyncio.run(run_browser_use_task({"id": "synthetic"}, api_key=""))
     assert row["skipped"]
+    assert row["model_calls"] == 0
     assert row["browser_use_mode"] == expected
 
 
@@ -223,6 +224,7 @@ def test_local_agent_uses_the_bench_model_and_the_page_not_the_claim():
     assert row["usd"] == estimate_usd(100, 10)
     assert row["usd"] != 999
     assert row["steps"] == 2
+    assert row["model_calls"] == 2
 
     claimed = {
         "id": "fixture_packing_add",
@@ -260,6 +262,32 @@ def test_local_agent_uses_the_bench_model_and_the_page_not_the_claim():
     assert unset["success_reason"] == "ANTHROPIC_API_KEY unset"
 
 
+@pytest.mark.parametrize("requests", [0, 5, None])
+def test_model_calls_uses_requests_not_steps(requests):
+    world = _World()
+
+    def loader():
+        agent_cls, browser_cls, llm_cls = world.loader()
+
+        class Agent(agent_cls):
+            async def run(self, max_steps):
+                result = _Result("done", steps=2)
+                if requests is None:
+                    del result.usage["requests"]
+                else:
+                    result.usage["requests"] = requests
+                return result
+
+        return Agent, browser_cls, llm_cls
+
+    row = asyncio.run(run_browser_use_task(
+        {"id": "t", "description": "Open the start page", "start_url": "https://example.test/"},
+        api_key="mock", loader=loader,
+    ))
+    assert row["steps"] == 2
+    assert row["model_calls"] == (requests or 0)
+
+
 def test_a_failed_run_still_stops_and_hides_the_exception_text():
     world = _World()
 
@@ -282,6 +310,7 @@ def test_a_failed_run_still_stops_and_hides_the_exception_text():
     )
     assert row["success"] is False
     assert row["success_reason"] == "browser_use run failed: RuntimeError"
+    assert row["model_calls"] == 0
     assert "Ada_Lovelace" not in row["success_reason"]
     assert "selector_text" not in row["success_reason"]
     assert world.stopped == 1
