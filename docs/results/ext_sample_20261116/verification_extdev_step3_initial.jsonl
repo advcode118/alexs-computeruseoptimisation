@@ -1,0 +1,40 @@
+{"id": "extdev_filter_greatamerica_thrill", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_nba_2021_leaders", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_spa_dota_dlc_cart", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_filter_booking_times_square", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_filter_frontiercity_family", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_nav_spothero_contact", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_filter_airbnb_europe_mansions", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_icse_2004_chair", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_icse_duplicate_statement", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_icse_2002_chairs", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_rovio_anniversary", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_apec_tourism_actions", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_apec_peru_arrivals", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_apec_ministers_chair", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_search_booking_la_filters", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_hf_first_user_message", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_hf_tei_strengths", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_nav_ronaldo_world_cup_stats", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_nav_nets_schedule", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_nav_fiestatexas_events", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_nav_spothero_marketing", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_filter_amazon_puppy_food", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_nav_eventbrite_planning", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_filter_sam_harris_paperback", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_nav_steam_daily_players", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_nav_commuter_benefits", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_dream_blast_revenue", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_pirate_treasures", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_inclusive_strategy_role", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_ironhide_historical_games", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_ironhide_arcade_gdc", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_cambridge_euphoria", "key": true, "reproducer": null, "negatives": [true], "errors": ["key/negative exception: RuntimeError: HTTP 403: https://dictionary.cambridge.org/"]}
+{"id": "extdev_value_hf_pytorch_tensorflow", "key": false, "reproducer": null, "negatives": [true, true], "errors": ["key: FAIL: answer is not in the page text"]}
+{"id": "extdev_value_cambridge_gestalt", "key": true, "reproducer": null, "negatives": [true], "errors": ["key/negative exception: RuntimeError: HTTP 403: https://dictionary.cambridge.org/"]}
+{"id": "extdev_value_cambridge_innovate", "key": true, "reproducer": null, "negatives": [true], "errors": ["key/negative exception: RuntimeError: HTTP 403: https://dictionary.cambridge.org/"]}
+{"id": "extdev_filter_green_xbox_controller", "key": false, "reproducer": true, "negatives": [true, true], "errors": ["key: FAIL: the URL marker does not match the live page"]}
+{"id": "extdev_value_booking_parent", "key": false, "reproducer": false, "negatives": [true, true], "errors": ["key: FAIL: answer is not in the page text", "reproducer: FAIL: answer is not in the page text"]}
+{"id": "extdev_filter_tiny_home_dates", "key": false, "reproducer": null, "negatives": [true, true], "errors": ["key: FAIL: answer is not in the page text"]}
+{"id": "extdev_filter_sf_exercise_dates", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_filter_castles_europe_week", "key": false, "reproducer": null, "negatives": [true, true], "errors": ["key: FAIL: answer is not in the page text"]}

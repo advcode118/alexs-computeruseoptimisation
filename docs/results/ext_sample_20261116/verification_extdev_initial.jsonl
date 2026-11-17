@@ -1,0 +1,20 @@
+{"id": "extdev_filter_greatamerica_thrill", "key": true, "reproducer": false, "negatives": [true, true], "errors": ["reproducer exception: TimeoutError: Locator.click: Timeout 15000ms exceeded."]}
+{"id": "extdev_value_nba_2021_leaders", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_spa_dota_dlc_cart", "key": false, "reproducer": false, "negatives": [], "errors": ["key/negative exception: TimeoutError: Locator.fill: Timeout 15000ms exceeded.", "reproducer exception: TimeoutError: Locator.fill: Timeout 15000ms exceeded."]}
+{"id": "extdev_filter_booking_times_square", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_filter_frontiercity_family", "key": true, "reproducer": false, "negatives": [true, true], "errors": ["reproducer exception: TimeoutError: Locator.click: Timeout 15000ms exceeded."]}
+{"id": "extdev_nav_spothero_contact", "key": false, "reproducer": false, "negatives": [true, true], "errors": ["key: FAIL: answer is not in the page text", "reproducer: FAIL: answer is not in the page text"]}
+{"id": "extdev_filter_airbnb_europe_mansions", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_icse_2004_chair", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_icse_duplicate_statement", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_icse_2002_chairs", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_rovio_anniversary", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_apec_tourism_actions", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_apec_peru_arrivals", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_apec_ministers_chair", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_nav_cambridge_present_perfect", "key": true, "reproducer": null, "negatives": [true], "errors": ["key/negative exception: RuntimeError: HTTP 403: https://dictionary.cambridge.org/"]}
+{"id": "extdev_search_cambridge_giddy", "key": true, "reproducer": false, "negatives": [true], "errors": ["key/negative exception: RuntimeError: HTTP 403: https://dictionary.cambridge.org/", "reproducer exception: TimeoutError: Locator.fill: Timeout 15000ms exceeded."]}
+{"id": "extdev_value_cambridge_sustainability", "key": true, "reproducer": false, "negatives": [true], "errors": ["key/negative exception: RuntimeError: HTTP 403: https://dictionary.cambridge.org/", "reproducer exception: TimeoutError: Locator.click: Timeout 15000ms exceeded."]}
+{"id": "extdev_search_booking_la_filters", "key": true, "reproducer": true, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_hf_first_user_message", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
+{"id": "extdev_value_hf_tei_strengths", "key": true, "reproducer": null, "negatives": [true, true], "errors": []}
