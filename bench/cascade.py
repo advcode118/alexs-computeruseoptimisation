@@ -139,6 +139,14 @@ def handoff_note(task, current_url, visited_urls, reason):
             + "\nPages visited: " + ", ".join(pages) + "\nHandoff reason: " + safe)
 
 
+async def _page_target_id(page):
+    session = await page.context.new_cdp_session(page)
+    try:
+        return (await session.send("Target.getTargetInfo"))["targetInfo"]["targetId"]
+    finally:
+        await session.detach()
+
+
 async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="anthropic", model=None, effort=None, browser_use_loader=None):
     from bench.arms import SCRIPT_FIRST_MAX_CALLS
     from bench.browser_use_arm import _judge, _task_selector, load_browser_use, run_browser_use_task
@@ -177,10 +185,14 @@ async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="
                 _, browser_cls, _ = loader()
                 browser = browser_cls(cdp_url=harness.mcp_client.cdp_url, keep_alive=True)
                 current = getattr(harness.mcp_client._page, "url", "") or script.get("final_url", "")
+                target_id = await _page_target_id(harness.mcp_client._page)
+                receipt = handoff_note(task, current,
+                    [step.page_url for step in result.steps if step.page_url], reason)
+                row.update(handoff_url=current, handoff_target_id=target_id,
+                           handoff_cdp_url=harness.mcp_client.cdp_url, handoff_receipt=receipt)
                 fallback = await run_browser_use_task(task, api_key=api_key, headless=headless,
                     model=harness.model, provider=provider, effort=harness.effort, loader=loader,
-                    external_browser=browser, task_text_override=handoff_note(task, current,
-                        [step.page_url for step in result.steps if step.page_url], reason))
+                    external_browser=browser, external_target_id=target_id, task_text_override=receipt)
             except PriceUnknown:
                 raise
             except Exception as exc:

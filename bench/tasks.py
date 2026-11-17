@@ -1325,6 +1325,10 @@ HONEST_TASK_IDS = HELD_OUT_TASK_IDS
 BENCHMARK_TASKS = FIXTURE_TASKS + WEBVOYAGER_TASKS
 
 
+def get_all_tasks() -> list[dict]:
+    return list(BENCHMARK_TASKS)
+
+
 def get_fixture_tasks() -> list[dict]:
     """Get only fixture tasks (for offline testing)."""
     return FIXTURE_TASKS

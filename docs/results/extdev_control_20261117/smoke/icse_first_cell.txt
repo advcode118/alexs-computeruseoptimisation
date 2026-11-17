@@ -1,0 +1,235 @@
+{'url': 'http://www.icse-conferences.org/2002/index.html', 'title': '2002 International Conference on Software Engineering', 'w': 1280, 'h': 720, 'sx': 0, 'sy': 0, 'pw': 1280, 'ph': 4321}
+	
+	
+International Conference on Software Engineering
+Orlando, Florida, USA
+May 19-25, 2002
+	
+
+
+
+Home
+   Conference Updates
+
+Advance Program
+   Overview
+   Technical Papers
+   Conference Keynotes
+   Tutorials
+   Workshops
+   Industry Presentations
+   State-of-the-Art Presentations
+   Doctoral Symposium
+   IMPACT Presentations
+   Panels
+   Co-Located Events
+   Posters and Demos
+   Exhibitors
+
+Call For Participation
+   Types of Submissions
+   Student Volunteers
+
+Conference Calendar
+   Program At-A-Glance!
+   Conference Meetings
+
+Conference Information
+   Conference Committee
+   Program Committee
+   Sponsors and Supporters
+   Advice for Newcomers
+
+Registration
+   Overview
+
+Travel Information and Events
+   Overview
+   Conference Hotel
+   Discount Airfares
+   Discount Airport Shuttle
+   Discount Theme Park Tickets
+   Securing a Visa
+   Spouse Program
+   ICSE 5K Run
+
+Related Conferences
+   Other ICSE Conferences
+
+	
+Welcome!
+
+ICSE 2002 is now over! Thanks to all who attended, it was an excellent conference!
+
+If you missed the conference, you can get a feel for what it was like by reading issues of the ICSE WOW - ICSE's Window on the World! Enjoy!
+
+Read a message from Will Tracz, the General Chair of ICSE 2002.
+
+Register for ICSE 2002! (Note: early registration is now closed.)
+
+Program At-A-Glance Information is now available!
+
+Site Updates
+May 13, 2002
+
+Registration: Pre-Conference Registration is now closed. On-site registration will be available starting at 5:00 PM, Saturday May 18th.
+
+May 13, 2002
+
+Lunch: Due to budgetary restrictions, there will only be one lunch (on Wednesday, 22 May 02) provided to conference attendees. If there are any special dietary restrictions we should know about, please let us know in advance so we can plan the right number of vegetarian, etc. meals. We are reviewing registration data and anticipated expenses to see if it is feasible to add another lunch on Thursday. Send your requests to Will Tracz.
+
+Keynotes: 2) In a break from tradition, keynote speakers will not answer questions from the floor after delivering their addresses. Instead, written questions will be collected during and after the presentation and delivered to the session chair, who will then consolidate, summarize, and paraphrase them for the keynote speaker to answer. Students will be periodically walking up and down the aisles with a small sign indicating they are collecting questions starting approximately 1/2 hour after the beginning of the keynote speaker's address. They will have note cards to write the questions on, or you may submit the question on any note paper.
+
+May 10, 2002
+
+Please Note: Discount theme park tickets are still available but order forms can no longer be processed and tickets sent to you by postal mail. Instead, order forms can be sent in and tickets can be picked up at the hotel business center, which is located next to the conference registration area. Tickets can also be purchased directly at the business center.
+
+May 01, 2002
+
+Music and Free Tango Lessons
+
+Conference attendees may want to adjust their evening social calendar to enjoy the special entertainment that is scheduled for the conference receptions. Wednesday night will feature some light jazz and funk by Columbia Record and Blue Note recording artists Tom Dietz on tenor, Don Scaletta on Keys and Tony Ventuenia on bass. In addition, rumor has it that there will be some special guest celebrity performance around 7:10.
+
+On Wednesday night you can enjoy the rhythm of a hot salsa band as well as be entertained by two performances of some very famous Argentine Tango Dancers. In addition they will be offering a free Tango lesson - at 9:00 after the Reception in the Royal Ballroom!
+
+April 25, 2002
+
+Hotel Room Block Reservation Cut-off Date Approaching.
+
+ICSE attendees should be aware that the cut-off date for reserving conference hotel rooms is Friday, 3 May 2002. After this date, the group room rate may not be available.
+
+In addition, using the on-line room reservation system is not recommended due to the current "sold-out" status of some days. In order to secure a room (and be automatically placed in the overflow hotel, if necessary) please call the reservation line directly at +1 407 239 4200 (or in the US and Canada 1 800 621 0638).
+
+April 15, 2002
+
+A registration form for the spouse program at ICSE 2002 is now available! Registrations for this program must be made by May 13, 2002.
+
+Note: early registration is now closed.
+
+April 12, 2002
+
+Discount Theme Park Tickets are now available!
+
+April 8, 2002
+
+Registration News: The early registration date (April 12th) is rapidly approaching! Also, note, that on-site registration will accept credit cards and cash only.
+
+April 5, 2002
+
+Program At-A-Glance information is now available for workshops, tutorials, and co-located events.
+
+April 3, 2002
+
+Please read this update on how to make reservations at the ICSE conference hotel.
+
+March 28, 2002
+
+ICSE 2002 is pleased to announce a discount fare for the shuttle that runs between the Orlando International Airport and the conference hotel.
+
+March 20, 2002
+
+Make your hotel reservations soon! See this announcement for more details!
+
+March 19, 2002
+
+Rational Software has become a sponsor of ICSE 2002!
+
+March 13, 2002
+
+Information on securing a visa to attend ICSE is now available.
+
+Information on the ICSE 2002 Spouse program is now available. Registration information for the Spouse program will be posted soon.
+
+Information on the ICSE 2002 5K Fun Run is now available.
+
+March 7, 2002
+
+Please Make your Hotel Reservations Early!
+
+The hotel is forecasting to 'sell out' on the 20th, 24th & 25th.
+
+If you are using the Marriott online reservation system, you may run into a "rooms unavailable" situation. This is because our room blocks are filling up fast.
+
+In order to accommodate the increased number of reservations, we are daily increasing the room block.
+
+We ask your patience in this matter.
+
+If you have questions, please contact Will Tracz (Will.Tracz@acm.org) and he will be happy to assist you in resolving the matter with the hotel.
+
+February 20, 2002
+
+ICSE 2002 is now open for business! Registration information is now available.
+
+February 16, 2002
+
+Information for becoming an ICSE 2002 Exhibitor is now available.
+
+February 12, 2002
+
+Newcomer to ICSE? David Notkin shares the advice he gives to his graduate students who are attending ICSE for the first time.
+
+The schedule of events for the conference has been posted.
+
+February 9, 2002
+
+Information on discounted air fares to ICSE 2002 is available at the Conference Airline page.
+
+February 8, 2002
+
+The posters and demos section has been updated with a list of titles and authors.
+
+Information on the second state-of-the-art talk is now available.
+
+Abstract and Presenter information for tutorial 13 is now available. Pictures of tutorial presenters are starting to appear.
+
+February 5, 2002
+
+The travel overview section has been updated with new information on making hotel reservations. In particular, it is now possible to register for hotel rooms on-line.
+
+February 4, 2002
+
+Major site update in response to moving ICSE 2002 from Buenos Aires, Argentina to Orlando, Florida. The travel section has been updated with new information. Registration information will be available soon!
+
+ICSE 2002 has moved to Orlando, Florida, USA.
+
+January 3, 2002
+
+Happy New Year! Tutorial and Workshop abstracts are now available.
+
+December 22, 2001
+
+Additional information on industry presentations is now available.
+
+December 18, 2001
+
+VA Software has become a sponsor of ICSE 2002!
+
+Preliminary Information on technical papers is now available.
+
+December 17, 2001
+
+Preliminary Information on panels is now available.
+
+Preliminary Information on industry, state-of-the-art, and IMPACT presentations is now available.
+
+Information on three events co-located with ICSE 2002 is now available.
+
+Preliminary Tutorial Information is now available. Abstract Information will be available soon.
+
+Preliminary Workshop Information is now available. Abstract and Submission Information will be available soon.
+
+Advance Program information is now coming on-line. Call for participation information is being moved for archival purposes (e.g. some URLs have changed), since most submission deadlines have passed (except for the Doctoral Consortium). The navigation bar on the left has also changed slightly.
+
+December 2, 2001
+
+We now have abstracts for all three ICSE 2002 keynote talks. Take a look on our keynotes page.
+
+Microsoft Research has become a sponsor of ICSE 2002!
+
+October 16, 2001
+
+Information on the Program Committee meeting is now available.
+
+
+   
+© ACM SIGSOFT, 2000-2002. Website Maintainer: Kenneth M. Anderson. Last Updated: 06/19/2002; 1:49:35 PM
