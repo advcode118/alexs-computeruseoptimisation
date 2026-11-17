@@ -79,3 +79,27 @@ def test_filled_checkpoint_survives_self_check_record():
     checkpoints = plan_checkpoints('Fill "Guide"', classify_task('Fill "Guide"', {}))
     assert all(result['passed'] for result in evaluate_checkpoints(checkpoints, record['payload']))
     assert 'controls' not in record['payload']
+
+
+@pytest.mark.parametrize('description,password,focused,allowed', [
+    ('Read the page', True, True, False),
+    ('Log in and read', True, True, True),
+    ('Read the page', False, True, True),
+    ('Read the page', True, False, True),
+])
+def test_keyboard_typing_respects_password_approval(description, password, focused, allowed):
+    async def run():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.set_content(f'<input type="{"password" if password else "text"}" aria-label="Field">')
+            field = page.get_by_label('Field')
+            if focused:
+                await field.focus()
+            gate = ActionGate(description=description)
+            payload = json.loads((await run_on_page(page, 'page.keyboard.type("demo")', gate=gate)).splitlines()[0])
+            assert payload['ok'] is allowed
+            assert bool(payload.get('blocked_actions')) is not allowed
+            assert await field.input_value() == ('demo' if allowed and focused else '')
+            await browser.close()
+    asyncio.run(run())

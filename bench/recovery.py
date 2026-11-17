@@ -266,7 +266,7 @@ class ActionGate:
                     locator = candidate
                     break
         elif action.finder == "keyboard":
-            if op != "press" or action.value.split('+')[-1].lower() not in {'enter', 'space', ' '}:
+            if op not in {'type', 'insertText'} and (op != "press" or action.value.split('+')[-1].lower() not in {'enter', 'space', ' '}):
                 return True, "global keyboard action"
             locator = page.locator(":focus")
             if not await locator.count():
