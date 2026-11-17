@@ -1,70 +1,74 @@
-# Computer-use optimisation
+<a href="https://computer-use-optimisation.vercel.app">
+  <img src=".github/readme/hero.svg" alt="Alex's browser tool. One Claude call writes the whole browser task. script_first is 3/3 at 3.67s and $0.047 per run in the PR #18 probe." width="100%">
+</a>
 
-A dark-mode progress page for this work: the current bottleneck, what to do next, the four tracks, and what is still missing.
+<p align="center">
+  <a href="https://computer-use-optimisation.vercel.app"><b>Open the live site</b></a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/advcode118/alexs-computeruseoptimisation">GitHub</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://cursor.com/codebase/tom-wei-de-vrieze/alexs-computeruseoptimisation">Cursor Origin</a>
+</p>
 
-All of the copy is hardcoded in [`data/progress.ts`](data/progress.ts). Edit that file to update the page.
+# Alex's browser tool
 
-## Run locally
+Computer use is slow because the model stops and thinks before every click. **script_first** doesn't. One Claude call writes a Playwright script for the whole task, Chrome runs it start to finish, and Claude only comes back if the final page is wrong.
 
-Node.js 20 or newer.
+## How it works
+
+<img src=".github/readme/how-it-runs.svg" alt="script_first: Claude writes the script, Chrome runs it with no model calls, the harness checks the final page, and only if that fails Claude rewrites it once. Plain Playwright MCP: Claude picks a tool, Chrome does one action, the full page snapshot goes back to Claude, and that repeats every page step." width="100%">
+
+1. **Claude writes the script.** One call, for the whole task, not one click at a time.
+2. **Chrome runs it.** Search, open, read. No model call between actions.
+3. **Check, repair once.** If the end-state check fails, Claude sees the failure and rewrites the script once.
+
+Plain Playwright MCP and Stagehand are the baselines it races.
+
+## Latest numbers
+
+> **Superseded.** The table below is the early PR #18 probe. For current, re-graded results (frozen grader, single timer, external `extdev` control on Sol), see [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md) and [`docs/results/extdev_control_20261117/`](docs/results/extdev_control_20261117/).
+
+PR #18 probe on Claude Sonnet 5.5. Three tasks: Wikipedia search, Python docs, Hacker News top. Scored on wall time per successful task.
+
+| | Passed | Per success | Per run |
+| :-- | :-: | --: | --: |
+| **script_first** (Alex's tool) | **3/3** | **3.67s** | **$0.047** |
+| Plain Playwright MCP | 3/3 | 2.98s | $0.165 |
+| Stagehand | 3/3 | 4.62s | $0.074 |
+
+Same pass rate as Playwright MCP at about 3.5x less cost per run, and about 0.7s behind it on time. Every script_first task is still 2 steps. Claude spend so far is about $16.64 of the $50 budget.
+
+## Done, and next
+
+- [x] A browser loop that owns each step, and an M0 measurement that showed the outer model's thinking is the clock (87% of the time).
+- [x] The speed-layer stack, PRs #7 to #17: an MCP proxy, settle, compact diffs, macros, and replay. Plain Playwright MCP stayed faster, so that stack is **parked**.
+- [x] script_first (PR #16), one repair call that reaches 3/3 (PR #17), and the PR #18 probe above.
+- [ ] **PR #20: stop when the first page is already done.** In progress, not yet measured.
+
+<details>
+<summary><b>Working on this repo</b></summary>
+
+<br>
+
+The progress site is a Next.js App Router app with Tailwind. All of the copy and every probe number lives in [`data/progress.ts`](https://github.com/advcode118/alexs-computeruseoptimisation/blob/cursor/progress-site-redesign-8676/data/progress.ts) on the `cursor/progress-site-redesign-8676` branch. Edit that file to update the site, and only add numbers that were measured.
+
+The browser loop is separate from the site: `python -m loop demo` (see [`loop/README.md`](https://github.com/advcode118/alexs-computeruseoptimisation/blob/cursor/progress-site-redesign-8676/loop/README.md)).
+
+**Run locally** (Node.js 20 or newer):
 
 ```bash
 npm install
-npm run dev
+npm run dev        # http://localhost:3000
+npm run build && npm start   # production build
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-To check the production build:
+**Deploy.** There are no environment variables and no custom output directory. Deploy from a checkout with the Vercel CLI, signed in to Tom's Vercel account:
 
 ```bash
-npm run build
-npm start
+npx vercel          # preview
+npx vercel --prod   # production
 ```
 
-## Deploy on Vercel
+**Remotes.** The main remote is Cursor Origin. GitHub is a mirror at `advcode118/alexs-computeruseoptimisation`.
 
-This is a standard Next.js App Router app. It has no environment variables and no custom output directory.
-
-If Vercel asks for settings:
-
-| Setting | Value |
-| --- | --- |
-| Framework preset | Next.js |
-| Root directory | repository root |
-| Install command | `npm install` |
-| Build command | `npm run build` |
-| Output directory | leave empty (Next.js default) |
-
-### CLI
-
-The git remote for this repo is Origin (Cursor), not GitHub, GitLab, or Bitbucket. Vercel’s Git import will not see it. Deploy from a checkout with the Vercel CLI, signed into Tom’s Vercel account:
-
-```bash
-npx vercel login
-npx vercel
-npx vercel --prod
-```
-
-`npx vercel` links the directory and deploys a preview. `npx vercel --prod` deploys production.
-
-### What still blocks a deploy
-
-- **Tom’s Vercel account.** The app is ready to build. A deploy has to be started by someone who can sign in to that account (CLI above), or via a Vercel Git integration on this GitHub repo once linked.
-
-## Computer-use loop (from Cursor Origin)
-
-The Python agent stack lives beside this site (synced from Origin tip through PR #17 / script-first repair):
-
-- `loop/` — local observe/decide/act loop + MCP server
-- `bench/` — competitive probe harness (playwright_mcp, script_first, stagehand, …)
-- `proxy/`, `backends/`, `core/`, `tests/`
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-python -m loop demo
-# or: ANTHROPIC_API_KEY=… python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand
-```
-
-Since 9 Nov 2026 this GitHub repo is the home for the code, and new work runs in T3 Code. The Cursor Origin PRs (#6–#20) are kept as read-only history. See `docs/HISTORY.md`.
+</details>

@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520" role="img" aria-labelledby="t d">
+  <title id="t">How a task runs: script_first against plain Playwright MCP</title>
+  <desc id="d">script_first: one Claude call writes the script, Chrome runs it with no model calls, the harness checks the final page, and only if that fails Claude rewrites the script once. Plain Playwright MCP: Claude picks a tool, Chrome does one action, the full page snapshot goes back to Claude, and that repeats every step.</desc>
+  <style>
+    .display { font-family: 'Bricolage Grotesque', 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif; }
+    .sans { font-family: 'Public Sans', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, Menlo, monospace; }
+  </style>
+  <defs>
+    <pattern id="grid" width="96" height="520" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="1" height="520" fill="#0f1b33" opacity="0.045"/>
+    </pattern>
+    <marker id="pink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#e0115f"/>
+    </marker>
+    <marker id="slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4d5b74"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="520" rx="24" fill="#eef1f6"/>
+  <rect width="1200" height="520" rx="24" fill="url(#grid)"/>
+
+  <text x="64" y="66" class="display" font-size="34" font-weight="800" letter-spacing="-1" fill="#0f1b33">How a task runs</text>
+  <g class="sans" font-size="14" fill="#4e5b74">
+    <circle cx="866" cy="56" r="6" fill="#e0115f"/>
+    <text x="880" y="61">Claude call</text>
+    <circle cx="986" cy="56" r="6" fill="#f8f9fc" stroke="#4e5b74" stroke-width="1.5"/>
+    <text x="1000" y="61">Chrome, no model</text>
+  </g>
+
+  <text x="64" y="118" class="mono" font-size="15" font-weight="700" fill="#e0115f">script_first <tspan class="sans" font-weight="400" fill="#4e5b74">Alex's tool</tspan></text>
+
+  <g class="sans">
+    <rect x="64" y="134" width="250" height="68" rx="12" fill="#fde4ee" stroke="#e0115f" stroke-width="2"/>
+    <circle cx="88" cy="160" r="6" fill="#e0115f"/>
+    <text x="104" y="165" font-size="17" font-weight="700" fill="#0f1b33">Claude writes the script</text>
+    <text x="104" y="188" class="mono" font-size="13" fill="#e0115f">1 model call</text>
+
+    <rect x="354" y="134" width="300" height="68" rx="12" fill="#f8f9fc" stroke="#e0115f" stroke-width="2"/>
+    <circle cx="378" cy="160" r="6" fill="#f8f9fc" stroke="#4e5b74" stroke-width="1.5"/>
+    <text x="394" y="165" font-size="17" font-weight="700" fill="#0f1b33">Chrome runs it</text>
+    <text x="394" y="188" class="mono" font-size="13" fill="#4e5b74">search, open, read: 0 model calls</text>
+
+    <rect x="694" y="134" width="230" height="68" rx="12" fill="#f8f9fc" stroke="#e0115f" stroke-width="2"/>
+    <text x="718" y="165" font-size="17" font-weight="700" fill="#0f1b33">Check the final page</text>
+    <text x="718" y="188" class="mono" font-size="13" fill="#4e5b74">the harness</text>
+
+    <rect x="964" y="146" width="172" height="44" rx="22" fill="#e0115f"/>
+    <text x="1050" y="174" font-size="17" font-weight="700" fill="#f8f9fc" text-anchor="middle">Pass</text>
+  </g>
+  <g stroke="#e0115f" stroke-width="2.5" fill="none">
+    <line x1="316" y1="168" x2="350" y2="168" marker-end="url(#pink)"/>
+    <line x1="656" y1="168" x2="690" y2="168" marker-end="url(#pink)"/>
+    <line x1="926" y1="168" x2="960" y2="168" marker-end="url(#pink)"/>
+    <path d="M809 204 V232 H504 V250" stroke-dasharray="6 6" marker-end="url(#pink)"/>
+  </g>
+  <text x="530" y="226" class="sans" font-size="13" font-style="italic" fill="#e0115f">only if the check fails</text>
+
+  <g class="sans">
+    <rect x="354" y="254" width="300" height="68" rx="12" fill="#fde4ee" stroke="#e0115f" stroke-width="2" stroke-dasharray="6 5"/>
+    <circle cx="378" cy="280" r="6" fill="#e0115f"/>
+    <text x="394" y="285" font-size="17" font-weight="700" fill="#0f1b33">Claude rewrites it once</text>
+    <text x="394" y="308" class="mono" font-size="13" fill="#e0115f">at most 1 repair</text>
+
+    <rect x="694" y="254" width="230" height="68" rx="12" fill="#f8f9fc" stroke="#e0115f" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="718" y="285" font-size="17" font-weight="700" fill="#0f1b33">Run, check again</text>
+    <text x="718" y="308" class="mono" font-size="13" fill="#4e5b74">pass, or the run fails</text>
+  </g>
+  <line x1="656" y1="288" x2="690" y2="288" stroke="#e0115f" stroke-width="2.5" stroke-dasharray="6 6" marker-end="url(#pink)"/>
+
+  <rect x="64" y="356" width="1072" height="1" fill="#cfd6e3"/>
+
+  <text x="64" y="394" class="mono" font-size="15" font-weight="700" fill="#4d5b74">Plain Playwright MCP <tspan class="sans" font-weight="400" fill="#4e5b74">Baseline tool</tspan></text>
+
+  <g class="sans">
+    <rect x="64" y="410" width="250" height="68" rx="12" fill="#f8f9fc" stroke="#4d5b74" stroke-width="1.5"/>
+    <circle cx="88" cy="436" r="6" fill="#e0115f"/>
+    <text x="104" y="441" font-size="17" font-weight="700" fill="#0f1b33">Claude picks a tool</text>
+    <text x="104" y="464" class="mono" font-size="13" fill="#4e5b74">1 model call</text>
+
+    <rect x="354" y="410" width="300" height="68" rx="12" fill="#f8f9fc" stroke="#4d5b74" stroke-width="1.5"/>
+    <circle cx="378" cy="436" r="6" fill="#f8f9fc" stroke="#4e5b74" stroke-width="1.5"/>
+    <text x="394" y="441" font-size="17" font-weight="700" fill="#0f1b33">One click or type</text>
+    <text x="394" y="464" class="mono" font-size="13" fill="#4e5b74">one action in Chrome</text>
+
+    <rect x="694" y="410" width="230" height="68" rx="12" fill="#f8f9fc" stroke="#4d5b74" stroke-width="1.5"/>
+    <text x="718" y="441" font-size="17" font-weight="700" fill="#0f1b33">Full page snapshot</text>
+    <text x="718" y="464" class="mono" font-size="13" fill="#4e5b74">sent back to Claude</text>
+  </g>
+  <g stroke="#4d5b74" stroke-width="2" fill="none">
+    <line x1="316" y1="444" x2="350" y2="444" marker-end="url(#slate)"/>
+    <line x1="656" y1="444" x2="690" y2="444" marker-end="url(#slate)"/>
+    <path d="M809 480 V500 H189 V484" marker-end="url(#slate)"/>
+  </g>
+  <text x="972" y="440" class="sans" font-size="14" font-weight="700" fill="#4d5b74">Repeats</text>
+  <text x="972" y="460" class="sans" font-size="14" fill="#4e5b74">every page step,</text>
+  <text x="972" y="480" class="sans" font-size="14" fill="#4e5b74">then Claude answers</text>
+</svg>
