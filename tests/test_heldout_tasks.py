@@ -33,7 +33,6 @@ from bench.tasks import (
     task_by_id,
     tasks_for_split,
 )
-from loop import planner
 
 # The ten tasks added on top of the original five. Their destination tokens
 # are not part of the task text.
@@ -499,7 +498,6 @@ def test_answers_stay_off_the_prompt_repair_and_patch_turn():
     standing = [(f"prompt:{arm}", prompt_for(arm)) for arm in SELECTABLE_ARMS]
     standing.append(("patch-prompt", PATCH_PROMPT))
     standing.append(("patch-tool", json.dumps(PATCH_TOOL)))
-    standing.append(("planner", planner._SYSTEM))
     standing.append(("judge-system", JUDGE_SYSTEM))
     covered = [*tasks_for_split("held-out"), *tasks_for_split("heldout3a"), *tasks_for_split("heldout3b"), *tasks_for_split("heldout3c"), *tasks_for_split("heldout3d"), *tasks_for_split("dev3"), *tasks_for_split("val3")]
     assert sum(task["id"].startswith("dev3_") for task in covered) == 40

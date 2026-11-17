@@ -1,10 +1,10 @@
 [project]
 name = "computer-use-loop"
 version = "0.1.0"
-description = "A thin local loop that attaches to Chrome, observes, and acts."
-readme = "loop/README.md"
+description = "Benchmark harness for the script_first to browser_use cascade."
+readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["playwright>=1.49", "mcp==2.3.0", "anyio"]
+dependencies = ["playwright>=1.49"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
@@ -15,10 +15,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["loop*", "core*", "backends*", "proxy*"]
-
-[tool.setuptools.package-data]
-loop = ["control.html", "fixture/*.html"]
+include = ["proxy*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

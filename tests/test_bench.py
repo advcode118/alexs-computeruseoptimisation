@@ -2,14 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-import pytest
-
 from bench.harness import estimate_tokens, TaskResult
-from loop.observe.aria import parse_aria_snapshot
-from loop.observe.base import observation_from_snapshot
 from bench.judge import check_url_contains, check_text_present, check_title_contains
 from bench.summarize import TaskSummary, format_time, format_pct, generate_task_table
 
@@ -144,40 +137,3 @@ class TestTaskResult:
         assert result.task_id == "test"
         assert result.success is True
         assert result.total_steps == 5
-
-
-class TestSnapshotFiles:
-    def _snapshot_dir(self):
-        snapshots_dir = Path(__file__).parent.parent / "bench" / "snapshots"
-        if not snapshots_dir.is_dir() or not any(snapshots_dir.glob("*.json")):
-            pytest.skip("bench/snapshots is gitignored and absent from this worktree")
-        return snapshots_dir
-
-    def test_sample_snapshots_exist(self):
-        snapshots_dir = self._snapshot_dir()
-        assert snapshots_dir.exists()
-
-        snapshot_files = list(snapshots_dir.glob("*.json"))
-        assert len(snapshot_files) >= 3
-
-    def test_sample_snapshots_valid(self):
-        snapshots_dir = self._snapshot_dir()
-        files = list(snapshots_dir.glob("*.json"))
-        assert len(files) >= 3
-
-        for snapshot_file in files:
-            with open(snapshot_file) as f:
-                data = json.load(f)
-
-            assert "task_id" in data
-            assert "snapshot_text" in data
-            assert "step_number" in data
-
-            obs = observation_from_snapshot(
-                parse_aria_snapshot(
-                    data["snapshot_text"],
-                    url=data.get("url", "https://example.com"),
-                    title=data.get("title", "Test"),
-                )
-            )
-            assert len(obs.controls) > 0

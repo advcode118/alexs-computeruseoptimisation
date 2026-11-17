@@ -1,7 +1,7 @@
 """Benchmark task definitions.
 
 Contains:
-1. Local fixture tasks from loop/fixture
+1. Local fixture tasks from bench/fixture
 2. WebVoyager-style tasks on stable public sites
 
 WebVoyager tasks are adapted from the WebVoyager dataset
@@ -30,7 +30,7 @@ from bench.tasks_dev4_spa import DEV4_SPA_TASK_IDS, DEV4_SPA_TASKS
 from bench.tasks_val3 import VAL3_TASK_IDS, VAL3_TASKS
 from bench.tasks_extdev import EXTDEV_TASK_IDS, EXTDEV_TASKS
 
-FIXTURE_DIR = Path(__file__).parent.parent / "loop" / "fixture"
+FIXTURE_DIR = Path(__file__).parent / "fixture"
 
 
 def fixture_url(name: str) -> str:

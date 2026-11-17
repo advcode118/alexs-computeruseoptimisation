@@ -106,7 +106,7 @@ def main() -> int:
     parser.add_argument("--cells", type=int, default=10)
     args = parser.parse_args()
 
-    handler = functools.partial(_QuietHandler, directory=str(ROOT / "loop" / "fixture"))
+    handler = functools.partial(_QuietHandler, directory=str(ROOT / "bench" / "fixture"))
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     start_url = f"http://127.0.0.1:{server.server_address[1]}/packing.html"
