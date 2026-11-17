@@ -12,6 +12,7 @@ import shutil
 import subprocess
 
 from bench.arms import prompt_for
+from bench.fairness import ACTION_TIMEOUT_MS as _ACTION_TIMEOUT_MS
 from bench.script_cache import PATCH_PROMPT
 from bench.script_first import (
     PageEvidence,
@@ -30,8 +31,6 @@ from bench.script_helpers import (
 )
 from proxy.script import ScriptError
 from tests.test_prompt_audit import FORBIDDEN
-
-_ACTION_TIMEOUT_MS = 5000
 
 
 class _Box:

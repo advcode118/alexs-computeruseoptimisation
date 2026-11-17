@@ -12,6 +12,7 @@ import asyncio
 import json
 import time
 
+from bench.fairness import MODEL_HTTP_TIMEOUT_S
 from bench.openai_spend import PriceUnknown, assert_effort, assert_openai_model
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
@@ -37,7 +38,7 @@ def _post_openai(url: str, headers: dict, payload: dict) -> str:
         headers=headers,
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=120) as response:
+    with urllib.request.urlopen(request, timeout=MODEL_HTTP_TIMEOUT_S) as response:
         return response.read().decode()
 
 

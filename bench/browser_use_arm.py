@@ -1,9 +1,14 @@
-"""browser-use 1.0 baseline. Local Chrome over CDP, same bench model.
+"""browser-use 1.0 baseline. Local Chrome over CDP, the probe's model.
 
 The library's defaults are a cloud browser and the bu-fast gateway model.
-This arm passes Browser('chromium') and ChatAnthropic('claude-sonnet-5-5').
-The model writes Python in one persistent REPL. The task text is the
-description and the start URL. Judge fields stay on the judge.
+This arm passes Browser('chromium') pointed at Google Chrome when that
+binary is installed. 'chromium' is the library's fresh-profile launcher.
+Browser('chrome') would attach to the already-open Chrome and refuses
+headless, so it is not used. Claude stays ChatAnthropic with the probe's
+model string, which is claude-sonnet-5-5. OpenAI stays ChatOpenAI with the
+model the probe was given. The model writes Python in one persistent REPL.
+The task text is the description and the start URL. Judge fields stay on
+the judge.
 
 Playwright MCP is a different arm and stays pinned at 0.0.84.
 """
@@ -11,19 +16,25 @@ Playwright MCP is a different arm and stays pinned at 0.0.84.
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 
 from bench.arms import ARM_BROWSER_USE, prompt_for
 from bench.budget import ALLOWED_MODEL, assert_allowed_model, estimate_usd
+from bench.fairness import ARM_RUN_TIMEOUT_S, PAGE_READ_TIMEOUT_S, google_chrome_executable
 from bench.probe import grade_observation
-from bench.script_first import _PAGE_EVIDENCE_JS, text_from_page_read
+from bench.script_first import (
+    _PAGE_EVIDENCE_JS,
+    marked_selector_source,
+    read_shared_evidence,
+    text_from_page_read,
+)
 
 BROWSER_USE_VERSION = "1.0.0"
+# browser-use's fresh local profile. The executable is Google Chrome when installed.
 LOCAL_BROWSER = "chromium"
 BROWSER_USE_MAX_STEPS = 30
-# The same page-evidence read script_first uses, as one CDP expression.
-# It does not carry the task, the answer, or the judge selector.
+# CDP Runtime.evaluate needs an expression. The call is still the page-evidence
+# function with no arguments, the same function the other arms pass to evaluate.
 PAGE_TEXT_EXPRESSION = f"({_PAGE_EVIDENCE_JS})()"
 
 
@@ -92,69 +103,45 @@ def _explicit_page(browser) -> tuple[str, str, str] | None:
 
 
 def selector_expression(selector: str) -> str:
-    """Judge-only read of one element. The string is not a model prompt."""
-    literal = json.dumps(selector)
-    return (
-        "(function(){ const el = document.querySelector("
-        + literal
-        + '); return el ? (el.innerText || el.textContent || "").trim() : ""; })()'
+    """The shared selector function, invoked for CDP. Not a model prompt."""
+    return f"({marked_selector_source(selector)})()"
+
+
+def _cdp_value(name: str, target: str, expression: str):
+    """One Runtime.evaluate. The expression is the shared function call."""
+    cdp = _daemon_cdp_fn()
+    attached = cdp(name, "Target.attachToTarget", targetId=target, flatten=True)
+    session = attached.get("sessionId") if isinstance(attached, dict) else None
+    if not isinstance(session, str) or not session:
+        return None
+    value = cdp(
+        name,
+        "Runtime.evaluate",
+        session,
+        expression=expression,
+        returnByValue=True,
     )
-
-
-def _page_text(name: str, target: str) -> str:
-    try:
-        cdp = _daemon_cdp_fn()
-        attached = cdp(name, "Target.attachToTarget", targetId=target, flatten=True)
-        session = attached.get("sessionId") if isinstance(attached, dict) else None
-        if not isinstance(session, str) or not session:
-            return ""
-        value = cdp(
-            name,
-            "Runtime.evaluate",
-            session,
-            expression=PAGE_TEXT_EXPRESSION,
-            returnByValue=True,
-        )
-        result = value.get("result") if isinstance(value, dict) else None
-        raw = result.get("value") if isinstance(result, dict) else ""
-        return text_from_page_read(raw)
-    except Exception:
-        return ""
-
-
-def _marked_text(name: str, target: str, selector: str) -> str:
-    try:
-        cdp = _daemon_cdp_fn()
-        attached = cdp(name, "Target.attachToTarget", targetId=target, flatten=True)
-        session = attached.get("sessionId") if isinstance(attached, dict) else None
-        if not isinstance(session, str) or not session:
-            return ""
-        value = cdp(
-            name,
-            "Runtime.evaluate",
-            session,
-            expression=selector_expression(selector),
-            returnByValue=True,
-        )
-        result = value.get("result") if isinstance(value, dict) else None
-        text = result.get("value") if isinstance(result, dict) else ""
-        return text if isinstance(text, str) else ""
-    except Exception:
-        return ""
+    result = value.get("result") if isinstance(value, dict) else None
+    if not isinstance(result, dict):
+        return None
+    return result.get("value")
 
 
 def _page_from_daemon(name: str, selector: str = "") -> tuple[str, str, str]:
-    own = _daemon_request_fn()(name, {"meta": "current_tab"}, 5)
+    own = _daemon_request_fn()(name, {"meta": "current_tab"}, PAGE_READ_TIMEOUT_S)
     url = ""
     target = None
     if isinstance(own, dict):
         raw = own.get("url")
         url = raw if isinstance(raw, str) else ""
         target = own.get("targetId")
-    text = _page_text(name, target) if isinstance(target, str) and target else ""
-    marked = ""
-    if selector and isinstance(target, str) and target:
-        marked = _marked_text(name, target, selector)
+    if not isinstance(target, str) or not target:
+        return url, "", ""
+
+    def evaluate(source: str):
+        return _cdp_value(name, target, f"({source})()")
+
+    text, marked = asyncio.run(read_shared_evidence(evaluate, selector))
     return url, text, marked
 
 
@@ -363,7 +350,13 @@ async def run_browser_use_task(
     browser = None
     try:
         agent_cls, browser_cls, llm_cls = loader() if loader is not None else load_browser_use() if provider != "openai" else load_browser_use(provider)
-        browser = browser_cls(LOCAL_BROWSER, headless=headless, keep_alive=True)
+        chrome = google_chrome_executable()
+        browser = browser_cls(
+            LOCAL_BROWSER,
+            headless=headless,
+            keep_alive=True,
+            executable_path=chrome,
+        )
         llm = _chat_model(llm_cls, chosen, api_key, chosen_effort)
         agent = agent_cls(
             task_text(task),
@@ -372,7 +365,7 @@ async def run_browser_use_task(
             web_search=False,
             extend_system_message=prompt_for(ARM_BROWSER_USE),
         )
-        result = await agent.run(max_steps=BROWSER_USE_MAX_STEPS)
+        result = await agent.run(max_steps=BROWSER_USE_MAX_STEPS, timeout=ARM_RUN_TIMEOUT_S)
         url, text, selector_text = await read_page(browser, selector=_task_selector(task))
         answer = _reported_answer(result)
         success, reason = _judge(
@@ -405,6 +398,7 @@ async def run_browser_use_task(
                 "claimed_answer": answer,
                 "expected_value": selector_text,
                 "model": chosen,
+                "browser": "chrome" if chrome else LOCAL_BROWSER,
             }
         )
         if provider == "openai":
