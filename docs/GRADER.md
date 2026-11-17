@@ -40,6 +40,43 @@ Both `answer_in_text` and `answer_equals_selector` use these rules:
 The deny/search/claimed-URL/host/URL/empty-answer checks keep their order; the
 claimed key-text/value gate still only downgrades a would-be pass.
 
+## Task-key extensions
+
+All arms use the same optional task fields. `grade_observation` copies these
+fields into the evidence markers; callers using `evidence_verdict` directly
+can supply them in its marker dictionary. Existing tasks need no new fields.
+
+* `full_answer: str` replaces the marker as the reference for both the raw
+  `3 * len(reference) + 40` bound and the normalised-excess bound. It does not
+  change literal matching or grounding by itself. Without it the old marker
+  bounds remain in force.
+* `answer_parts: list[str]` opts into individually grounded parts instead of
+  one contiguous answer span. One stripped candidate must contain every part
+  at token boundaries, within both reference bounds. The literal marker is
+  implicitly required too, even if omitted from the list. Every required part
+  must independently appear at token boundaries in normalised page text.
+  Missing page reads remain UNKNOWN. Empty/malformed part keys without a
+  usable marker fail; no part-mode exception permits an unbounded page dump.
+* `url_answer_ok: True` permits a URL-only answer instead of the text checks
+  and text-length bounds. Matched quotes, angle brackets, backticks, Markdown
+  link wrappers and a trailing period are allowed, but surrounding prose is
+  not. Both the answer URL and the live final URL must satisfy the same
+  positive URL markers (host, URL token, suffix, query); canonical evidence
+  alone cannot permit a wrong live final page. Claimed-evidence checks remain.
+  Without this explicit flag, URL answers receive the old answer-text checks.
+
+When an expected URL string contains `?`, both the deterministic URL check and
+the evidence URL matcher retain their respective prefix/path matching rules
+and compare decoded query parameters as an order-independent subset. Extra
+parameters are allowed; values are case-sensitive after percent/plus decoding.
+Blank values and repeated pairs are preserved. Expected strings without `?`
+retain their existing substring behaviour. Claimed/live URL identity rules
+are unchanged.
+
+Search-results pages are still denied unless the expected URL key itself
+matches the search-results detector. The exception applies to both URL checks
+and returned-evidence validation; explicit task deny tokens still apply.
+
 ## Runtime gate and freeze procedure
 
 `grade.grade_observation` returns the arm-neutral page grade. The probe's
@@ -52,6 +89,8 @@ controller input.
 `tests/test_grade_frozen.py` pins SHA-256 of the exact source bytes. To change
 the grader, review the rule change deliberately, update its contract tests,
 run `sha256sum bench/grade.py`, update the test constant, and record the reason
-and new hash here. Current freeze: bounded spans with a candidate chain so
-literal answers survive reductions; selector truth also permits omitted trailing punctuation.
-SHA-256: `0e65aecefd0d99f2313b6124495014f7ac2bd7acfb1e9c190a625eec12241752`.
+and new hash here. Current freeze: bounded spans plus task-key full-reference
+bounds, grounded parts, opt-in URL answers, decoded query subsets and explicit
+search-target exceptions. These changes do not alter runtime self-checks or
+retroactively regrade saved measurements.
+SHA-256: `7ff695b598c715cf5cc4426b77827819ec374b23699ca08d5ad881ca21a97e24`.

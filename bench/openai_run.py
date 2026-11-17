@@ -15,8 +15,6 @@ from bench.arms import ARM_BROWSER_USE, arm_needs_claude
 from bench.openai_spend import (
     ALLOWED_OPENAI_MODELS,
     DEFAULT_EFFORT,
-    OPENAI_PROJECT_BUDGET_USD,
-    OPENAI_RUN_BUDGET_USD,
     OPENAI_SWEEP_BUDGET_USD,
     EffortNotAllowed,
     OpenAIModelNotAllowed,
@@ -27,6 +25,7 @@ from bench.openai_spend import (
     cap_statement,
     default_openai_spend_path,
     efforts_for,
+    openai_run_budget_usd,
     probe_command,
     rates_for_report,
     sweep_cell_command,
@@ -110,12 +109,12 @@ def plan_openai_probe(
         "cells": [dict(cell) for cell in cells],
         "same_model_on_every_arm": True,
         "openai_api_key": "set" if _key_is_set() else "unset",
-        "per_run_cap_usd": OPENAI_RUN_BUDGET_USD,
+        "per_run_cap_usd": openai_run_budget_usd(),
         "sweep_cap_usd": OPENAI_SWEEP_BUDGET_USD if request["sweep"] else None,
-        "project_cap_usd": OPENAI_PROJECT_BUDGET_USD,
+        "project_cap_usd": ledger.project_budget_usd,
         "project_spent_usd": ledger.running_total_usd,
         "prices_usd_per_mtok": {name: rates_for_report(name) for name in ALLOWED_OPENAI_MODELS},
-        "cap": cap_statement(),
+        "cap": cap_statement(project_budget_usd=ledger.project_budget_usd),
         "measured_run_usd": None,
         "network": "refused",
         "box_commands": _commands(request["sweep"]),
@@ -190,7 +189,7 @@ def _record(row: dict, ledger: OpenAISpendLedger, *, arm: str, model: str, effor
     if not ledger.allows_project():
         ledger.mark_aborted(
             f"OpenAI project total ${ledger.running_total_usd:.2f} would pass "
-            f"${OPENAI_PROJECT_BUDGET_USD:.0f}."
+            f"${ledger.project_budget_usd:.2f}."
         )
     ledger.save()
 
@@ -286,7 +285,7 @@ async def execute_openai_probe(
     honest: bool,
     only_kind: str = "",
 ) -> list[dict]:
-    """Run the matrix. Stops at $5 per cell, $15 per sweep, and $15 on the ledger."""
+    """Run the matrix under configured run/project caps and the $15 sweep cap."""
     import os
 
     from bench.probe import ProbeRefused, RUNS_DIR, arm_report
@@ -302,12 +301,13 @@ async def execute_openai_probe(
     )
     cells = sweep_cells() if request["sweep"] else ({"model": request["model"], "effort": request["effort"]},)
     tasks = _tasks(split, one_task=request["one_task"], only_kind=only_kind)
+    run_budget = openai_run_budget_usd()
     ledger = OpenAISpendLedger.read(spend_path or default_openai_spend_path())
     opening_allowance = ledger.cover_unrecorded_call()
     if not ledger.allows_project():
         raise ProbeRefused(
             f"OpenAI project total ${ledger.running_total_usd:.2f} has reached "
-            f"${OPENAI_PROJECT_BUDGET_USD:.0f}. Refusing before any task."
+            f"${ledger.project_budget_usd:.2f}. Refusing before any task."
         )
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
@@ -319,6 +319,8 @@ async def execute_openai_probe(
     handle = out.open("w", encoding="utf-8")
 
     def sink(row: dict) -> None:
+        if row.get("arm") in ("browser_use", "cascade"):
+            row["browser_use_mode"] = os.environ.get("CU_BU_MODE", "").strip() or "default"
         handle.write(json.dumps(row) + "\n")
         handle.flush()
 
@@ -333,13 +335,13 @@ async def execute_openai_probe(
             carried_allowance = 0.0
             for task in tasks:
                 for arm in arms:
-                    if cell_spent >= OPENAI_RUN_BUDGET_USD:
+                    if cell_spent >= run_budget:
                         _skip(
                             rows,
                             arm,
                             task,
                             cell,
-                            f"OpenAI run spend ${cell_spent:.2f} has reached ${OPENAI_RUN_BUDGET_USD:.0f}",
+                            f"OpenAI run spend ${cell_spent:.2f} has reached ${run_budget:.2f}",
                             sink,
                         )
                         continue
@@ -361,7 +363,7 @@ async def execute_openai_probe(
                             cell,
                             (
                                 f"OpenAI project total ${ledger.running_total_usd:.2f} "
-                                f"has reached ${OPENAI_PROJECT_BUDGET_USD:.0f}"
+                                f"has reached ${ledger.project_budget_usd:.2f}"
                             ),
                             sink,
                         )
@@ -389,9 +391,9 @@ async def execute_openai_probe(
                     "provider": "openai",
                     "sweep": request["sweep"],
                     "cells": [dict(cell) for cell in cells],
-                    "per_run_cap_usd": OPENAI_RUN_BUDGET_USD,
+                    "per_run_cap_usd": run_budget,
                     "sweep_cap_usd": sweep_cap,
-                    "project_cap_usd": OPENAI_PROJECT_BUDGET_USD,
+                    "project_cap_usd": ledger.project_budget_usd,
                     "measured_run_usd": None,
                     "report": arm_report(rows, arms),
                 }

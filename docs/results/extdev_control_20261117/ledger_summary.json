@@ -1,0 +1,80 @@
+{
+  "source": "~/.cu-optimisation/openai-spend-alex15.json",
+  "source_sha256": "fff92fdea7c4399975328232a6e0f26f42d1263ba3905fafe650e437f15aeeba",
+  "running_total_usd": 6.277727,
+  "project_cap_usd": 9.0,
+  "remaining_project_budget_usd": 2.722273,
+  "opening_allowance_usd": 0.05,
+  "opening_allowance_allocation": "Separate/unallocated; not silently charged to either sub-budget",
+  "recorded_model_usage_usd": 6.227727,
+  "aborted": false,
+  "invocations": [
+    {
+      "invocation": "smoke",
+      "raw_jsonl": "docs/results/extdev_control_20261117/smoke/probe_20261117_011924.jsonl",
+      "ledger_task_indices_0_based": [
+        0,
+        2
+      ],
+      "charged_rows": 3,
+      "usage_usd": 0.105299,
+      "ledger_before_usd": 0.05,
+      "ledger_after_usd": 0.155299,
+      "per_arm_usage_usd": {
+        "cascade": 0.105299
+      }
+    },
+    {
+      "invocation": "default_rep1",
+      "raw_jsonl": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "ledger_task_indices_0_based": [
+        3,
+        90
+      ],
+      "charged_rows": 88,
+      "usage_usd": 3.023613,
+      "ledger_before_usd": 0.155299,
+      "ledger_after_usd": 3.178912,
+      "per_arm_usage_usd": {
+        "browser_use": 1.641794,
+        "cascade": 1.112435,
+        "playwright_mcp": 0.057734,
+        "script_first": 0.21165
+      }
+    },
+    {
+      "invocation": "ultrafast_rep1",
+      "raw_jsonl": "docs/results/extdev_control_20261117/raw/probe_20261117_015118.jsonl",
+      "ledger_task_indices_0_based": [
+        91,
+        130
+      ],
+      "charged_rows": 40,
+      "usage_usd": 3.098815,
+      "ledger_before_usd": 3.178912,
+      "ledger_after_usd": 6.277727,
+      "per_arm_usage_usd": {
+        "browser_use": 3.098815
+      }
+    }
+  ],
+  "sub_budgets": {
+    "baselines_plus_script_first": {
+      "usage_usd": 5.009993,
+      "budget_usd": 5.0,
+      "over_budget_usd": 0.009993,
+      "arms": [
+        "browser_use default",
+        "browser_use ultrafast",
+        "playwright_mcp",
+        "script_first"
+      ]
+    },
+    "cascade": {
+      "usage_usd": 1.217734,
+      "includes_smoke_usd": 0.105299,
+      "replicate_one_usd": 1.112435
+    }
+  },
+  "note": "Recorded estimates copied/reconciled from ledger, not repriced invoices. Existing between-task thresholds can overshoot. No paid calls or ledger changes during reporting."
+}

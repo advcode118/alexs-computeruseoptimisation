@@ -49,6 +49,8 @@ def task_catalog() -> dict:
         for task_id in ids:
             catalog[task_id]["split"] = split
     for path in sorted(Path(tasks.__file__).parent.glob("tasks_*.py")):
+        if not allowed_source(path):
+            continue
         module = importlib.import_module("bench." + path.stem)
         split = path.stem.removeprefix("tasks_").replace("_", "")
         for name, value in vars(module).items():
@@ -139,10 +141,15 @@ def unpack(data: str, *, jsonl=True, pilot=False) -> list[dict]:
     return rows
 
 
+def allowed_source(path) -> bool:
+    return "heldout4" not in str(path).casefold()
+
+
 def discover(root: Path) -> list[dict]:
     """One current/latest committed version per path, never checkout branches."""
     sources = []
-    current = {p.relative_to(root).as_posix(): p for p in sorted((root / "docs/results").rglob("*.jsonl"))}
+    current = {p.relative_to(root).as_posix(): p for p in sorted((root / "docs/results").rglob("*.jsonl"))
+               if allowed_source(p)}
     head = git(root, "rev-parse", "HEAD").strip()
     branch = git(root, "branch", "--show-current").strip()
     for path, file in current.items():
@@ -151,7 +158,7 @@ def discover(root: Path) -> list[dict]:
     paths = sorted(set(git(root, "log", "--all", "--format=", "--name-only", "--", "*.jsonl").splitlines()))
     remotes = git(root, "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin").splitlines()
     for path in paths:
-        if not path or path in current or not path.startswith("docs/results/"):
+        if not path or path in current or not path.startswith("docs/results/") or not allowed_source(path):
             continue
         commits = git(root, "log", "--all", "--diff-filter=AM", "--format=%H", "--", path).splitlines()
         if not commits:
@@ -169,6 +176,8 @@ def discover(root: Path) -> list[dict]:
         sources.append({"path": path, "branch": owner or ", ".join(branches) or "historical --all",
                         "commit": commit, "data": git(root, "show", f"{commit}:{path}")})
     for path in sorted((root / "docs").rglob("pilot_rows.json")):
+        if not allowed_source(path):
+            continue
         sources.append({"path": path.relative_to(root).as_posix(), "branch": branch,
                         "commit": head, "data": path.read_text(encoding="utf-8-sig"), "pilot": True})
     for source in sources:
@@ -326,7 +335,7 @@ def build_report(root: Path, sources: list[dict], catalog: dict) -> dict:
             datasets.append({"dataset": name, "arm": arm, **stats([]), "raw_rows_missing": paths})
     datasets.sort(key=lambda r: (r["dataset"], r["arm"]))
     return {"grader_sha256": hashlib.sha256((root / "bench/grade.py").read_bytes()).hexdigest(),
-            "command": "python tools/regrade.py --out docs/results/regrade_20261116",
+            "command": "python tools/regrade.py --out <output-directory>",
             "sources": per_source,
             "datasets": datasets,
             "flipped_rows": flips,

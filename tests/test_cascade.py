@@ -104,6 +104,7 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider):
         page_text = "final"
         def __init__(self, **kwargs):
             assert kwargs["cdp_url"] == Harness.mcp_client.cdp_url
+            self.cdp_url = kwargs["cdp_url"]
             built.append(self)
         async def start(self):
             pass
@@ -118,10 +119,21 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider):
                 raise RuntimeError("mock browser failure")
             return SimpleNamespace(usage={"input": 1, "output": 1}, steps=1, text="done")
     monkeypatch.setattr("bench.harness.BenchmarkHarness", Harness)
+    async def target_id(page):
+        return "script-target"
+    monkeypatch.setattr("bench.cascade._page_target_id", target_id)
+    def attach(browser, target):
+        assert target == "script-target"
+        return {"targetId": target, "url": "https://x/current"}
+    monkeypatch.setattr("bench.browser_use_arm._attach_target", attach)
     monkeypatch.setattr("bench.cascade.ground_start_page", lambda *a, **k: {})
     row = asyncio.run(run_cascade_task({"id": TASK_ID, "description": DESCRIPTION, "start_url": START}, api_key="mock", runs_dir=tmp_path, provider=provider, browser_use_loader=lambda: (Agent, Browser, lambda *a, **k: object())))
     assert row["answered_by"] == ("none" if reject == "error" else "browser_use" if reject else "script")
     assert bool(built) == bool(reject)
+    if reject:
+        assert row["handoff_target_id"] == row["browser_use_initial_target_id"]
+        assert row["handoff_url"] == row["browser_use_initial_url"]
+        assert "DO NOT LEAK" not in row["handoff_receipt"]
     assert set(row["stage_wall_ms"]) == {"grounding", "script", "browser_use"}
     assert row["wall_ms"] >= sum(row["stage_wall_ms"].values()) - 2
 

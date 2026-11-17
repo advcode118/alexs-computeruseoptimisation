@@ -1,0 +1,19 @@
+SEED=20261116; untruncated ranked reserve; cap=3 ACCEPTED tasks per site; Mind2Web fill-only
+set         source           reachable  quota
+heldout4    Mind2Web-Live          232     55
+heldout4    WebWalkerQA            181     50
+heldout4    WebVoyager             257     15
+heldout4    AssistantBench          18     10
+heldout4    Mind2Web               475      0
+extdev      Mind2Web-Live           65     16
+extdev      WebWalkerQA             42     16
+extdev      WebVoyager             215      5
+extdev      AssistantBench           3      3
+extdev      Mind2Web               117      0
+Exclusions:
+  domain_overlap: 132
+  non_english: 433
+  unreachable: 737
+Unreachable detail:
+  captcha_or_bot_block: 588
+  unreachable: 149

@@ -41,6 +41,78 @@ from bench.tasks import TUNED_PROBE_TASK_IDS
 REFUSED = ("gpt-6-sol", "gpt-5.6-sol", "gpt-5.6-luna", "gpt-4o", "claude-sonnet-5-5", "gpt-6.1-sol-fast", "")
 
 
+def test_configured_caps_and_ledger(monkeypatch, tmp_path, capsys):
+    path = tmp_path / "alex15.json"
+    monkeypatch.setenv("CU_OPENAI_SPEND_LEDGER", str(path))
+    monkeypatch.setenv("CU_OPENAI_PROJECT_BUDGET_USD", "9.00")
+    monkeypatch.setenv("CU_OPENAI_RUN_BUDGET_USD", "1.25")
+    assert main(["--provider", "openai"]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["project_cap_usd"] == 9
+    assert plan["per_run_cap_usd"] == 1.25
+    ledger = OpenAISpendLedger.read()
+    assert ledger.path == path
+    assert not path.exists()
+    ledger.recorded_extra_usd = 2
+    ledger.recompute()
+    ledger.save()
+    monkeypatch.setenv("CU_OPENAI_PROJECT_BUDGET_USD", "3")
+    restored = OpenAISpendLedger.read()
+    assert restored.project_budget_usd == 3
+    assert restored.running_total_usd == 2
+    monkeypatch.setenv("CU_OPENAI_PROJECT_BUDGET_USD", "")
+    assert OpenAISpendLedger.read().project_budget_usd == 9
+
+
+@pytest.mark.parametrize("name", ["CU_OPENAI_PROJECT_BUDGET_USD", "CU_OPENAI_RUN_BUDGET_USD"])
+@pytest.mark.parametrize("value", ["bad", "nan", "inf", "0", "-1"])
+def test_invalid_budget_refused(name, value, monkeypatch, capsys):
+    monkeypatch.setenv(name, value)
+    assert main(["--provider", "openai"]) == 2
+    assert "finite positive dollar amount" in capsys.readouterr().err
+
+
+def test_empty_budget_uses_defaults(monkeypatch, capsys):
+    monkeypatch.setenv("CU_OPENAI_PROJECT_BUDGET_USD", " ")
+    monkeypatch.setenv("CU_OPENAI_RUN_BUDGET_USD", "")
+    assert main(["--provider", "openai"]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["project_cap_usd"] == 15
+    assert plan["per_run_cap_usd"] == 5
+
+
+def test_configured_run_cap_stops_before_model(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "offline-not-sent")
+    monkeypatch.setenv("CU_OPENAI_RUN_BUDGET_USD", "0.01")
+
+    async def refuse(*args, **kwargs):
+        pytest.fail("model must not run after the opening allowance reaches the cap")
+
+    monkeypatch.setattr("bench.probe.run_claude_arm", refuse)
+    rows = asyncio.run(execute_openai_probe(
+        arms=("script_first",), split="probe", sweep=False, model="gpt-6.1-sol",
+        effort="medium", one_task=True, headless=True, spend_path=None,
+        runs_dir=tmp_path, warm_replay=False, honest=False,
+    ))
+    assert rows and all(row["skipped"] for row in rows)
+    assert all("$0.01" in row["success_reason"] for row in rows)
+
+
+def test_ultrafast_mode_is_written_on_budget_skips(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "offline-not-sent")
+    monkeypatch.setenv("CU_OPENAI_RUN_BUDGET_USD", "0.01")
+    monkeypatch.setenv("CU_BU_MODE", "ultrafast")
+    rows = asyncio.run(execute_openai_probe(
+        arms=("browser_use",), split="probe", sweep=False, model="gpt-6.1-sol",
+        effort="medium", one_task=True, headless=True, spend_path=None,
+        runs_dir=tmp_path, warm_replay=False, honest=False,
+    ))
+    assert rows and all(row["skipped"] for row in rows)
+    saved = next(tmp_path.glob("probe_*.jsonl"))
+    records = [json.loads(line) for line in saved.read_text().splitlines()]
+    assert all(row["browser_use_mode"] == "ultrafast" for row in records if "task_id" in row)
+
+
 def test_allow_list_is_exactly_the_two_models():
     assert ALLOWED_OPENAI_MODELS == ("gpt-6.1-sol", "gpt-6-luna")
     for model in ALLOWED_OPENAI_MODELS:

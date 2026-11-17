@@ -1,0 +1,642 @@
+{
+  "attempted_rows": 128,
+  "failure_categories": {
+    "browser_use:default": {
+      "answer does not satisfy the marker": 4,
+      "answer too long": 6,
+      "wrong/empty page URL": 9,
+      "answer is not in the page text": 1,
+      "PASS": 2
+    },
+    "playwright_mcp:default": {
+      "browser unavailable (empty URL)": 22
+    },
+    "script_first:default": {
+      "wrong/empty page URL": 15,
+      "returned value is not text": 1,
+      "answer too long": 1,
+      "returned evidence is not on the page": 1,
+      "answer does not satisfy the marker": 2,
+      "search page denied": 1,
+      "Error: Script result metadata exceeds tool-result budget; refusing to cut JSON": 1
+    },
+    "cascade:default": {
+      "answer does not satisfy the marker": 5,
+      "answer too long": 6,
+      "wrong/empty page URL": 9,
+      "PASS": 2
+    },
+    "browser_use:ultrafast": {
+      "answer does not satisfy the marker": 7,
+      "answer too long": 8,
+      "wrong/empty page URL": 19,
+      "answer is not in the page text": 3,
+      "PASS": 2,
+      "search page denied": 1
+    }
+  },
+  "exact_failure_reasons": {
+    "browser_use:default": {
+      "answer does not satisfy the marker": 4,
+      "answer too long": 6,
+      "URL 'https://store.steampowered.com/app/570/Dota_2/' does not contain '/cart/'": 1,
+      "URL 'https://www.booking.com/fourstars/city/us/new-york.html' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "URL 'https://www.airbnb.com/s/Europe/homes?place_id=ChIJhdqtz4aI7UYRefD8s-aZ73I&acp_id=dbf19746-1ca2-4455-98ea-ab0815514f10&refinement_paths%5B%5D=%2Fhomes&date_picker_type=flexible_dates&monthly_start_date=2026-12-01&monthly_length=3&monthly_end_date=2027-03-01&adults=3&raw_text_query=Mansions%20in%20Europe%20for%203%20adults%2C%20any%20month%2C%20flexible%20dates&price_filter_input_type=0&price_filter_num_nights=1&channel=EXPLORE&thread_id=19445d5e-6d30-8348-b5e4-85510f6dc474&reference_message_id=19445d68-0baa-81d1-b33e-0a3796ff6625&ref_fsid=1616d130-8458-4918-a39f-cdd332abd5a8&ref_search_session_id=e7573675-7a61-40cb-a471-8514853c5693&search_type=unified_search_bar_text' does not contain 'category_tag=Tag%3A8115'": 1,
+      "answer is not in the page text": 1,
+      "URL contains '/duplicate.html'": 1,
+      "URL 'https://www.rovio.com/articles/eeva-aaltonen/' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL 'https://www.apec.org/what-we-do/som-steering-committee-on-economic-and-technical-cooperation/tourism' does not contain '/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meeting'": 1,
+      "URL contains '/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-growth'": 1,
+      "URL 'https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/12th-apec-tourism-ministerial-meeting' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL 'https://huggingface.co/datasets/ai2lumos/lumos_complex_qa_plan_onetime' does not contain '/datasets/ai2lumos/lumos_complex_qa_plan_onetime/viewer/default/train'": 1,
+      "URL 'https://spothero.com/careers' does not contain '/careers/8069541'": 1,
+      "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_72%3A2661618011&s=price-asc-rank&dc&qid=1794880213&rnid=2661617011&ref=sr_st_price-asc-rank&ds=v1%3AE%2BkXtc%2Bp3ixeGGPMabUMp8y5P5BKc204%2FwmuimyJJMo' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1
+    },
+    "playwright_mcp:default": {
+      "URL '' does not contain '/greatamerica/attractions?ride-category=thrill'": 1,
+      "URL '' does not contain '/nba/stats/_/season/2021/seasontype/2'": 1,
+      "URL '' does not contain '/cart/'": 1,
+      "URL '' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "URL '' does not contain '/frontiercity/attractions?ride-category=family'": 1,
+      "URL '' does not contain '/contact'": 1,
+      "URL '' does not contain 'category_tag=Tag%3A8115'": 1,
+      "URL '' does not contain '/history.html'": 1,
+      "URL '' does not contain '/duplicate.html'": 1,
+      "URL '' does not contain '/2002/info/ccommittee.html'": 1,
+      "URL '' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL '' does not contain '/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meeting'": 1,
+      "URL '' does not contain '/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-growth'": 1,
+      "URL '' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL '' does not contain '/city/us/los-angeles.html'": 1,
+      "URL '' does not contain '/datasets/ai2lumos/lumos_complex_qa_plan_onetime/viewer/default/train'": 1,
+      "URL '' does not contain '/docs/text-embeddings-inference/index'": 1,
+      "URL '' does not contain '/soccer/player/stats/_/id/22774/team/482/type/fifa.world'": 1,
+      "URL '' does not contain '/nba/team/schedule/_/name/bkn/brooklyn-nets'": 1,
+      "URL '' does not contain '/fiestatexas/events'": 1,
+      "URL '' does not contain '/careers/8069541'": 1,
+      "URL '' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1
+    },
+    "script_first:default": {
+      "URL 'https://www.sixflags.com/greatamerica/things-to-do/thrill-rides' does not contain '/greatamerica/attractions?ride-category=thrill'": 1,
+      "returned value is not text": 1,
+      "URL 'about:blank' does not contain '/cart/'": 1,
+      "URL 'https://www.booking.com/hotel/us/hilton-times-square.html' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "answer too long": 1,
+      "returned evidence is not on the page": 1,
+      "answer does not satisfy the marker": 2,
+      "URL 'http://www.icse-conferences.org/2004/index.html' does not contain '/history.html'": 1,
+      "URL 'http://www.icse-conferences.org/' does not contain '/duplicate.html'": 1,
+      "URL 'http://www.icse-conferences.org/2002/index.html' does not contain '/2002/info/ccommittee.html'": 1,
+      "URL 'about:blank' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL 'about:blank' does not contain '/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meeting'": 1,
+      "URL is a search page: 'https://www.apec.org/search?keyword=Peru%20tourist%202024'": 1,
+      "URL 'https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/2024-apec-tourism-ministerial-meeting' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL 'https://www.booking.com/searchresults.html' does not contain '/city/us/los-angeles.html'": 1,
+      "URL '' does not contain '/datasets/ai2lumos/lumos_complex_qa_plan_onetime/viewer/default/train'": 1,
+      "URL '' does not contain '/docs/text-embeddings-inference/index'": 1,
+      "URL 'https://www.espn.com/soccer/player/stats/_/id/22774/league/fifa.world/cristiano-ronaldo' does not contain '/soccer/player/stats/_/id/22774/team/482/type/fifa.world'": 1,
+      "Error: Script result metadata exceeds tool-result budget; refusing to cut JSON": 1,
+      "URL 'https://spothero.com/careers' does not contain '/careers/8069541'": 1,
+      "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_72%3A1248880011&s=price-asc-rank' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1
+    },
+    "cascade:default": {
+      "answer does not satisfy the marker": 5,
+      "answer too long": 6,
+      "URL 'https://www.booking.com/hotel/us/millennium-broadway.en-gb.html' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "URL 'http://www.icse-conferences.org/2004/org_ctte.htm' does not contain '/history.html'": 1,
+      "URL contains '/duplicate.html'": 1,
+      "URL 'http://www.icse-conferences.org/history.html' does not contain '/2002/info/ccommittee.html'": 1,
+      "URL 'https://www.rovio.com/articles/eeva-aaltonen/' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL 'https://www.apec.org/what-we-do/som-steering-committee-on-economic-and-technical-cooperation/tourism' does not contain '/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meeting'": 1,
+      "URL contains '/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-growth'": 1,
+      "URL 'https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/12th-apec-tourism-ministerial-meeting' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL 'https://www.sixflags.com/overtexas/events?event-type=groups' does not contain '/fiestatexas/events'": 1,
+      "URL 'https://spothero.com/careers' does not contain '/careers/8069541'": 1,
+      "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_72%3A1248879011%2Cp_n_g-101015646925111%3A204428486011&s=price-asc-rank&dc&qid=1794880247&rnid=204428480011&ref=sr_nr_p_n_g-101015646925111_4&ds=v1%3AjhdSkjpM%2B%2BDTf3GhvHwehq4YLDuz0OSEowpXQt5M%2BFM' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1
+    },
+    "browser_use:ultrafast": {
+      "answer does not satisfy the marker": 7,
+      "answer too long": 8,
+      "URL 'https://www.booking.com/district/us/new-york/timessquare.html' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "URL 'https://www.airbnb.com/s/Europe/homes?place_id=ChIJhdqtz4aI7UYRefD8s-aZ73I&acp_id=dbf19746-1ca2-4455-98ea-ab0815514f10&refinement_paths%5B%5D=%2Fhomes&flexible_trip_lengths%5B%5D=one_week&date_picker_type=flexible_dates&monthly_start_date=2026-12-01&monthly_length=3&monthly_end_date=2027-03-01&adults=3&raw_text_query=Mansions%20in%20Europe%20for%203%20adults%2C%20any%20month&price_filter_input_type=2&price_filter_num_nights=5&channel=EXPLORE&thread_id=194467d6-2540-80d6-993b-db203b3f30cd&reference_message_id=194467e0-c283-83a8-995c-9749c4693bd9&ref_fsid=71d7e12d-c3a9-426e-8313-718f050ef2e0&ref_search_session_id=1e3ac7d5-b90e-4d88-b3b7-697585a0a4bb&search_type=unified_search_bar_text' does not contain 'category_tag=Tag%3A8115'": 1,
+      "answer is not in the page text": 3,
+      "URL contains '/duplicate.html'": 1,
+      "URL 'https://www.rovio.com/articles/eeva-aaltonen/' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL is a search page: 'https://www.apec.org/search?indexCatalogue=site&searchQuery=sea%20level%20rise%20tourism'": 1,
+      "URL contains '/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-growth'": 1,
+      "URL 'https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/12th-apec-tourism-ministerial-meeting' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL 'https://huggingface.co/datasets/ai2lumos/lumos_complex_qa_plan_onetime' does not contain '/datasets/ai2lumos/lumos_complex_qa_plan_onetime/viewer/default/train'": 1,
+      "URL 'https://www.sixflags.com/overtexas/events?event-type=groups' does not contain '/fiestatexas/events'": 1,
+      "URL 'https://spothero.com/careers' does not contain '/careers/8069541'": 1,
+      "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_n_g-101015646925111%3A204428486011%2Cp_72%3A2661618011&s=price-asc-rank&dc&qid=1794880835&rnid=2661617011&ref=sr_st_price-asc-rank&ds=v1%3AW0LqVk%2B9%2BHg2Y241xxZut3vxWtIX2%2Bqw5aRmwHcCYrM' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1,
+      "URL 'https://www.amazon.com/s?k=Sam+Harris+paperback&ref=nb_sb_noss' does not contain '/s?k=Sam+harris&i=stripbooks&rh=n%3A283155%2Cp_72%3A1250221011%2Cp_n_feature_browse-bin%3A2656022011'": 1,
+      "URL 'https://www.rovio.com/articles/q4-and-full-year-2019-results-published/' does not contain '/articles/rovios-q3-2022-interim-report-published/'": 1,
+      "URL 'https://www.rovio.com/articles/rovio-strengthens-its-commitment-to-sustainability-appointing-head-of-dei-yumi-oishi/' does not contain '/articles/rovio-sustainability-report-2023-message-from-chief-sustainability-officer/'": 1,
+      "URL 'https://www.ironhidegames.com/News/Details/295' does not contain '/News/Details/98'": 1,
+      "URL 'https://www.ironhidegames.com/News/2023?page=2' does not contain '/News/Details/307'": 1,
+      "URL 'https://huggingface.co/docs/transformers/v4.40.2/en/add_tensorflow_model' does not contain '/blog/tf-serving'": 1,
+      "URL 'https://www.amazon.com/checkpoint/continue?token=v1.vlk9a0i3w63gy0toGT0VM2BqzgYAqe3zYja1o_3qcO_PCzXkcxyeNKDdCzldOvEHya7ravKRpgQ7QGY_0xCyh92J-B0uT_eku-qj8UamQvsr7tTUOURGodvCatsPwRSMX-b6maCT194PFXQuucnxmGzqj0dZgpZt65zJAMaaLLN1Lqb3o4uwWrlmGk1d9nBqJOO7dYjBiSVWeJrnlDMIxizr_biNfBmE0Y-50DOvss4xM8gEl3T-F5ZqVNzKtLJzcC855qBbaZeKdalenGm-059oneAQ50id3Jood3CAsxCxAJ_cf8QdfXHzChScufhFjQ7ccvPtx4Scf4fCPKu9laToqF-nFYy64mVqCqvmQzp2vuYJN3AAZGXfTSmh15w_g0_ruxBpp01OnO-6WeSPW3R_vET0kt4lG1JHZxdF1cGvmrwb9JSVRGzPrS-Ye6nmlhWyfks6DjLTqKGVJicOA0JLDGTYG6H52Tby9azSq4Yy9TjyLiYOsGKBWOLoXy0wq-EPQxzrCcwobGsNZhf4bYNe8hXLeNFlyjIYvfYpmITypXSznuBBN9wd18TcQM_GwnIjqDvCyXsI1JVhbVrKY1ICBU3b27pLaLewYyQTDYYDz3IKwaFxOh6VEnYGdlpJQ_nTB08P_iFIIua5OPNvyB-0Y-2lbxD4_8k' does not contain 'p_72%3A1248885011'": 1,
+      "URL 'https://www.booking.com/?chal_t=1794881377556&force_referer=' does not contain '/content/about.html'": 1,
+      "URL 'https://www.airbnb.com/rooms/52007336?adults=1&check_in=2027-04-10&check_out=2027-04-12&pets=2&search_mode=regular_search&source_impression_id=p3_8cc956d4-ad38-43ea-8215-f16439d2c3a0_6d90f96a-91b6-4462-9236-f5aab840cb09_0_52007336_3&previous_page_section_name=1000&federated_search_id=8cc956d4-ad38-43ea-8215-f16439d2c3a0' does not contain '/s/United-States/homes?property_type_id%5B%5D=67&adults=1&pets=2&checkin=2027-04-10&checkout=2027-04-12'": 1,
+      "URL 'https://www.eventbrite.com/d/ca--san-francisco/exercise/?page=1&start_date=2027-07-10&end_date=2027-07-31' does not contain '/d/ca--san-francisco/exercise/?start_date=2027-07-10&end_date=2027-07-31'": 1,
+      "URL 'https://www.airbnb.com/s/Europe/homes?adults=1&checkin=2026-12-01&checkout=2026-12-08&date_picker_type=calendar&kg_and_tags%5B%5D=Tag%3A8047&ref_fsid=b0979e16-0e4d-4826-aa0e-adac800745c0&ref_search_session_id=11003d0e-8556-42ff-8cce-69d2267cdc7d&place_id=ChIJhdqtz4aI7UYRefD8s-aZ73I&refinement_paths%5B%5D=%2Fhomes&flexible_trip_lengths%5B%5D=one_week&monthly_start_date=2026-12-01&monthly_length=3&monthly_end_date=2027-03-01&search_mode=regular_search&price_filter_input_type=0&price_filter_num_nights=7&channel=EXPLORE&selected_filter_order%5B%5D=kg_and_tags%3ATag%3A8047&selected_filter_order%5B%5D=price_max%3A999&update_selected_filters=false&search_type=filter_change&price_max=999' does not contain '/s/Europe/homes?category_tag=Tag%3A8047&price_max=1000&flexible_trip_lengths%5B%5D=one_week&date_picker_type=flexible_dates&flexible_trip_dates%5B%5D=december'": 1
+    }
+  },
+  "replay_disagreements": [
+    {
+      "arm_mode": "script_first:default",
+      "task_id": "extdev_nav_fiestatexas_events",
+      "category": "Error: Script result metadata exceeds tool-result budget; refusing to cut JSON",
+      "saved_success": false,
+      "saved_reason": "Error: Script result metadata exceeds tool-result budget; refusing to cut JSON",
+      "frozen_replay_success": false,
+      "frozen_replay_reason": "answer too long",
+      "reference_on_saved_page_success": true,
+      "reference_on_saved_page_reason": "URL contains '/fiestatexas/events'",
+      "expected_answer": "Our Events",
+      "url_key": "/fiestatexas/events",
+      "grade_url": "https://www.sixflags.com/fiestatexas/events",
+      "returned_answer": "Skip To Content\nBlack Friday Deal: Buy a Day, Get the Year Free. Ends 11/30.\nShop Now\nSix Flags Fiesta Texas\n|\n|\n|\n0\n|\nPasses & Tickets\nRides & Experiences\nPlaces to Stay\nPark Info\nHoliday in the Park\nPromo Code\nBuy Tickets\nOur Events\n\nFrom seasonal festivals to engaging educational events and unique live performances, our calendar is always booked with the best in San Antonio.\n\nOur Events\nSpecial Events\nGroup Events\n\nHoliday in the Park\n\nSelect Dates, November 21 \u2013 January 4, 2027\nView Event\n\nCountdown To New Year\u2019s\n\nDecember 26-30, 2026\nView Event\n\nNew Year\u2019s 360 Fireworks Celebration\n\nDecember 31, 2026\nView Event\n\nMardi Gras Festival\n\nSelect Dates: February 6 \u2013 March 15, 2027\nView Event\n\nViva La Fiesta\n\nSelect Dates, April 3 - 25, 2027\nView Event\n\nStar-Spangled Nights Fireworks presented by M&M\u2019S\u00ae\n\nSaturday & Sunday, July 3 - 4, 2027\nView Event\n\nOktoberfest\n\nSelect Dates Sept. 4 \u2013 Oct. 31, 2027\nView Event\n\nFright Fest\n\nSelect Nights Sept. 10 \u2013 Oct. 31, 2027\nView Event\n\nTricks and Treats\n\nSaturdays & Sundays, Sept 11 \u2013 Oct. 31, 2027\nView Event\nPASSES & TICKETS\nMemberships & Season Passes\nSpecial Offers\nDaily Tickets\nGroup Tickets\nMilitary & First Responders\nSeason Pass Add Ons\nSeason Drinks & Dining\nDaily Drinks & Dining\nFast Lane\nPicture Pass\nVIP Experiences\nOnline Store\nRIDES & EXPERIENCES\nAll Attractions\nWater Rides\nCabanas\nLive Entertainment\nSpecial Events\nPLACES TO STAY\nExplore Hotels\nVacation Packages\nPARK INFO\nBlog\nEmail Signup\nCalendar & Hours\nPark Map & Directions\nFrequently Asked Questions\nLost & Found\nPark Policies\nChaperone Policy\nAccessibility\nRide Safety\nScheduled Ride Closures\nContact Us\nJobs\nCommunity\nContent Creators\nGET THE APP\n\nPrivacy Policy | Do Not Sell or Share My Information | Terms of Use | Accessibility | Jobs | Legal\n\n\u00a9 2026 Six Flags Entertainment Corporation",
+      "answer_length": 1819,
+      "raw_length_limit": 70,
+      "page_text_truncated": false,
+      "self_check_end_state": "FAIL",
+      "self_check_verdicts": "[\"FAIL\"]",
+      "self_check_reasons": "[\"answer is not in the page text\"]"
+    }
+  ],
+  "reference_on_saved_page": {
+    "browser_use:default": {
+      "PASS": 13,
+      "URL 'https://store.steampowered.com/app/570/Dota_2/' does not contain '/cart/'": 1,
+      "URL 'https://www.booking.com/fourstars/city/us/new-york.html' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "URL 'https://www.airbnb.com/s/Europe/homes?place_id=ChIJhdqtz4aI7UYRefD8s-aZ73I&acp_id=dbf19746-1ca2-4455-98ea-ab0815514f10&refinement_paths%5B%5D=%2Fhomes&date_picker_type=flexible_dates&monthly_start_date=2026-12-01&monthly_length=3&monthly_end_date=2027-03-01&adults=3&raw_text_query=Mansions%20in%20Europe%20for%203%20adults%2C%20any%20month%2C%20flexible%20dates&price_filter_input_type=0&price_filter_num_nights=1&channel=EXPLORE&thread_id=19445d5e-6d30-8348-b5e4-85510f6dc474&reference_message_id=19445d68-0baa-81d1-b33e-0a3796ff6625&ref_fsid=1616d130-8458-4918-a39f-cdd332abd5a8&ref_search_session_id=e7573675-7a61-40cb-a471-8514853c5693&search_type=unified_search_bar_text' does not contain 'category_tag=Tag%3A8115'": 1,
+      "URL 'https://www.rovio.com/articles/eeva-aaltonen/' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL 'https://www.apec.org/what-we-do/som-steering-committee-on-economic-and-technical-cooperation/tourism' does not contain '/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meeting'": 1,
+      "URL 'https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/12th-apec-tourism-ministerial-meeting' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL 'https://huggingface.co/datasets/ai2lumos/lumos_complex_qa_plan_onetime' does not contain '/datasets/ai2lumos/lumos_complex_qa_plan_onetime/viewer/default/train'": 1,
+      "URL 'https://spothero.com/careers' does not contain '/careers/8069541'": 1,
+      "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_72%3A2661618011&s=price-asc-rank&dc&qid=1794880213&rnid=2661617011&ref=sr_st_price-asc-rank&ds=v1%3AE%2BkXtc%2Bp3ixeGGPMabUMp8y5P5BKc204%2FwmuimyJJMo' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1
+    },
+    "playwright_mcp:default": {
+      "URL '' does not contain '/greatamerica/attractions?ride-category=thrill'": 1,
+      "URL '' does not contain '/nba/stats/_/season/2021/seasontype/2'": 1,
+      "URL '' does not contain '/cart/'": 1,
+      "URL '' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "URL '' does not contain '/frontiercity/attractions?ride-category=family'": 1,
+      "URL '' does not contain '/contact'": 1,
+      "URL '' does not contain 'category_tag=Tag%3A8115'": 1,
+      "URL '' does not contain '/history.html'": 1,
+      "URL '' does not contain '/duplicate.html'": 1,
+      "URL '' does not contain '/2002/info/ccommittee.html'": 1,
+      "URL '' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL '' does not contain '/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meeting'": 1,
+      "URL '' does not contain '/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-growth'": 1,
+      "URL '' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL '' does not contain '/city/us/los-angeles.html'": 1,
+      "URL '' does not contain '/datasets/ai2lumos/lumos_complex_qa_plan_onetime/viewer/default/train'": 1,
+      "URL '' does not contain '/docs/text-embeddings-inference/index'": 1,
+      "URL '' does not contain '/soccer/player/stats/_/id/22774/team/482/type/fifa.world'": 1,
+      "URL '' does not contain '/nba/team/schedule/_/name/bkn/brooklyn-nets'": 1,
+      "URL '' does not contain '/fiestatexas/events'": 1,
+      "URL '' does not contain '/careers/8069541'": 1,
+      "URL '' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1
+    },
+    "script_first:default": {
+      "URL 'https://www.sixflags.com/greatamerica/things-to-do/thrill-rides' does not contain '/greatamerica/attractions?ride-category=thrill'": 1,
+      "PASS": 6,
+      "URL 'about:blank' does not contain '/cart/'": 1,
+      "URL 'https://www.booking.com/hotel/us/hilton-times-square.html' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "URL 'http://www.icse-conferences.org/2004/index.html' does not contain '/history.html'": 1,
+      "URL 'http://www.icse-conferences.org/' does not contain '/duplicate.html'": 1,
+      "URL 'http://www.icse-conferences.org/2002/index.html' does not contain '/2002/info/ccommittee.html'": 1,
+      "URL 'about:blank' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL 'about:blank' does not contain '/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meeting'": 1,
+      "URL is a search page: 'https://www.apec.org/search?keyword=Peru%20tourist%202024'": 1,
+      "URL 'https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/2024-apec-tourism-ministerial-meeting' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL 'https://www.booking.com/searchresults.html' does not contain '/city/us/los-angeles.html'": 1,
+      "URL '' does not contain '/datasets/ai2lumos/lumos_complex_qa_plan_onetime/viewer/default/train'": 1,
+      "URL '' does not contain '/docs/text-embeddings-inference/index'": 1,
+      "URL 'https://www.espn.com/soccer/player/stats/_/id/22774/league/fifa.world/cristiano-ronaldo' does not contain '/soccer/player/stats/_/id/22774/team/482/type/fifa.world'": 1,
+      "URL 'https://spothero.com/careers' does not contain '/careers/8069541'": 1,
+      "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_72%3A1248880011&s=price-asc-rank' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1
+    },
+    "cascade:default": {
+      "PASS": 13,
+      "URL 'https://www.booking.com/hotel/us/millennium-broadway.en-gb.html' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "URL 'http://www.icse-conferences.org/2004/org_ctte.htm' does not contain '/history.html'": 1,
+      "URL 'http://www.icse-conferences.org/history.html' does not contain '/2002/info/ccommittee.html'": 1,
+      "URL 'https://www.rovio.com/articles/eeva-aaltonen/' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL 'https://www.apec.org/what-we-do/som-steering-committee-on-economic-and-technical-cooperation/tourism' does not contain '/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meeting'": 1,
+      "URL 'https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/12th-apec-tourism-ministerial-meeting' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL 'https://www.sixflags.com/overtexas/events?event-type=groups' does not contain '/fiestatexas/events'": 1,
+      "URL 'https://spothero.com/careers' does not contain '/careers/8069541'": 1,
+      "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_72%3A1248879011%2Cp_n_g-101015646925111%3A204428486011&s=price-asc-rank&dc&qid=1794880247&rnid=204428480011&ref=sr_nr_p_n_g-101015646925111_4&ds=v1%3AjhdSkjpM%2B%2BDTf3GhvHwehq4YLDuz0OSEowpXQt5M%2BFM' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1
+    },
+    "browser_use:ultrafast": {
+      "PASS": 17,
+      "URL 'https://www.booking.com/district/us/new-york/timessquare.html' does not contain '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'": 1,
+      "URL 'https://www.airbnb.com/s/Europe/homes?place_id=ChIJhdqtz4aI7UYRefD8s-aZ73I&acp_id=dbf19746-1ca2-4455-98ea-ab0815514f10&refinement_paths%5B%5D=%2Fhomes&flexible_trip_lengths%5B%5D=one_week&date_picker_type=flexible_dates&monthly_start_date=2026-12-01&monthly_length=3&monthly_end_date=2027-03-01&adults=3&raw_text_query=Mansions%20in%20Europe%20for%203%20adults%2C%20any%20month&price_filter_input_type=2&price_filter_num_nights=5&channel=EXPLORE&thread_id=194467d6-2540-80d6-993b-db203b3f30cd&reference_message_id=194467e0-c283-83a8-995c-9749c4693bd9&ref_fsid=71d7e12d-c3a9-426e-8313-718f050ef2e0&ref_search_session_id=1e3ac7d5-b90e-4d88-b3b7-697585a0a4bb&search_type=unified_search_bar_text' does not contain 'category_tag=Tag%3A8115'": 1,
+      "URL 'https://www.rovio.com/articles/eeva-aaltonen/' does not contain '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'": 1,
+      "URL is a search page: 'https://www.apec.org/search?indexCatalogue=site&searchQuery=sea%20level%20rise%20tourism'": 1,
+      "URL 'https://www.apec.org/meeting-papers/sectoral-ministerial-meetings/tourism/12th-apec-tourism-ministerial-meeting' does not contain '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'": 1,
+      "URL 'https://huggingface.co/datasets/ai2lumos/lumos_complex_qa_plan_onetime' does not contain '/datasets/ai2lumos/lumos_complex_qa_plan_onetime/viewer/default/train'": 1,
+      "URL 'https://www.sixflags.com/overtexas/events?event-type=groups' does not contain '/fiestatexas/events'": 1,
+      "URL 'https://spothero.com/careers' does not contain '/careers/8069541'": 1,
+      "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_n_g-101015646925111%3A204428486011%2Cp_72%3A2661618011&s=price-asc-rank&dc&qid=1794880835&rnid=2661617011&ref=sr_st_price-asc-rank&ds=v1%3AW0LqVk%2B9%2BHg2Y241xxZut3vxWtIX2%2Bqw5aRmwHcCYrM' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'": 1,
+      "URL 'https://www.amazon.com/s?k=Sam+Harris+paperback&ref=nb_sb_noss' does not contain '/s?k=Sam+harris&i=stripbooks&rh=n%3A283155%2Cp_72%3A1250221011%2Cp_n_feature_browse-bin%3A2656022011'": 1,
+      "URL 'https://www.rovio.com/articles/q4-and-full-year-2019-results-published/' does not contain '/articles/rovios-q3-2022-interim-report-published/'": 1,
+      "URL 'https://www.rovio.com/articles/rovio-strengthens-its-commitment-to-sustainability-appointing-head-of-dei-yumi-oishi/' does not contain '/articles/rovio-sustainability-report-2023-message-from-chief-sustainability-officer/'": 1,
+      "URL 'https://www.ironhidegames.com/News/Details/295' does not contain '/News/Details/98'": 1,
+      "URL 'https://www.ironhidegames.com/News/2023?page=2' does not contain '/News/Details/307'": 1,
+      "answer is not in the page text": 3,
+      "URL 'https://huggingface.co/docs/transformers/v4.40.2/en/add_tensorflow_model' does not contain '/blog/tf-serving'": 1,
+      "URL 'https://www.amazon.com/checkpoint/continue?token=v1.vlk9a0i3w63gy0toGT0VM2BqzgYAqe3zYja1o_3qcO_PCzXkcxyeNKDdCzldOvEHya7ravKRpgQ7QGY_0xCyh92J-B0uT_eku-qj8UamQvsr7tTUOURGodvCatsPwRSMX-b6maCT194PFXQuucnxmGzqj0dZgpZt65zJAMaaLLN1Lqb3o4uwWrlmGk1d9nBqJOO7dYjBiSVWeJrnlDMIxizr_biNfBmE0Y-50DOvss4xM8gEl3T-F5ZqVNzKtLJzcC855qBbaZeKdalenGm-059oneAQ50id3Jood3CAsxCxAJ_cf8QdfXHzChScufhFjQ7ccvPtx4Scf4fCPKu9laToqF-nFYy64mVqCqvmQzp2vuYJN3AAZGXfTSmh15w_g0_ruxBpp01OnO-6WeSPW3R_vET0kt4lG1JHZxdF1cGvmrwb9JSVRGzPrS-Ye6nmlhWyfks6DjLTqKGVJicOA0JLDGTYG6H52Tby9azSq4Yy9TjyLiYOsGKBWOLoXy0wq-EPQxzrCcwobGsNZhf4bYNe8hXLeNFlyjIYvfYpmITypXSznuBBN9wd18TcQM_GwnIjqDvCyXsI1JVhbVrKY1ICBU3b27pLaLewYyQTDYYDz3IKwaFxOh6VEnYGdlpJQ_nTB08P_iFIIua5OPNvyB-0Y-2lbxD4_8k' does not contain 'p_72%3A1248885011'": 1,
+      "URL 'https://www.booking.com/?chal_t=1794881377556&force_referer=' does not contain '/content/about.html'": 1,
+      "URL 'https://www.airbnb.com/rooms/52007336?adults=1&check_in=2027-04-10&check_out=2027-04-12&pets=2&search_mode=regular_search&source_impression_id=p3_8cc956d4-ad38-43ea-8215-f16439d2c3a0_6d90f96a-91b6-4462-9236-f5aab840cb09_0_52007336_3&previous_page_section_name=1000&federated_search_id=8cc956d4-ad38-43ea-8215-f16439d2c3a0' does not contain '/s/United-States/homes?property_type_id%5B%5D=67&adults=1&pets=2&checkin=2027-04-10&checkout=2027-04-12'": 1,
+      "URL 'https://www.eventbrite.com/d/ca--san-francisco/exercise/?page=1&start_date=2027-07-10&end_date=2027-07-31' does not contain '/d/ca--san-francisco/exercise/?start_date=2027-07-10&end_date=2027-07-31'": 1,
+      "URL 'https://www.airbnb.com/s/Europe/homes?adults=1&checkin=2026-12-01&checkout=2026-12-08&date_picker_type=calendar&kg_and_tags%5B%5D=Tag%3A8047&ref_fsid=b0979e16-0e4d-4826-aa0e-adac800745c0&ref_search_session_id=11003d0e-8556-42ff-8cce-69d2267cdc7d&place_id=ChIJhdqtz4aI7UYRefD8s-aZ73I&refinement_paths%5B%5D=%2Fhomes&flexible_trip_lengths%5B%5D=one_week&monthly_start_date=2026-12-01&monthly_length=3&monthly_end_date=2027-03-01&search_mode=regular_search&price_filter_input_type=0&price_filter_num_nights=7&channel=EXPLORE&selected_filter_order%5B%5D=kg_and_tags%3ATag%3A8047&selected_filter_order%5B%5D=price_max%3A999&update_selected_filters=false&search_type=filter_change&price_max=999' does not contain '/s/Europe/homes?category_tag=Tag%3A8047&price_max=1000&flexible_trip_lengths%5B%5D=one_week&date_picker_type=flexible_dates&flexible_trip_dates%5B%5D=december'": 1
+    }
+  },
+  "synthetic_reference_compatibility": [
+    {
+      "task_id": "extdev_filter_greatamerica_thrill",
+      "success": true,
+      "reason": "URL contains '/greatamerica/attractions?ride-category=thrill'"
+    },
+    {
+      "task_id": "extdev_value_nba_2021_leaders",
+      "success": true,
+      "reason": "URL contains '/nba/stats/_/season/2021/seasontype/2'"
+    },
+    {
+      "task_id": "extdev_spa_dota_dlc_cart",
+      "success": true,
+      "reason": "URL contains '/cart/'"
+    },
+    {
+      "task_id": "extdev_filter_booking_times_square",
+      "success": true,
+      "reason": "URL contains '/searchresults.html?dest_id=ChIJnaBtqVVYwokRaAqg4aX1C4Y;dest_type=landmark;latitude=40.7579747;longitude=-73.9855426;nflt=ht_id%3D204%3Bclass%3D4'"
+    },
+    {
+      "task_id": "extdev_filter_frontiercity_family",
+      "success": true,
+      "reason": "URL contains '/frontiercity/attractions?ride-category=family'"
+    },
+    {
+      "task_id": "extdev_nav_spothero_contact",
+      "success": true,
+      "reason": "URL contains '/contact'"
+    },
+    {
+      "task_id": "extdev_filter_airbnb_europe_mansions",
+      "success": true,
+      "reason": "URL contains 'category_tag=Tag%3A8115'"
+    },
+    {
+      "task_id": "extdev_value_icse_2004_chair",
+      "success": true,
+      "reason": "URL contains '/history.html'"
+    },
+    {
+      "task_id": "extdev_value_icse_duplicate_statement",
+      "success": true,
+      "reason": "URL contains '/duplicate.html'"
+    },
+    {
+      "task_id": "extdev_value_icse_2002_chairs",
+      "success": true,
+      "reason": "URL contains '/2002/info/ccommittee.html'"
+    },
+    {
+      "task_id": "extdev_value_rovio_anniversary",
+      "success": true,
+      "reason": "URL contains '/articles/angry-birds-celebrates-15th-anniversary-with-special-in-game-events-and-more/'"
+    },
+    {
+      "task_id": "extdev_value_apec_tourism_actions",
+      "success": true,
+      "reason": "URL contains '/meeting-papers/sectoral-ministerial-meetings/general/12th-apec-tourism-ministerial-meeting'"
+    },
+    {
+      "task_id": "extdev_value_apec_peru_arrivals",
+      "success": true,
+      "reason": "URL contains '/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-growth'"
+    },
+    {
+      "task_id": "extdev_value_apec_ministers_chair",
+      "success": true,
+      "reason": "URL contains '/press/news-releases/2024/apec-tourism-ministers-issue-joint-statement'"
+    },
+    {
+      "task_id": "extdev_search_booking_la_filters",
+      "success": true,
+      "reason": "URL contains '/city/us/los-angeles.html'"
+    },
+    {
+      "task_id": "extdev_value_hf_first_user_message",
+      "success": true,
+      "reason": "URL contains '/datasets/ai2lumos/lumos_complex_qa_plan_onetime/viewer/default/train'"
+    },
+    {
+      "task_id": "extdev_value_hf_tei_strengths",
+      "success": true,
+      "reason": "URL contains '/docs/text-embeddings-inference/index'"
+    },
+    {
+      "task_id": "extdev_nav_ronaldo_world_cup_stats",
+      "success": true,
+      "reason": "URL contains '/soccer/player/stats/_/id/22774/team/482/type/fifa.world'"
+    },
+    {
+      "task_id": "extdev_nav_nets_schedule",
+      "success": true,
+      "reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'"
+    },
+    {
+      "task_id": "extdev_nav_fiestatexas_events",
+      "success": true,
+      "reason": "URL contains '/fiestatexas/events'"
+    },
+    {
+      "task_id": "extdev_nav_spothero_marketing",
+      "success": true,
+      "reason": "URL contains '/careers/8069541'"
+    },
+    {
+      "task_id": "extdev_filter_amazon_puppy_food",
+      "success": true,
+      "reason": "URL contains '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'"
+    },
+    {
+      "task_id": "extdev_nav_eventbrite_planning",
+      "success": true,
+      "reason": "URL contains '/blog/category/event-planning/'"
+    },
+    {
+      "task_id": "extdev_filter_sam_harris_paperback",
+      "success": true,
+      "reason": "URL contains '/s?k=Sam+harris&i=stripbooks&rh=n%3A283155%2Cp_72%3A1250221011%2Cp_n_feature_browse-bin%3A2656022011'"
+    },
+    {
+      "task_id": "extdev_nav_steam_daily_players",
+      "success": true,
+      "reason": "URL contains '/charts/mostplayed'"
+    },
+    {
+      "task_id": "extdev_nav_commuter_benefits",
+      "success": true,
+      "reason": "URL contains '/solutions/commuter-benefits'"
+    },
+    {
+      "task_id": "extdev_value_dream_blast_revenue",
+      "success": true,
+      "reason": "URL contains '/articles/rovios-q3-2022-interim-report-published/'"
+    },
+    {
+      "task_id": "extdev_value_pirate_treasures",
+      "success": true,
+      "reason": "URL contains '/News/Details/370'"
+    },
+    {
+      "task_id": "extdev_value_inclusive_strategy_role",
+      "success": true,
+      "reason": "URL contains '/articles/rovio-sustainability-report-2023-message-from-chief-sustainability-officer/'"
+    },
+    {
+      "task_id": "extdev_value_ironhide_historical_games",
+      "success": true,
+      "reason": "URL contains '/News/Details/98'"
+    },
+    {
+      "task_id": "extdev_value_ironhide_arcade_gdc",
+      "success": true,
+      "reason": "URL contains '/News/Details/307'"
+    },
+    {
+      "task_id": "extdev_value_cambridge_euphoria",
+      "success": true,
+      "reason": "URL contains '/dictionary/english/euphoria'"
+    },
+    {
+      "task_id": "extdev_value_hf_pytorch_tensorflow",
+      "success": true,
+      "reason": "URL contains '/blog/tf-serving'"
+    },
+    {
+      "task_id": "extdev_value_cambridge_gestalt",
+      "success": true,
+      "reason": "URL contains '/dictionary/english/gestalt'"
+    },
+    {
+      "task_id": "extdev_value_cambridge_innovate",
+      "success": true,
+      "reason": "URL contains '/dictionary/english/innovate'"
+    },
+    {
+      "task_id": "extdev_filter_green_xbox_controller",
+      "success": true,
+      "reason": "URL contains 'p_72%3A1248885011'"
+    },
+    {
+      "task_id": "extdev_value_booking_parent",
+      "success": true,
+      "reason": "URL contains '/content/about.html'"
+    },
+    {
+      "task_id": "extdev_filter_tiny_home_dates",
+      "success": true,
+      "reason": "URL contains '/s/United-States/homes?property_type_id%5B%5D=67&adults=1&pets=2&checkin=2027-04-10&checkout=2027-04-12'"
+    },
+    {
+      "task_id": "extdev_filter_sf_exercise_dates",
+      "success": true,
+      "reason": "URL contains '/d/ca--san-francisco/exercise/?start_date=2027-07-10&end_date=2027-07-31'"
+    },
+    {
+      "task_id": "extdev_filter_castles_europe_week",
+      "success": true,
+      "reason": "URL contains '/s/Europe/homes?category_tag=Tag%3A8047&price_max=1000&flexible_trip_lengths%5B%5D=one_week&date_picker_type=flexible_dates&flexible_trip_dates%5B%5D=december'"
+    }
+  ],
+  "verification_files": {
+    "verification_extdev.jsonl": {
+      "rows": 40,
+      "key_passes": 39,
+      "reproducer_passes": 13,
+      "reproducer_failures": 0,
+      "contains_page_evidence": false
+    },
+    "verification_extdev_initial.jsonl": {
+      "rows": 20,
+      "key_passes": 18,
+      "reproducer_passes": 3,
+      "reproducer_failures": 6,
+      "contains_page_evidence": false
+    },
+    "verification_extdev_rechecks.jsonl": {
+      "rows": 5,
+      "key_passes": 5,
+      "reproducer_passes": 4,
+      "reproducer_failures": 0,
+      "contains_page_evidence": false
+    },
+    "verification_extdev_step2.jsonl": {
+      "rows": 17,
+      "key_passes": 17,
+      "reproducer_passes": 7,
+      "reproducer_failures": 0,
+      "contains_page_evidence": false
+    },
+    "verification_extdev_step3_initial.jsonl": {
+      "rows": 40,
+      "key_passes": 35,
+      "reproducer_passes": 12,
+      "reproducer_failures": 1,
+      "contains_page_evidence": false
+    },
+    "verification_extdev_step3_keyfix.jsonl": {
+      "rows": 40,
+      "key_passes": 40,
+      "reproducer_passes": 11,
+      "reproducer_failures": 2,
+      "contains_page_evidence": false
+    }
+  },
+  "script_end_states": {
+    "FAIL": 16,
+    "PASS": 6
+  },
+  "script_check_verdicts": {
+    "FAIL": 29,
+    "PASS": 6
+  },
+  "script_check_reasons": {
+    "the task asks for a value and the script returned no answer": 7,
+    "the script stopped before it finished (line 1: expected a string; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...})))": 2,
+    "answer is not in the page text": 7,
+    "the script stopped before it finished (fetch( is not part of this script; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...})))": 3,
+    "the script stopped before it finished (line 2: expected a string literal; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...})))": 1,
+    "the script stopped before it finished (line 2: expected a literal option; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...})))": 5,
+    "the script finished and its evidence is on the live page": 5,
+    "returned evidence is not on the page": 1,
+    "the script stopped before it finished (line 2: unsupported locator action filter; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...})))": 1,
+    "the script stopped before it finished (line 3: expected a literal option; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...})))": 1,
+    "the script stopped before it finished (line 2: expected '.'; use page.locator(\"css\").click() or page.evaluate(() => { ... }); for an object return, wrap it in page.evaluate(() => ({...})))": 1,
+    "the script finished and the answer is the live page URL": 1
+  },
+  "script_no_checks": [
+    "extdev_value_hf_first_user_message",
+    "extdev_value_hf_tei_strengths"
+  ],
+  "script_page_diagnostic": {
+    "False": 22
+  },
+  "script_pass_end_state_failures": {
+    "extdev_filter_frontiercity_family": "answer too long",
+    "extdev_filter_airbnb_europe_mansions": "answer does not satisfy the marker",
+    "extdev_nav_ronaldo_world_cup_stats": "URL 'https://www.espn.com/soccer/player/stats/_/id/22774/league/fifa.world/cristiano-ronaldo' does not contain '/soccer/player/stats/_/id/22774/team/482/type/fifa.world'",
+    "extdev_nav_nets_schedule": "answer does not satisfy the marker",
+    "extdev_nav_spothero_marketing": "URL 'https://spothero.com/careers' does not contain '/careers/8069541'",
+    "extdev_filter_amazon_puppy_food": "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_72%3A1248880011&s=price-asc-rank' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'"
+  },
+  "browser_use_metrics": {
+    "historic_1.0.0_different_tasks": {
+      "n": 50,
+      "mean_usd": 0.014275,
+      "mean_steps": 4.92,
+      "mean_input_tokens": 14461.32,
+      "mean_output_tokens": 373.44,
+      "mean_cached_tokens": 10668.9,
+      "mean_cache_write_30m_tokens": 3777.66,
+      "mean_wall_ms": 14719.059228,
+      "median_wall_ms": 13812.83,
+      "cache_read_fraction": 0.7378
+    },
+    "default_22": {
+      "n": 22,
+      "mean_usd": 0.074627,
+      "mean_steps": 9.863636,
+      "mean_input_tokens": 78278.954545,
+      "mean_output_tokens": 880.545455,
+      "mean_cached_tokens": 59787.318182,
+      "mean_cache_write_30m_tokens": 18336.045455,
+      "mean_wall_ms": 29455.113098,
+      "median_wall_ms": 26540.26,
+      "cache_read_fraction": 0.7638
+    },
+    "ultrafast_all40": {
+      "n": 40,
+      "mean_usd": 0.07747,
+      "mean_steps": 8.675,
+      "mean_input_tokens": 87121,
+      "mean_output_tokens": 557.75,
+      "mean_cached_tokens": 64623.925,
+      "mean_cache_write_30m_tokens": 22345.05,
+      "mean_wall_ms": 32220.880989,
+      "median_wall_ms": 27658.92,
+      "cache_read_fraction": 0.7418
+    },
+    "ultrafast_paired22": {
+      "n": 22,
+      "mean_usd": 0.053288,
+      "mean_steps": 6.590909,
+      "mean_input_tokens": 51267.772727,
+      "mean_output_tokens": 416.454545,
+      "mean_cached_tokens": 32905.363636,
+      "mean_cache_write_30m_tokens": 18216.636364,
+      "mean_wall_ms": 25295.519713,
+      "median_wall_ms": 27658.92,
+      "cache_read_fraction": 0.6418
+    },
+    "ultrafast_unpaired18": {
+      "n": 18,
+      "mean_usd": 0.107026,
+      "mean_steps": 11.222222,
+      "mean_input_tokens": 130941.611111,
+      "mean_output_tokens": 730.444444,
+      "mean_cached_tokens": 103391.055556,
+      "mean_cache_write_30m_tokens": 27390.888889,
+      "mean_wall_ms": 40685.211438,
+      "median_wall_ms": 28158.85,
+      "cache_read_fraction": 0.7896
+    },
+    "paired_ultrafast_faster": 11,
+    "paired_median_wall_delta_ms": -447.08
+  },
+  "browser_use_log_judges": {
+    "default": {
+      "judge_success": 38,
+      "judge_failure": 4,
+      "completed_run_lines": 42
+    },
+    "ultrafast": {
+      "judge_success": 35,
+      "judge_failure": 5,
+      "completed_run_lines": 40
+    }
+  },
+  "aggregate_long_context_pricing": {
+    "default": {
+      "rows_above_272k_aggregate_input": [
+        "extdev_filter_booking_times_square",
+        "extdev_filter_airbnb_europe_mansions"
+      ],
+      "recorded_usd": 1.641794,
+      "hypothetical_all_short_context_usd": 1.340581,
+      "warning": "Aggregate request totals trigger the long-context multiplier; individual request sizes are not saved. This counterfactual is not a corrected bill."
+    },
+    "ultrafast": {
+      "rows_above_272k_aggregate_input": [
+        "extdev_value_ironhide_arcade_gdc",
+        "extdev_filter_castles_europe_week"
+      ],
+      "recorded_usd": 3.098815,
+      "hypothetical_all_short_context_usd": 2.728263,
+      "warning": "Aggregate request totals trigger the long-context multiplier; individual request sizes are not saved. This counterfactual is not a corrected bill."
+    }
+  },
+  "frozen_grader_sha256": "0e65aecefd0d99f2313b6124495014f7ac2bd7acfb1e9c190a625eec12241752",
+  "ledger_running_total_usd": 6.277727
+}

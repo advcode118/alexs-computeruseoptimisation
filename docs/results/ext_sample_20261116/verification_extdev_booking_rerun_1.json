@@ -1,0 +1,43 @@
+{
+  "trial": 1,
+  "generated_at": "2026-11-17T01:07:46.406499+00:00",
+  "scope": "Booking-only; sequential tasks; fresh contexts per key/reproducer; fresh Chromium per trial; no full-run results replaced",
+  "summary": [
+    "Key checks: 3/3 PASS",
+    "Reproducers: 2/2 PASS; 1 none",
+    "Negatives: 6/6 correctly FAIL",
+    "Partial keys: 1/3"
+  ],
+  "rows": [
+    {
+      "id": "extdev_filter_booking_times_square",
+      "key": true,
+      "reproducer": null,
+      "negatives": [
+        true,
+        true
+      ],
+      "errors": []
+    },
+    {
+      "id": "extdev_search_booking_la_filters",
+      "key": true,
+      "reproducer": true,
+      "negatives": [
+        true,
+        true
+      ],
+      "errors": []
+    },
+    {
+      "id": "extdev_value_booking_parent",
+      "key": true,
+      "reproducer": true,
+      "negatives": [
+        true,
+        true
+      ],
+      "errors": []
+    }
+  ]
+}

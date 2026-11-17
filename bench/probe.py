@@ -344,7 +344,7 @@ def plan_probe(
             "stagehand": "a unique --user-data-dir via launch_persistent_context",
             "script_first": "local Chrome via the Playwright Python API, own user-data-dir, no per-click settle",
             "browser_use": (
-                "browser-use 1.0.3 local Chrome over CDP via Browser('chromium'); "
+                "browser-use 1.0.6 local Chrome over CDP via Browser('chromium'); "
                 "model claude-sonnet-5-5"
             ),
         },

@@ -21,7 +21,7 @@ from bench.measurement import grade_fields, measurement_fields
 from bench.probe import grade_observation
 from bench.script_first import _PAGE_EVIDENCE_JS, text_from_page_read
 
-BROWSER_USE_VERSION = "1.0.3"
+BROWSER_USE_VERSION = "1.0.6"
 LOCAL_BROWSER = "chromium"
 BROWSER_USE_MAX_STEPS = 30
 # The same page-evidence read script_first uses, as one CDP expression.
@@ -77,6 +77,19 @@ def _daemon_cdp_fn():
     from browser_use.browser.browser import _daemon_cdp
 
     return _daemon_cdp
+
+
+def _attach_target(browser, target_id: str) -> dict:
+    name = browser.name
+    cdp = _daemon_cdp_fn()
+    request = _daemon_request_fn()
+    session = cdp(name, "Target.attachToTarget", targetId=target_id, flatten=True)["sessionId"]
+    request(name, {"meta": "set_session", "session_id": session, "target_id": target_id})
+    browser.remember_tab()
+    current = request(name, {"meta": "current_tab"}, 5)
+    if current.get("targetId") != target_id:
+        raise RuntimeError("browser-use did not attach to the handoff target")
+    return current
 
 
 def _explicit_page(browser) -> tuple[str, str, str] | None:
@@ -201,6 +214,7 @@ def _base_row(task_id: str) -> dict:
         "model": ALLOWED_MODEL,
         "browser": LOCAL_BROWSER,
         "browser_use": BROWSER_USE_VERSION,
+        "browser_use_mode": os.environ.get("CU_BU_MODE", "").strip() or "default",
         "page_url": "",
     }
 
@@ -338,6 +352,7 @@ async def run_browser_use_task(
     provider: str = "anthropic",
     effort: str | None = None,
     external_browser=None,
+    external_target_id: str | None = None,
     task_text_override: str | None = None,
 ) -> dict:
     """One task. Local Chrome, bench model. No cloud browser and no gateway model."""
@@ -377,6 +392,11 @@ async def run_browser_use_task(
         if browser is None:
             browser = browser_cls(LOCAL_BROWSER, headless=headless, keep_alive=True)
         await browser.start()
+        if external_target_id is not None:
+            initial = await asyncio.to_thread(_attach_target, browser, external_target_id)
+            row["browser_use_initial_url"] = initial.get("url", "")
+            row["browser_use_initial_target_id"] = initial["targetId"]
+            row["browser_use_cdp_url"] = browser.cdp_url
         row["browser_launch_ms"] = (time.perf_counter() - launch_start) * 1000
         started = time.perf_counter()
         llm = _chat_model(llm_cls, chosen, api_key, chosen_effort)
