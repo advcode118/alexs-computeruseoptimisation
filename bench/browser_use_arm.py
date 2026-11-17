@@ -21,7 +21,7 @@ from bench.measurement import grade_fields, measurement_fields
 from bench.probe import grade_observation
 from bench.script_first import _PAGE_EVIDENCE_JS, text_from_page_read
 
-BROWSER_USE_VERSION = "1.0.3"
+BROWSER_USE_VERSION = "1.0.6"
 LOCAL_BROWSER = "chromium"
 BROWSER_USE_MAX_STEPS = 30
 # The same page-evidence read script_first uses, as one CDP expression.

@@ -31,7 +31,7 @@ No API key or paid request is needed for offline tests or regrading.
   does not pass or repair. FAIL permits **at most one grounded repair**, within
   the 30-second repair wall budget, showing the failed step and the current page.
   An unavailable snapshot falls back to a reason/URL repair request.
-- `browser_use` is browser-use 1.0.3 using one persistent Python REPL against
+- `browser_use` is browser-use 1.0.6 using one persistent Python REPL against
   local Chrome over CDP. Set `CU_BU_MODE=ultrafast` to pass the library's
   ultrafast mode explicitly; unset it for the library default. This flag is
   independent of model and reasoning effort.
@@ -70,7 +70,21 @@ warm pass. Cold runs stay cold.
 
 The new default OpenAI ledger is
 `~/.cu-optimisation/openai-spend-20261117.json`, with a **$15 project cap** and
-**$5 per-run cap**. `CU_OPENAI_SPEND_LEDGER` overrides its path. The prior
+**$5 per-run cap**. `CU_OPENAI_SPEND_LEDGER` overrides its path.
+`CU_OPENAI_PROJECT_BUDGET_USD` overrides the project cap, including when reading
+an existing ledger; it does not reset accumulated spend. Without an override,
+an existing ledger retains its stored project cap. `CU_OPENAI_RUN_BUDGET_USD`
+overrides the per-run (per-cell for sweeps) cap. Both accept only finite positive
+dollar amounts; blank values use the defaults. These are stop thresholds checked
+between tasks, not hard provider-side limits on an in-flight task. For example:
+
+```bash
+export CU_OPENAI_SPEND_LEDGER="$HOME/.cu-optimisation/openai-spend-alex15.json"
+export CU_OPENAI_PROJECT_BUDGET_USD=9.00
+export CU_OPENAI_RUN_BUDGET_USD=5.00
+```
+
+The prior
 `openai-spend.json` remains readable by explicit path and is never migrated,
 reset, or rewritten by selecting the new default. Existing ledger entries and
 unpriced-call reservations remain counted. A sweep covers both models and
