@@ -1,0 +1,109 @@
+D1 correct|Thrill filter page reached; lists thrill rides shown there
+D4 correct|same end state and answer as browser_use
+U1 correct|Thrill filter page reached; lists thrill rides
+D5 correct|all six leaders with categories and values
+D8 correct|all six leaders with categories and values
+U2 correct|all six leaders with categories and values
+D7 partial|names the five leading players, no categories or values
+D11 wrong|no navigation, no answer
+D12 correct|cart page shows the soundtrack; free EP cannot be carted
+U3 correct|cart page shows the soundtrack; free EP cannot be carted
+D15 wrong|opened one hotel page, no answer
+D17 correct|family filter page; lists the rides on it
+D19 correct|family filter page; lists the rides on it
+D20 correct|family filter page; lists the rides on it
+U5 correct|family filter page; lists the rides on it
+D21 correct|reached the support contact form; cannot submit without user details
+D23 wrong|on contact page but returned an email address that is not in the saved page text
+D24 correct|on contact page; returned the support phone number shown there
+U6 correct|reached the support contact form and gave the phone number
+D25 wrong|agent itself reports results are not limited to mansions
+D27 correct|URL carries the mansions category, 3 adults, flexible dates
+D28 correct|URL carries the mansions category, 3 adults, flexible dates
+U7 wrong|agent itself reports the mansions filter was not applied
+D29 correct|dates and chair both given
+D31 partial|dates only, no General Chair
+D32 correct|dates and chair both given, from the 2004 committee page
+U8 correct|dates and chair both given
+D33 correct|matches key exactly
+D36 correct|matches key exactly
+U9 correct|matches key exactly
+D35 wrong|stayed on home page, no answer
+S3 correct|chairs, dates and place all given
+D37 correct|chairs, dates and place all given
+D39 wrong|no answer
+U10 correct|chairs, dates and place all given
+D41 correct|both parts given; different article URL than keyed
+D43 wrong|no navigation, no answer
+D44 correct|both parts given (Movie 3 = third installment)
+U11 correct|both parts given (Movie 3 = third installment)
+D45 correct|quotes the statement's two commitments, links the statement
+D47 wrong|no navigation, no answer
+D48 correct|quotes the regenerative tourism commitment, links the statement
+U12 correct|same content; notes statement does not mention sea level rise
+D49 correct|matches key
+D52 correct|matches key
+U13 correct|matches key
+D51 wrong|search page, no answer
+D53 correct|Elizabeth Galdo, from the ministerial statement page
+D56 correct|Elizabeth Galdo, from the ministerial statement page
+U14 correct|Elizabeth Galdo, from the ministerial statement page
+D55 wrong|no answer
+D57 correct|lists star and review-score filters
+D60 correct|lists star and review-score filters
+U15 correct|lists star and review-score filters
+D59 wrong|no answer
+D61 correct|text matches the keyed first user message
+D64 correct|text matches the keyed first user message
+U16 correct|text matches the keyed first user message
+D63 wrong|no answer
+D3 wrong|ended on a 404 page, no answer
+D9 correct|saved page shows "Added to your cart! The Dota 2 Official Soundtrack"; did not open the cart URL
+D13 correct|LUMA Hotel - Times Square on Booking's 4-star New York list, occupancy 2 adults
+D16 partial|Times Square hotel page with 2 adults, but the saved text does not show its star rating
+U4 correct|page text says Riu Plaza Manhattan Times Square is a 4-star hotel, occupancy 2 adults
+D40 correct|chairs and place right; May 19-24 is what the site's history page says (committee page says 19-25)
+S1 correct|accurate summary of the strengths listed on the docs page
+D65 correct|accurate summary of the strengths listed on the docs page
+D68 correct|accurate summary of the strengths listed on the docs page
+U17 correct|accurate summary of the strengths listed on the docs page
+D67 wrong|no answer
+D69 correct|World Cup stats table for Portugal on the keyed page
+D71 wrong|returned Saudi Pro League club stats, not World Cup stats
+D72 correct|World Cup stats table for Portugal on the keyed page
+U18 correct|World Cup stats table for Portugal on the keyed page
+D73 correct|on the Nets schedule page
+D75 correct|on the Nets schedule page
+D76 correct|on the Nets schedule page
+U19 correct|on the Nets schedule page
+D77 correct|Fiesta Texas events page; lists the events
+D79 partial|reached the Fiesta Texas events page but returned a raw page dump
+D80 correct|Six Flags Over Texas events; task allows any Texas park
+U20 correct|Six Flags Over Texas events; task allows any Texas park
+D81 correct|Marketing Analyst opening on the careers page; did not open the role page
+D83 partial|careers page reached; answer is a raw dump that includes the marketing role
+D84 correct|Marketing Analyst opening on the careers page
+U21 correct|Marketing Analyst opening on the careers page
+D85 correct|URL carries the 4-stars-up filter and price ascending sort
+U22 correct|URL carries the puppy and 4-stars-up filters and price ascending sort
+U23 correct|on the event planning blog category page
+U25 correct|on the most played chart, by daily players
+D87 partial|sorted price ascending; rating filter id differs from the key and the saved text does not show which star filter is active
+D88 partial|agent says Puppy and 4 Stars & Up applied, sorted ascending; rating filter id differs from the key and is not visible in the saved text
+U24 correct|The End of Faith by Sam Harris, 4.5 stars, Paperback on the saved page; found by search not by filters
+U26 correct|on the commuter benefits guide page
+U27 correct|answer matches the key; read from the 2019 results article only
+U28 correct|names the four characters and the treasure types on the keyed page
+U29 wrong|key says Chief Sustainability Officer; agent answered Head of DEI
+U32 correct|UK IPA and the keyed example sentence
+U33 partial|a documented conversion procedure from a different docs page than the keyed from_pt=True blog
+S2 correct|meaning, pronunciation and the keyed example sentence
+U34 wrong|blocked by the site's security check, reported failure
+U35 correct|UK IPA and the keyed example sentence
+U36 partial|answer names the keyed controller but the run ended on an Amazon checkpoint page, so filters cannot be confirmed
+U37 correct|Booking Holdings Inc.; ended on the home page not the about page
+U38 correct|a tiny house listing with 1 adult, 2 pets, April 10 to 12
+U39 correct|exercise events in San Francisco with the keyed date range in the URL
+U40 correct|castles tag, one week in December, max $999 per night
+U30 correct|Iron Marines (April 10, 2023 post on the saved page) and Kingdom Rush Origins
+U31 partial|Junkworld matches the key; the GDC prize game is not confirmable from the saved page

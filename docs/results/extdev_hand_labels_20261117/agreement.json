@@ -1,0 +1,113 @@
+{
+  "all_attempts": {
+    "n": 131,
+    "grader_pass": 16,
+    "hand_correct": 81,
+    "hand_correct_or_partial": 91,
+    "agree_strict": 66,
+    "grader_fail_hand_correct": 65,
+    "grader_pass_hand_not_correct": 0,
+    "cells": {
+      "grader=False,hand=correct": 65,
+      "grader=False,hand=infra": 22,
+      "grader=False,hand=partial": 10,
+      "grader=False,hand=wrong": 18,
+      "grader=True,hand=correct": 16
+    }
+  },
+  "all_without_mcp": {
+    "n": 109,
+    "grader_pass": 16,
+    "hand_correct": 81,
+    "hand_correct_or_partial": 91,
+    "agree_strict": 44,
+    "grader_fail_hand_correct": 65,
+    "grader_pass_hand_not_correct": 0,
+    "cells": {
+      "grader=False,hand=correct": 65,
+      "grader=False,hand=partial": 10,
+      "grader=False,hand=wrong": 18,
+      "grader=True,hand=correct": 16
+    }
+  },
+  "paired22_browser_use_default": {
+    "n": 22,
+    "grader_pass": 5,
+    "hand_correct": 21,
+    "hand_correct_or_partial": 21,
+    "agree_strict": 6,
+    "grader_fail_hand_correct": 16,
+    "grader_pass_hand_not_correct": 0,
+    "cells": {
+      "grader=False,hand=correct": 16,
+      "grader=False,hand=wrong": 1,
+      "grader=True,hand=correct": 5
+    }
+  },
+  "paired22_browser_use_ultrafast": {
+    "n": 22,
+    "grader_pass": 5,
+    "hand_correct": 21,
+    "hand_correct_or_partial": 21,
+    "agree_strict": 6,
+    "grader_fail_hand_correct": 16,
+    "grader_pass_hand_not_correct": 0,
+    "cells": {
+      "grader=False,hand=correct": 16,
+      "grader=False,hand=wrong": 1,
+      "grader=True,hand=correct": 5
+    }
+  },
+  "paired22_script_first": {
+    "n": 22,
+    "grader_pass": 1,
+    "hand_correct": 3,
+    "hand_correct_or_partial": 8,
+    "agree_strict": 20,
+    "grader_fail_hand_correct": 2,
+    "grader_pass_hand_not_correct": 0,
+    "cells": {
+      "grader=False,hand=correct": 2,
+      "grader=False,hand=partial": 5,
+      "grader=False,hand=wrong": 14,
+      "grader=True,hand=correct": 1
+    }
+  },
+  "paired22_cascade": {
+    "n": 22,
+    "grader_pass": 4,
+    "hand_correct": 20,
+    "hand_correct_or_partial": 22,
+    "agree_strict": 6,
+    "grader_fail_hand_correct": 16,
+    "grader_pass_hand_not_correct": 0,
+    "cells": {
+      "grader=False,hand=correct": 16,
+      "grader=False,hand=partial": 2,
+      "grader=True,hand=correct": 4
+    }
+  },
+  "all40_browser_use_ultrafast": {
+    "n": 40,
+    "grader_pass": 6,
+    "hand_correct": 34,
+    "hand_correct_or_partial": 37,
+    "agree_strict": 12,
+    "grader_fail_hand_correct": 28,
+    "grader_pass_hand_not_correct": 0,
+    "cells": {
+      "grader=False,hand=correct": 28,
+      "grader=False,hand=partial": 3,
+      "grader=False,hand=wrong": 3,
+      "grader=True,hand=correct": 6
+    }
+  },
+  "grader_fail_hand_correct_reasons": {
+    "URL": 28,
+    "answer does not satisfy the required parts": 17,
+    "answer too long": 15,
+    "answer does not satisfy the marker": 2,
+    "answer part is not in the page text": 2,
+    "URL is a search page": 1
+  }
+}
