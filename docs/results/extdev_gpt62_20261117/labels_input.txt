@@ -1,0 +1,24 @@
+gpt-6.2-astra extdev_filter_greatamerica_thrill correct | Saved URL has thrill filter and the page lists exactly the three returned rides.
+gpt-6.2-astra extdev_filter_booking_times_square correct | Saved Times Square page describes Riu Plaza Manhattan as a 4-star hotel and shows prices for two adults.
+gpt-6.2-astra extdev_filter_airbnb_europe_mansions partial | Europe and three adults are set but the answer admits the results are not limited to mansions; saved page shows apartments and hotels.
+gpt-6.2-astra extdev_value_icse_2002_chairs partial | Orlando and year match; returned May 19-24 conflicts with saved page May 19-25 and the chairs are not in the final snapshot.
+gpt-6.2-astra extdev_value_apec_peru_arrivals partial | Returns 4.4 million but saved final article does not contain the 2024 target; cannot confirm from saved evidence.
+gpt-6.2-astra extdev_value_hf_first_user_message correct | Returned first user message matches the first dataset row visible in saved page text.
+gpt-6.2-astra extdev_nav_nets_schedule correct | Saved ESPN page is the Brooklyn Nets schedule with fixtures.
+gpt-6.2-astra extdev_filter_amazon_puppy_food correct | Puppy-food search URL has four-stars-and-up and ascending-price parameters; saved results show puppy food and low-to-high sorting.
+gpt-6.2-astra extdev_nav_steam_daily_players correct | Saved page is Most Played by Daily Players; listed top ten match the returned list.
+gpt-6.2-astra extdev_value_pirate_treasures partial | Saved final page supports hidden codes and game/hero/tower/DLC prizes but does not verify the named opening characters on the other linked article.
+gpt-6.2-astra extdev_value_ironhide_arcade_gdc partial | Names two games but final news-index snapshot confirms neither GDC prize nor the 2023 Apple Arcade announcement.
+gpt-6.2-astra extdev_value_cambridge_gestalt partial | Plausible definition/pronunciation/example but final saved evidence is a Cloudflare verification page, not the dictionary entry.
+gpt-6.2-sol extdev_filter_greatamerica_thrill correct | Thrill-filtered Great America page lists exactly the three returned rides.
+gpt-6.2-sol extdev_filter_booking_times_square partial | Saved hotel page confirms Times Square and two adults but does not expose the required four-star classification in saved text.
+gpt-6.2-sol extdev_filter_airbnb_europe_mansions partial | Three adults and flexible month are set; answer explicitly substitutes Luxe villas because Mansions filter was unavailable.
+gpt-6.2-sol extdev_value_icse_2002_chairs correct | Saved committee page names Michal Young and Jeff Magee as program chairs and shows Orlando May 19-25 2002.
+gpt-6.2-sol extdev_value_apec_peru_arrivals partial | Returns 4.4 million but final search-page snapshot does not contain that figure or verify the target.
+gpt-6.2-sol extdev_value_hf_first_user_message correct | The first visible dataset row contains the returned first user message.
+gpt-6.2-sol extdev_nav_nets_schedule correct | Final ESPN Nets page contains the team schedule and fixtures.
+gpt-6.2-sol extdev_filter_amazon_puppy_food correct | Saved URL has puppy-food query plus four-stars-and-up and ascending-price parameters; saved page confirms the result context.
+gpt-6.2-sol extdev_nav_steam_daily_players partial | Reached Most Played but saved table is By Current Players rather than requested By Daily Players.
+gpt-6.2-sol extdev_value_pirate_treasures partial | Returns plausible names and prizes with two citations but final saved Pirate Kings launch article confirms neither compound answer in full.
+gpt-6.2-sol extdev_value_ironhide_arcade_gdc partial | Two game names returned but final general news index does not verify the GDC prize or the 2023 announcement.
+gpt-6.2-sol extdev_value_cambridge_gestalt partial | Full plausible dictionary answer but final snapshot is Cloudflare verification rather than source content.
