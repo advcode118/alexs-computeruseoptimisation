@@ -40,17 +40,24 @@ Low-call design, signed off:
 - Draft [PR #106](https://github.com/advcode118/alexs-computeruseoptimisation/pull/106): `run_recovery` stage, per-stage model-call counts, `--fallback none`; offline, **1132 passed, 1 skipped**.
 - Open [PR #105](https://github.com/advcode118/alexs-computeruseoptimisation/pull/105): Sol model/effort comparison.
 
-## Our best number
+## Our best numbers — indicative
 
-**4/22 (18.2%) — cascade (script_first → browser_use fallback).** On the 22 paired extdev tasks (of 40; 18 budget-skipped), **gpt-6.1-sol medium**, **1 replicate**, offline re-grade under grader `7ff695b5…`. **$0.050565/attempt**, mean wall **25.1 s**, p90 **38.1 s**.
+Extdev paired 22 tasks (of 40; 18 budget-skipped), gpt-6.1-sol medium, 1 replicate. Hand-labelled results — indicative.
 
-3 of the 4 passes came from the browser_use fallback; script_first alone: 1/22, $0.009620/attempt, mean 10.3 s.
+| Arm | Hand correct | Correct or partial | Mean USD/attempt |
+| --- | --- | --- | --- |
+| cascade (ours) | 20/22 | 22/22 | $0.050565 |
+| script_first alone (ours) | 3/22 | 8/22 | $0.009620 |
+| browser_use default (baseline) | 21/22 | 21/22 | $0.074627 |
+| browser_use ultrafast (baseline) | 21/22 | 21/22 | $0.053288 |
 
-**Baseline on the same 22 tasks, same replicate (separate ultrafast invocation): browser_use ultrafast 5/22 (22.7%), $0.053288/attempt, mean 25.3 s — we are one task behind it.**
+Cascade = script_first → browser_use fallback. Mean wall 25.1 s / p90 38.1 s; most cascade answers come from the browser_use fallback (20 of 22 rows).
 
-Source: [extdev control results](docs/results/extdev_control_20261117/README.md).
+Indicative: one labeller, Devin (an AI agent), not a person; not blind; saved evidence only; 22 tasks, one run — too small for a claim.
 
-Recorded execution and offline re-grade commands (not a request to run):
+Source: [extdev hand labels](docs/results/extdev_hand_labels_20261117/README.md); [execution, timing and costs](docs/results/extdev_control_20261117/README.md).
+
+Recorded execution, re-grade and label-building commands (not a request to run):
 
 ```bash
 export CU_OPENAI_SPEND_LEDGER="$HOME/.cu-optimisation/openai-spend-alex15.json"
@@ -61,9 +68,32 @@ python tools/extdev_control.py --mode default --execute
 unset OPENAI_API_KEY ANTHROPIC_API_KEY
 .venv/bin/python tools/regrade.py --out docs/results/regrade_20261117
 .venv/bin/python docs/results/extdev_control_20261117/regrade_extdev.py
+python docs/results/extdev_hand_labels_20261117/build_labels.py
 ```
 
-Model calls counted for the script stage only (PR #106 adds full per-stage counts); keys are literal, not human-verified; heldout3 retired and not shown.
+### Sol comparison (PR #105)
+
+browser_use only, 12-task extdev subset probe_tasks("extdev")[::3][:12], 1 cold run each; AI-labelled correct (indicative). The gpt-6.2-sol medium run is reused from docs/results/extdev_gpt62_20261117.
+
+| Model / effort | AI-labelled correct | Cost/task |
+| --- | --- | --- |
+| gpt-6.2-sol low | 4/12 | $0.069505 |
+| gpt-6.2-sol medium | 5/12 | $0.083444 |
+| gpt-6.1-sol medium | 8/12 | $0.083571 |
+
+Source: [PR #105](https://github.com/advcode118/alexs-computeruseoptimisation/pull/105). AI labels are not human ground truth; one inspected subset and one replicate do not establish model rankings.
+
+Recorded commands, in table order:
+
+```bash
+CU_BU_MODE= PYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.2-sol --effort low --output-root docs/results/extdev_sol_effort_20261117 --spend-baseline 8.583958 --spend-limit 3 --run-cap 1.25 --headroom 0.5 > docs/results/extdev_sol_effort_20261117/gpt-6.2-sol-low.log 2>&1
+PYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.2-sol
+CU_BU_MODE= PYTHONPATH=. python docs/results/extdev_gpt62_20261117/run.py gpt-6.1-sol --effort medium --output-root docs/results/extdev_sol_effort_20261117 --spend-baseline 8.583958 --spend-limit 3 --run-cap 1.25 --headroom 0.5 > docs/results/extdev_sol_effort_20261117/gpt-6.1-sol-medium.log 2>&1
+```
+
+*Frozen grader passes: paired 22 — cascade 4/22, script_first 1/22, browser_use default 5/22, ultrafast 5/22; PR #105 set (table order) — 1/12, 1/12, 2/12. The grader rejects most correct answers: across 109 labelled non-MCP attempts, 65 rows labelled correct failed it; fixing it is plan step 1.*
+
+Model calls counted for the script stage only (PR #106 adds full per-stage counts); heldout3 retired and not shown.
 
 <details>
 <summary><b>Working on this repo</b></summary>

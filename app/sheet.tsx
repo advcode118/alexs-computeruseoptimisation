@@ -165,16 +165,57 @@ export function Sheet() {
             </div>
           </div>
           <div className="mt-10 border-y border-line py-8">
-            <h3 className="font-mono text-[11px] tracking-[0.22em] text-lime uppercase">Our best number</h3>
-            <p className="mt-4 font-serif text-5xl tracking-[-0.03em] sm:text-6xl">4/22 (18.2%) <span className="text-2xl text-muted">cascade</span></p>
+            <h3 className="font-mono text-[11px] tracking-[0.22em] text-lime uppercase">Our best numbers · indicative</h3>
             <p className="mt-5 leading-relaxed text-muted">{CURRENT_UPDATE.result}</p>
+            <div className="mt-6 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <caption className="sr-only">Indicative hand-labelled results on 22 paired extdev tasks</caption>
+                <thead className="border-b border-line text-paper">
+                  <tr>{["Arm", "Hand correct", "Correct or partial", "Mean USD/attempt"].map((label) => <th key={label} scope="col" className="p-3">{label}</th>)}</tr>
+                </thead>
+                <tbody className="text-muted">
+                  {CURRENT_UPDATE.rows.map(([arm, ...values]) => (
+                    <tr key={arm} className="border-b border-line">
+                      <th scope="row" className="p-3 font-normal text-paper">{arm}</th>
+                      {values.map((value, index) => <td key={index} className="p-3">{value}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <p className="mt-4 leading-relaxed text-muted">{CURRENT_UPDATE.stages}</p>
-            <p className="mt-4 leading-relaxed text-muted"><strong className="text-paper">{CURRENT_UPDATE.baseline}</strong></p>
+            <p className="mt-4 leading-relaxed text-amber">{CURRENT_UPDATE.indicative}</p>
             <p className="mt-4 leading-relaxed text-muted">
-              Source: <a className="text-amber underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/blob/main/docs/results/extdev_control_20261117/README.md">extdev control results</a>.
+              Source: <a className="text-amber underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/blob/main/docs/results/extdev_hand_labels_20261117/README.md">extdev hand labels</a>;
+              {" "}<a className="text-amber underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/blob/main/docs/results/extdev_control_20261117/README.md">execution, timing and costs</a>.
             </p>
-            <p className="mt-5 font-mono text-xs text-muted">Recorded execution and offline re-grade commands · not a request to run</p>
+            <p className="mt-5 font-mono text-xs text-muted">Recorded execution, re-grade and label-building commands · not a request to run</p>
             <pre className="mt-3 whitespace-pre-wrap break-all border border-line p-4 font-mono text-xs leading-relaxed"><code>{CURRENT_UPDATE.command}</code></pre>
+            <h3 className="mt-10 font-serif text-3xl">Sol comparison (PR #105)</h3>
+            <p className="mt-4 leading-relaxed text-muted">{CURRENT_UPDATE.comparison}</p>
+            <div className="mt-6 overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <caption className="sr-only">Indicative AI-labelled Sol comparison</caption>
+                <thead className="border-b border-line text-paper">
+                  <tr>{["Model / effort", "AI-labelled correct", "Cost/task"].map((label) => <th key={label} scope="col" className="p-3">{label}</th>)}</tr>
+                </thead>
+                <tbody className="text-muted">
+                  {CURRENT_UPDATE.comparisonRows.map(([model, ...values]) => (
+                    <tr key={model} className="border-b border-line">
+                      <th scope="row" className="p-3 font-normal text-paper">{model}</th>
+                      {values.map((value, index) => <td key={index} className="p-3">{value}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 leading-relaxed text-muted">
+              Source: <a className="text-amber underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/pull/105">PR #105</a>.
+              {" "}AI labels are not human ground truth; one inspected subset and one replicate do not establish model rankings.
+            </p>
+            <p className="mt-5 font-mono text-xs text-muted">Recorded commands · in table order</p>
+            <pre className="mt-3 whitespace-pre-wrap break-all border border-line p-4 font-mono text-xs leading-relaxed"><code>{CURRENT_UPDATE.compareCommands}</code></pre>
+            <p className="mt-6 border-t border-line pt-4 text-sm italic leading-relaxed text-muted">{CURRENT_UPDATE.footnote}</p>
             <p className="mt-4 text-sm leading-relaxed text-muted">{CURRENT_UPDATE.caveat}</p>
           </div>
         </section>
