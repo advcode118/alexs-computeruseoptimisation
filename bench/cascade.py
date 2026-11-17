@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 import re
 import time
+from dataclasses import asdict
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 from bench.script_first import task_asks_value, task_terms
+from bench.recovery import classify_task, evaluate_checkpoints, plan_checkpoints
 
 
 class _GroundingParser(HTMLParser):
@@ -200,19 +202,24 @@ async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="
         harness._task_wall_start = started
         grounding = await asyncio.to_thread(ground_start_page, task["start_url"], description=task["description"])
         grounding_ms = (time.perf_counter() - started) * 1000
+        profile = classify_task(task["description"], grounding)
+        checkpoints = plan_checkpoints(task, profile)
         script_start = time.perf_counter()
         result = await harness.run_task(task["id"], task["description"], task["start_url"], first_message_extra=grounding_note(grounding))
         script_end = time.perf_counter()
         script = script_result_row(task, result, harness, provider=provider,
                                    openai_model=harness.model, openai_effort=harness.effort)
         checks = script.get("self_checks") or []
+        blocked = [action for check in checks for action in (check.get("payload") or {}).get("blocked_actions", [])]
         accept, reason = precision_check(task["description"], checks[-1] if checks else {})
+        if blocked:
+            accept, reason = False, "needs approval: blocked action"
         row = dict(script)
         browser_ms = 0.0
         recovery = {}
         answered = "script" if accept else "none"
         finished = script_end
-        if not accept and fallback == "browser_use":
+        if not accept and not blocked and fallback == "browser_use":
             recovery, browser_start = await run_recovery(
                 task, harness=harness, script=script, result=result, reason=reason,
                 row=row, api_key=api_key, headless=headless, provider=provider,
@@ -229,6 +236,8 @@ async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="
         token_keys = ("input_tokens", "output_tokens", "cached_tokens", "cache_write_30m_tokens", "cache_write_12h_tokens")
         row.update({key: script.get(key, 0) + recovery.get(key, 0) for key in token_keys})
         row.update(arm="cascade", answered_by=answered, handoff_reason="" if accept else reason,
+                   profile=asdict(profile), blocked_actions=blocked,
+                   checkpoints=[evaluate_checkpoints(checkpoints, check.get("payload") or {}) for check in checks],
                    wall_ms=(finished - started) * 1000 - result.grade_read_ms,
                    stage_wall_ms={"grounding": grounding_ms, "script": (script_end-script_start)*1000-result.grade_read_ms, "browser_use": browser_ms},
                    stage_model_calls={"script": script.get("model_calls", 0), "browser_use": recovery.get("model_calls", 0)},

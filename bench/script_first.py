@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from bench.judge import is_search_results_url
+from bench.recovery import ActionGate, ApprovalRequired
 
 # Navigation waits for DOMContentLoaded, not load or networkidle.
 # A click or Enter returns before the next document is current. This wait
@@ -1383,6 +1384,8 @@ def script_runtime_verdict(
         task=task,
         earlier=tuple(_earlier_page(item) for item in earlier or () if isinstance(item, dict)),
     )
+    if payload.get("blocked_actions"):
+        verdict = EvidenceVerdict(UNKNOWN, "needs approval: blocked action", page_url)
     return verdict, payload
 
 
@@ -2414,7 +2417,10 @@ def _page_url(page) -> str:
     return url if isinstance(url, str) else ""
 
 
-async def _run_step_on_page(page, step: TaskStep):
+async def _run_step_on_page(page, step: TaskStep, *, gate=None):
+    allowed, reason = await (gate or ActionGate()).check(step, page)
+    if not allowed:
+        raise ApprovalRequired(reason)
     if step.kind == "evaluate":
         return await asyncio.wait_for(
             page.evaluate(wrap_evaluate(step.function)),
@@ -2486,6 +2492,7 @@ async def run_on_page(
     source: str,
     *,
     end_markers: dict | None = None,
+    gate=None,
 ) -> str:
     """Run the whole script on a Playwright page. No settle between actions.
 
@@ -2500,21 +2507,25 @@ async def run_on_page(
     claimed: dict = {}
     read_claimed: dict = {}
     ok, error = True, ""
+    blocked = []
     try:
         for step in steps:
-            value = await _run_step_on_page(page, step)
+            value = await _run_step_on_page(page, step, gate=gate)
             done += 1
             if step.kind == "evaluate":
                 claimed = _note_extract(extracted, claimed, value)
             elif step.kind == "read":
                 read_claimed = _note_extract(extracted, read_claimed, value)
+    except ApprovalRequired as exc:
+        ok, error = False, str(exc)
+        blocked.append({"line": step.line, "source": step.source, "reason": error})
     except ScriptError:
         raise
     except Exception as exc:
         ok, error = False, str(exc)
     if not (claimed.get("answer") or claimed.get("key_text")):
         claimed = {**read_claimed, **claimed}
-    return await _finish_page(
+    result = await _finish_page(
         page,
         ok=ok,
         step_count=done,
@@ -2524,6 +2535,12 @@ async def run_on_page(
         end_markers=end_markers,
         wait_for_commit=not ok or (bool(steps) and steps[-1].kind != "goto"),
     )
+    if blocked:
+        first, *rest = result.splitlines()
+        payload = json.loads(first)
+        payload["blocked_actions"] = blocked
+        result = "\n".join([json.dumps(payload), *rest])
+    return result
 
 
 

@@ -159,6 +159,8 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider, fallback):
         golden = json.loads((Path(__file__).parent / "fixtures/cascade_before_recovery.json").read_text())
         comparable = dict(row)
         comparable.pop("stage_model_calls")
+        for key in ("profile", "checkpoints", "blocked_actions"):
+            comparable.pop(key)
         comparable["model_calls"] = golden["model_calls"]
         assert json.loads(json.dumps(comparable)) == golden
     from bench.probe import arm_report
