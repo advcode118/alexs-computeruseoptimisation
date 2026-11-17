@@ -1,0 +1,170 @@
+{
+ "note": "Matched population = the 14 tasks segments completed. Interrupted task excluded from outcome/time/settled totals; its retained reservation is reported separately. Grades copied unchanged from raw rows.",
+ "matched_tasks": [
+  "dev3_nav_erlang_getting_started",
+  "dev3_nav_express_middleware",
+  "dev3_nav_ffmpeg_ffprobe",
+  "dev3_nav_freedesktop_desktop_entry",
+  "dev3_search_erlang_lists",
+  "dev3_search_godot_signals",
+  "dev3_search_hex_plug",
+  "dev3_search_metacpan_moose",
+  "dev3_value_commonmark_028",
+  "dev3_value_exif_gpsaltref",
+  "dev3_value_ffmpeg_codename",
+  "dev3_value_mysql_mediumint",
+  "dev4_form_epoch_timestamp",
+  "dev4_form_roman_convert"
+ ],
+ "interrupted_tasks": [
+  "dev4_form_lambdatest_input"
+ ],
+ "matched14": {
+  "baseline": {
+   "tasks": 14,
+   "passes": 12,
+   "false_accepts": 1,
+   "false_rejects": 0,
+   "model_calls": 33,
+   "script_steps": 29,
+   "tool_steps": 32,
+   "settled_usd": 0.011592,
+   "reserved_unresolved_usd": 0,
+   "settled_usd_per_pass": 0.000966,
+   "wall_s_total": 165.2,
+   "wall_s_mean": 11.8,
+   "wall_s_median": 10.4,
+   "wall_s_per_pass": 13.8
+  },
+  "observe": {
+   "tasks": 14,
+   "passes": 9,
+   "false_accepts": 1,
+   "false_rejects": 0,
+   "model_calls": 25,
+   "script_steps": 35,
+   "tool_steps": 23,
+   "settled_usd": 0.008546,
+   "reserved_unresolved_usd": 0,
+   "settled_usd_per_pass": 0.00095,
+   "wall_s_total": 135.5,
+   "wall_s_mean": 9.7,
+   "wall_s_median": 6.0,
+   "wall_s_per_pass": 15.1
+  },
+  "segments": {
+   "tasks": 14,
+   "passes": 13,
+   "false_accepts": 0,
+   "false_rejects": 1,
+   "model_calls": 53,
+   "script_steps": 67,
+   "tool_steps": 53,
+   "settled_usd": 0.015438,
+   "reserved_unresolved_usd": 0,
+   "settled_usd_per_pass": 0.001188,
+   "wall_s_total": 210.9,
+   "wall_s_mean": 15.1,
+   "wall_s_median": 14.2,
+   "wall_s_per_pass": 16.2
+  }
+ },
+ "interrupted_task_by_condition": {
+  "baseline": [
+   {
+    "task_id": "dev4_form_lambdatest_input",
+    "outcome": "P",
+    "wall_ms": 18174.498199950904,
+    "actual_usage_usd": 0.001071,
+    "unresolved_reserved_usd": 0.0,
+    "model_calls": 2
+   }
+  ],
+  "observe": [
+   {
+    "task_id": "dev4_form_lambdatest_input",
+    "outcome": "P",
+    "wall_ms": 18942.92200001655,
+    "actual_usage_usd": 0.001822,
+    "unresolved_reserved_usd": 0.0,
+    "model_calls": 4
+   }
+  ],
+  "segments": [
+   {
+    "task_id": "dev4_form_lambdatest_input",
+    "outcome": null,
+    "wall_ms": null,
+    "actual_usage_usd": 6e-05,
+    "unresolved_reserved_usd": 0.01266,
+    "model_calls": null
+   }
+  ]
+ },
+ "full_population": {
+  "baseline": {
+   "tasks": 24,
+   "passes": 18,
+   "false_accepts": 2,
+   "false_rejects": 0,
+   "model_calls": 56,
+   "script_steps": 49,
+   "tool_steps": 54,
+   "settled_usd": 0.01972,
+   "reserved_unresolved_usd": 0,
+   "settled_usd_per_pass": 0.001096,
+   "wall_s_total": 289.2,
+   "wall_s_mean": 12.0,
+   "wall_s_median": 10.0,
+   "wall_s_per_pass": 16.1
+  },
+  "observe": {
+   "tasks": 24,
+   "passes": 15,
+   "false_accepts": 1,
+   "false_rejects": 0,
+   "model_calls": 51,
+   "script_steps": 50,
+   "tool_steps": 47,
+   "settled_usd": 0.018122,
+   "reserved_unresolved_usd": 0,
+   "settled_usd_per_pass": 0.001208,
+   "wall_s_total": 278.0,
+   "wall_s_mean": 11.6,
+   "wall_s_median": 9.5,
+   "wall_s_per_pass": 18.5
+  },
+  "segments": {
+   "tasks": 14,
+   "passes": 13,
+   "false_accepts": 0,
+   "false_rejects": 1,
+   "model_calls": 53,
+   "script_steps": 67,
+   "tool_steps": 53,
+   "settled_usd": 0.015498,
+   "reserved_unresolved_usd": 0.01266,
+   "settled_usd_per_pass": 0.001192,
+   "wall_s_total": 210.9,
+   "wall_s_mean": 15.1,
+   "wall_s_median": 14.2,
+   "wall_s_per_pass": 16.2
+  }
+ },
+ "paired_matched14": {
+  "observe": {
+   "wins": [],
+   "losses": [
+    "dev3_search_metacpan_moose",
+    "dev3_value_mysql_mediumint",
+    "dev4_form_roman_convert"
+   ]
+  },
+  "segments": {
+   "wins": [
+    "dev4_form_epoch_timestamp"
+   ],
+   "losses": []
+  }
+ }
+}

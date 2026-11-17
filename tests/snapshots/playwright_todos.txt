@@ -1,0 +1,21 @@
+- generic [active] [ref=e1]:
+  - banner "Site" [ref=e2]:
+    - link "Home" [ref=e3] [box=8,8,40,16]:
+      - /url: https://example.com
+    - searchbox "Search Wikipedia" [ref=e4] [box=100.5,8,200,24]
+    - button "Search" [ref=e5] [box=310,8,60,24] [cursor=pointer]
+  - main [ref=e6]:
+    - heading "todos" [level=1] [ref=e7]
+    - textbox "What needs to be done?" [ref=e8]:
+    - list [ref=e9]:
+      - listitem [ref=e10]:
+        - checkbox "Toggle Todo" [checked] [ref=e11]
+        - text: Buy groceries
+      - listitem [ref=e12]:
+        - checkbox "Toggle Todo" [ref=e13] [box=12,80,16,16]
+        - text: Water flowers
+    - textbox "Query" [ref=e14]: Ada Lovelace
+  - contentinfo [ref=e15]:
+    - text: 2 items left
+    - link "All" [ref=e16]
+- button "OK" [ref=f1e12]

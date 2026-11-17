@@ -1,0 +1,28 @@
+{'url': 'https://huggingface.co/docs/text-embeddings-inference/index', 'title': 'Text Embeddings Inference · Hugging Face', 'w': 1280, 'h': 720, 'sx': 0, 'sy': 0, 'pw': 1280, 'ph': 2754}
+
+
+Text Embeddings Inference
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+text-embeddings-inference

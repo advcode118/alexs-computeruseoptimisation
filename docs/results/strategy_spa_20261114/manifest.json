@@ -1,0 +1,174 @@
+{
+  "status": "completed; recovered without relaunch",
+  "recommendation": "park integration and default enablement; retain opt-in draft",
+  "ancestry": {
+    "report_head_before_recovery_commit": "7e2df498f2977ce92e0a3dd26f92858069ab122a",
+    "fetched_tip3": "bec55abe93c7b26f206142e21827e50ad362b8cd",
+    "tip3_is_ancestor": true,
+    "missing_tip3_commits": 0
+  },
+  "files": {
+    "dev3_off_first.jsonl": {
+      "sha256": "6bc11ca7414f18af83bfd966521f9e63c6a7c9e18923f01357c33ac1102910fe",
+      "rows": 4,
+      "runtime_commit": "14d0533abe16bca672371cbbd31139da4052bee6",
+      "passed": 3,
+      "grader_false_accepts": 0,
+      "wall_seconds": {
+        "median": 6.75,
+        "mean": 7.38,
+        "p90_nearest_rank": 10.01
+      },
+      "model_calls": {
+        "median": 2.0,
+        "mean": 2.5
+      },
+      "usd": 0.002725,
+      "specialist_acceptances": 0,
+      "generic_handbacks": 0
+    },
+    "dev3_on_first.jsonl": {
+      "sha256": "0200401a19572925f13f4cdf6ae9a4e7be543b57210979fcd64cdc4d6619eb44",
+      "rows": 4,
+      "runtime_commit": "14d0533abe16bca672371cbbd31139da4052bee6",
+      "passed": 3,
+      "grader_false_accepts": 0,
+      "wall_seconds": {
+        "median": 7.57,
+        "mean": 10.13,
+        "p90_nearest_rank": 18.53
+      },
+      "model_calls": {
+        "median": 2.5,
+        "mean": 3.5
+      },
+      "usd": 0.005642,
+      "specialist_acceptances": 3,
+      "generic_handbacks": 1
+    },
+    "dev4spa_off_first.jsonl": {
+      "sha256": "c8de64e63ef9419e265a3436fddd6c5617a6d028013127ba2bee5e7ebc641986",
+      "rows": 12,
+      "runtime_commit": "14d0533abe16bca672371cbbd31139da4052bee6",
+      "passed": 10,
+      "grader_false_accepts": 0,
+      "wall_seconds": {
+        "median": 10.55,
+        "mean": 11.87,
+        "p90_nearest_rank": 20.97
+      },
+      "model_calls": {
+        "median": 3.0,
+        "mean": 2.75
+      },
+      "usd": 0.012045,
+      "specialist_acceptances": 0,
+      "generic_handbacks": 0
+    },
+    "dev4spa_on_first.jsonl": {
+      "sha256": "a64b0c473788564b30575f7b3debacd4a744cfb21e474834fca0952852223e6a",
+      "rows": 12,
+      "runtime_commit": "14d0533abe16bca672371cbbd31139da4052bee6",
+      "passed": 10,
+      "grader_false_accepts": 0,
+      "wall_seconds": {
+        "median": 5.58,
+        "mean": 8.32,
+        "p90_nearest_rank": 19.04
+      },
+      "model_calls": {
+        "median": 2.0,
+        "mean": 2.5
+      },
+      "usd": 0.008844,
+      "specialist_acceptances": 10,
+      "generic_handbacks": 2
+    },
+    "dev4spa_off_final.jsonl": {
+      "sha256": "7c80f8d34a962bb1a38dfe57b33f82be6f16cf7f99d10fbb5f22bb4a61af5e94",
+      "rows": 12,
+      "runtime_commit": "f023565c2d7e82bd5bad34a42a45346859d9d2c6",
+      "passed": 10,
+      "grader_false_accepts": 0,
+      "wall_seconds": {
+        "median": 11.08,
+        "mean": 12.4,
+        "p90_nearest_rank": 21.11
+      },
+      "model_calls": {
+        "median": 2.5,
+        "mean": 2.67
+      },
+      "usd": 0.010984,
+      "specialist_acceptances": 0,
+      "generic_handbacks": 0
+    },
+    "dev4spa_on_final.jsonl": {
+      "sha256": "db0bb296f6621927f49b88bbcfa8c47e81d1f6c0e43507153bd394253885262a",
+      "rows": 12,
+      "runtime_commit": "f023565c2d7e82bd5bad34a42a45346859d9d2c6",
+      "passed": 11,
+      "grader_false_accepts": 0,
+      "wall_seconds": {
+        "median": 4.99,
+        "mean": 8.17,
+        "p90_nearest_rank": 15.57
+      },
+      "model_calls": {
+        "median": 2.0,
+        "mean": 2.42
+      },
+      "usd": 0.004364,
+      "specialist_acceptances": 10,
+      "generic_handbacks": 2
+    },
+    "router.json": {
+      "sha256": "0f9c65633e730be1b973c820114667ff1617595695fda78e9ccd946ad7de3c5e",
+      "rows": 132,
+      "confusion_matrix": {
+        "tp": 16,
+        "tn": 116,
+        "fp": 0,
+        "fn": 0
+      },
+      "median_fetch_ms": 194,
+      "fetch_errors": 1
+    }
+  },
+  "spend": {
+    "probe_increment_usd": 0.044604,
+    "dedicated_ledger_start_usd": 5.881834,
+    "dedicated_ledger_finish_usd": 5.926438,
+    "increment_cap_usd": 1,
+    "new_probe_spend_during_recovery_usd": 0
+  },
+  "strict_compliance_manual_review": {
+    "dev4spa_on_first": {
+      "passed": 9,
+      "total": 12
+    },
+    "dev4spa_on_final": {
+      "passed": 10,
+      "total": 12,
+      "false_accepts": 1
+    },
+    "reason": "htmx tab answer returns four words where three were requested; shared grader unchanged"
+  },
+  "checks": {
+    "saved_final_suite": {
+      "passed": 840,
+      "skipped": 1,
+      "seconds": 46.42
+    },
+    "baseline_permitted_collection_items": 831,
+    "new_spa_test_items": 10,
+    "reported_tip3_baseline_passed": 876,
+    "protected_test_items_inferred_from_count_difference": 46,
+    "baseline_test_files_or_collection_config_modified": false,
+    "protected_tests_read_or_collected": false
+  },
+  "saved_completion_sources": {
+    "final_pair": "C:\\Users\\epicd\\.local\\share\\opencode\\shell\\e97d5d9fdbe45b14d28baae3c81b4f2ebb9408b4\\sh_1dab28ad1001ocu5VVGfQ6Ks1Q.out",
+    "final_suite": "C:\\Users\\epicd\\.local\\share\\opencode\\shell\\e97d5d9fdbe45b14d28baae3c81b4f2ebb9408b4\\sh_1dab396300014YESz5jEN7Vaje.out"
+  }
+}

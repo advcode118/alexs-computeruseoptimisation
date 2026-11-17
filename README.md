@@ -26,6 +26,8 @@ Plain Playwright MCP and Stagehand are the baselines it races.
 
 ## Latest numbers
 
+> **Superseded.** The table below is the early PR #18 probe. For current, re-graded results (frozen grader, single timer, external `extdev` control on Sol), see [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md) and [`docs/results/extdev_control_20261117/`](docs/results/extdev_control_20261117/).
+
 PR #18 probe on Claude Sonnet 5.5. Three tasks: Wikipedia search, Python docs, Hacker News top. Scored on wall time per successful task.
 
 | | Passed | Per success | Per run |

@@ -1,0 +1,4 @@
+{"model": "gpt-6.1-sol", "arm": "script_first", "run": 1, "tasks": 138, "passed": 122, "pass_rate": 0.884,
+ "self_pass": 128, "self_check_precision": 0.953, "self_check_recall": 1.0, "usd_total": 0.864,
+ "usd_per_passed_task": 0.00708, "median_wall_s": 5.9,
+ "note": "single arm, no browser_use pair yet; totals only, no per-task rows read"}

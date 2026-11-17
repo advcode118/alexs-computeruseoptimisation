@@ -1,0 +1,71 @@
+{
+ "pass_first": {
+  "end_state": "PASS",
+  "error": null,
+  "model_calls": 1,
+  "model_seen_sha": "477edb767f003d619bf9e4aa4f54e9796efc5e912fcb78bc63a8a81ea239c13b",
+  "repair_reply": "none",
+  "repair_sent": false,
+  "script_steps": 3,
+  "steps": [
+   [
+    "run_script",
+    "{\"code\": \"await page.goto(\\\"https://en.wikipedia.org/wiki/Main_Page\\\");\\nawait page.getByRole(\\\"link\\\", { name: \\\"Ada Lovelace\\\" }).click();\\nawait page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector(\\\"h1\\\")?.innerText, answer: \\\"\\\"}));\"}",
+    "https://en.wikipedia.org/wiki/Ada_Lovelace",
+    "Ada Lovelace",
+    "PASS",
+    "the script finished and its evidence is on the live page"
+   ]
+  ],
+  "strategy": "",
+  "success": true,
+  "tier": "fresh",
+  "tokens": [
+   3,
+   2,
+   0
+  ],
+  "turn_verdicts": [
+   "PASS"
+  ]
+ },
+ "repair_then_pass": {
+  "end_state": "PASS",
+  "error": null,
+  "model_calls": 2,
+  "model_seen_sha": "d49382fee8b07b6fa7bb60543758654756a27f9212cc899f6bfe7de22d8322c4",
+  "repair_reply": "script",
+  "repair_sent": true,
+  "script_steps": 3,
+  "steps": [
+   [
+    "run_script",
+    "{\"code\": \"await page.goto(\\\"https://en.wikipedia.org/wiki/Main_Page\\\");\\nawait page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector(\\\"h1\\\")?.innerText, answer: \\\"\\\"}));\"}",
+    "https://en.wikipedia.org/wiki/Main_Page",
+    "Main Page",
+    "FAIL",
+    "answer is not in the page text"
+   ],
+   [
+    "run_script",
+    "{\"code\": \"await page.goto(\\\"https://en.wikipedia.org/wiki/Main_Page\\\");\\nawait page.getByRole(\\\"link\\\", { name: \\\"Ada Lovelace\\\" }).click();\\nawait page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector(\\\"h1\\\")?.innerText, answer: \\\"\\\"}));\"}",
+    "https://en.wikipedia.org/wiki/Ada_Lovelace",
+    "Ada Lovelace",
+    "PASS",
+    "the script finished and its evidence is on the live page"
+   ]
+  ],
+  "strategy": "",
+  "success": true,
+  "tier": "fresh",
+  "tokens": [
+   6,
+   4,
+   0
+  ],
+  "turn_verdicts": [
+   "FAIL",
+   "PASS"
+  ]
+ }
+}

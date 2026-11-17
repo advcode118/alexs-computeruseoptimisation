@@ -1,0 +1,30 @@
+{
+ "run_root": "bench/runs/pr_eval_20261116_pilot (gitignored, local only)",
+ "runtime_revision": "1dede2b6396a1f9a580ca055c3d9d57e77863873",
+ "report_commit_private": "deac8e1",
+ "row_count": 63,
+ "sha256": {
+  "rep1/baseline/dev3/manifest.json": "20777efaca69b2efcbacc81ada726c96a8f80f1ea83477f6bbf2fffaa01a2ea3",
+  "rep1/baseline/dev3/rows.jsonl": "6521661307825aee27ae1fa75d3166ca5b462b02941a661f0a61f87e68b939a5",
+  "rep1/baseline/dev4form/manifest.json": "00c70465e1dbeffd6c1156d8b7ed67b5284a469bc8b6690586be19983c4241d7",
+  "rep1/baseline/dev4form/rows.jsonl": "aeb1122552da9cd3f64b2a474c56a5b3e21bc0628d791b4a7fbd729a4b22fb30",
+  "rep1/baseline/dev4spa/manifest.json": "ee674949d444c530af993d6bc5795c3a2f6c547b8b04d2fa6668f36ebdfcc216",
+  "rep1/baseline/dev4spa/rows.jsonl": "1efb916aa2a259091566c76708dcd68b99af6000d0b916192d3975c566aff0af",
+  "rep1/observe/dev3/manifest.json": "5852cce1c61d208f436cbfc55228207f4d71c39125a94d176c49cc4cfca962d1",
+  "rep1/observe/dev3/rows.jsonl": "3e484f86c5bf09df25f9daf88f4fbfd6f4bd558359d35b00aa34e58ad7cf59af",
+  "rep1/observe/dev4form/manifest.json": "abe2194c388d9f9cab9b331ba34d95428c931fee18b3b09d345c0852f07320a2",
+  "rep1/observe/dev4form/rows.jsonl": "a12c2a9e45cee9e78eccd358cf38ab038e31f0d18d9651956c993d349ae229d4",
+  "rep1/observe/dev4spa/manifest.json": "5e549308c15dc88e004fbb06b8fdcfa6f7cb5c36f43759a225789aae9975b18d",
+  "rep1/observe/dev4spa/rows.jsonl": "bbc804951f14483df8ff0ebb24ffa1d5da205d4d14fee6b94c8852439aa358b6",
+  "rep1/segments/dev3/manifest.json": "f3f106c7a0169178b60001ceab6ca387f6cf6e387bf0e3e230dabdba447003b6",
+  "rep1/segments/dev3/rows.jsonl": "d2312265fc153d639e0d0175424634bf2d8dbe05727d3c19fb550fdb65b545ba",
+  "rep1/segments/dev4form/manifest.json": "b82e32a4bea003a713ed4cde4e2c5d473611c4a953fd3ec2a5a63102d23e0c43",
+  "rep1/segments/dev4form/rows.jsonl": "cc192760f0fb32311a03fed1385c762aaa3517e700f6313c20666772c91a4c4c",
+  "campaign.py": "c687dd2f72c6aa4f5c1dcf32501f417fcd19eaa07e547b37cffa364f9110deff",
+  "analyze.py": "da2ab38c658f62b44be94182f53416528ef8e7fb158dbe077650bfbbcbfd8a61",
+  "selection.json": "2728a369ef29a58460e56b5f8cd08fea9700e2fa5e2560de8b844f0f141ce638",
+  "aggregate.json": "f525a14dc45470b46c19b83f2187356274792040e3f587d8be7fd75fd0feb952",
+  "campaign_log.jsonl": "ac91aa356a0866e1f0e400e02afbe4dbaac38d64c445146828d775ca285a7c25",
+  "campaign_stdout.txt": "9b9815e1ae7e35cff2b3054f6c2808a9077eeba48b4c4dcf7235033f5d293fbe"
+ }
+}

@@ -1,0 +1,7 @@
+{
+  "task_id": "wv_wikipedia_search",
+  "step_number": 2,
+  "url": "https://en.wikipedia.org/w/index.php?search=Ada+Lovelace",
+  "title": "Search results",
+  "snapshot_text": "- banner \"Wikipedia\" [ref=S2E0]:\n  - link \"Main page\" [ref=S2E1]\n- main \"Search results\" [ref=S2E2]:\n  - list \"Results\" [ref=S2E3]:\n    - listitem [ref=S2E4]:\n      - link \"Ada Lovelace\" [ref=S2E5]\n"
+}

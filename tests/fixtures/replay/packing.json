@@ -1,0 +1,5 @@
+{
+  "fixture": "packing.har",
+  "task_id": "fixture_packing_add",
+  "script": "page.goto(\"https://fixture.local/packing.html\");\ncu.fill(\"Item\", \"milk\");\ncu.click(\"Add\");\npage.evaluate(() => cu.claim({answer: \"milk\", key_text: \"milk\", values: [\"milk\"]}));\n"
+}

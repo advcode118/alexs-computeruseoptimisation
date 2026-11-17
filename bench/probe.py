@@ -1,0 +1,1462 @@
+"""Offline plans and budgeted execution for script_first and browser baselines.
+
+The default arms are script_first, browser_use, and playwright_mcp. Stagehand
+remains selectable. --warm-replay measures the script_first cache separately.
+No client is constructed without --execute.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import os
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+from bench.arms import (
+    ARM_BROWSER_USE,
+    ARM_PLAYWRIGHT,
+    ARM_SCRIPT_FIRST,
+    ARM_STAGEHAND,
+    ARMS,
+    BASELINE_ARMS,
+    SCRIPT_FIRST_MAX_CALLS,
+    SELECTABLE_ARMS,
+)
+from bench.budget import (
+    ALLOWED_MODEL,
+    LAST_RECORDED_TOTAL_USD,
+    LIFETIME_CAP_USD,
+    PROJECT_BUDGET_USD,
+    LedgerBelowRecorded,
+    LedgerMissing,
+    SpendLedger,
+    estimate_usd,
+)
+from bench.measurement import grade_fields, measurement_fields
+from bench.tasks import (
+    DEV_TASK_IDS,
+    HELD_OUT_TASK_IDS,
+    SPLIT_DEV3,
+    SPLIT_DEV4NAV,
+    SPLIT_DEV5TITLE,
+    SPLIT_DEV4_FORM,
+    SPLIT_DEV4SPA,
+    SPLIT_HELDOUT2,
+    SPLIT_HELDOUT3B,
+    SPLIT_HELDOUT3A,
+    SPLIT_HELDOUT3D,
+    SPLIT_HELDOUT3C,
+    SPLIT_HELDOUT3,
+    SPLIT_HONEST,
+    SPLIT_VAL3,
+    SPLIT_PROBE,
+    TUNED_PROBE_TASK_IDS,
+    resolve_task_split,
+    tasks_for_split,
+)
+
+PROBE_TASK_IDS = TUNED_PROBE_TASK_IDS
+PROBE_CLAUDE_BUDGET_USD = 5.0
+SCRIPT_FIRST_CLAUDE_BUDGET_USD = 2.0
+# Hard ceiling for --honest. The run is meant to land around $5–$8.
+HONEST_PROBE_BUDGET_USD = 8.0
+HONEST_ARMS = (ARM_PLAYWRIGHT, ARM_SCRIPT_FIRST, ARM_BROWSER_USE)
+# One cold pass. A second pass would double the scored-set bill.
+DEFAULT_REPEATS = 1
+# Published dollars from the PR #18 probe, three tasks, at the ledger rate.
+# browser_use was not in that probe. This is not a new measurement.
+PUBLISHED_TASK_USD = {
+    ARM_PLAYWRIGHT: 0.165 / 3,
+    ARM_SCRIPT_FIRST: 0.047 / 3,
+    ARM_STAGEHAND: 0.074 / 3,
+}
+# Two-sided 95% Student t critical values, df = n - 1. df above 30 uses 1.96.
+_T_95 = {
+    1: 12.706,
+    2: 4.303,
+    3: 3.182,
+    4: 2.776,
+    5: 2.571,
+    6: 2.447,
+    7: 2.365,
+    8: 2.306,
+    9: 2.262,
+    10: 2.228,
+    11: 2.201,
+    12: 2.179,
+    13: 2.160,
+    14: 2.145,
+    15: 2.131,
+    16: 2.120,
+    17: 2.110,
+    18: 2.101,
+    19: 2.093,
+    20: 2.086,
+    21: 2.080,
+    22: 2.074,
+    23: 2.069,
+    24: 2.064,
+    25: 2.060,
+    26: 2.056,
+    27: 2.052,
+    28: 2.048,
+    29: 2.045,
+    30: 2.042,
+}
+REPORT_FIELDS = (
+    "success_count",
+    "mean_wall_ms_per_success",
+    "median_wall_ms_per_success",
+    "p90_wall_ms_per_success",
+    "mean_wall_ms_ci95",
+    "steps_one_shot",
+    "steps_repair",
+    "warm_replay_wall_ms",
+)
+HUGE_SNAPSHOT_CHARS = 40_000
+WARM_ARMS = ()
+RUNS_DIR = Path(__file__).resolve().parent / "runs"
+
+# Exact commands for a box that has the key. This checkout does not run them.
+BOX_COMMANDS = (
+    "python -m bench.probe",
+    'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute',
+    'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --warm-replay',
+    'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand',
+    'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms playwright_mcp,script_first,stagehand --split held-out',
+    'ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --arms script_first --warm-replay',
+    "python -m bench.probe --honest",
+    'CU_SPEND_LEDGER="$CU_SPEND_LEDGER" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" python -m bench.probe --execute --honest',
+)
+
+
+def filter_task_kinds(tasks: list[dict], only_kind: str = "") -> list[dict]:
+    """Optional reporting/selection filter; never passed to an agent or router.
+
+    only_kind (--only-kind) is a comma
+    list of task-type words: the second word of the task id.
+    """
+    spec = only_kind
+    kinds = {word.strip().casefold() for word in spec.split(",") if word.strip()}
+    if not kinds:
+        return tasks
+    selected = [task for task in tasks if task_kind(task["id"]) in kinds]
+    if not selected:
+        raise ValueError(f"no tasks match --only-kind {spec!r}")
+    return selected
+
+
+def task_kind(task_id: str) -> str:
+    """The task type: the second word of the task id."""
+    parts = task_id.split("_")
+    return parts[1].casefold() if len(parts) > 1 else ""
+
+
+def probe_tasks(split: str | None = None, only_kind: str = "") -> list[dict]:
+    """Tasks for this split. The default is the three tuned probe tasks."""
+    return filter_task_kinds(tasks_for_split(split), only_kind)
+
+
+def resolve_arms(spec: str | tuple[str, ...] | list[str] | None) -> tuple[str, ...]:
+    """Default is script_first, browser_use, and playwright_mcp. A comma string selects, including script_first."""
+    if spec is None:
+        return ARMS
+    if isinstance(spec, str):
+        if not spec.strip():
+            return ARMS
+        names = tuple(part.strip() for part in spec.split(",") if part.strip())
+    else:
+        names = tuple(spec)
+    if not names:
+        raise ValueError("no arms selected")
+    unknown = [name for name in names if name not in SELECTABLE_ARMS]
+    if unknown:
+        raise ValueError(f"unknown arm {unknown[0]!r}")
+    if len(names) != len(set(names)):
+        raise ValueError("arms contains a duplicate")
+    return names
+
+
+def warm_arms_for(arms: tuple[str, ...], *, honest: bool = False) -> tuple[str, ...]:
+    """Warm only the selected script_first cache."""
+    return (ARM_SCRIPT_FIRST,) if ARM_SCRIPT_FIRST in arms else ()
+
+
+def honest_task_reserve_usd() -> float:
+    """Dollars that must still fit before another Claude task starts.
+
+    The figure is a ceiling from the harness caps, not a measured cost.
+    One call may carry the last MAX_HISTORY_PAIRS tool results, each capped
+    at MAX_SNAPSHOT_CHARS, and max_tokens of output. The call count is the
+    wider of the harness default and the browser-use step cap. The price is
+    the recorded ledger rate. browser-use does not use the snapshot cap, so
+    a task already started can still cost more than this; the next one does
+    not start.
+    """
+    import inspect
+
+    from bench.browser_use_arm import BROWSER_USE_MAX_STEPS
+    from bench.harness import MAX_HISTORY_PAIRS, MAX_SNAPSHOT_CHARS, AnthropicClient, BenchmarkHarness
+
+    widest = max(
+        int(inspect.signature(BenchmarkHarness.__init__).parameters["max_steps"].default),
+        int(BROWSER_USE_MAX_STEPS),
+    )
+    per_call_in = max(1, (MAX_SNAPSHOT_CHARS * MAX_HISTORY_PAIRS) // 4)
+    per_call_out = int(inspect.signature(AnthropicClient.create_message).parameters["max_tokens"].default)
+    return round(estimate_usd(widest * per_call_in, widest * per_call_out), 6)
+
+
+def honest_run_budget(project_spent: float) -> float | None:
+    """Per-run ceiling that cannot be planned past $50 or $40.
+
+    None when the ledger is below the last recorded total, or when the
+    room left under either cap is inside the per-task reserve. None means
+    do not start a task. This does not write the ledger.
+    """
+    spent = round(float(project_spent), 6)
+    if spent < LAST_RECORDED_TOTAL_USD:
+        return None
+    room = min(
+        HONEST_PROBE_BUDGET_USD,
+        round(LIFETIME_CAP_USD - spent, 6),
+        round(PROJECT_BUDGET_USD - spent, 6),
+    )
+    if room <= honest_task_reserve_usd():
+        return None
+    return room
+
+
+def honest_refusal(project_spent: float) -> str | None:
+    """Why --execute --honest must stop before any task. None when it may start."""
+    spent = round(float(project_spent), 6)
+    if spent < LAST_RECORDED_TOTAL_USD:
+        return (
+            f"ledger total ${spent:.6f} is below the last recorded "
+            f"${LAST_RECORDED_TOTAL_USD:.6f}; live execute refuses and does not "
+            "write a new total"
+        )
+    if honest_run_budget(spent) is None:
+        return (
+            "remaining room under the $50 lifetime cap or the $40 project abort "
+            "is inside the per-task reserve; live execute refuses before any task"
+        )
+    return None
+
+
+def claude_budget_for(arms: tuple[str, ...]) -> float:
+    """Probes containing script_first stop at $2; other arm sets stop at $5."""
+    if ARM_SCRIPT_FIRST in arms or "cascade" in arms:
+        return SCRIPT_FIRST_CLAUDE_BUDGET_USD
+    return PROBE_CLAUDE_BUDGET_USD
+
+
+def published_arm_usd(arm: str) -> float:
+    """Per-task dollars from the PR #18 probe.
+
+    An arm that probe did not measure uses the median of the three that it did.
+    """
+    if arm in PUBLISHED_TASK_USD:
+        return PUBLISHED_TASK_USD[arm]
+    ordered = sorted(PUBLISHED_TASK_USD.values())
+    return ordered[len(ordered) // 2]
+
+
+def expected_honest_usd(n_tasks: int, repeats: int = DEFAULT_REPEATS) -> float:
+    """Ledger-rate dollars for the cold honest matrix.
+
+    Warm replay is not included. A cache hit does not call the model.
+    This multiplies the published PR #18 rates. It is not a new measurement.
+    """
+    per_task = sum(published_arm_usd(arm) for arm in HONEST_ARMS)
+    return round(per_task * int(n_tasks) * int(repeats), 6)
+
+
+def resolve_repeats(spec: int | None) -> int:
+    """Default is one cold pass. Zero and negative values are refused."""
+    if spec is None:
+        return DEFAULT_REPEATS
+    if isinstance(spec, bool) or not isinstance(spec, int) or spec < 1:
+        raise ValueError(f"repeats must be an integer >= 1, got {spec!r}")
+    return spec
+
+
+def plan_probe(
+    *,
+    warm_replay: bool = False,
+    arms: str | tuple[str, ...] | list[str] | None = None,
+    split: str | None = None,
+    honest: bool = False,
+    repeats: int | None = None,
+    only_kind: str = "",
+) -> dict:
+    """What --execute would run. This does not start a browser or a model."""
+    chosen_repeats = resolve_repeats(repeats)
+    if honest:
+        chosen = HONEST_ARMS
+        chosen_split = SPLIT_HONEST
+        warm_replay = True
+    else:
+        chosen = resolve_arms(arms)
+        chosen_split = resolve_task_split(split)
+    try:
+        spent = SpendLedger.load().running_total_usd
+    except LedgerMissing:
+        if chosen_split not in (SPLIT_HELDOUT2, SPLIT_HELDOUT3B, SPLIT_HELDOUT3A, SPLIT_HELDOUT3D, SPLIT_HELDOUT3C, SPLIT_HELDOUT3, SPLIT_DEV3, SPLIT_DEV4NAV, SPLIT_DEV5TITLE, SPLIT_DEV4_FORM, SPLIT_DEV4SPA, SPLIT_VAL3):
+            raise
+        # Listing the new catalog needs no spend authority. Unknown is not
+        # zero; live execution and existing splits retain strict ledger checks.
+        spent = None
+    reserve = honest_task_reserve_usd() if honest else 0.0
+    room = honest_run_budget(spent) if honest else None
+    if honest:
+        budget = room
+    else:
+        budget = claude_budget_for(chosen)
+    plan = {
+        "execute": False,
+        "mode": "outer_claude",
+        "split": chosen_split,
+        "tasks": [task["id"] for task in probe_tasks(chosen_split, only_kind)],
+        "arms": list(chosen),
+        "available_arms": list(SELECTABLE_ARMS),
+        "baseline_arms": list(BASELINE_ARMS),
+        "claude_arms": list(chosen),
+        "outer_model": ALLOWED_MODEL,
+        "honest": honest,
+        "claude_budget_usd": budget,
+        "script_first_claude_budget_usd": SCRIPT_FIRST_CLAUDE_BUDGET_USD,
+        "project_budget_usd": PROJECT_BUDGET_USD,
+        "project_spent_usd": spent,
+        "lifetime_cap_usd": LIFETIME_CAP_USD,
+        "last_recorded_total_usd": LAST_RECORDED_TOTAL_USD,
+        "huge_snapshot_chars": HUGE_SNAPSHOT_CHARS,
+        "huge_snapshot_uses_body_length_only": True,
+        "warm_replay": warm_replay,
+        "warm_arms": list(warm_arms_for(chosen, honest=honest)),
+        "repeats": chosen_repeats,
+        "browser_isolation": {
+            "playwright_mcp": "--isolated only (0.0.84 rejects --user-data-dir with --isolated)",
+            "stagehand": "a unique --user-data-dir via launch_persistent_context",
+            "script_first": "local Chrome via the Playwright Python API, own user-data-dir, no per-click settle",
+            "browser_use": (
+                "browser-use 1.0.6 local Chrome over CDP via Browser('chromium'); "
+                "model claude-sonnet-5-5"
+            ),
+        },
+        "box_commands": list(BOX_COMMANDS),
+        "records": [
+            "wall_ms",
+            "success",
+            "steps",
+            "input_tokens",
+            "output_tokens",
+            "usd",
+            "model_ignores_tools",
+            "no_model",
+            "replay_hit",
+            "pass",
+        ],
+    }
+    if honest:
+        plan["per_run_budget_usd"] = room
+        plan["task_reserve_usd"] = reserve
+        plan["execute_allowed"] = honest_refusal(spent) is None
+        plan["execute_refused"] = honest_refusal(spent)
+        plan["network"] = "refused"
+        plan["measurements"] = None
+        plan["report_fields"] = list(REPORT_FIELDS)
+        plan["dev_tasks"] = list(DEV_TASK_IDS)
+        plan["tuned_tasks"] = list(TUNED_PROBE_TASK_IDS)
+        plan["held_out_tasks"] = list(HELD_OUT_TASK_IDS)
+        plan["expected_usd"] = expected_honest_usd(len(plan["tasks"]), chosen_repeats)
+        plan["expected_usd_basis"] = (
+            "PR #18 published per-task ledger rate; browser_use uses the median "
+            "of the three measured arms; warm replay is not included"
+        )
+        plan["expected_within_3_to_5"] = 3.0 <= plan["expected_usd"] <= 5.0
+    return plan
+
+
+def snapshot_is_huge(text: str, limit: int = HUGE_SNAPSHOT_CHARS) -> bool:
+    """True only when the returned body is longer than the limit.
+
+    full_snapshot_chars inside a compact diff is the page size, not the text
+    the model would read. A short diff of a long page is not skipped.
+    """
+    return len(text or "") > limit
+
+
+def claude_block_reason(
+    probe_spent_usd: float,
+    project_spent_usd: float,
+    *,
+    budget_usd: float = PROBE_CLAUDE_BUDGET_USD,
+    task_reserve_usd: float = 0.0,
+    lifetime_cap_usd: float | None = None,
+) -> str | None:
+    """Why the next Claude task must not start. None when it may.
+
+    task_reserve_usd is headroom that must still fit. The default 0 keeps
+    the old stop, which fires once spend has reached the budget. A reserve
+    above 0 refuses the task before that headroom would cross the budget,
+    the $40 abort, or the lifetime cap.
+    """
+    reserve = float(task_reserve_usd or 0.0)
+    if probe_spent_usd + reserve >= budget_usd:
+        if reserve and probe_spent_usd < budget_usd:
+            return (
+                f"probe Claude spend ${probe_spent_usd:.2f} plus ${reserve:.2f} "
+                f"reserve would reach ${budget_usd:.2f}"
+            )
+        return f"probe Claude spend ${probe_spent_usd:.2f} has reached ${budget_usd:.0f}"
+    if project_spent_usd + reserve >= PROJECT_BUDGET_USD:
+        if reserve and project_spent_usd < PROJECT_BUDGET_USD:
+            return (
+                f"project total ${project_spent_usd:.2f} plus ${reserve:.2f} "
+                f"reserve would pass ${PROJECT_BUDGET_USD:.0f}"
+            )
+        return f"project total ${project_spent_usd:.2f} has reached ${PROJECT_BUDGET_USD:.0f}"
+    if lifetime_cap_usd is not None and project_spent_usd + reserve >= lifetime_cap_usd:
+        return (
+            f"project total ${project_spent_usd:.2f} plus ${reserve:.2f} "
+            f"reserve would pass the ${lifetime_cap_usd:.0f} lifetime cap"
+        )
+    return None
+
+
+def shared_end_state(
+    task: dict,
+    url: str,
+    text: str,
+    *,
+    selector_text: str = "",
+    answer: str = "",
+    page_text: str = "",
+    claimed=None,
+) -> tuple[bool | None, str]:
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
+
+    return grade.shared_end_state(
+        task, url, text, selector_text=selector_text, answer=answer,
+        page_text=page_text, claimed=claimed,
+    )
+
+
+def shared_check_passes(
+    task_id: str,
+    url: str,
+    text: str,
+    *,
+    selector: str = "",
+    answer: str = "",
+    claimed=None,
+) -> bool:
+    """True only when this task's shared check passes on the page the script left.
+
+    None and False are not a pass. The evidence judge is a separate signal.
+    """
+    from bench.tasks import task_by_id
+
+    task = task_by_id(task_id)
+    if task is None:
+        return False
+    ok, _reason = shared_end_state(
+        task,
+        url,
+        text or "",
+        selector_text=selector,
+        answer=answer,
+        page_text=text or "",
+        claimed=claimed,
+    )
+    return ok is True
+
+
+def grade_arm(
+    task: dict,
+    url: str,
+    text: str,
+    *,
+    evidence: str | None = None,
+    evidence_reason: str = "",
+    completed: bool | None = None,
+    completion_reason: str = "",
+    selector_text: str = "",
+    answer: str = "",
+    page_text: str = "",
+    claimed=None,
+) -> tuple[bool, str, bool | None, str]:
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
+
+    return grade.grade_arm(
+        task, url, text, evidence=evidence, evidence_reason=evidence_reason,
+        completed=completed, completion_reason=completion_reason,
+        selector_text=selector_text, answer=answer, page_text=page_text, claimed=claimed,
+    )
+
+
+def grade_observation(
+    task: dict,
+    url: str,
+    text: str,
+    *,
+    selector_text: str = "",
+    answer: str = "",
+    completed: bool | None = None,
+    completion_reason: str = "",
+    run_verdict: str | None = None,
+    claimed=None,
+) -> tuple[bool, str, bool | None, str]:
+    """Delegate to the frozen post-run grader; apply the runtime gate on top."""
+    from bench import grade
+
+    page_grade = grade.grade_observation(
+        task, url, text, selector_text=selector_text, answer=answer,
+        completed=completed, completion_reason=completion_reason, claimed=claimed,
+    )
+    if run_verdict is None or run_verdict == "PASS":
+        return page_grade
+    own = run_verdict if run_verdict in {"FAIL", "UNKNOWN"} else "UNKNOWN"
+    if own == "UNKNOWN":
+        if completion_reason.startswith("UNKNOWN"):
+            reason = completion_reason
+        else:
+            reason = f"UNKNOWN: {completion_reason}" if completion_reason else "UNKNOWN is not success"
+    else:
+        markers = task.get("end_markers") if isinstance(task.get("end_markers"), dict) else {}
+        evidence_reason = ""
+        if markers:
+            evidence_reason = grade.evidence_verdict(
+                markers, grade.PageEvidence(url=url, text=text or "", selector_text=selector_text),
+                grade._grade_claim(answer, claimed),
+            ).reason
+        reason = completion_reason or evidence_reason or "evidence judge did not pass"
+    return grade.grade_arm(
+        task, url, text or "", evidence=own, evidence_reason=reason,
+        completed=completed, completion_reason=completion_reason,
+        selector_text=selector_text, answer=answer, page_text=text or "", claimed=claimed,
+    )
+
+
+def grade_page_answer(
+    task: dict,
+    url: str,
+    text: str,
+    *,
+    selector_text: str = "",
+    answer: str = "",
+    claimed=None,
+) -> tuple[bool, str]:
+    """Delegate to the frozen post-run grader."""
+    from bench import grade
+
+    return grade.grade_page_answer(
+        task, url, text, selector_text=selector_text, answer=answer, claimed=claimed,
+    )
+
+
+def empty_row(
+    arm: str,
+    task_id: str,
+    *,
+    reason: str,
+    skipped: bool = True,
+) -> dict:
+    return {
+        **measurement_fields(),
+        **grade_fields(),
+        "arm": arm,
+        "task_id": task_id,
+        "success": False,
+        "success_reason": reason,
+        "skipped": skipped,
+        "wall_ms": 0.0,
+        "steps": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "usd": 0.0,
+        "model_ignores_tools": 0,
+        "no_model": False,
+        "replay_hit": False,
+        "claude": False,
+    }
+
+
+async def _peek_snapshot(client, arm: str, url: str) -> tuple[str, float]:
+    """Open the initial page for iterative arms; script_first starts without a peek."""
+    if arm == ARM_SCRIPT_FIRST:
+        return "", 0.0
+    if arm == ARM_STAGEHAND:
+        await client.call_tool("run", {"code": f"page.goto({json.dumps(url)})"})
+        return await client.call_tool("snapshot", {})
+    return await client.call_tool("browser_navigate", {"url": url})
+
+
+def script_result_row(task, result, harness, *, arm="script_first", provider="anthropic",
+                      openai_model=None, openai_effort=None):
+    from bench.harness import claim_from_step
+
+    last = result.steps[-1] if result.steps else None
+    final_url = last.page_url if last else ""
+    selector_text = last.selector_text if last else ""
+    claimed_answer = last.claimed_answer if last else ""
+    page_text = last.page_text if last else ""
+    # The same post-run page text for every arm. The snapshot is not the check.
+    graded_text = page_text
+    end_state = result.end_state or ""
+    # script_first has to end on its own PASS and pass the shared page
+    # check. Its returned URL, title, key text, and values go into that
+    # check. The other arms still cannot pass on TASK_COMPLETE alone.
+    run_verdict = end_state if arm == ARM_SCRIPT_FIRST else None
+    claimed = claim_from_step(last) if arm == ARM_SCRIPT_FIRST and last is not None else None
+    completed = None if arm == ARM_SCRIPT_FIRST else result.success
+    page_answer_ok, page_answer_reason = grade_page_answer(
+        task, final_url, graded_text, selector_text=selector_text,
+        answer=claimed_answer, claimed=claimed,
+    )
+    success, reason, substring_ok, substring_reason = grade_observation(
+        task,
+        final_url,
+        graded_text,
+        selector_text=selector_text,
+        answer=claimed_answer,
+        completed=completed,
+        completion_reason=result.success_reason,
+        run_verdict=run_verdict,
+        claimed=claimed,
+    )
+    usd = estimate_usd(result.total_input_tokens, result.total_output_tokens)
+    row = {
+        **measurement_fields(
+            browser_launch_ms=harness.browser_launch_ms, grade_read_ms=result.grade_read_ms,
+        ),
+        **grade_fields(final_url, graded_text, selector_text, claimed_answer),
+        "arm": arm,
+        "task_id": task["id"],
+        "success": success,
+        "success_reason": reason,
+        "end_state": end_state,
+        "grade_completed": completed,
+        "grade_completion_reason": result.success_reason,
+        "grade_claim": {
+            "url": claimed.url, "title": claimed.title, "h1": claimed.h1,
+            "answer": claimed.answer, "key_text": claimed.key_text,
+            "values": list(claimed.values), "rejected": claimed.rejected,
+        } if claimed is not None else None,
+        "page_answer_success": page_answer_ok,
+        "page_answer_reason": page_answer_reason,
+        "substring_success": substring_ok,
+        "substring_reason": substring_reason,
+        "skipped": False,
+        "wall_ms": result.total_wall_ms,
+        "steps": result.total_steps,
+        "input_tokens": result.total_input_tokens,
+        "output_tokens": result.total_output_tokens,
+        "usd": usd,
+        "model_ignores_tools": result.model_ignores_tools,
+        "no_model": result.tier == "cache_hit" and result.model_calls == 0,
+        "replay_hit": result.tier == "cache_hit",
+        "tier": result.tier,
+        "model_calls": result.model_calls,
+        "script_steps": result.script_steps,
+        "claude": True,
+        "claimed_answer": claimed_answer,
+        "final_url": final_url,
+        "final_title": last.page_title if last else "",
+        "expected_value": selector_text,
+    }
+    if arm == ARM_SCRIPT_FIRST:
+        row["scripts"] = [
+            step.tool_args["code"]
+            for step in result.steps
+            if step.tool_name == "run_script"
+            and isinstance(step.tool_args, dict)
+            and isinstance(step.tool_args.get("code"), str)
+        ]
+        row["repair_sent"] = result.repair_sent
+        row["repair_reply"] = result.repair_reply
+        row["script_turns"] = result.script_turns
+        # Every script's self-check inputs and verdict, for offline replay.
+        row["self_checks"] = [step.self_check for step in result.steps if step.self_check]
+        row["task_description"] = task.get("description") or ""
+        row["start_url"] = task.get("start_url") or ""
+    if provider == "openai":
+        from bench.openai_spend import price_usd
+
+        row["usd"] = price_usd(
+            openai_model or "",
+            result.total_input_tokens,
+            result.total_output_tokens,
+            result.total_cached_tokens,
+            result.total_cache_write_30m_tokens,
+            result.total_cache_write_12h_tokens,
+        )
+        row["claude"] = False
+        row["provider"] = "openai"
+        row["model"] = openai_model
+        row["effort"] = openai_effort
+        row["cached_tokens"] = result.total_cached_tokens
+        row["cache_write_30m_tokens"] = result.total_cache_write_30m_tokens
+        row["cache_write_12h_tokens"] = result.total_cache_write_12h_tokens
+    return row
+
+
+async def run_claude_arm(
+    arm: str,
+    task: dict,
+    *,
+    api_key: str,
+    headless: bool,
+    runs_dir: Path,
+    script_cache=None,
+    provider: str = "anthropic",
+    model: str | None = None,
+    effort: str | None = None,
+) -> dict:
+    """Outer model for one arm. The default is claude-sonnet-5-5."""
+    from bench.harness import BenchmarkHarness, claim_from_step
+
+    # script_first starts at one script plus a completion turn. The harness
+    # adds a turn only for a repair or a refused extra script, stops at
+    # SCRIPT_FIRST_HARD_CAP, and runs at most SCRIPT_FIRST_MAX_REPAIRS repair scripts.
+    max_steps = SCRIPT_FIRST_MAX_CALLS if arm == ARM_SCRIPT_FIRST else 30
+    openai_model = None
+    openai_effort = None
+    if provider == "openai":
+        from bench.openai_spend import assert_effort, assert_openai_model
+
+        openai_model = assert_openai_model(model or "gpt-6.1-sol")
+        openai_effort = assert_effort(openai_model, effort or "medium")
+        harness = BenchmarkHarness(
+            api_key=api_key,
+            model=openai_model,
+            headless=headless,
+            runs_dir=runs_dir,
+            arm=arm,
+            max_steps=max_steps,
+            script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
+            provider="openai",
+            effort=openai_effort,
+        )
+    else:
+        harness = BenchmarkHarness(
+            api_key=api_key,
+            headless=headless,
+            runs_dir=runs_dir,
+            arm=arm,
+            max_steps=max_steps,
+            script_cache=script_cache if arm == ARM_SCRIPT_FIRST else None,
+        )
+    started = None
+    wall_ms = None
+    try:
+        await harness.setup()
+        started = time.perf_counter()
+        harness._task_wall_start = started
+        peeked, _elapsed = await _peek_snapshot(harness.mcp_client, arm, task["start_url"])
+        if snapshot_is_huge(peeked):
+            row = empty_row(arm, task["id"], reason=f"skipped: first snapshot is {len(peeked)} chars")
+            row["wall_ms"] = (time.perf_counter() - started) * 1000
+            row.update(measurement_fields(browser_launch_ms=harness.browser_launch_ms))
+            row["claude"] = False
+            return row
+        result = await harness.run_task(
+            task_id=task["id"],
+            task_description=task["description"],
+            start_url=task["start_url"],
+            expected_answer=task.get("expected_answer"),
+            judge_prompt=task.get("judge_prompt"),
+            check_url_contains=task.get("check_url_contains") or "",
+        )
+        wall_ms = result.total_wall_ms
+        return script_result_row(task, result, harness, arm=arm, provider=provider,
+                                 openai_model=openai_model, openai_effort=openai_effort)
+    except Exception as exc:
+        from bench.openai_spend import PriceUnknown
+
+        if isinstance(exc, PriceUnknown):
+            raise
+        row = empty_row(arm, task["id"], reason=f"run failed: {type(exc).__name__}", skipped=False)
+        if wall_ms is None:
+            wall_ms = harness._task_wall_ms
+        row["wall_ms"] = wall_ms if wall_ms is not None else (
+            (time.perf_counter() - started) * 1000 if started is not None else 0.0
+        )
+        row.update(measurement_fields(browser_launch_ms=harness.browser_launch_ms))
+        return row
+    finally:
+        await harness.teardown()
+
+
+def _summary_for(rows: list[dict], phase: str, arms: tuple[str, ...]) -> dict:
+    """Hit rate, wall, and script_first tier counts for one probe pass."""
+    summary = {}
+    for arm in arms:
+        subset = [row for row in rows if row.get("pass") == phase and row.get("arm") == arm]
+        hits = sum(1 for row in subset if row.get("replay_hit"))
+        wall_ms = sum(float(row.get("wall_ms") or 0) for row in subset)
+        summary[arm] = {
+            "tasks": len(subset),
+            "replay_hits": hits,
+            "replay_hit_rate": (hits / len(subset)) if subset else 0.0,
+            "wall_ms": wall_ms,
+        }
+        if arm == ARM_SCRIPT_FIRST:
+            summary[arm]["tiers"] = {
+                tier: sum(1 for row in subset if row.get("tier") == tier)
+                for tier in ("cache_hit", "patched", "fresh")
+            }
+            summary[arm]["passed"] = sum(1 for row in subset if row.get("success"))
+            summary[arm]["model_calls"] = sum(int(row.get("model_calls") or 0) for row in subset)
+            summary[arm]["steps"] = sum(int(row.get("steps") or 0) for row in subset)
+    return summary
+
+
+def warm_summary(rows: list[dict]) -> dict:
+    """Replay hit rate and wall for the warm second pass, by arm.
+
+    script_first also reports which tier answered and its model calls.
+    Cold rows are not included. See cold_summary.
+    """
+    arms = WARM_ARMS
+    if any(row.get("pass") == "warm" and row.get("arm") == ARM_SCRIPT_FIRST for row in rows):
+        arms = WARM_ARMS + (ARM_SCRIPT_FIRST,)
+    return _summary_for(rows, "warm", arms)
+
+
+def cold_summary(rows: list[dict]) -> dict:
+    """The cold pass, in the same shape as warm_summary, with its own tier counts."""
+    arms: list[str] = []
+    for row in rows:
+        if row.get("pass") != "cold":
+            continue
+        arm = row.get("arm")
+        if isinstance(arm, str) and arm and arm not in arms:
+            arms.append(arm)
+    return _summary_for(rows, "cold", tuple(arms))
+
+
+async def _run_browser_use(
+    task: dict,
+    *,
+    headless: bool,
+    api_key: str,
+    probe_spent: float,
+    ledger: SpendLedger,
+    budget_usd: float,
+    task_reserve_usd: float = 0.0,
+    lifetime_cap_usd: float | None = None,
+) -> tuple[dict, float]:
+    """browser-use 1.0 on local Chrome. The outer Playwright loop is not used."""
+    if not api_key:
+        return (
+            empty_row(ARM_BROWSER_USE, task["id"], reason="ANTHROPIC_API_KEY unset"),
+            probe_spent,
+        )
+    blocked = claude_block_reason(
+        probe_spent,
+        ledger.running_total_usd,
+        budget_usd=budget_usd,
+        task_reserve_usd=task_reserve_usd,
+        lifetime_cap_usd=lifetime_cap_usd,
+    )
+    if blocked:
+        return empty_row(ARM_BROWSER_USE, task["id"], reason=blocked), probe_spent
+    from bench.browser_use_arm import run_browser_use_task
+
+    row = await run_browser_use_task(task, api_key=api_key, headless=headless)
+    if row.get("claude") and (row.get("input_tokens") or row.get("output_tokens")):
+        ledger.record_task(
+            run_id="probe",
+            task_id=f"{ARM_BROWSER_USE}:{row['task_id']}",
+            input_tokens=row["input_tokens"],
+            output_tokens=row["output_tokens"],
+        )
+        probe_spent += float(row.get("usd") or 0)
+        if ledger.running_total_usd >= PROJECT_BUDGET_USD:
+            ledger.mark_aborted()
+        ledger.save()
+    return row, probe_spent
+
+
+async def _run_one(
+    arm: str,
+    task: dict,
+    *,
+    headless: bool,
+    api_key: str,
+    probe_spent: float,
+    ledger: SpendLedger,
+    destination: Path,
+    budget_usd: float,
+    script_cache=None,
+    task_reserve_usd: float = 0.0,
+    lifetime_cap_usd: float | None = None,
+) -> tuple[dict, float]:
+    """One task on one arm. Returns the row and the probe's Claude spend so far."""
+    if arm == ARM_BROWSER_USE:
+        return await _run_browser_use(
+            task,
+            headless=headless,
+            api_key=api_key,
+            probe_spent=probe_spent,
+            ledger=ledger,
+            budget_usd=budget_usd,
+            task_reserve_usd=task_reserve_usd,
+            lifetime_cap_usd=lifetime_cap_usd,
+        )
+    if not api_key:
+        return (
+            empty_row(
+                arm,
+                task["id"],
+                reason="ANTHROPIC_API_KEY unset",
+            ),
+            probe_spent,
+        )
+    blocked = claude_block_reason(
+        probe_spent,
+        ledger.running_total_usd,
+        budget_usd=budget_usd,
+        task_reserve_usd=task_reserve_usd,
+        lifetime_cap_usd=lifetime_cap_usd,
+    )
+    if blocked:
+        return empty_row(arm, task["id"], reason=blocked), probe_spent
+    extra = {"script_cache": script_cache} if script_cache is not None and arm == ARM_SCRIPT_FIRST else {}
+    if arm == "cascade":
+        from bench.cascade import run_cascade_task
+
+        row = await run_cascade_task(task, api_key=api_key, headless=headless, runs_dir=destination)
+    else:
+        row = await run_claude_arm(
+            arm,
+            task,
+            api_key=api_key,
+            headless=headless,
+            runs_dir=destination,
+            **extra,
+        )
+    if row.get("claude") and (row["input_tokens"] or row["output_tokens"]):
+        ledger.record_task(
+            run_id="probe",
+            task_id=f"{arm}:{row['task_id']}",
+            input_tokens=row["input_tokens"],
+            output_tokens=row["output_tokens"],
+        )
+        probe_spent += row["usd"]
+        if ledger.running_total_usd >= PROJECT_BUDGET_USD:
+            ledger.mark_aborted()
+        ledger.save()
+    return row, probe_spent
+
+
+class ProbeRefused(RuntimeError):
+    """The honest probe stops before a browser or a model call."""
+
+
+def _mean(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _median(values: list[float]) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return float(ordered[mid])
+    return (float(ordered[mid - 1]) + float(ordered[mid])) / 2
+
+
+def _percentile(values: list[float], pct: float) -> float | None:
+    """Linear percentile. pct is 0-100. An empty sample is None."""
+    if not values:
+        return None
+    ordered = sorted(float(item) for item in values)
+    if len(ordered) == 1:
+        return ordered[0]
+    rank = (len(ordered) - 1) * (pct / 100.0)
+    low = int(rank)
+    high = min(low + 1, len(ordered) - 1)
+    weight = rank - low
+    return ordered[low] * (1.0 - weight) + ordered[high] * weight
+
+
+def _p90(values: list[float]) -> float | None:
+    return _percentile(values, 90)
+
+
+def _mean_ci95(values: list[float]) -> list[float] | None:
+    """95% Student-t interval of the mean. None when the sample has one point."""
+    n = len(values)
+    if n < 2:
+        return None
+    mean = sum(values) / n
+    var = sum((item - mean) ** 2 for item in values) / (n - 1)
+    margin = _T_95.get(n - 1, 1.96) * ((var ** 0.5) / (n ** 0.5))
+    return [round(mean - margin, 6), round(mean + margin, 6)]
+
+
+def _wall_ms(row: dict) -> float | None:
+    value = row.get("wall_ms")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _as_int(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def row_took_repair(row: dict) -> bool:
+    """A second script, a cache patch, or any step after the first."""
+    if row.get("tier") == "patched":
+        return True
+    if _as_int(row.get("repairs")) > 0:
+        return True
+    if _as_int(row.get("model_calls")) >= 2:
+        return True
+    return _as_int(row.get("steps")) >= 2
+
+
+def _attempted(rows: list[dict]) -> list[dict]:
+    return [row for row in rows if not row.get("skipped")]
+
+
+def _walls(rows: list[dict], *, successes_only: bool) -> list[float]:
+    found = []
+    for row in rows:
+        if successes_only and not row.get("success"):
+            continue
+        wall = _wall_ms(row)
+        if wall is not None:
+            found.append(wall)
+    return found
+
+
+def arm_report(rows: list[dict], arms: tuple[str, ...] | list[str]) -> dict:
+    """Per-arm figures from rows already recorded. Missing runs stay null.
+
+    Nothing here is filled in from a previous probe. An arm with no attempted
+    task has null success and wall fields. Warm times are null when that arm
+    had no warm pass.
+    """
+    report = {}
+    for arm in arms:
+        cold = [row for row in rows if row.get("arm") == arm and row.get("pass", "cold") == "cold"]
+        attempted = _attempted(cold)
+        successes = [row for row in attempted if row.get("success")]
+        walls = _walls(successes, successes_only=False)
+        if attempted:
+            one_shot = [row for row in attempted if not row_took_repair(row)]
+            repair = [row for row in attempted if row_took_repair(row)]
+            steps = {
+                "one_shot": [_as_int(row.get("steps")) for row in one_shot],
+                "repair": [_as_int(row.get("steps")) for row in repair],
+            }
+            success_count: int | None = len(successes)
+        else:
+            steps = {"one_shot": None, "repair": None}
+            success_count = None
+        warm = [row for row in rows if row.get("arm") == arm and row.get("pass") == "warm"]
+        warm_attempted = _attempted(warm)
+        if not warm:
+            warm_report = {
+                "ran": False,
+                "success_count": None,
+                "wall_ms": None,
+                "mean_wall_ms_per_success": None,
+                "median_wall_ms_per_success": None,
+            }
+        elif not warm_attempted:
+            warm_report = {
+                "ran": True,
+                "success_count": None,
+                "wall_ms": None,
+                "mean_wall_ms_per_success": None,
+                "median_wall_ms_per_success": None,
+            }
+        else:
+            warm_walls = _walls(warm_attempted, successes_only=False)
+            warm_ok = _walls(warm_attempted, successes_only=True)
+            warm_report = {
+                "ran": True,
+                "success_count": sum(1 for row in warm_attempted if row.get("success")),
+                "wall_ms": warm_walls,
+                "mean_wall_ms_per_success": _mean(warm_ok),
+                "median_wall_ms_per_success": _median(warm_ok),
+            }
+        report[arm] = {
+            "success_count": success_count,
+            "attempted": len(attempted),
+            "mean_wall_ms_per_success": _mean(walls) if attempted else None,
+            "median_wall_ms_per_success": _median(walls) if attempted else None,
+            "p90_wall_ms_per_success": _p90(walls) if attempted else None,
+            "mean_wall_ms_ci95": _mean_ci95(walls) if attempted else None,
+            "steps": steps,
+            "warm_replay": warm_report,
+        }
+        efforts = []
+        for row in cold + warm:
+            name = row.get("effort")
+            if isinstance(name, str) and name and name not in efforts:
+                efforts.append(name)
+        if efforts:
+            report[arm]["effort"] = efforts
+    return report
+
+
+async def execute_probe(
+    *,
+    headless: bool = True,
+    spend_path: Path | None = None,
+    runs_dir: Path | None = None,
+    warm_replay: bool = False,
+    arms: tuple[str, ...] | None = None,
+    split: str | None = None,
+    honest: bool = False,
+    provider: str = "anthropic",
+    model: str | None = None,
+    effort: str | None = None,
+    sweep: bool = False,
+    one_task: bool = False,
+    repeats: int = DEFAULT_REPEATS,
+    only_kind: str = "",
+) -> list[dict]:
+    """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
+
+    The default runs script_first, browser_use, and playwright_mcp with
+    the same outer model.
+    --honest refuses before any task when the ledger is below the last
+    recorded total, the key is unset, or the reserve no longer fits under
+    the run ceiling, the $40 abort, or the $50 lifetime cap.
+    """
+    if provider == "openai":
+        from bench.openai_run import execute_openai_probe
+
+        if honest:
+            chosen = HONEST_ARMS
+            chosen_split = SPLIT_HONEST
+        else:
+            chosen = resolve_arms(arms)
+            chosen_split = resolve_task_split(split)
+        return await execute_openai_probe(
+            arms=chosen,
+            split=chosen_split,
+            sweep=sweep,
+            model=model,
+            effort=effort,
+            one_task=one_task,
+            headless=headless,
+            spend_path=spend_path,
+            runs_dir=runs_dir,
+            warm_replay=warm_replay,
+            honest=honest,
+            only_kind=only_kind,
+        )
+    if honest:
+        chosen = HONEST_ARMS
+        chosen_split = SPLIT_HONEST
+        warm_replay = True
+    else:
+        chosen = resolve_arms(arms)
+        chosen_split = resolve_task_split(split)
+    ledger = SpendLedger.load(spend_path)
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    task_reserve = 0.0
+    lifetime_cap = None
+    if honest:
+        if round(ledger.running_total_usd, 6) < LAST_RECORDED_TOTAL_USD:
+            raise LedgerBelowRecorded(ledger.running_total_usd)
+        if not api_key:
+            raise ProbeRefused("ANTHROPIC_API_KEY unset. Refusing before any browser or model call.")
+        room = honest_run_budget(ledger.running_total_usd)
+        refusal = honest_refusal(ledger.running_total_usd)
+        if room is None or refusal is not None:
+            raise ProbeRefused(refusal or "Refusing before any task.")
+        budget_usd = room
+        task_reserve = honest_task_reserve_usd()
+        lifetime_cap = LIFETIME_CAP_USD
+    else:
+        budget_usd = claude_budget_for(chosen)
+    destination = runs_dir or RUNS_DIR
+    destination.mkdir(parents=True, exist_ok=True)
+    probe_spent = 0.0
+    rows: list[dict] = []
+    tasks = probe_tasks(chosen_split, only_kind)
+    script_cache = None
+    if warm_replay and ARM_SCRIPT_FIRST in chosen:
+        from bench.script_cache import ScriptCache
+
+        # A new file per probe: the cold pass starts empty and the warm pass reads it.
+        started = datetime.now().strftime("%Y%m%d_%H%M%S")
+        script_cache = ScriptCache(destination / f"script_cache_{started}.json")
+
+    async def take(arm: str, task: dict, phase: str, cache, repeat_index: int) -> None:
+        nonlocal probe_spent
+        row, probe_spent = await _run_one(
+            arm,
+            task,
+            headless=headless,
+            api_key=api_key,
+            probe_spent=probe_spent,
+            ledger=ledger,
+            destination=destination,
+            budget_usd=budget_usd,
+            script_cache=cache,
+            task_reserve_usd=task_reserve,
+            lifetime_cap_usd=lifetime_cap,
+        )
+        row["pass"] = phase
+        row["repeat"] = repeat_index
+        rows.append(row)
+
+    for repeat_index in range(repeats):
+        # Only the first cold pass may fill the cache the warm pass reads.
+        # A later repeat is a fresh model run.
+        cache = script_cache if repeat_index == 0 else None
+        for task in tasks:
+            for arm in chosen:
+                await take(arm, task, "cold", cache, repeat_index)
+    if warm_replay:
+        # Same cache file as the first cold pass. Do not delete it between passes.
+        for task in tasks:
+            for arm in warm_arms_for(chosen, honest=honest):
+                if arm not in chosen:
+                    continue
+                await take(arm, task, "warm", script_cache, 0)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out = destination / f"probe_{stamp}.jsonl"
+    with out.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row) + "\n")
+        if warm_replay:
+            handle.write(
+                json.dumps(
+                    {
+                        "kind": "warm_summary",
+                        "cold": cold_summary(rows),
+                        "warm": warm_summary(rows),
+                    }
+                )
+                + "\n"
+            )
+        handle.write(json.dumps({"kind": "arm_report", "report": arm_report(rows, chosen)}) + "\n")
+    if not any(row.get("claude") for row in rows):
+        ledger.save()
+    return rows
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Prepare the 3x4 probe. Pass --execute to run it.")
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="Run the probe. Omit this to print the plan and exit.",
+    )
+    parser.add_argument(
+        "--only-kind",
+        default="",
+        help="Run only tasks of these types (comma list of the second word of the task id, e.g. value,title).",
+    )
+    parser.add_argument("--no-headless", action="store_true", help="Show the browser. Only with --execute.")
+    parser.add_argument(
+        "--arms",
+        default="",
+        help=(
+            "Comma-separated arms. Default: script_first,browser_use,playwright_mcp. "
+            "script_first is the whole-task script arm. "
+            "A selection that includes it stops Claude at $2. "
+            "browser_use is the browser-use 1.0 local Chrome baseline "
+            "beside playwright_mcp and stagehand."
+        ),
+    )
+    parser.add_argument(
+        "--split",
+        default=SPLIT_PROBE,
+        help=(
+            "Task split. probe is the three tuned tasks and the default. "
+            "dev is the wider tune set. held-out is the scored set. "
+            "heldout2 is the independent twenty-task set. "
+            "heldout3a and heldout3b are further independent thirty-task sets. "
+            "heldout3d is a further independent forty-task set. "
+            "heldout3c is a further independent forty-task set. "
+            "heldout3 is a, b, c and d together, the frozen test set. "
+            "dev3 is a forty-task public tune set. "
+            "dev4nav is the nav read step's twelve-task check set. "
+            "dev5title is a fresh seventeen-task title set. "
+            "dev4form is the form specialist's twelve fresh form tasks. "
+            "dev4spa is the spa specialist's twelve-task tune set. "
+            "val3 is the forty-task validation set, an aggregate-only gate. "
+            "Printing the plan does not run it."
+        ),
+    )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=DEFAULT_REPEATS,
+        help=(
+            "Cold repeats per task. The default is 1. "
+            "The report adds the mean, median, p90, and a 95%% confidence interval. "
+            "Not a live run by itself."
+        ),
+    )
+    parser.add_argument(
+        "--warm-replay",
+        action="store_true",
+        help=(
+            "After the cold pass, re-run script_first when selected, using the same cache. "
+            "Records cache hit rate, wall time, and script_first's tier."
+        ),
+    )
+    parser.add_argument(
+        "--honest",
+        action="store_true",
+        help=(
+            "The live comparison: playwright_mcp, script_first cold then warm, "
+            "stagehand, and browser_use, on the held-out scored set. "
+            "The dev tasks are not scored. "
+            "Stops before a task can cross the $8 ceiling, the $40 abort, or the $50 cap. "
+            "Without --execute, prints the plan and does not use the network."
+        ),
+    )
+    parser.add_argument(
+        "--provider",
+        default="anthropic",
+        help="anthropic is the Claude path. openai runs the computer-use model under test.",
+    )
+    parser.add_argument(
+        "--model",
+        default="",
+        help="OpenAI model (default gpt-6.1-sol). gpt-6-luna is also supported. The Claude path stays claude-sonnet-5-5.",
+    )
+    parser.add_argument(
+        "--effort",
+        default="",
+        help="OpenAI reasoning effort: low, medium, or high. xhigh only when that model accepts it.",
+    )
+    parser.add_argument(
+        "--sweep-effort",
+        action="store_true",
+        help="Run gpt-6-luna and gpt-6.1-sol at every accepted effort. One task. Caps at $5 and $15.",
+    )
+    parser.add_argument(
+        "--sweep-task",
+        action="store_true",
+        help="With one OpenAI model, use the one-task sweep subset instead of the full Claude split.",
+    )
+    args = parser.parse_args(argv)
+    from bench.openai_run import plan_openai_probe, resolve_openai_request
+    from bench.openai_spend import EffortNotAllowed, OpenAIModelNotAllowed, PriceUnknown
+
+    try:
+        request = resolve_openai_request(
+            provider=args.provider,
+            model=args.model,
+            effort=args.effort,
+            sweep=args.sweep_effort,
+            one_task=args.sweep_task,
+        )
+        chosen_repeats = resolve_repeats(args.repeats)
+        if args.honest:
+            chosen = HONEST_ARMS
+            chosen_split = SPLIT_HONEST
+            warm = True
+        else:
+            chosen = resolve_arms(args.arms)
+            chosen_split = resolve_task_split(args.split)
+            warm = args.warm_replay
+    except (ValueError, OpenAIModelNotAllowed, EffortNotAllowed, PriceUnknown) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    try:
+        if request["provider"] == "openai":
+            if not args.execute:
+                print(
+                    json.dumps(
+                        plan_openai_probe(
+                            arms=chosen,
+                            split=chosen_split,
+                            sweep=request["sweep"],
+                            model=request.get("model") or "",
+                            effort=request.get("effort") or "",
+                            one_task=request["one_task"],
+                            warm_replay=warm,
+                            honest=args.honest,
+                            only_kind=args.only_kind,
+                        ),
+                        indent=2,
+                    )
+                )
+                return 0
+            rows = asyncio.run(
+                execute_probe(
+                    headless=not args.no_headless,
+                    warm_replay=warm,
+                    arms=chosen,
+                    split=chosen_split,
+                    honest=args.honest,
+                    provider="openai",
+                    model=request.get("model"),
+                    effort=request.get("effort"),
+                    sweep=request["sweep"],
+                    one_task=request["one_task"],
+                    repeats=chosen_repeats,
+                    only_kind=args.only_kind,
+                )
+            )
+        elif not args.execute:
+            print(
+                json.dumps(
+                    plan_probe(
+                        warm_replay=warm,
+                        arms=chosen,
+                        split=chosen_split,
+                        honest=args.honest,
+                        repeats=chosen_repeats,
+                        only_kind=args.only_kind,
+                    ),
+                    indent=2,
+                )
+            )
+            return 0
+        else:
+            rows = asyncio.run(
+                execute_probe(
+                    headless=not args.no_headless,
+                    warm_replay=warm,
+                    arms=chosen,
+                    split=chosen_split,
+                    honest=args.honest,
+                    repeats=chosen_repeats,
+                    only_kind=args.only_kind,
+                )
+            )
+    except (LedgerMissing, LedgerBelowRecorded, ProbeRefused, OpenAIModelNotAllowed, EffortNotAllowed, PriceUnknown) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    spent = sum(row["usd"] for row in rows)
+    print(f"probe rows: {len(rows)}")
+    label = "probe openai usd" if request["provider"] == "openai" else "probe claude usd"
+    print(f"{label}: {spent:.4f}")
+    if warm:
+        print(json.dumps({"cold": cold_summary(rows), "warm": warm_summary(rows)}, indent=2))
+    print(json.dumps({"report": arm_report(rows, chosen)}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

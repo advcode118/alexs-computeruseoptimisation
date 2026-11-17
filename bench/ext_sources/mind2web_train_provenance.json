@@ -1,0 +1,67 @@
+{
+  "dataset": "osunlp/Mind2Web",
+  "config": "default",
+  "split": "train",
+  "fields": [
+    "annotation_id",
+    "confirmed_task",
+    "website",
+    "domain",
+    "subdomain"
+  ],
+  "licence": "CC-BY-4.0",
+  "downloaded_at": "2026-11-17T00:00:00.980416+00:00",
+  "method": "HTTP-range Parquet projection; rows API probe had no projection",
+  "rows": 1009,
+  "sha256": "5ea636be202fa7eccf8f11b2ca9cf12eef55c590b3662122be37bd10be85aef9",
+  "shards": [
+    {
+      "url": "https://huggingface.co/datasets/osunlp/Mind2Web/resolve/refs%2Fconvert%2Fparquet/default/partial-train/0000.parquet",
+      "rows": 100,
+      "parquet_bytes": 86972884,
+      "transferred_bytes": 76406
+    },
+    {
+      "url": "https://huggingface.co/datasets/osunlp/Mind2Web/resolve/refs%2Fconvert%2Fparquet/default/partial-train/0001.parquet",
+      "rows": 100,
+      "parquet_bytes": 89216455,
+      "transferred_bytes": 77148
+    },
+    {
+      "url": "https://huggingface.co/datasets/osunlp/Mind2Web/resolve/refs%2Fconvert%2Fparquet/default/partial-train/0002.parquet",
+      "rows": 109,
+      "parquet_bytes": 87372203,
+      "transferred_bytes": 77164
+    },
+    {
+      "url": "https://huggingface.co/datasets/osunlp/Mind2Web/resolve/refs%2Fconvert%2Fparquet/default/partial-train/0003.parquet",
+      "rows": 100,
+      "parquet_bytes": 92988130,
+      "transferred_bytes": 76276
+    },
+    {
+      "url": "https://huggingface.co/datasets/osunlp/Mind2Web/resolve/refs%2Fconvert%2Fparquet/default/partial-train/0004.parquet",
+      "rows": 100,
+      "parquet_bytes": 84441056,
+      "transferred_bytes": 76466
+    },
+    {
+      "url": "https://huggingface.co/datasets/osunlp/Mind2Web/resolve/refs%2Fconvert%2Fparquet/default/partial-train/0005.parquet",
+      "rows": 100,
+      "parquet_bytes": 84788701,
+      "transferred_bytes": 75850
+    },
+    {
+      "url": "https://huggingface.co/datasets/osunlp/Mind2Web/resolve/refs%2Fconvert%2Fparquet/default/partial-train/0006.parquet",
+      "rows": 200,
+      "parquet_bytes": 163755863,
+      "transferred_bytes": 87620
+    },
+    {
+      "url": "https://huggingface.co/datasets/osunlp/Mind2Web/resolve/refs%2Fconvert%2Fparquet/default/partial-train/0007.parquet",
+      "rows": 200,
+      "parquet_bytes": 164135019,
+      "transferred_bytes": 87574
+    }
+  ]
+}

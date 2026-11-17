@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "packing-page",
+  "start": {
+    "url": "loop/fixture/packing.html"
+  },
+  "end": {
+    "url": "packing.html",
+    "title": "Packing list",
+    "text": "Packing list"
+  }
+}

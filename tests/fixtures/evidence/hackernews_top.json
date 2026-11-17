@@ -1,0 +1,17 @@
+{
+  "description": "Read the top Hacker News story",
+  "start_url": "https://news.ycombinator.com/",
+  "page": {
+    "url": "https://news.ycombinator.com/",
+    "title": "Hacker News",
+    "canonical": "https://news.ycombinator.com/",
+    "h1": "Hacker News",
+    "text": "Show HN: a small public demo\nSecond story stays on the page",
+    "selector_text": "Show HN: a small public demo"
+  },
+  "claimed": {
+    "url": "https://news.ycombinator.com/",
+    "title": "Hacker News",
+    "answer": "Show HN: a small public demo\n"
+  }
+}

@@ -1,0 +1,364 @@
+{
+  "grader_sha256": "7ff695b598c715cf5cc4426b77827819ec374b23699ca08d5ad881ca21a97e24",
+  "keys_sha256": "c0fee784ecc83c9953d64a07447cffcc0899e73e1abccc148aea1020eae6fae6",
+  "seed": 20261117,
+  "bootstrap_draws": 50000,
+  "paired_task_ids": [
+    "extdev_filter_airbnb_europe_mansions",
+    "extdev_filter_amazon_puppy_food",
+    "extdev_filter_booking_times_square",
+    "extdev_filter_frontiercity_family",
+    "extdev_filter_greatamerica_thrill",
+    "extdev_nav_fiestatexas_events",
+    "extdev_nav_nets_schedule",
+    "extdev_nav_ronaldo_world_cup_stats",
+    "extdev_nav_spothero_contact",
+    "extdev_nav_spothero_marketing",
+    "extdev_search_booking_la_filters",
+    "extdev_spa_dota_dlc_cart",
+    "extdev_value_apec_ministers_chair",
+    "extdev_value_apec_peru_arrivals",
+    "extdev_value_apec_tourism_actions",
+    "extdev_value_hf_first_user_message",
+    "extdev_value_hf_tei_strengths",
+    "extdev_value_icse_2002_chairs",
+    "extdev_value_icse_2004_chair",
+    "extdev_value_icse_duplicate_statement",
+    "extdev_value_nba_2021_leaders",
+    "extdev_value_rovio_anniversary"
+  ],
+  "paired_site_counts": {
+    "airbnb.com": 1,
+    "amazon.com": 1,
+    "apec.org": 3,
+    "booking.com": 2,
+    "espn.com": 3,
+    "huggingface.co": 2,
+    "icse-conferences.org": 3,
+    "rovio.com": 1,
+    "sixflags.com": 3,
+    "spothero.com": 2,
+    "store.steampowered.com": 1
+  },
+  "paired": {
+    "browser_use": {
+      "n": 22,
+      "passes": 5,
+      "pass_rate": 0.22727272727272727,
+      "median_wall_ms": 26540.2562685,
+      "mean_wall_ms": 29455.113098363618,
+      "p90_wall_ms": 54878.1420375001,
+      "mean_usd": 0.074627,
+      "pass_rate_ci": [
+        0.0,
+        0.4166666666666667
+      ],
+      "paired_difference_vs_best_arm": 0.0,
+      "paired_difference_ci": [
+        0.0,
+        0.0
+      ],
+      "claims_or_self_check_passes": 22,
+      "false_accepts": 17
+    },
+    "script_first": {
+      "n": 22,
+      "passes": 1,
+      "pass_rate": 0.045454545454545456,
+      "median_wall_ms": 9638.072551999925,
+      "mean_wall_ms": 10267.32783536365,
+      "p90_wall_ms": 15496.31771030007,
+      "mean_usd": 0.009620454545454545,
+      "pass_rate_ci": [
+        0.0,
+        0.13636363636363635
+      ],
+      "paired_difference_vs_best_arm": -0.18181818181818182,
+      "paired_difference_ci": [
+        -0.34615384615384615,
+        0.0
+      ],
+      "claims_or_self_check_passes": 6,
+      "false_accepts": 5
+    },
+    "cascade": {
+      "n": 22,
+      "passes": 4,
+      "pass_rate": 0.18181818181818182,
+      "median_wall_ms": 25022.14365650002,
+      "mean_wall_ms": 25126.48714004544,
+      "p90_wall_ms": 38067.97731760016,
+      "mean_usd": 0.050565227272727276,
+      "pass_rate_ci": [
+        0.0,
+        0.34615384615384615
+      ],
+      "paired_difference_vs_best_arm": -0.04545454545454544,
+      "paired_difference_ci": [
+        -0.13636363636363635,
+        0.0
+      ],
+      "claims_or_self_check_passes": 6,
+      "false_accepts": 5
+    },
+    "browser_use ultrafast": {
+      "n": 22,
+      "passes": 5,
+      "pass_rate": 0.22727272727272727,
+      "median_wall_ms": 27658.924049499772,
+      "mean_wall_ms": 25295.519713227248,
+      "p90_wall_ms": 35355.65972889968,
+      "mean_usd": 0.053288363636363634,
+      "pass_rate_ci": [
+        0.0,
+        0.4166666666666667
+      ],
+      "paired_difference_vs_best_arm": 0.0,
+      "paired_difference_ci": [
+        0.0,
+        0.0
+      ],
+      "claims_or_self_check_passes": 22,
+      "false_accepts": 17
+    }
+  },
+  "best_arm": "browser_use ultrafast",
+  "best_baseline": "browser_use ultrafast",
+  "ultrafast40": {
+    "n": 40,
+    "passes": 6,
+    "pass_rate": 0.15,
+    "median_wall_ms": 27658.924049499772,
+    "mean_wall_ms": 32220.880989274974,
+    "p90_wall_ms": 59687.704946299906,
+    "mean_usd": 0.077470375,
+    "pass_rate_ci": [
+      0.02564102564102564,
+      0.2926829268292683
+    ],
+    "false_accepts": 34
+  },
+  "flips": [
+    {
+      "file": "raw/probe_20261117_012232.jsonl",
+      "line": 5,
+      "arm": "browser_use",
+      "task_id": "extdev_value_nba_2021_leaders",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer too long",
+      "new_reason": "URL contains '/nba/stats/_/season/2021/seasontype/2'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    },
+    {
+      "file": "raw/probe_20261117_012232.jsonl",
+      "line": 8,
+      "arm": "cascade",
+      "task_id": "extdev_value_nba_2021_leaders",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer too long",
+      "new_reason": "URL contains '/nba/stats/_/season/2021/seasontype/2'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    },
+    {
+      "file": "raw/probe_20261117_012232.jsonl",
+      "line": 29,
+      "arm": "browser_use",
+      "task_id": "extdev_value_icse_2004_chair",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer is not in the page text",
+      "new_reason": "URL contains '/history.html'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    },
+    {
+      "file": "raw/probe_20261117_012232.jsonl",
+      "line": 73,
+      "arm": "browser_use",
+      "task_id": "extdev_nav_nets_schedule",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    },
+    {
+      "file": "raw/probe_20261117_012232.jsonl",
+      "line": 75,
+      "arm": "script_first",
+      "task_id": "extdev_nav_nets_schedule",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    },
+    {
+      "file": "raw/probe_20261117_012232.jsonl",
+      "line": 76,
+      "arm": "cascade",
+      "task_id": "extdev_nav_nets_schedule",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    },
+    {
+      "file": "raw/probe_20261117_015118.jsonl",
+      "line": 2,
+      "arm": "browser_use",
+      "task_id": "extdev_value_nba_2021_leaders",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer too long",
+      "new_reason": "URL contains '/nba/stats/_/season/2021/seasontype/2'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    },
+    {
+      "file": "raw/probe_20261117_015118.jsonl",
+      "line": 8,
+      "arm": "browser_use",
+      "task_id": "extdev_value_icse_2004_chair",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer is not in the page text",
+      "new_reason": "URL contains '/history.html'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    },
+    {
+      "file": "raw/probe_20261117_015118.jsonl",
+      "line": 19,
+      "arm": "browser_use",
+      "task_id": "extdev_nav_nets_schedule",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    },
+    {
+      "file": "raw/probe_20261117_015118.jsonl",
+      "line": 26,
+      "arm": "browser_use",
+      "task_id": "extdev_nav_commuter_benefits",
+      "old": false,
+      "new": true,
+      "category": "full re-grade",
+      "old_reason": "answer does not satisfy the marker",
+      "new_reason": "URL contains '/solutions/commuter-benefits'",
+      "stored_page_field": true,
+      "empty_page_text": false
+    }
+  ],
+  "rows": 203,
+  "attempted": 131,
+  "budget_skips": 72,
+  "not_regradable": [],
+  "smoke_passes": 0,
+  "cascade": {
+    "answered_by": {
+      "script": {
+        "n": 2,
+        "passes": 1
+      },
+      "browser_use": {
+        "n": 20,
+        "passes": 3
+      }
+    },
+    "stage_one_pass_replays": [
+      {
+        "task_id": "extdev_nav_spothero_contact",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": true,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "answer does not satisfy the marker",
+        "final_cascade_success": false
+      },
+      {
+        "task_id": "extdev_value_icse_2004_chair",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": false,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "URL 'http://www.icse-conferences.org/2004/index.html' does not contain '/history.html'",
+        "final_cascade_success": false
+      },
+      {
+        "task_id": "extdev_value_apec_peru_arrivals",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": false,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "URL 'https://www.google.com/sorry/index?continue=https://www.google.com/search%3Fq%3Dsite%253Aapec.org%2BPeru%2B2024%2B%2522tourist%2522%2B%2522target%2522%26sei%3Dm7D7aq37IN6z0PEP7tPPkAc&q=EgSM6EACGJvh7tcGIjD8J8kkHS_BX-LpvEK2TLIWjVLsULGFfBxHspLkrDtEpja_TwjK99qn9IO_Kt5-4c8yAVJaAUNgq_rOnqWM1qb8AQ' does not contain '/press/news-releases/2024/ministers-safeguard-tourism-sector-s-role-as-driver-of-economic-growth'",
+        "final_cascade_success": true
+      },
+      {
+        "task_id": "extdev_nav_nets_schedule",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": true,
+        "stage_one_frozen_replay_success": true,
+        "stage_one_frozen_replay_reason": "URL contains '/nba/team/schedule/_/name/bkn/brooklyn-nets'",
+        "final_cascade_success": true
+      },
+      {
+        "task_id": "extdev_nav_spothero_marketing",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": false,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "URL 'https://spothero.com/careers' does not contain '/careers/8069541'",
+        "final_cascade_success": false
+      },
+      {
+        "task_id": "extdev_filter_amazon_puppy_food",
+        "raw_self_check": "PASS",
+        "precision_gate_accepted": false,
+        "stage_one_frozen_replay_success": false,
+        "stage_one_frozen_replay_reason": "URL 'https://www.amazon.com/s?k=puppy+dog+food&rh=p_72%3A1248879011&s=price-asc-rank' does not contain '/s?k=dog+food+for+puppies&rh=p_72%3A2661618011&s=price-asc-rank'",
+        "final_cascade_success": false
+      }
+    ],
+    "gate_false_accepts": 1,
+    "gate_accepts": 2,
+    "difference_vs_best_baseline": -0.04545454545454544,
+    "difference_vs_best_baseline_ci": [
+      -0.13636363636363635,
+      0.0
+    ],
+    "mean_wall_difference_ms": -169.0325731818084,
+    "mean_wall_difference_ci_ms": [
+      -8417.798379973445,
+      7499.169135499541
+    ],
+    "criterion_point_estimate": false
+  },
+  "older_data_diff": {
+    "matched_older_sources": 50,
+    "matched_source_hashes_unchanged": true,
+    "new_older_flips": [],
+    "removed_older_flips": [],
+    "preexisting_flips_unchanged": 31,
+    "hidden_flip_summary_before": [],
+    "hidden_flip_summary_after": [],
+    "older_groups_unchanged": true
+  },
+  "ledger_running_total_usd": 6.277727
+}
