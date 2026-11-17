@@ -1,7 +1,6 @@
 """Synthetic evidence only: never reveal heldout3 examples in test output."""
 
 import json
-from pathlib import Path
 
 import pytest
 

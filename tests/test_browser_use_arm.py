@@ -12,7 +12,6 @@ import pytest
 from bench.arms import (
     ARM_BROWSER_USE,
     ARM_PLAYWRIGHT,
-    ARM_STAGEHAND,
     ARMS,
     BASELINE_ARMS,
     SELECTABLE_ARMS,

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 from bench.arms import SELECTABLE_ARMS, prompt_for
 from bench.judge import JUDGE_SYSTEM
