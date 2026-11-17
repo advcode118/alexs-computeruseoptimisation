@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from bench.browser_use_arm import _priced_usage
+from bench.browser_use_arm import _priced_usage, _request_usages
 from bench.budget import ALLOWED_MODEL, SpendLedger
 from bench.openai_client import OpenAIClient, anthropic_shaped, responses_payload
 from bench.openai_run import execute_openai_probe
@@ -689,3 +689,41 @@ def test_harness_openai_defaults_without_a_browser(tmp_path):
     harness = BenchmarkHarness(api_key="offline", provider="openai", runs_dir=tmp_path)
     assert harness.model == "gpt-6.1-sol"
     assert harness.effort == "medium"
+
+
+def test_browser_use_long_context_rate_is_per_request():
+    """Two 150k-input requests are short context each. The 300k sum is not one long request."""
+    from types import SimpleNamespace
+
+    def response(incoming, outgoing, read=0, write=0):
+        return SimpleNamespace(
+            usage=SimpleNamespace(
+                input_tokens=incoming, output_tokens=outgoing, cache_read_tokens=read, cache_write_tokens=write
+            )
+        )
+
+    usage = {"input": 300_000, "output": 2_000, "cache_read": 100_000, "cache_write": 0, "requests": 2}
+    request = SimpleNamespace(parts=[])
+    result = SimpleNamespace(
+        usage=usage,
+        messages=[request, response(150_000, 1_000, 0), request, response(150_000, 1_000, 100_000)],
+    )
+    requests = _request_usages(result, usage)
+    assert requests == [(150_000, 1_000, 0, 0), (150_000, 1_000, 100_000, 0)]
+    aggregate = _priced_usage("gpt-6.1-sol", usage)[4]
+    each = _priced_usage("gpt-6.1-sol", usage, requests)
+    assert each[:4] == (300_000, 2_000, 100_000, 0)
+    short = price_usd("gpt-6.1-sol", 150_000, 1_000, 0) + price_usd("gpt-6.1-sol", 150_000, 1_000, 100_000)
+    assert each[4] == pytest.approx(short, abs=1e-6)
+    assert each[4] < aggregate
+
+    # One request over the threshold still pays the long-context rate.
+    long_usage = {"input": 300_000, "output": 2_000, "cache_read": 0, "cache_write": 0, "requests": 1}
+    long_result = SimpleNamespace(usage=long_usage, messages=[response(300_000, 2_000)])
+    long_requests = _request_usages(long_result, long_usage)
+    assert _priced_usage("gpt-6.1-sol", long_usage, long_requests)[4] == _priced_usage("gpt-6.1-sol", long_usage)[4]
+
+    # A transcript that does not account for every token stays on the aggregate.
+    partial = SimpleNamespace(usage=usage, messages=[response(150_000, 1_000)])
+    assert _request_usages(partial, usage) is None
+    assert _request_usages(SimpleNamespace(usage=usage), usage) is None
