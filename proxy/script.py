@@ -1,7 +1,6 @@
-"""A short Playwright-style locator script. No JavaScript, no model.
+"""Shared locator grammar for script_first and Stagehand. No model calls.
 
-fast_act and do_task_segment accept this instead of only a structured action
-list. One action per line. The supported locators are getByRole, getByLabel,
+One action per line. The supported locators are getByRole, getByLabel,
 getByText, and getByPlaceholder. The supported actions are click, fill,
 press, check, and uncheck. Anything else, including page.evaluate, is rejected
 before the page is touched.
@@ -13,7 +12,6 @@ before the page is touched.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
 MAX_SCRIPT_CHARS = 2000
@@ -261,37 +259,3 @@ def _skip_until_call_end(scan: _Scan) -> None:
             depth -= 1
         scan.i += 1
     raise ScriptError(f"line {scan.line}: unclosed call")
-
-
-def norm_label(value: str) -> str:
-    return re.sub(r"\s+", " ", value or "").strip().casefold()
-
-
-_FIELD_ROLES = {"textbox", "searchbox", "combobox"}
-
-
-def match_element(elements, action: ScriptAction):
-    """The one element this locator names, or ScriptError when it is not unique."""
-    want = norm_label(action.name)
-    hits = []
-    for element in elements:
-        if not getattr(element, "name", "").strip() or norm_label(element.name) != want:
-            continue
-        role = (element.role or "").casefold()
-        if action.finder == "role" and role != action.role.casefold():
-            continue
-        if action.finder == "placeholder" and role not in _FIELD_ROLES:
-            continue
-        hits.append(element)
-    if action.finder == "placeholder" and not hits:
-        hits = [
-            element
-            for element in elements
-            if getattr(element, "name", "").strip() and norm_label(element.name) == want
-        ]
-    if len(hits) == 1:
-        return hits[0]
-    kind = action.role or action.finder
-    if not hits:
-        raise ScriptError(f"line {action.line}: no {kind} named {action.name!r}")
-    raise ScriptError(f"line {action.line}: {len(hits)} matches for {kind} named {action.name!r}")

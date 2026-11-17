@@ -10,7 +10,6 @@ from bench import browser_use_arm, probe
 from bench.arms import ARMS, SELECTABLE_ARMS
 from bench.measurement import grade_fields
 from bench.script_first import format_run_result
-from bench.segments import build_receipt
 
 
 URL = "https://example.test/done"
@@ -48,8 +47,6 @@ class Client:
     async def stop(self):
         self.clock.add(17)
 
-    def reset_segments(self):
-        self.segment_index = 0
 
     def tools_for_claude(self):
         return [{"name": "run_script" if self.arm == "script_first" else "finish",
@@ -70,10 +67,8 @@ class Client:
         if self.fail:
             raise RuntimeError("offline failure")
         if self.arm == "script_first":
-            receipt = build_receipt(ok=True, steps_run=2, steps_total=2,
-                                    url_before=TASK["start_url"], url_after=URL)
             return format_run_result(ok=True, url=URL, step_count=2, title="Finished",
-                                     h1="Finished", text="Finished", receipt=receipt,
+                                     h1="Finished", text="Finished",
                                      claimed={"url": URL, "answer": "Finished"}), 7000
         return json.dumps({"url": URL, "page": "Finished", "cycles": 1}), 5000
 
@@ -101,12 +96,9 @@ def clock(monkeypatch):
     return value
 
 
-@pytest.mark.parametrize("arm,segments", [(arm, False) for arm in ARMS] +
-                         [("script_first", False), ("script_first", True)])
+@pytest.mark.parametrize("arm", [*ARMS, "stagehand"])
 @pytest.mark.parametrize("outcome", ["normal", "run_error", "grade_error"])
-def test_model_arm_wall_boundaries(clock, monkeypatch, tmp_path, arm, segments, outcome):
-    monkeypatch.setenv("CU_SF_SEGMENTS", "1" if segments else "0")
-    monkeypatch.delenv("CU_SF_STRATEGY", raising=False)
+def test_model_arm_wall_boundaries(clock, monkeypatch, tmp_path, arm, outcome):
     client = Client(clock, arm, fail=outcome == "run_error")
     monkeypatch.setattr("bench.arms.build_client", lambda *a, **k: client)
     if outcome == "grade_error":
@@ -139,20 +131,6 @@ def test_model_arm_wall_boundaries(clock, monkeypatch, tmp_path, arm, segments, 
         assert row["grade_url"] == URL
         assert row["grade_page_text"] == "Finished"
         assert not row["grade_page_text_truncated"]
-
-
-@pytest.mark.parametrize("arm", ["diff_fast_act", "macro_replay"])
-@pytest.mark.parametrize("outcome", ["normal", "error", "skip"])
-def test_no_model_wall_boundaries(clock, monkeypatch, arm, outcome):
-    client = Client(clock, arm, fail=outcome == "error", huge=outcome == "skip")
-    monkeypatch.setattr("bench.arms.build_client", lambda *a, **k: client)
-    row = asyncio.run(probe.run_no_model_arm(arm, TASK))
-    assert row["wall_ms"] == (2000 if outcome == "skip" else 7000)
-    assert row["browser_launch_ms"] == 7000
-    assert row["wall_clock_version"] == 2
-    assert row["grade_read_ms"] == (11_000 if outcome == "normal" else 0)
-    assert row["skipped"] is (outcome == "skip")
-    assert row["success"] is (outcome == "normal")
 
 
 @pytest.mark.parametrize("outcome", ["normal", "error", "launch_error", "grade_error"])
@@ -211,40 +189,5 @@ def test_evidence_storage_cap_and_empty():
     assert row["claimed_answer"] == "answer"
 
 
-@pytest.mark.parametrize("failed", [False, True])
-def test_browserless_endpoint_boundaries(clock, monkeypatch, tmp_path, failed):
-    from bench.endpoint import EndpointError
-
-    def fetch(*a, **k):
-        clock.add(7)
-        if failed:
-            raise EndpointError("offline fetch failure")
-        return {"url": URL, "text": "Finished", "title": "Finished", "h1": "Finished"}
-
-    monkeypatch.setattr("bench.endpoint.fetch_start_url", fetch)
-    original_grade = probe.grade_arm
-
-    def grade(*a, **k):
-        clock.add(13)
-        return original_grade(*a, **k)
-
-    monkeypatch.setattr(probe, "grade_arm", grade)
-    row, spent = asyncio.run(probe._run_endpoint(
-        {**TASK, "end_markers": {"url_contains": "/done"}},
-        api_key="", headless=True, destination=tmp_path, budget_usd=1,
-        ledger=None, probe_spent=0, opener=lambda *a: None))
-    assert row["success"] is not failed, row
-    assert row["wall_ms"] == 7000
-    assert row["browser_launch_ms"] == 0
-    assert row["grade_read_ms"] == 0
-    assert row["wall_clock_version"] == 2
-    assert row["endpoint_fetch_ms"] == 7000
-    assert spent == 0
-    if not failed:
-        assert row["grade_page_text"] == "Finished"
-        assert row["grade_url"] == URL
-
-
 def test_all_selectable_arms_are_accounted_for():
-    assert set(SELECTABLE_ARMS) == {"playwright_mcp", "diff_fast_act", "macro_replay",
-                                    "stagehand", "script_first", "browser_use", "endpoint"}
+    assert set(SELECTABLE_ARMS) == {"playwright_mcp", "stagehand", "script_first", "browser_use"}

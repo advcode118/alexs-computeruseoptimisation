@@ -35,7 +35,6 @@ _TYPE = (
     ("placeholder", ""),
 )
 _ARITY = {"click": 1, "fill": 2, "press": 2}
-_TEXT_KEYS = ("url", "title", "h1", "key_text", "answer")
 
 # Page-context function. wrap_evaluate puts this in scope only for a script
 # that calls cu.claim. It does not navigate and it does not read a selector
@@ -229,86 +228,6 @@ def wrap_evaluate(function: str) -> str:
     if not references_claim(function):
         return function
     return "() => {\n" + CLAIM_JS + "\nconst __cuUser = " + function.strip() + ";\nreturn __cuUser();\n}"
-
-
-def _js_number(value: int | float) -> str:
-    if isinstance(value, float) and value.is_integer() and value not in {float("inf"), float("-inf")}:
-        return str(int(value))
-    return str(value)
-
-
-def _collapse(value: str) -> str:
-    return " ".join(value.split())
-
-
-def shape_claim(partial, *, url: str, title: str, h1: str) -> dict:
-    """The object cu.claim returns. Strings only. A bad value is marked rejected.
-
-    This does not decide PASS or FAIL. The live page is still the judge.
-    """
-    out = {
-        "url": url or "",
-        "title": title or "",
-        "h1": (h1 or "").strip(),
-        "key_text": "",
-        "values": [],
-        "answer": "",
-    }
-    if partial is None or partial == "":
-        return out
-    if not isinstance(partial, dict):
-        out["rejected"] = True
-        return out
-    rejected = False
-    for key in _TEXT_KEYS:
-        if key not in partial:
-            continue
-        value = partial[key]
-        if value is None or value == "":
-            continue
-        if isinstance(value, str):
-            text = value.strip()
-            if text:
-                out[key] = text
-            continue
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            rejected = True
-            continue
-        out[key] = _js_number(value)
-    if "values" in partial:
-        raw = partial["values"]
-        if raw is None or raw == "" or raw == [] or raw == ():
-            pass
-        elif isinstance(raw, bool) or not isinstance(raw, (list, tuple)):
-            rejected = True
-        else:
-            values: list[str] = []
-            bad = False
-            for item in raw:
-                if item is None or item == "":
-                    continue
-                if isinstance(item, str):
-                    text = _collapse(item)
-                    if not text:
-                        continue
-                    if len(text) > 400:
-                        text = text[:400]
-                    values.append(text)
-                elif isinstance(item, bool) or not isinstance(item, (int, float)):
-                    bad = True
-                    break
-                else:
-                    values.append(_js_number(item))
-                if len(values) > 20:
-                    bad = True
-                    break
-            if bad:
-                rejected = True
-            else:
-                out["values"] = values
-    if rejected:
-        out["rejected"] = True
-    return out
 
 
 def _call(fn, *args, **kwargs):

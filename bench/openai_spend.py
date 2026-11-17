@@ -61,10 +61,10 @@ UNRECORDED_CALL_ALLOWANCE_USD = 0.05
 # A later call whose usage cannot be priced. Saved before the process aborts.
 UNPRICED_CALL_RESERVE_USD = 1.0
 LONG_CONTEXT_INPUT_TOKENS = 272_000
-OPENAI_PROJECT_BUDGET_USD = 20.0
+OPENAI_PROJECT_BUDGET_USD = 15.0
 OPENAI_RUN_BUDGET_USD = 5.0
 # One sweep is both models at every accepted effort. The ceiling sits at the
-# top of the $10–$15 band and under the $20 project cap. Each cell still
+# top of the $10–$15 band and under the $15 project cap. Each cell still
 # stops at $5. One tuned task per cell keeps the sweep from repeating the
 # three-task Claude set at every effort.
 OPENAI_SWEEP_BUDGET_USD = 15.0
@@ -89,7 +89,7 @@ def default_openai_spend_path() -> Path:
     override = os.environ.get("CU_OPENAI_SPEND_LEDGER", "").strip()
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".cu-optimisation" / "openai-spend.json"
+    return Path.home() / ".cu-optimisation" / "openai-spend-20261117.json"
 
 
 def assert_openai_model(model: str) -> str:
@@ -286,7 +286,7 @@ def cap_statement() -> dict:
         "note": (
             "A run's dollar cost is priced from the token counts the API returns. "
             "It is not known before that. A run stops once it has reached $5. "
-            "A sweep stops once it has reached $15. The project ledger stops at $20."
+            "A sweep stops once it has reached $15. The project ledger stops at $15."
         ),
         "usd_5_buys": {model: tokens_at_run_cap(model) for model in ALLOWED_OPENAI_MODELS},
     }
@@ -319,13 +319,13 @@ class OpenAISpendLedger:
 
     @property
     def budget_usd(self) -> float:
-        """The cap the current process is enforcing. The file keeps the $20 project cap."""
+        """The cap the current process is enforcing. The file keeps the $15 project cap."""
         if self.run_ceiling_usd is None:
             return self.project_budget_usd
         return min(self.project_budget_usd, self.run_ceiling_usd)
 
     def allows_another_task(self) -> bool:
-        """False once this run's ceiling or the $20 project cap is reached."""
+        """False once this run's ceiling or the $15 project cap is reached."""
         if not self.allows_project():
             return False
         if self.run_ceiling_usd is not None and self.running_total_usd >= self.run_ceiling_usd:

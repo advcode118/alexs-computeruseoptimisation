@@ -95,13 +95,3 @@ class IgnoreCounter:
             self._last_was_diff = True
         elif is_full_page_observe(self._call_name, self._call_args):
             self._last_was_diff = False
-
-
-def ignore_counter(child) -> IgnoreCounter:
-    """The counter stored on a proxy child. Created on first use."""
-    counter = getattr(child, "_ignore_counter", None)
-    if isinstance(counter, IgnoreCounter):
-        return counter
-    counter = IgnoreCounter()
-    setattr(child, "_ignore_counter", counter)
-    return counter

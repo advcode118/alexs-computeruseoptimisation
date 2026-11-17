@@ -1,96 +1,27 @@
-"""Benchmark arms. The outer model is claude-sonnet-5-5. Opus is never used.
-
-The competitive probe drives every arm with that outer model. plain Playwright
-MCP is the weak comparison. Stagehand's snapshot/run/screenshot tools are the
-one that matters. browser_use is the browser-use 1.0 baseline beside those
-two: the model writes Python in one REPL on local Chrome over CDP, with the
-same model string. It is selected with --arms. The default four stay put.
-diff_fast_act and macro_replay expose the proxy: settle, a compact diff,
-fast_act with a script, and do_task_segment. Those tools do not call Claude.
-The outer loop does.
-
-no_model_only is optional. It runs the two proxy arms through decide() with
-no outer model. That path is not the competitive measurement. It cannot
-close the Stagehand gap on open WebVoyager tasks. Nebius is used only when
-a key is already set, and only inside do_task_segment's existing fallback.
-"""
+"""Benchmark arms for script-first execution and browser baselines."""
 
 from __future__ import annotations
 
-import sys
 
 ARM_PLAYWRIGHT = "playwright_mcp"
-ARM_DIFF = "diff_fast_act"
-ARM_REPLAY = "macro_replay"
 ARM_STAGEHAND = "stagehand"
 ARM_SCRIPT_FIRST = "script_first"
-ARM_ENDPOINT = "endpoint"
 ARM_BROWSER_USE = "browser_use"
 
-# The default probe stays these four. script_first, endpoint, and browser_use
-# are selected with --arms. browser_use is a baseline beside plain Playwright
-# MCP and Stagehand, not one of the four.
-ARMS = (ARM_PLAYWRIGHT, ARM_DIFF, ARM_REPLAY, ARM_STAGEHAND)
-# Stagehand is cut for now (11 Nov 2026). It is still selectable with --arms stagehand.
+ARMS = (ARM_SCRIPT_FIRST, ARM_BROWSER_USE, ARM_PLAYWRIGHT)
 BASELINE_ARMS = (ARM_PLAYWRIGHT, ARM_BROWSER_USE)
-SELECTABLE_ARMS = ARMS + (ARM_SCRIPT_FIRST, ARM_ENDPOINT, ARM_BROWSER_USE)
-# One script and a completion turn. A repair may use the spare calls.
-# Moving the page does not add a turn.
+SELECTABLE_ARMS = ARMS + (ARM_STAGEHAND,)
+# One script, one repair, and completion turns.
 SCRIPT_FIRST_MAX_CALLS = 4
 # A FAIL gets a grounded repair: the live page, the failed step, and how far
 # the script got. Up to SCRIPT_FIRST_MAX_REPAIRS of them, each continuing from
 # the current page, while the task is under SCRIPT_FIRST_REPAIR_BUDGET_S of
 # wall time. A first script that passes never reaches any of this.
-SCRIPT_FIRST_MAX_REPAIRS = 3
+SCRIPT_FIRST_MAX_REPAIRS = 1
 SCRIPT_FIRST_REPAIR_BUDGET_S = 30.0
 SCRIPT_FIRST_MAX_SCRIPTS = 1 + SCRIPT_FIRST_MAX_REPAIRS
 SCRIPT_FIRST_HARD_CAP = SCRIPT_FIRST_MAX_SCRIPTS + 2
 
-
-def script_first_repair_mode() -> dict:
-    """How script_first repairs, read from the environment at the start of each task.
-
-    CU_SF_REPAIR=blind restores tip2: one repair that carries only the reason
-    and the URL, tip2's prompt lines, and tip2's stop rules. It exists so one
-    checkout can measure before and after. CU_SF_MAX_REPAIRS caps the grounded
-    repairs (0..SCRIPT_FIRST_MAX_REPAIRS).
-    """
-    import os
-
-    legacy = os.environ.get("CU_SF_REPAIR", "") == "blind"
-    if legacy:
-        return {"legacy": True, "max_repairs": 1, "budget_s": float("inf")}
-    max_repairs = SCRIPT_FIRST_MAX_REPAIRS
-    raw = os.environ.get("CU_SF_MAX_REPAIRS", "")
-    if raw.strip().isdigit():
-        max_repairs = min(SCRIPT_FIRST_MAX_REPAIRS, int(raw))
-    return {"legacy": False, "max_repairs": max_repairs, "budget_s": SCRIPT_FIRST_REPAIR_BUDGET_S}
-
-# The proxy arms can still finish through decide(), replay, or a locator
-# script when no_model_only is requested. The competitive probe does not.
-NO_MODEL_CAPABLE = frozenset({ARM_DIFF, ARM_REPLAY})
-
-_DIFF_PROMPT = """You are a browser automation agent. Tools include fast_act, do_task_segment, and the forwarded Playwright tools.
-
-Guidelines:
-- Prefer one fast_act script over many tiny steps. Pass script when you can write the locator lines yourself, for example page.getByRole("button", { name: "Search" }).click().
-- After an action the tool returns a compact diff (full_snapshot_chars and diff_chars). Do not take a full snapshot after a diff was returned.
-- A full-page browser_snapshot after a diff is counted as model_ignores_tools. Use the diff, or a targeted snapshot with a target, instead.
-- When the task is complete, respond with TASK_COMPLETE.
-- If you cannot complete the task, respond with TASK_FAILED and explain why.
-
-Be efficient - try to complete the task in as few steps as possible."""
-
-_REPLAY_PROMPT = """You are a browser automation agent. Tools include do_task_segment, fast_act, and the forwarded Playwright tools.
-
-Guidelines:
-- Prefer one do_task_segment, or one script, over many tiny browser_click, browser_type, and browser_snapshot steps. A stored sequence for this domain and page can replay with no model call.
-- You may pass script, one Playwright locator action per line, instead of a structured action list.
-- After an action the tool returns a compact diff. Do not take a full snapshot after a diff was returned. That call is counted as model_ignores_tools.
-- When the task is complete, respond with TASK_COMPLETE.
-- If you cannot complete the task, respond with TASK_FAILED and explain why.
-
-Be efficient - one do_task_segment call is better than a click and a snapshot per step."""
 
 _STAGEHAND_PROMPT = """You are a browser automation agent. The tools are snapshot, run, and screenshot. They match Stagehand's tool surface and run on local Playwright.
 
@@ -125,68 +56,6 @@ Guidelines:
 
 Be efficient - one script that finishes the task. A repair only after END_STATE_FAILED."""
 
-_GROUNDED_REPAIR_LINE = "- If the tool result says END_STATE_FAILED, it shows the live page, the step that failed, and how far the script got. The browser stays on that page. Send one script that continues from there (or page.goto to start over), using the names and links shown.\n"
-_BLIND_REPAIR_LINE = "- If the tool result says END_STATE_FAILED, send one corrected script that lands on the finished page. Do not send a second repair.\n"
-_GROUNDED_CLOSING = "Be efficient - one script that finishes the task. A repair only after END_STATE_FAILED."
-_BLIND_CLOSING = "Be efficient - one script, at most one repair, then stop."
-assert _GROUNDED_REPAIR_LINE in _SCRIPT_FIRST_PROMPT and _GROUNDED_CLOSING in _SCRIPT_FIRST_PROMPT
-
-# Only with CU_SF_LOOK=1 (exploratory). The default prompt above is unchanged.
-_SCRIPT_FIRST_LOOK_LINE = """
-
-If you know the URL but not the page's field names, buttons, or where the value sits, you may call look(url) once first. Otherwise write the script directly."""
-
-_SEGMENT_LINES = """
-
-Grounded segments:
-- If you need to inspect controls or content, look({}) reads the current page; look({url: "https://..."}) opens a page first. At most two looks per task. A look is never completion.
-- run_script accepts final (boolean, true by default) and expect (at most four checks). final:false retains the current page and returns a receipt and compact view so you can continue.
-- Each expect item has exactly one key: url_contains, text, gone_text, or control. The first three take nonblank strings of at most 200 characters. control takes {name: string, role?: string} and needs exactly one visible exact match.
-- Expectations are polled together before trailing page.evaluate steps, for at most three seconds per segment and ten seconds total. They are checked again afterward. A failed readiness check stays failed. Expectations are extra constraints, never proof of semantic correctness.
-- The receipt reports completed actions, any failed step, checks, and remaining budgets. Completed mutations remain applied; a failed action may already have emitted input. Inspect current state before retrying and never replay completed mutations.
-- Only a final script with passing execution, expectations, and live-page evidence can finish. A non-final segment or TASK_COMPLETE prose cannot finish the task.
-- Keep within six scripts and eight model calls, including repairs, and the task's wall budget. Batch known steps rather than splitting each click into a segment."""
-
-
-def _segment_prompt() -> str:
-    return _SCRIPT_FIRST_PROMPT.replace(
-        "- The first script must finish the task. Call run_script once. Do not plan a second script.",
-        "- If you know the whole path, send one script that finishes the task (final is true by default). "
-        "If you do not, send a short final:false segment, read the receipt and page, then continue. "
-        "Use expect for what must be on the page before the evidence is read.",
-    ).replace(
-        "- The end URL must", "- A final script's end URL must",
-    ).replace(
-        "Do not stop on the start URL, and do not stop on a search-results URL",
-        "Do not finish on the start URL or a search-results URL",
-    ).replace(
-        "Put the whole navigation in the same script.",
-        "Batch the navigation you know; use a segment when the next action needs observation.",
-    ).replace(
-        "Leave it for the page that holds the asked value.",
-        "A final script must leave it for the page that holds the asked value.",
-    ).replace(
-        "- End every script with", "- End every final script with",
-    ).replace(
-        "- Do not click, type, or snapshot one element at a time.",
-        "- Batch known actions; observe between segments when the next action is not yet grounded.",
-    ).replace(
-        _GROUNDED_REPAIR_LINE,
-        "- If the tool result says END_STATE_FAILED, inspect the current page and receipt. "
-        "Continue from that state without replaying completed mutations. A repair may use final:false if work remains.\n",
-    ).replace(
-        "- If the result already satisfies the task, the run stops.",
-        "- If a final script passes the completion gate, the run stops.",
-    ).replace(
-        _GROUNDED_CLOSING,
-        "Be efficient: one final script when possible; otherwise use short grounded segments.",
-    ) + _SEGMENT_LINES
-
-
-_ENDPOINT_PROMPT = """A direct read of the task start URL uses no model.
-
-A miss falls through to the script_first arm. This arm does not launch a browser."""
-
 _BROWSER_USE_PROMPT = """You are a browser automation agent. You write Python in one persistent REPL. The REPL drives the local Chrome already attached, over the Chrome DevTools Protocol.
 
 Guidelines:
@@ -198,48 +67,23 @@ Guidelines:
 Be efficient - write the steps in the REPL, then stop."""
 
 
-def arm_needs_claude(arm: str, *, no_model_only: bool = False) -> bool:
-    """True when this arm is driven by the outer Claude model.
-
-    Competitive runs pass no_model_only False, so every arm needs Claude.
-    no_model_only True leaves diff_fast_act and macro_replay on decide().
-    """
+def arm_needs_claude(arm: str) -> bool:
+    """All selectable arms use an outer model."""
     if arm not in SELECTABLE_ARMS:
         raise ValueError(f"unknown arm {arm!r}")
-    if arm == ARM_ENDPOINT:
-        return False
-    if no_model_only and arm in NO_MODEL_CAPABLE:
-        return False
     return True
 
 
 def prompt_for(arm: str) -> str:
-    """System prompt for the outer model. Proxy arms still refuse Opus."""
+    """System prompt for the outer model."""
     from bench.harness import SYSTEM_PROMPT
 
     if arm == ARM_PLAYWRIGHT:
         return SYSTEM_PROMPT
-    if arm == ARM_DIFF:
-        return _DIFF_PROMPT
-    if arm == ARM_REPLAY:
-        return _REPLAY_PROMPT
     if arm == ARM_STAGEHAND:
         return _STAGEHAND_PROMPT
     if arm == ARM_SCRIPT_FIRST:
-        from bench.script_first import look_enabled
-        from bench.segments import segments_enabled
-
-        if script_first_repair_mode()["legacy"]:
-            return _SCRIPT_FIRST_PROMPT.replace(_GROUNDED_REPAIR_LINE, _BLIND_REPAIR_LINE).replace(
-                _GROUNDED_CLOSING, _BLIND_CLOSING
-            )
-        if segments_enabled():
-            return _segment_prompt()
-        if look_enabled():
-            return _SCRIPT_FIRST_PROMPT + _SCRIPT_FIRST_LOOK_LINE
         return _SCRIPT_FIRST_PROMPT
-    if arm == ARM_ENDPOINT:
-        return _ENDPOINT_PROMPT
     if arm == ARM_BROWSER_USE:
         return _BROWSER_USE_PROMPT
     raise ValueError(f"unknown arm {arm!r}")
@@ -249,10 +93,6 @@ def build_client(arm: str, *, headless: bool = True):
     """The tool client for this arm. Stagehand stays on local Playwright."""
     if arm not in SELECTABLE_ARMS:
         raise ValueError(f"unknown arm {arm!r}")
-    if arm == ARM_ENDPOINT:
-        from bench.endpoint import EndpointClient
-
-        return EndpointClient()
     if arm == ARM_SCRIPT_FIRST:
         from bench.script_first import ScriptFirstClient
 
@@ -269,4 +109,4 @@ def build_client(arm: str, *, headless: bool = True):
 
     if arm == ARM_PLAYWRIGHT:
         return PlaywrightMCPClient(headless=headless, snapshot_mode="full")
-    return PlaywrightMCPClient(headless=headless, argv=[sys.executable, "-m", "proxy"])
+    raise ValueError(f"unknown arm {arm!r}")

@@ -115,22 +115,13 @@ def test_selector_core(answer, ok):
 def test_same_inputs_have_same_page_grade_for_every_arm(answer):
     expected = grade.grade_page_answer(TASK, URL, PAGE, answer=answer)
     assert browser_use_grade(TASK, URL, PAGE, answer=answer) == expected
-    for arm in ("script_first", "playwright_mcp", "browser_use", "stagehand", "segments", "endpoint", "offline_replay"):
+    for arm in ("script_first", "playwright_mcp", "browser_use", "stagehand", "offline_replay"):
         task = {**TASK, "arm": arm}
         result = probe.grade_observation(
             task, URL, PAGE, answer=answer,
             run_verdict="PASS" if arm == "script_first" else None,
         )
         assert result[:2] == expected
-
-
-def test_endpoint_uses_the_frozen_evidence_rules():
-    from bench.endpoint import evidence_verdict, judge_page
-
-    assert evidence_verdict is grade.evidence_verdict
-    task = {"end_markers": {"answer_equals_selector": "#revision"}}
-    _, _, row = judge_page(task, {"url": URL, "text": PAGE, "selector_text": VALUE})
-    assert row["success"] is True
 
 
 @pytest.mark.parametrize("answer", [
@@ -176,10 +167,9 @@ def test_preexisting_gates_still_precede_answer_or_block_pass():
 
 
 def test_runtime_modules_do_not_import_the_frozen_grader():
-    paths = [ROOT / "bench/script_first.py", ROOT / "bench/segments.py",
+    paths = [ROOT / "bench/script_first.py",
              ROOT / "bench/script_helpers.py", ROOT / "bench/script_grammar.py",
              ROOT / "bench/stagehand_local.py", ROOT / "bench/script_cache.py"]
-    paths.extend((ROOT / "bench").glob("strategy_*.py"))
     for path in paths:
         for node in ast.walk(ast.parse(path.read_text())):
             if isinstance(node, ast.Import):

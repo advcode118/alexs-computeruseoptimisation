@@ -32,7 +32,7 @@ from bench.browser_use_arm import (
 from bench.budget import PROJECT_BUDGET_USD, ModelNotAllowed, SpendLedger, estimate_usd
 from bench.harness import PLAYWRIGHT_MCP_VERSION as HARNESS_MCP
 from bench.probe import execute_probe, main, plan_probe
-from bench.tasks import ANSWER_FORMAT, BENCHMARK_TASKS, get_held_out_tasks, task_message
+from bench.tasks import ANSWER_FORMAT, BENCHMARK_TASKS, tasks_for_split, task_message
 from proxy.child import PLAYWRIGHT_MCP_VERSION as CHILD_MCP
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -120,13 +120,12 @@ def _secrets(task: dict) -> list[str]:
     return found
 
 
-def test_browser_use_is_a_baseline_and_the_default_probe_stays_four():
-    assert ARMS == ("playwright_mcp", "diff_fast_act", "macro_replay", "stagehand")
+def test_browser_use_is_a_baseline_in_the_default_probe():
+    assert ARMS == ("script_first", "browser_use", "playwright_mcp")
     assert BASELINE_ARMS == (ARM_PLAYWRIGHT, ARM_BROWSER_USE)
     assert ARM_BROWSER_USE in SELECTABLE_ARMS
-    assert ARM_BROWSER_USE not in ARMS
+    assert ARM_BROWSER_USE in ARMS
     assert arm_needs_claude("browser_use") is True
-    assert arm_needs_claude("browser_use", no_model_only=True) is True
     assert HARNESS_MCP == CHILD_MCP == BACKEND_MCP == "0.0.84"
     assert BROWSER_USE_VERSION == "1.0.3"
     assert LOCAL_BROWSER == "chromium"
@@ -159,7 +158,7 @@ def test_browser_use_is_a_baseline_and_the_default_probe_stays_four():
 
 def test_prompts_carry_the_task_and_not_the_judge_fields():
     prompt = prompt_for("browser_use")
-    tasks = list(BENCHMARK_TASKS) + get_held_out_tasks()
+    tasks = list(BENCHMARK_TASKS) + tasks_for_split("held-out")
     assert tasks
     for task in tasks:
         text = task_text(task)
@@ -415,13 +414,7 @@ def test_probe_selects_the_arm_without_a_live_run(monkeypatch, capsys):
     assert "0.0.84" in plan["browser_isolation"]["playwright_mcp"]
     assert plan_probe()["arms"] == list(ARMS)
     assert "browser_use" in plan_probe()["available_arms"]
-    assert plan_probe(arms="browser_use", warm_replay=True)["warm_arms"] == [
-        "macro_replay",
-        "diff_fast_act",
-    ]
-    opted = plan_probe(no_model_only=True, arms="browser_use,stagehand")
-    assert opted["claude_arms"] == ["browser_use", "stagehand"]
-    assert opted["no_model_arms"] == []
+    assert plan_probe(arms="browser_use", warm_replay=True)["warm_arms"] == []
     assert main(["--arms", "playwright_mcp,stagehand,browser_use"]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["execute"] is False

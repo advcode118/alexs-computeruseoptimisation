@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from bench.replay_shortcuts import parse_aria_snapshot_to_observation
 from loop.decide import decide
 from loop.actions import Fill
 from loop.observe.aria import parse_aria_snapshot
@@ -47,23 +46,6 @@ def test_saved_samples_keep_every_ref_in_order():
         assert observation.html.splitlines()[0] == (
             f"{snapshot.elements[0].role}\t{snapshot.elements[0].name}\t{snapshot.elements[0].id}"
         )
-
-
-def test_saved_samples_match_the_replay_converter():
-    files = _saved_sample_files()
-    assert len(files) >= 5
-    for path in files:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        observation = parse_aria_snapshot_to_observation(
-            data["snapshot_text"],
-            url=data["url"],
-            title=data["title"],
-        )
-        direct = observation_from_snapshot(
-            parse_aria_snapshot(data["snapshot_text"], url=data["url"], title=data["title"])
-        )
-        assert observation == direct
-        assert len(observation.controls) > 0
 
 
 def test_packing_value_and_wikipedia_paths():

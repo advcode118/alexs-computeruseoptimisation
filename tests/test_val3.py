@@ -5,7 +5,7 @@ from collections import Counter
 from urllib.parse import urlsplit
 
 from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
-from bench.tasks import VAL3_TASK_IDS, get_all_tasks, resolve_task_split, tasks_for_split
+from bench.tasks import VAL3_TASK_IDS, BENCHMARK_TASKS, resolve_task_split, tasks_for_split
 
 # Private public-suffix entries our hosts can sit under. Each subdomain of
 # these is its own registrable domain.
@@ -40,7 +40,7 @@ def test_val3_has_forty_unique_complete_tasks_in_the_kind_mix():
     ids = [task["id"] for task in tasks]
     assert len(set(ids)) == 40
     assert tuple(ids) == VAL3_TASK_IDS
-    catalog_ids = [task["id"] for task in get_all_tasks()]
+    catalog_ids = [task["id"] for task in BENCHMARK_TASKS]
     assert all(catalog_ids.count(task_id) == 1 for task_id in ids)
     kinds = Counter(task_id.split("_")[1] for task_id in ids)
     assert dict(kinds) == _KINDS

@@ -9,12 +9,10 @@ snapshots either way.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
 
-from proxy.page import tool_text
 
 # LangChain's Stagehand settle waits until the page has been quiet for 500ms.
 # That stays the accuracy default while the page is still mutating. A short
@@ -27,7 +25,6 @@ from proxy.page import tool_text
 # still counting.
 QUIET_MS = 500
 SETTLE_TIMEOUT_MS = 3000
-PROXY_TIMEOUT_S = 4.0
 # Fast path for a short page only. A page that is still mutating keeps QUIET_MS.
 FAST_QUIET_MS = 80
 FAST_CAP_MS = 100
@@ -325,36 +322,3 @@ def parse_settle_result(text: str) -> dict:
             reason = data["reason"]
             return {"settled": reason == "quiet", "reason": reason}
     return {"settled": True, "reason": "quiet"}
-
-
-async def settle_page(
-    child,
-    *,
-    quiet_ms: int | None = None,
-    timeout_ms: int | None = None,
-    timeout_s: float | None = None,
-) -> dict:
-    """Wait for a quiet DOM. Always returns, including when the wait times out.
-
-    Omit quiet_ms and timeout_ms to use SETTLE_QUIET_MS / SETTLE_TIMEOUT_MS,
-    which fall back to 500ms and 3000ms.
-    """
-    quiet = configured_quiet_ms() if quiet_ms is None else quiet_ms
-    cap = configured_timeout_ms() if timeout_ms is None else timeout_ms
-    limit = PROXY_TIMEOUT_S if timeout_s is None else timeout_s
-    if timeout_s is None:
-        limit = max(PROXY_TIMEOUT_S, cap / 1000 + 1.0)
-    try:
-        result = await asyncio.wait_for(
-            child.call_tool(
-                "browser_evaluate",
-                {"function": settle_source(quiet, cap)},
-            ),
-            limit,
-        )
-    except (TimeoutError, asyncio.TimeoutError):
-        return {"settled": False, "reason": "timeout"}
-    if isinstance(result, dict) and result.get("isError") is True:
-        return {"settled": False, "reason": "timeout"}
-    raw = tool_text(result if isinstance(result, dict) else {})
-    return parse_settle_result(raw)

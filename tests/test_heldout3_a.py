@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
 from bench.tasks import (
     HELDOUT3A_TASK_IDS,
-    get_all_tasks,
+    BENCHMARK_TASKS,
     resolve_task_split,
     tasks_for_split,
 )
@@ -75,7 +75,7 @@ def test_heldout3a_split_lists_thirty_tasks():
     ids = [task["id"] for task in tasks]
     assert tuple(ids) == HELDOUT3A_TASK_IDS
     assert len(set(ids)) == 30
-    catalog = [task["id"] for task in get_all_tasks()]
+    catalog = [task["id"] for task in BENCHMARK_TASKS]
     assert all(catalog.count(task_id) == 1 for task_id in ids)
     required = {"id", "description", "start_url", "expected_answer", "check_url_contains", "end_markers"}
     for task in tasks:
@@ -109,7 +109,7 @@ def test_heldout3a_split_lists_thirty_tasks():
 def test_heldout3a_domains_are_new_and_start_with_a_through_m():
     tasks = tasks_for_split("heldout3a")
     new_ids = set(HELDOUT3A_TASK_IDS)
-    older = [task for task in get_all_tasks() if task["id"] not in new_ids]
+    older = [task for task in BENCHMARK_TASKS if task["id"] not in new_ids]
     used = set()
     for task in older:
         if task.get("start_url", "").startswith("http"):

@@ -8,24 +8,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-import shutil
-import subprocess
 
 from bench.arms import prompt_for
 from bench.script_cache import PATCH_PROMPT
 from bench.script_first import (
-    PageEvidence,
     ScriptFirstClient,
-    check_returned_evidence,
     parse_task_script,
     repair_request,
-    run_on_mcp,
     run_on_page,
 )
 from bench.script_helpers import (
-    CLAIM_JS,
     parse_helper_call,
-    shape_claim,
     wrap_evaluate,
 )
 from proxy.script import ScriptError
@@ -237,127 +230,6 @@ def test_claim_inside_evaluate_is_wrapped_and_still_judged():
     payload = json.loads(text.splitlines()[0])
     assert payload["claimed"]["answer"] == "Visible heading"
     assert payload["claimed"]["key_text"] == "Visible heading"
-    verdict = check_returned_evidence(
-        {"host": "example.com", "url_contains": "/item"},
-        PageEvidence(
-            url="https://example.com/item",
-            title="Example",
-            h1="Visible heading",
-            text="Visible heading is on the page",
-        ),
-        payload["claimed"],
-    )
-    assert verdict.verdict == "PASS"
-    missing = shape_claim(
-        {"answer": True, "key_text": "not on this page"},
-        url="https://example.com/item",
-        title="Example",
-        h1="Visible heading",
-    )
-    assert missing["rejected"] is True
-    assert missing["answer"] == ""
-    failed = check_returned_evidence(
-        {"host": "example.com", "url_contains": "/item"},
-        PageEvidence(url="https://example.com/item", title="Example", text="Visible heading"),
-        missing,
-    )
-    assert failed.verdict == "FAIL"
-    assert failed.reason == "returned value is not text"
-
-
-def test_claim_javascript_matches_the_python_shape():
-    node = shutil.which("node")
-    assert node
-    cases = [
-        {"url": "https://example.com/item", "title": "Example", "h1": "Visible heading", "partial": None},
-        {
-            "url": "https://example.com/item",
-            "title": "Example",
-            "h1": "From the page",
-            "partial": {"h1": " From the script ", "answer": "  kept  ", "key_text": "", "values": ["  a \n b  ", 2]},
-        },
-        {
-            "url": "https://example.com/item",
-            "title": "Example",
-            "h1": "H",
-            "partial": {"answer": True, "values": ["ok", False]},
-        },
-        {
-            "url": "https://example.com/item",
-            "title": "Example",
-            "h1": "H",
-            "partial": ["not", "an", "object"],
-        },
-        {
-            "url": "https://example.com/item",
-            "title": "Example",
-            "h1": "H",
-            "partial": {"values": ["x"] * 21},
-        },
-        {
-            "url": "https://example.com/item",
-            "title": "Example",
-            "h1": "H",
-            "partial": {"values": ["y" * 401]},
-        },
-    ]
-    program = (
-        "const cases = JSON.parse(process.argv[1]);\n"
-        "const source = process.argv[2];\n"
-        "const out = cases.map((item) => {\n"
-        "  const location = { href: item.url };\n"
-        "  const document = { title: item.title, querySelector(sel) {\n"
-        "    if (sel === 'h1' && item.h1) return { innerText: item.h1, textContent: item.h1 };\n"
-        "    return null;\n"
-        "  } };\n"
-        "  const fn = new Function('location', 'document', 'partial', source + '\\nreturn cu.claim(partial);');\n"
-        "  return fn(location, document, item.partial);\n"
-        "});\n"
-        "process.stdout.write(JSON.stringify(out));\n"
-    )
-    completed = subprocess.run(
-        [node, "-e", program, json.dumps(cases), CLAIM_JS],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    found = json.loads(completed.stdout)
-    expect = [shape_claim(item["partial"], url=item["url"], title=item["title"], h1=item["h1"]) for item in cases]
-    assert found == expect
-    assert found[2]["rejected"] is True
-    assert found[5]["values"] == ["y" * 400]
-
-
-def test_mcp_evaluate_receives_the_claim_helper_and_refuses_a_click():
-    calls = []
-
-    async def call_tool(name, arguments):
-        calls.append((name, arguments))
-        if name == "browser_navigate":
-            return f"- Page URL: {arguments['url']}\n"
-        if arguments.get("function") == "() => location.href":
-            return "https://example.com/item"
-        return "null"
-
-    script = """
-    page.goto("https://example.com/item");
-    page.evaluate(() => cu.claim({answer: "Visible heading"}));
-    """
-    asyncio.run(run_on_mcp(call_tool, script))
-    assert calls[0][0] == "browser_navigate"
-    assert calls[1][0] == "browser_evaluate"
-    assert "const cu" in calls[1][1]["function"]
-    assert calls[1][1]["function"].strip().startswith("() => {")
-    calls.clear()
-    try:
-        asyncio.run(run_on_mcp(call_tool, 'cu.click("Go")'))
-    except ScriptError as exc:
-        assert "page.evaluate" in str(exc)
-    else:
-        raise AssertionError("a helper click is not an MCP evaluate")
-    assert calls == []
-
-
 def test_prompts_name_the_helpers_and_omit_judge_fields():
     prompt = prompt_for("script_first")
     tool = ScriptFirstClient().tools_for_claude()[0]["description"]

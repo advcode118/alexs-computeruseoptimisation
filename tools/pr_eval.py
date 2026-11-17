@@ -25,12 +25,12 @@ from uuid import uuid4
 from bench import openai_client as client_module
 from bench.openai_spend import OpenAISpendLedger, PriceUnknown, price_usd, published_rates
 
-MODEL = "gpt-6-luna"
+MODEL = "gpt-6.1-sol"
 SPLITS = ("dev3", "dev4form", "dev4spa", "dev5title")
-RECONCILED_TOTAL = Decimal("14.579971")
-RECONCILED_EXTRA = Decimal("3.874160")
+RECONCILED_TOTAL = Decimal("0")
+RECONCILED_EXTRA = Decimal("0")
 DEFAULT_EVALUATION_CAP = Decimal("1.50")
-PROJECT_CAP = Decimal("20")
+PROJECT_CAP = Decimal("15")
 RUN_CAP = Decimal("5")
 QUANTUM = Decimal("0.000001")
 MAX_OUTPUT = 4096
@@ -38,17 +38,7 @@ MAX_OUTPUT = 4096
 # UTF-8 byte, plus 4096 framing tokens and 256 per input item/function schema.
 FRAMING_BASE = 4096
 FRAMING_PER_ITEM = 256
-FLAG_CHOICES = {
-    "CU_PAGE_SUMMARY": ("", "0", "1"),
-    "CU_SF_SEGMENTS": ("", "0", "1"),
-    "CU_SF_LOOK": ("", "0", "1"),
-    "CU_SF_REPAIR": ("", "blind", "grounded"),
-    "CU_SF_MAX_REPAIRS": ("", "0", "1", "2", "3"),
-    "CU_SF_STRATEGY": ("", "nav", "form", "spa", "nav,form,spa"),
-    "CU_SF_NAV_READ": ("", "always", "suspect", "off"),
-    "CU_SF_NAV_MF": ("", "0", "1"),
-    "CU_SF_NAV_MISSING": ("", "keep", "fail"),
-}
+FLAG_CHOICES = {"CU_BU_MODE": ("", "ultrafast")}
 
 
 class Refused(PriceUnknown):
@@ -66,7 +56,7 @@ def money(value) -> Decimal:
 
 
 def canonical_ledger() -> Path:
-    target = (Path.home() / ".cu-optimisation" / "openai-spend.json").resolve()
+    target = (Path.home() / ".cu-optimisation" / "openai-spend-20261117.json").resolve()
     override = os.environ.get("CU_OPENAI_SPEND_LEDGER", "").strip()
     if override and Path(override).expanduser().resolve() != target:
         raise Refused("Only the canonical OpenAI ledger is allowed")
@@ -75,10 +65,7 @@ def canonical_ledger() -> Path:
 
 def frozen_flags() -> dict:
     flags = {key: os.environ.get(key, "") for key in FLAG_CHOICES}
-    strategy = flags["CU_SF_STRATEGY"]
-    if strategy and not set(strategy.split(",")) <= {"nav", "form", "spa"}:
-        raise Refused("Unsupported specialist selection")
-    if any(value not in FLAG_CHOICES[key] for key, value in flags.items() if key != "CU_SF_STRATEGY"):
+    if any(value not in FLAG_CHOICES[key] for key, value in flags.items()):
         raise Refused("Unsupported evaluation flag value")
     for key, value in os.environ.items():
         if key.startswith("CU_SF_") and key not in FLAG_CHOICES:
@@ -175,7 +162,7 @@ class Budget:
             if total != money(data.get("running_total_usd")):
                 raise Refused("Ledger arithmetic mismatch; parent reconciliation required")
             if total < RECONCILED_TOTAL or extra < RECONCILED_EXTRA:
-                raise Refused("Parent must import the $2.543299 prior adjustment first")
+                raise Refused("Ledger is below the evaluation origin")
             if data.get("aborted") or any(
                 row.get("status") != "settled" for row in data.get("pr_eval_calls", [])
             ):
@@ -299,7 +286,7 @@ def request_bound(payload: dict) -> dict:
     if set(payload) - allowed or not allowed - {"tool_choice"} <= set(payload):
         raise Refused("Unsupported Responses body fields")
     if (
-        payload["model"] not in (MODEL, "gpt-6.1-sol")
+        payload["model"] not in (MODEL, "gpt-6-luna")
         or payload["reasoning"] != {"effort": "medium"}
         or payload["store"] is not False
         or not isinstance(payload["instructions"], str)
@@ -545,8 +532,7 @@ def provenance() -> dict:
     dirty = bool(subprocess.check_output(
         ["git", "-C", str(root), "status", "--porcelain"], text=True,
     ).strip())
-    source_names = ("harness", "probe", "arms", "script_first", "segments", "openai_client",
-                    "openai_spend", "strategy_nav", "strategy_form", "strategy_spa", "page_summary")
+    source_names = ("harness", "probe", "arms", "script_first", "openai_client", "openai_spend")
     sources = {f"bench/{name}.py": hashlib.sha256(path.read_bytes()).hexdigest()
                for name in source_names if (path := root / "bench" / f"{name}.py").is_file()}
     return {"revision": revision, "checkout": str(root), "dirty": dirty, "source_sha256": sources,
@@ -556,7 +542,7 @@ def provenance() -> dict:
 async def evaluate(*, split: str, task_limit: int | None, output: Path,
                    model=MODEL, evaluation_cap=DEFAULT_EVALUATION_CAP) -> Path:
     """Parent-only paid entrypoint. Tests replace tasks/arm and use a temp ledger."""
-    if model not in (MODEL, "gpt-6.1-sol"):
+    if model not in (MODEL, "gpt-6-luna"):
         raise Refused("Unsupported evaluation model")
     flags = frozen_flags()
     from bench.probe import run_claude_arm
@@ -639,7 +625,7 @@ def main(argv=None) -> int:
     parser.add_argument("--execute", action="store_true", help="Explicit parent-only paid launch")
     parser.add_argument("--split", choices=SPLITS, default="dev3")
     parser.add_argument("--task-limit", type=int)
-    parser.add_argument("--model", choices=(MODEL, "gpt-6.1-sol"), default=MODEL)
+    parser.add_argument("--model", choices=(MODEL, "gpt-6-luna"), default=MODEL)
     parser.add_argument("--evaluation-cap-usd", default=str(DEFAULT_EVALUATION_CAP))
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)

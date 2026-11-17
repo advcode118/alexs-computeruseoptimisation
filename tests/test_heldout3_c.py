@@ -5,7 +5,7 @@ from collections import Counter
 from urllib.parse import urlsplit
 
 from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
-from bench.tasks import HELDOUT3C_TASK_IDS, get_all_tasks, resolve_task_split, tasks_for_split
+from bench.tasks import HELDOUT3C_TASK_IDS, BENCHMARK_TASKS, resolve_task_split, tasks_for_split
 
 KINDS = {"nav": 10, "value": 10, "search": 6, "form": 6, "spa": 4, "title": 4}
 
@@ -28,7 +28,7 @@ def test_heldout3c_split_has_forty_unique_complete_tasks():
     assert len(tasks) == len(HELDOUT3C_TASK_IDS) == 40
     ids = [task["id"] for task in tasks]
     assert tuple(ids) == HELDOUT3C_TASK_IDS
-    catalog_ids = [task["id"] for task in get_all_tasks()]
+    catalog_ids = [task["id"] for task in BENCHMARK_TASKS]
     assert all(catalog_ids.count(task_id) == 1 for task_id in ids)
     assert Counter(task_id.split("_")[1] for task_id in ids) == KINDS
     required = {"id", "description", "start_url", "expected_answer", "check_url_contains", "end_markers"}
@@ -48,7 +48,7 @@ def test_heldout3c_split_has_forty_unique_complete_tasks():
 def test_heldout3c_domains_are_new_early_alphabet_and_capped_per_site():
     tasks = tasks_for_split("heldout3c")
     new_ids = set(HELDOUT3C_TASK_IDS)
-    old_sites = set().union(*(_task_sites(task) for task in get_all_tasks() if task["id"] not in new_ids))
+    old_sites = set().union(*(_task_sites(task) for task in BENCHMARK_TASKS if task["id"] not in new_ids))
     per_site = Counter()
     for task in tasks:
         sites = _task_sites(task)

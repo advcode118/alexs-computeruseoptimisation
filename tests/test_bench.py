@@ -7,16 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from bench.harness import estimate_tokens, StepMetrics, TaskResult
+from bench.harness import estimate_tokens, TaskResult
+from loop.observe.aria import parse_aria_snapshot
+from loop.observe.base import observation_from_snapshot
 from bench.judge import check_url_contains, check_text_present, check_title_contains
-from bench.replay_shortcuts import (
-    parse_aria_snapshot_to_observation,
-    action_to_string,
-    model_action_to_string,
-    actions_match,
-    SnapshotRecord,
-    replay_snapshot,
-)
 from bench.summarize import TaskSummary, format_time, format_pct, generate_task_table
 
 
@@ -86,107 +80,12 @@ class TestJudge:
         assert result.success is True
 
 
-class TestAriaSnapshotParser:
-    def test_parse_basic_snapshot(self):
-        snapshot = """- button "Search" [ref=e12]
-- textbox "Query" [ref=e5]
-- link "Home" [ref=e1]"""
-
-        obs = parse_aria_snapshot_to_observation(snapshot, url="https://example.com", title="Test")
-
-        assert len(obs.controls) == 3
-        assert obs.controls[0].role == "button"
-        assert obs.controls[0].name == "Search"
-        assert obs.controls[0].ref == "e12"
-        assert obs.controls[1].role == "textbox"
-        assert obs.controls[2].role == "link"
-        assert "button\tSearch\te12" in obs.html
-
-    def test_parse_nested_snapshot(self):
-        snapshot = """- navigation "Site"
-  - searchbox "Search Wikipedia" [ref=S1E3]
-  - button "Search" [ref=S1E4]"""
-
-        obs = parse_aria_snapshot_to_observation(snapshot)
-
-        assert len(obs.controls) == 2
-        assert obs.controls[0].ref == "S1E3"
-        assert obs.controls[1].ref == "S1E4"
-
-    def test_parse_empty_name(self):
-        snapshot = """- list [ref=e5]
-- paragraph [ref=e6]"""
-
-        obs = parse_aria_snapshot_to_observation(snapshot)
-
-        assert len(obs.controls) == 2
-        assert obs.controls[0].name == ""
-        assert obs.controls[0].role == "list"
 
 
-class TestActionStringConversion:
-    def test_click_action(self):
-        from loop.actions import ActionBatch, Click
-
-        batch = ActionBatch("click it", [Click("e5")], None, False)
-        assert action_to_string(batch) == "click:e5"
-
-    def test_fill_action(self):
-        from loop.actions import ActionBatch, Fill
-
-        batch = ActionBatch("fill it", [Fill("e3", "hello")], None, False)
-        assert action_to_string(batch) == "fill:e3:hello"
-
-    def test_done_batch(self):
-        from loop.actions import ActionBatch
-
-        batch = ActionBatch("done", [], None, True)
-        assert action_to_string(batch) == "done"
-
-    def test_model_action_click(self):
-        result = model_action_to_string("browser_click", {"target": "S1E5"})
-        assert result == "click:S1E5"
-
-    def test_model_action_type(self):
-        result = model_action_to_string("browser_type", {"target": "S1E3", "text": "hello"})
-        assert result == "fill:S1E3:hello"
 
 
-class TestActionsMatch:
-    def test_matching_clicks(self):
-        assert actions_match("click:e5", "click:e5") is True
-
-    def test_non_matching_clicks(self):
-        assert actions_match("click:e5", "click:e6") is False
-
-    def test_matching_fills(self):
-        assert actions_match("fill:e3:hello", "fill:e3:hello") is True
-
-    def test_different_actions(self):
-        assert actions_match("click:e5", "fill:e5:hello") is False
-
-    def test_none_shortcut(self):
-        assert actions_match(None, "click:e5") is None
 
 
-class TestReplaySnapshot:
-    def test_replay_with_searchbox(self):
-        snapshot = SnapshotRecord(
-            task_id="test",
-            step_number=1,
-            snapshot_text="""- searchbox "Search Wikipedia" [ref=e4]
-- button "Search" [ref=e5]""",
-            model_action=None,
-            model_tool_name="browser_type",
-            model_tool_args={"target": "e4", "text": "Ada Lovelace"},
-        )
-
-        result = replay_snapshot(
-            snapshot,
-            task_description="Search Wikipedia for Ada Lovelace",
-        )
-
-        assert result.shortcut_tier is not None
 
 
 class TestSummarize:
@@ -274,9 +173,11 @@ class TestSnapshotFiles:
             assert "snapshot_text" in data
             assert "step_number" in data
 
-            obs = parse_aria_snapshot_to_observation(
-                data["snapshot_text"],
-                url=data.get("url", "https://example.com"),
-                title=data.get("title", "Test"),
+            obs = observation_from_snapshot(
+                parse_aria_snapshot(
+                    data["snapshot_text"],
+                    url=data.get("url", "https://example.com"),
+                    title=data.get("title", "Test"),
+                )
             )
             assert len(obs.controls) > 0

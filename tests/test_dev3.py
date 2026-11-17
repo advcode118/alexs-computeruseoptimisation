@@ -5,7 +5,7 @@ from collections import Counter
 from urllib.parse import urlsplit
 
 from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
-from bench.tasks import DEV3_TASK_IDS, get_all_tasks, resolve_task_split, tasks_for_split
+from bench.tasks import DEV3_TASK_IDS, BENCHMARK_TASKS, resolve_task_split, tasks_for_split
 
 # Hosts already used by other task sets when dev3 was written (13 Nov 2026).
 USED_HOSTS = (
@@ -60,7 +60,7 @@ def test_dev3_split_has_forty_unique_complete_tasks():
     ids = [task["id"] for task in tasks]
     assert len(set(ids)) == 40
     assert tuple(ids) == DEV3_TASK_IDS
-    catalog_ids = [task["id"] for task in get_all_tasks()]
+    catalog_ids = [task["id"] for task in BENCHMARK_TASKS]
     assert all(catalog_ids.count(task_id) == 1 for task_id in ids)
     kinds = Counter(task_id.split("_")[1] for task_id in ids)
     assert all(task_id.startswith("dev3_") for task_id in ids)
