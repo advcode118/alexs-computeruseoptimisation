@@ -333,7 +333,7 @@ async def run_browser_use_task(
     *,
     api_key: str,
     headless: bool = True,
-    model: str = ALLOWED_MODEL,
+    model: str | None = None,
     loader=None,
     provider: str = "anthropic",
     effort: str | None = None,
@@ -342,14 +342,14 @@ async def run_browser_use_task(
     if provider == "openai":
         from bench.openai_spend import assert_effort, assert_openai_model
 
-        chosen = assert_openai_model(model)
-        chosen_effort = assert_effort(chosen, effort or "")
+        chosen = assert_openai_model(model or "gpt-6.1-sol")
+        chosen_effort = assert_effort(chosen, effort or "medium")
     elif provider == "anthropic":
         if effort not in (None, ""):
             from bench.openai_spend import EffortNotAllowed
 
             raise EffortNotAllowed("Claude does not take --effort.")
-        chosen = assert_allowed_model(model)
+        chosen = assert_allowed_model(model or ALLOWED_MODEL)
         chosen_effort = None
     else:
         raise ValueError(f"unknown provider {provider!r}")

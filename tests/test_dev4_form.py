@@ -17,8 +17,7 @@ def test_twelve_new_forms_and_negative_checks():
         assert task["id"].startswith("dev4_form_")
 
 
-def test_openai_only_kind_filter(monkeypatch):
+def test_openai_only_kind_filter():
     from bench.openai_run import _tasks
-    monkeypatch.setenv("CU_PROBE_ONLY_KIND", "form")
-    tasks = _tasks("dev3", one_task=False)
+    tasks = _tasks("dev3", one_task=False, only_kind="form")
     assert len(tasks) == 6 and all(t["id"].split("_")[1] == "form" for t in tasks)

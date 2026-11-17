@@ -1332,11 +1332,6 @@ def get_webvoyager_tasks() -> list[dict]:
     return WEBVOYAGER_TASKS
 
 
-def get_all_tasks() -> list[dict]:
-    """Get all benchmark tasks."""
-    return BENCHMARK_TASKS
-
-
 def task_by_id(task_id: str) -> dict | None:
     """The catalog task, or None. Judge fields stay on this dict."""
     for task in BENCHMARK_TASKS:
@@ -1452,16 +1447,6 @@ def tasks_for_split(spec: str | None = None) -> list[dict]:
     if name == SPLIT_HONEST:
         return _tasks_in_order(HONEST_TASK_IDS)
     return _tasks_in_order(TUNED_PROBE_TASK_IDS)
-
-
-def get_dev_tasks() -> list[dict]:
-    """Public tasks we tune on. Not the held-out set we score."""
-    return tasks_for_split(SPLIT_DEV)
-
-
-def get_held_out_tasks() -> list[dict]:
-    """Held-out public tasks. Not the tasks the arms were tuned on."""
-    return tasks_for_split(SPLIT_HELD_OUT)
 
 
 # Every arm reads the same task message. The answer line is the same for all

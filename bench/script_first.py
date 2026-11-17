@@ -1,9 +1,8 @@
 """Whole-task Playwright script arm. No per-click settle and no snapshot loop.
 
 The outer model emits one short script. This module runs it on local Chrome
-through the Playwright Python API. A page.evaluate sequence can also be
-driven through MCP browser_evaluate. browser_run_code_unsafe is rejected
-and is not a tool.
+through the Playwright Python API. browser_run_code_unsafe is rejected and
+is not a tool.
 """
 
 from __future__ import annotations
@@ -14,7 +13,6 @@ import re
 import shutil
 import tempfile
 import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from urllib.parse import unquote, urlsplit
 
@@ -812,23 +810,6 @@ def _evidence_from_claim(claimed: dict) -> ClaimedEvidence:
         values=values,
         rejected=bool(claimed.get("rejected")) or bad_values or bad_key,
     )
-
-
-def check_returned_evidence(
-    markers: dict | None,
-    trusted: PageEvidence,
-    returned,
-) -> EvidenceVerdict:
-    """Check the evidence object a script returned. No model call.
-
-    `trusted` is the live page. `returned` is the script's object. UNKNOWN
-    is not a pass. Text the script returned has to be on that page.
-    """
-    if isinstance(returned, ClaimedEvidence):
-        claimed = returned
-    else:
-        claimed = _evidence_from_claim(_claim_from_value(returned))
-    return evidence_verdict(markers, trusted, claimed)
 
 
 def trusted_from_payload(payload: dict | None, *, url: str = "", title: str = "") -> PageEvidence:
@@ -1785,30 +1766,6 @@ def format_page_snapshot(data: dict | None, *, cap: int = _SNAPSHOT_CAP) -> str:
     return rendered[:cap]
 
 
-def look_enabled() -> bool:
-    """The opt-in look tool. Off unless CU_SF_LOOK=1, so the default arm is unchanged."""
-    import os
-    from bench.segments import segments_enabled
-
-    return segments_enabled() or os.environ.get("CU_SF_LOOK", "") == "1"
-
-
-LOOK_TOOL = {
-    "name": "look",
-    "description": (
-        "Open a URL and return a compact view of that page: headings, forms with their fields, "
-        "visible links and buttons with their names, and lines that match the task. "
-        "No check runs. Use it at most once, only when you do not know the page's controls "
-        "or where the value is; then send run_script, which starts from that page."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {"url": {"type": "string", "description": "http(s) URL to open."}},
-        "required": ["url"],
-    },
-}
-
-
 SNAPSHOT_BEGIN = "--- PAGE NOW ---"
 SNAPSHOT_END = "--- END PAGE ---"
 _SNAPSHOT_DROPPED = "(older page snapshot dropped; see the newest one)"
@@ -1895,18 +1852,6 @@ def grounded_repair_request(
         "End with the page.evaluate evidence object and put the asked value in answer. "
         "Do not repeat a script that already ran. If the task cannot be done, call task_failed.",
     ]
-    from bench.segments import segments_enabled
-
-    if segments_enabled():
-        lines[2] = (
-            "The browser is still on the page below. Continue from this state; inspect it before retrying input."
-        )
-        lines[-1] = (
-            "Send a script that continues locally, using the names, labels and links shown above. "
-            "Use final:false if more work remains, or final:true with the page.evaluate evidence object "
-            "when the task is finished. Do not replay completed mutations. "
-            "If the task cannot be done, call task_failed."
-        )
     return "\n".join(lines)
 
 
@@ -1929,18 +1874,6 @@ def drop_old_snapshots(messages: list[dict]) -> None:
 
 def normalized_script(code: str) -> str:
     return "".join((code or "").split())
-
-
-def repair_outcome_key(verdict, payload: dict | None) -> tuple:
-    """Two scripts with this same key failed the same way on the same page."""
-    payload = payload if isinstance(payload, dict) else {}
-    claimed = payload.get("claimed") if isinstance(payload.get("claimed"), dict) else {}
-    return (
-        str(payload.get("url") or ""),
-        getattr(verdict, "reason", ""),
-        payload.get("ok") is not False,
-        str(claimed.get("answer") or ""),
-    )
 
 
 def script_made_progress(previous: dict | None, current: dict) -> bool:
@@ -2013,15 +1946,12 @@ def format_run_result(
     controls: list | tuple | None = None,
     links: list | tuple | None = None,
     headings: list | tuple | None = None,
-    receipt: dict | None = None,
 ) -> str:
     """JSON for the live page plus Stagehand-style goto prose.
 
     `url` is the browser's URL. It is not rewritten. `- Page URL:` is last.
     """
     payload: dict = {"ok": ok, "url": url, "steps": step_count}
-    if receipt is not None:
-        payload["receipt"] = receipt
     if error:
         payload["error"] = error
     shown = [item for item in (extracted or []) if str(item).strip()]
@@ -2550,19 +2480,11 @@ async def _run_step_on_page(page, step: TaskStep):
     return None
 
 
-@dataclass
-class _ScriptRunState:
-    done: int = 0
-    attempted: int = 0
-
-
 async def run_on_page(
     page,
     source: str,
     *,
     end_markers: dict | None = None,
-    before_tail: Callable[[], Awaitable[None]] | None = None,
-    _state: _ScriptRunState | None = None,
 ) -> str:
     """Run the whole script on a Playwright page. No settle between actions.
 
@@ -2572,35 +2494,23 @@ async def run_on_page(
     harness reads the live URL, canonical link, h1, and main text itself.
     """
     steps = parse_task_script(source)
-    tail = len(steps)
-    if before_tail is not None:
-        while tail and steps[tail - 1].kind == "evaluate":
-            tail -= 1
     done = 0
     extracted: list[str] = []
     claimed: dict = {}
     read_claimed: dict = {}
     ok, error = True, ""
     try:
-        for index, step in enumerate(steps):
-            if before_tail is not None and index == tail:
-                await before_tail()
-            if _state is not None:
-                _state.attempted = index + 1
+        for step in steps:
             value = await _run_step_on_page(page, step)
             done += 1
-            if _state is not None:
-                _state.done = done
             if step.kind == "evaluate":
                 claimed = _note_extract(extracted, claimed, value)
             elif step.kind == "read":
                 read_claimed = _note_extract(extracted, read_claimed, value)
-        if before_tail is not None and tail == len(steps):
-            await before_tail()
     except ScriptError:
         raise
     except Exception as exc:
-        ok, error = False, str(exc) or (type(exc).__name__ if _state is not None else "")
+        ok, error = False, str(exc)
     if not (claimed.get("answer") or claimed.get("key_text")):
         claimed = {**read_claimed, **claimed}
     return await _finish_page(
@@ -2615,62 +2525,8 @@ async def run_on_page(
     )
 
 
-async def _mcp_text(call_tool, name: str, arguments: dict) -> str:
-    if name == "browser_run_code_unsafe":
-        raise ScriptError("browser_run_code_unsafe is not available")
-    result = await call_tool(name, arguments)
-    if isinstance(result, tuple):
-        return str(result[0])
-    return str(result)
 
 
-def _href_from_text(text: str) -> str:
-    from bench.harness import page_url_from_result
-
-    cleaned = (text or "").strip().strip("\"'")
-    if cleaned.startswith(("http://", "https://")) and "\n" not in cleaned and " " not in cleaned:
-        return cleaned
-    return page_url_from_result(text)
-
-
-async def run_on_mcp(call_tool, source: str) -> str:
-    """Run page.goto and page.evaluate through MCP. Locator lines are refused.
-
-    Navigation uses browser_navigate. Page functions use browser_evaluate.
-    The final URL is read with another browser_evaluate of location.href.
-    There is no snapshot and no settle.
-    """
-    steps = parse_task_script(source)
-    if any(step.kind not in {"goto", "evaluate"} for step in steps):
-        raise ScriptError("the MCP evaluate runner accepts page.goto and page.evaluate only")
-    url = ""
-    done = 0
-    try:
-        for step in steps:
-            if step.kind == "goto":
-                action = step.action
-                if action is None:
-                    raise ScriptError(f"line {step.line}: missing action")
-                text = await _mcp_text(call_tool, "browser_navigate", {"url": action.value})
-                found = _href_from_text(text)
-                if found:
-                    url = found
-            else:
-                await _mcp_text(
-                    call_tool,
-                    "browser_evaluate",
-                    {"function": wrap_evaluate(step.function)},
-                )
-            done += 1
-        href = await _mcp_text(call_tool, "browser_evaluate", {"function": "() => location.href"})
-        found = _href_from_text(href)
-        if found:
-            url = found
-    except ScriptError:
-        raise
-    except Exception as exc:
-        return format_run_result(ok=False, url=url, step_count=done, error=str(exc))
-    return format_run_result(ok=True, url=url, step_count=len(steps))
 
 
 class ScriptFirstClient:
@@ -2681,22 +2537,11 @@ class ScriptFirstClient:
         self._page = page
         self._owns_page = page is None
         self.end_markers: dict = {}
-        # The task text for the opt-in look tool's matching lines. The harness sets it.
-        self.look_task = ""
         self._playwright = None
         self._browser = None
         self._context = None
         self._profile_dir: str | None = None
         self._launch_task: asyncio.Task | None = None
-        self.reset_segments()
-
-    def reset_segments(self) -> None:
-        from bench.segments import SEG_WAIT_TASK_S, SEG_WALL_S
-
-        self.segment_index = 0
-        self.segment_wait_left = SEG_WAIT_TASK_S
-        self.segment_looks = 0
-        self.segment_deadline = time.perf_counter() + SEG_WALL_S
 
     def tools_for_claude(self) -> list[dict]:
         tools = [
@@ -2741,41 +2586,6 @@ class ScriptFirstClient:
                 },
             }
         ]
-        from bench.segments import expect_schema, segments_enabled
-
-        if segments_enabled():
-            run = tools[0]
-            run["description"] = run["description"].replace(
-                "Run one Playwright script that finishes the whole task in this call. "
-                "The end URL must already be the finished page, not a search-results URL. ",
-                "Run a Playwright script from the current page. Prefer one final script when the path is known. "
-                "Otherwise use final:false for a short segment and continue from its receipt and page. "
-                "Only a final script must end on the finished page. ",
-            ).replace("End with page.evaluate", "For a final script, end with page.evaluate").replace(
-                "The runner checks the returned object against the live page.",
-                "For a final script, the runner checks the returned object against the live page.",
-            ).replace(
-                "Call this once. A second call is only for END_STATE_FAILED.",
-                "Optional expect checks poll the live page before trailing evaluate steps and are rechecked afterward. "
-                "They are extra constraints, not proof the task is correct. Failed readiness stays failed. "
-                "After a failure inspect current state before retrying; never replay completed mutations.",
-            )
-            props = run["input_schema"]["properties"]
-            props["code"]["description"] = "Playwright script for the task or its next segment."
-            props["final"] = {"type": "boolean", "default": True, "description": "False means more scripts follow."}
-            props["expect"] = expect_schema()
-            tools.append({
-                "name": "look",
-                "description": "Read the current page, or open an optional URL and read it. At most two looks per task. "
-                "This is observation, never completion; continue with run_script.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {"url": {"type": "string", "description": "Optional http(s) URL to open."}},
-                    "required": [],
-                },
-            })
-        elif look_enabled():
-            tools.append(dict(LOOK_TOOL))
         return tools
 
     def begin_launch(self) -> asyncio.Future:
@@ -2849,21 +2659,6 @@ class ScriptFirstClient:
             if profile:
                 shutil.rmtree(profile, ignore_errors=True)
 
-    async def _look(self, arguments: dict, start: float) -> tuple[str, float]:
-        url = str(arguments.get("url") or "").strip()
-        error = ""
-        if _http(url):
-            try:
-                await self._page.goto(url, wait_until="domcontentloaded", timeout=_NAV_TIMEOUT_MS)
-            except Exception as exc:
-                error = " ".join(str(exc).split())[:200]
-        elif url:
-            error = "look needs an http(s) URL"
-        snapshot, _ms = await self.page_snapshot(self.look_task)
-        lines = [f"LOOK (no check ran){': ' + error if error else ''}", SNAPSHOT_BEGIN, snapshot or "(the page could not be read)", SNAPSHOT_END]
-        lines.append("Now send run_script. It starts from this page.")
-        return "\n".join(lines), (time.perf_counter() - start) * 1000
-
     async def page_snapshot(self, task: str = "") -> tuple[str, float]:
         """The compact repair snapshot of the live page, and the ms it took."""
         start = time.perf_counter()
@@ -2879,128 +2674,12 @@ class ScriptFirstClient:
             data = {"url": url, "title": await _read_title(self._page)} if url else {}
         return format_page_snapshot(data), (time.perf_counter() - start) * 1000
 
-    async def _run_segment(self, arguments: dict | None, start: float) -> tuple[str, float]:
-        from bench.segments import (
-            SEG_MAX_SCRIPTS, SEG_RECHECK_S, SEG_WAIT_S,
-            build_receipt, parse_segment_args, poll_checks, read_checks,
-        )
-
-        self.segment_index += 1
-        before = _page_url(self._page)
-        final, checks, errors = parse_segment_args(arguments)
-        code = (arguments.get("code") or arguments.get("script")) if isinstance(arguments, dict) else None
-        steps: list[TaskStep] = []
-        state = _ScriptRunState()
-        try:
-            steps = parse_task_script(code)
-        except ScriptError as exc:
-            errors.append(str(exc))
-        if self._page is None:
-            errors.append("script_first client is not started")
-        if self.segment_index > SEG_MAX_SCRIPTS:
-            errors.append("segment script limit reached")
-        if self.segment_deadline <= time.perf_counter():
-            errors.append("segment wall budget exhausted")
-        checked = []
-        for check in checks:
-            kind, value = next(iter(check.items()))
-            arg = json.dumps(value, sort_keys=True, ensure_ascii=False) if isinstance(value, dict) else value
-            checked.append({
-                "kind": kind, "arg": arg, "ok": False, "waited_ms": 0, "error": "readiness was not reached",
-            })
-        check_wait_left = SEG_WAIT_S
-
-        async def check_with_budget(*, polling: bool, budget: float) -> list[dict]:
-            nonlocal check_wait_left
-            began = time.perf_counter()
-            try:
-                reader = poll_checks if polling else read_checks
-                return await reader(self._page, checks, max(0.0, budget))
-            finally:
-                elapsed = time.perf_counter() - began
-                check_wait_left = max(0.0, check_wait_left - elapsed)
-                self.segment_wait_left = max(0.0, self.segment_wait_left - elapsed)
-
-        async def before_tail() -> None:
-            nonlocal checked
-            budget = min(check_wait_left, self.segment_wait_left, max(0.0, self.segment_deadline - time.perf_counter()))
-            checked = await check_with_budget(polling=True, budget=max(0.0, budget - min(SEG_RECHECK_S, budget / 2)))
-
-        if errors:
-            error = "; ".join(errors)
-            checked = [{"kind": "invalid", "arg": "arguments or admission", "ok": False, "waited_ms": 0, "error": error[:300]}]
-            text = format_run_result(ok=False, url=before, step_count=0, error=error)
-        else:
-            try:
-                async with asyncio.timeout(max(0.0, self.segment_deadline - time.perf_counter())):
-                    text = await run_on_page(
-                        self._page, code, end_markers={},
-                        before_tail=before_tail if checks else None, _state=state,
-                    )
-                    if checks:
-                        # Always re-read, even if readiness failed. A successful
-                        # later read cannot erase a readiness failure.
-                        budget = min(
-                            check_wait_left, self.segment_wait_left,
-                            max(0.0, self.segment_deadline - time.perf_counter()),
-                        )
-                        began = time.perf_counter()
-                        after = await check_with_budget(polling=False, budget=budget)
-                        elapsed_ms = int((time.perf_counter() - began) * 1000)
-                        for ready, current in zip(checked, after):
-                            ready["waited_ms"] += elapsed_ms
-                            if not current["ok"]:
-                                ready["ok"] = False
-                                ready["error"] = current.get("error", "expectation no longer holds after the script")
-            except TimeoutError:
-                text = format_run_result(
-                    ok=False, url=_page_url(self._page), step_count=state.done,
-                    error="segment wall budget exhausted; inspect current state before retrying",
-                )
-            except Exception as exc:
-                text = format_run_result(
-                    ok=False, url=_page_url(self._page), step_count=state.done,
-                    error=str(exc) or type(exc).__name__,
-                )
-        payload = script_result_payload(text)
-        receipt = build_receipt(
-            segment=self.segment_index, final=final, ok=payload.get("ok") is True,
-            steps=steps, done=state.done, attempted=state.attempted,
-            error=payload.get("error", "") or "step failed", checks=checked,
-            url_before=before, url_after=_page_url(self._page),
-            wait_left=self.segment_wait_left, looks=self.segment_looks,
-        )
-        payload["receipt"] = receipt
-        payload["ok"] = receipt["ok"]
-        if not receipt["ok"] and not payload.get("error"):
-            payload["error"] = "segment expectation failed"
-        lines = text.splitlines()
-        lines[0] = json.dumps(payload)
-        return "\n".join(lines), (time.perf_counter() - start) * 1000
-
     async def call_tool(self, name: str, arguments: dict | None) -> tuple[str, float]:
         if name == "browser_run_code_unsafe":
             raise ScriptError("browser_run_code_unsafe is not available")
-        from bench.segments import SEG_MAX_LOOKS, segments_enabled
-
-        if segments_enabled() and name == "run_script":
-            return await self._run_segment(arguments, time.perf_counter())
         if self._page is None:
             raise RuntimeError("script_first client is not started")
         start = time.perf_counter()
-        if name == "look" and look_enabled():
-            if segments_enabled():
-                if self.segment_looks >= SEG_MAX_LOOKS:
-                    return "look refused: segment look limit reached", 0.0
-                remaining = self.segment_deadline - time.perf_counter()
-                if remaining <= 0:
-                    return "look refused: segment wall budget exhausted", 0.0
-                self.segment_looks += 1
-                try:
-                    return await asyncio.wait_for(self._look(arguments or {}, start), timeout=remaining)
-                except TimeoutError:
-                    return "look stopped: segment wall budget exhausted", (time.perf_counter() - start) * 1000
-            return await self._look(arguments or {}, start)
         if name != "run_script":
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""

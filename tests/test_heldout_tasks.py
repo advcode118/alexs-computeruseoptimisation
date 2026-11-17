@@ -29,8 +29,6 @@ from bench.tasks import (
     DEV_TASK_IDS,
     HELD_OUT_TASK_IDS,
     TUNED_PROBE_TASK_IDS,
-    get_dev_tasks,
-    get_held_out_tasks,
     markers_for_task,
     task_by_id,
     tasks_for_split,
@@ -245,8 +243,8 @@ _NEW_FINISHED = {
 
 
 def test_held_out_set_is_fifty_and_disjoint_from_dev():
-    held = get_held_out_tasks()
-    dev = get_dev_tasks()
+    held = tasks_for_split("held-out")
+    dev = tasks_for_split("dev")
     assert [task["id"] for task in held] == list(HELD_OUT_TASK_IDS)
     assert len(held) >= 50
     assert len({task["id"] for task in held}) == len(held)
@@ -307,7 +305,7 @@ def test_finished_pages_pass_and_the_scored_url_is_not_rewritten():
     assert node.verdict == PASS
     assert node.scored_url == NODE
 
-    for task in get_held_out_tasks():
+    for task in tasks_for_split("held-out"):
         url, text, answer = _finished(task["id"])
         verdict = _verdict(task["end_markers"], url, title=task["id"], text=text, answer=answer, claim_url=url)
         assert verdict.verdict == PASS, task["id"]
@@ -395,7 +393,7 @@ def test_near_misses_fail_and_a_search_url_is_not_rewritten_into_a_pass():
         assert verdict.verdict != PASS
         assert verdict.scored_url == url
 
-    for task in get_held_out_tasks():
+    for task in tasks_for_split("held-out"):
         host = task["end_markers"]["host"]
         token = task.get("check_url_contains") or task["end_markers"].get("url_contains") or task["end_markers"].get("path_suffix")
         search_url = f"https://{host}/search?q={token}"
@@ -410,7 +408,7 @@ def test_near_misses_fail_and_a_search_url_is_not_rewritten_into_a_pass():
 
 
 def test_empty_evidence_fails_and_unread_text_is_unknown_not_success():
-    for task in get_held_out_tasks():
+    for task in tasks_for_split("held-out"):
         empty = _verdict(task["end_markers"])
         assert empty.verdict == FAIL, task["id"]
         assert empty.reason == "empty evidence"
@@ -459,7 +457,7 @@ def test_unknown_does_not_repair_or_count_as_success(tmp_path):
         call_tool,
         max_steps=4,
     )
-    task = next(item for item in get_held_out_tasks() if item["id"] == "ho_iana_status_451")
+    task = next(item for item in tasks_for_split("held-out") if item["id"] == "ho_iana_status_451")
     result = asyncio.run(
         harness.run_task(
             task_id=task["id"],
@@ -503,7 +501,7 @@ def test_answers_stay_off_the_prompt_repair_and_patch_turn():
     standing.append(("patch-tool", json.dumps(PATCH_TOOL)))
     standing.append(("planner", planner._SYSTEM))
     standing.append(("judge-system", JUDGE_SYSTEM))
-    covered = [*get_held_out_tasks(), *tasks_for_split("heldout3a"), *tasks_for_split("heldout3b"), *tasks_for_split("heldout3c"), *tasks_for_split("heldout3d"), *tasks_for_split("dev3"), *tasks_for_split("val3")]
+    covered = [*tasks_for_split("held-out"), *tasks_for_split("heldout3a"), *tasks_for_split("heldout3b"), *tasks_for_split("heldout3c"), *tasks_for_split("heldout3d"), *tasks_for_split("dev3"), *tasks_for_split("val3")]
     assert sum(task["id"].startswith("dev3_") for task in covered) == 40
     assert any(task["id"].startswith("ho3a_") for task in covered)
     assert any(task["id"].startswith("ho3b_") for task in covered)

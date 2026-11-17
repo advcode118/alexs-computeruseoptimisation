@@ -81,7 +81,7 @@ def test_prices_are_the_published_standard_rates():
     assert luna["uncached_input_tokens"] == 50_000_000
     assert luna["output_tokens"] == 10_000_000
     assert OPENAI_RUN_BUDGET_USD == 5
-    assert OPENAI_PROJECT_BUDGET_USD == 20
+    assert OPENAI_PROJECT_BUDGET_USD == 15
     assert OPENAI_SWEEP_BUDGET_USD == 15
 
 
@@ -328,7 +328,7 @@ def test_one_run_uses_one_model_and_stops_at_five(monkeypatch, tmp_path, isolate
     assert len(calls) == 2
     ledger = OpenAISpendLedger.read()
     assert ledger.running_total_usd == round(6.0 + UNRECORDED_CALL_ALLOWANCE_USD, 6)
-    assert ledger.path.name == "openai-spend.json"
+    assert ledger.path.name == "openai-spend-20261117.json"
     saved = json.loads(ledger.path.read_text(encoding="utf-8"))
     assert saved["provider"] == "openai"
     assert "claude-sonnet-5-5" not in ledger.path.read_text(encoding="utf-8")
@@ -402,7 +402,6 @@ def test_an_abort_keeps_the_rows_already_written(monkeypatch, tmp_path, isolated
                 headless=True,
                 spend_path=tmp_path / "openai-spend.json",
                 runs_dir=runs,
-                no_model_only=False,
                 warm_replay=False,
                 honest=False,
             )
@@ -491,7 +490,7 @@ def test_unpriced_call_is_saved_before_the_abort(monkeypatch, isolated_spend_led
     """A pricing refusal still exits 2, and the ledger exists before that exit.
 
     The first run also keeps the one call that died before any file was written.
-    Both amounts sit in the project total the $20 cap reads.
+    Both amounts sit in the project total the $15 cap reads.
     """
     before = isolated_spend_ledger.read_bytes()
     monkeypatch.setenv("OPENAI_API_KEY", "local-test-not-sent")
@@ -579,3 +578,42 @@ def test_claude_plan_is_unchanged(capsys, isolated_spend_ledger):
     assert printed["outer_model"] == "claude-sonnet-5-5"
     assert "gpt-6.1-sol" not in json.dumps(printed)
     assert SpendLedger.load().model == "claude-sonnet-5-5"
+
+
+def test_openai_defaults_are_sol_medium_without_a_request(monkeypatch, capsys):
+    monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: pytest.fail("network"))
+    assert main(["--provider", "openai"]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["outer_model"] == "gpt-6.1-sol"
+    assert plan["effort"] == "medium"
+    assert plan["arms"] == ["script_first", "browser_use", "playwright_mcp"]
+    assert plan["project_cap_usd"] == 15
+    assert plan["per_run_cap_usd"] == 5
+
+
+def test_new_ledger_default_leaves_old_ledger_readable_and_untouched(tmp_path, monkeypatch):
+    from bench.openai_spend import default_openai_spend_path
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("CU_OPENAI_SPEND_LEDGER", raising=False)
+    old_path = tmp_path / ".cu-optimisation" / "openai-spend.json"
+    old = OpenAISpendLedger(path=old_path, project_budget_usd=20, recorded_extra_usd=14.5)
+    old.recompute()
+    old.save()
+    before = old_path.read_bytes()
+    fresh = OpenAISpendLedger.read()
+    assert fresh.path == default_openai_spend_path()
+    assert fresh.path.name == "openai-spend-20261117.json"
+    assert fresh.running_total_usd == 0
+    assert fresh.project_budget_usd == 15
+    assert not fresh.path.exists()
+    assert OpenAISpendLedger.read(old_path).running_total_usd == 14.5
+    assert old_path.read_bytes() == before
+
+
+def test_harness_openai_defaults_without_a_browser(tmp_path):
+    from bench.harness import BenchmarkHarness
+
+    harness = BenchmarkHarness(api_key="offline", provider="openai", runs_dir=tmp_path)
+    assert harness.model == "gpt-6.1-sol"
+    assert harness.effort == "medium"

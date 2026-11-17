@@ -4,7 +4,7 @@ import re
 from collections import Counter
 from urllib.parse import urlsplit
 
-from bench.tasks import DEV4_SPA_TASK_IDS, get_all_tasks, resolve_task_split, tasks_for_split
+from bench.tasks import DEV4_SPA_TASK_IDS, BENCHMARK_TASKS, resolve_task_split, tasks_for_split
 from bench.verify_dev4_spa import RENDER_ONLY, WRONG
 
 # Hosts other task sets used before dev4spa was written (from used_hosts.txt, 14 Nov 2026).
@@ -16,7 +16,7 @@ def test_dev4spa_has_twelve_unique_complete_tasks():
     assert resolve_task_split("dev4spa") == "dev4spa"
     ids = [task["id"] for task in tasks]
     assert len(ids) == len(set(ids)) == 12 and tuple(ids) == DEV4_SPA_TASK_IDS
-    catalog = [task["id"] for task in get_all_tasks()]
+    catalog = [task["id"] for task in BENCHMARK_TASKS]
     assert all(catalog.count(task_id) == 1 for task_id in ids)
     assert {task_id.split("_")[1] for task_id in ids} <= {"spa", "js"}
     for task in tasks:

@@ -57,16 +57,18 @@ def no_network(monkeypatch):
 
 @pytest.fixture
 def ledger(tmp_path, monkeypatch):
-    path = tmp_path / "openai-spend.json"
+    monkeypatch.setattr(runner, "RECONCILED_TOTAL", Decimal("0.100000"))
+    monkeypatch.setattr(runner, "RECONCILED_EXTRA", Decimal("0.010000"))
+    path = tmp_path / "openai-spend-20261117.json"
     data = {
-        "provider": "openai", "project_budget_usd": 20, "per_run_budget_usd": 5,
-        "recorded_extra_usd": 3.874160, "running_total_usd": 14.579971,
+        "provider": "openai", "project_budget_usd": 15, "per_run_budget_usd": 5,
+        "recorded_extra_usd": 0.010000, "running_total_usd": 0.100000,
         "aborted": False, "abort_reason": None,
         # Historical price/record data intentionally differs from today's rates.
         "prices_usd_per_mtok": {"historical": {"input": 99}},
         "provenance": {"prior_import": "synthetic reconciliation"},
         "tasks": [{"run_id": "historic", "kind": "decisions", "model": "gpt-6-luna",
-                   "usd": 10.705811, "unknown_historical_field": "retain"}],
+                   "usd": 0.090000, "unknown_historical_field": "retain"}],
     }
     path.write_text(json.dumps(data), encoding="utf-8")
     monkeypatch.setattr(runner, "canonical_ledger", lambda: path)
@@ -126,7 +128,7 @@ def test_reserve_is_durable_before_dispatch_settles_once_and_keeps_history(ledge
     assert Decimal(str(after["running_total_usd"])) == runner.RECONCILED_TOTAL + Decimal(str(actual))
 
 
-@pytest.mark.parametrize("model", [runner.MODEL, "gpt-6.1-sol"])
+@pytest.mark.parametrize("model", [runner.MODEL, "gpt-6-luna"])
 def test_bound_uses_utf8_bytes_framing_worst_cache_and_long_rates(model):
     body = payload(model)
     body["instructions"] = "日本語" * 100
@@ -139,8 +141,8 @@ def test_bound_uses_utf8_bytes_framing_worst_cache_and_long_rates(model):
     ) / 1_000_000
     assert Decimal(str(bound["usd"])) >= expected
     assert Decimal(str(bound["usd"])) - expected < runner.QUANTUM
-    assert bound["input_rate"] == ("0.50" if model == runner.MODEL else "10")
-    assert bound["output_rate"] == ("0.75" if model == runner.MODEL else "15.0")
+    assert bound["input_rate"] == ("0.50" if model == "gpt-6-luna" else "10")
+    assert bound["output_rate"] == ("0.75" if model == "gpt-6-luna" else "15.0")
 
 
 @pytest.mark.parametrize("case", ["timeout", "missing", "unknown", "fraction", "null", "total",
@@ -200,11 +202,11 @@ def test_cap_refuses_before_transport(ledger, axis, monkeypatch):
     if axis == "run":
         data["per_run_budget_usd"] = 0.000001
     if axis == "project":
-        # Move only the synthetic evaluation origin to isolate the hard $20
+        # Move only the synthetic evaluation origin to isolate the hard $15
         # admission limit; today's real $1.50 evaluation ceiling is stricter.
-        monkeypatch.setattr(runner, "RECONCILED_TOTAL", Decimal("19"))
-        data["recorded_extra_usd"] += 5.420028
-        data["running_total_usd"] = 19.999999
+        monkeypatch.setattr(runner, "RECONCILED_TOTAL", Decimal("14"))
+        data["recorded_extra_usd"] += 14.899999
+        data["running_total_usd"] = 14.999999
     ledger.write_text(json.dumps(data), encoding="utf-8")
     before = ledger.read_bytes()
     guard = budget(ledger, evaluation_cap=cap)
@@ -217,7 +219,7 @@ def test_cap_refuses_before_transport(ledger, axis, monkeypatch):
 def test_default_evaluation_cap_does_not_reset_between_runs(ledger):
     data = load(ledger)
     data["recorded_extra_usd"] += 1.5
-    data["running_total_usd"] = 16.079971
+    data["running_total_usd"] = 1.600000
     ledger.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(runner.Refused, match="cap"):
         with budget(ledger).hold():
@@ -406,13 +408,13 @@ def test_flags_frozen_and_only_medium_selected_model(ledger, monkeypatch):
     guard = budget(ledger)
     flags = runner.frozen_flags()
     with guard.hold(), runner.budgeted_client(guard, flags):
-        monkeypatch.setenv("CU_SF_SEGMENTS", "1")
+        monkeypatch.setenv("CU_BU_MODE", "ultrafast")
         with pytest.raises(runner.Refused, match="flags changed"):
             invoke(lambda *a: pytest.fail("flag drift dispatched"))
     guard = budget(ledger)
     with guard.hold(), runner.budgeted_client(guard, runner.frozen_flags()):
         with pytest.raises(runner.Refused, match="selected model"):
-            invoke(lambda *a: pytest.fail("wrong model dispatched"), model="gpt-6.1-sol")
+            invoke(lambda *a: pytest.fail("wrong model dispatched"), model="gpt-6-luna")
 
 
 def test_older_client_signature_without_tool_choice_is_respected(ledger, monkeypatch):
@@ -435,8 +437,6 @@ def test_inherited_decisions_or_unknown_flags_refuse_without_printing_values(mon
         runner.frozen_flags()
     assert "SECRET-SENTINEL" not in str(caught.value)
     monkeypatch.delenv("CU_DECISIONS")
-    monkeypatch.setenv("CU_SF_STRATEGY", "form,nav,spa")
-    assert runner.frozen_flags()["CU_SF_STRATEGY"] == "form,nav,spa"
     monkeypatch.setenv("CU_SF_UNREVIEWED", "SECRET-SENTINEL")
     with pytest.raises(runner.Refused):
         runner.frozen_flags()

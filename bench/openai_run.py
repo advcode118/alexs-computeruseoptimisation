@@ -34,7 +34,6 @@ from bench.openai_spend import (
     sweep_command,
     sweep_task_ids,
 )
-from bench.tasks import tasks_for_split
 
 
 def _key_is_set() -> bool:
@@ -72,7 +71,6 @@ def plan_openai_probe(
     model: str | None,
     effort: str | None,
     one_task: bool,
-    no_model_only: bool,
     warm_replay: bool,
     honest: bool,
     only_kind: str = "",
@@ -80,8 +78,6 @@ def plan_openai_probe(
     """The plan only. No browser, no client, no ledger write."""
     if honest:
         raise ValueError("--honest is the Claude comparison. Refusing to combine it with OpenAI.")
-    if no_model_only:
-        raise ValueError("--no-model-only does not run an OpenAI model. Refusing.")
     if warm_replay:
         raise ValueError("--warm-replay is not part of the OpenAI run. Refusing.")
     request = resolve_openai_request(
@@ -125,16 +121,6 @@ def plan_openai_probe(
         "box_commands": _commands(request["sweep"]),
         "checks": "the same URL, text, and evidence checks as the Claude path",
     }
-    if "script_first" in arms:
-        from bench.harness import segment_mode_for
-        from bench.segments import SEG_MAX_CALLS
-
-        mode = segment_mode_for("script_first")
-        if mode != "off":
-            plan["segment_mode"] = mode
-            if mode == "on":
-                plan.update(segment_cache="disabled", segment_specialists="disabled",
-                            segment_warm_replay="disabled", segment_max_calls=SEG_MAX_CALLS)
     return plan
 
 
@@ -165,11 +151,7 @@ def resolve_openai_request(
         raise EffortNotAllowed("--sweep-effort covers every accepted effort. Refusing a single --effort with it.")
     if sweep:
         return {"provider": "openai", "sweep": True, "one_task": True, "model": None, "effort": None}
-    if not model:
-        raise OpenAIModelNotAllowed(
-            f"An OpenAI run needs --model. Accepted models are {list(ALLOWED_OPENAI_MODELS)}."
-        )
-    chosen = assert_openai_model(model)
+    chosen = assert_openai_model(model or "gpt-6.1-sol")
     name = assert_effort(chosen, effort or DEFAULT_EFFORT)
     return {
         "provider": "openai",
@@ -294,18 +276,17 @@ async def execute_openai_probe(
     headless: bool,
     spend_path: Path | None,
     runs_dir: Path | None,
-    no_model_only: bool,
     warm_replay: bool,
     honest: bool,
     only_kind: str = "",
 ) -> list[dict]:
-    """Run the matrix. Stops at $5 per cell, $15 per sweep, and $20 on the ledger."""
+    """Run the matrix. Stops at $5 per cell, $15 per sweep, and $15 on the ledger."""
     import os
 
     from bench.probe import ProbeRefused, RUNS_DIR, arm_report
 
-    if honest or no_model_only or warm_replay:
-        raise ProbeRefused("Refusing an OpenAI run with --honest, --no-model-only, or --warm-replay.")
+    if honest or warm_replay:
+        raise ProbeRefused("Refusing an OpenAI run with --honest or --warm-replay.")
     request = resolve_openai_request(
         provider="openai",
         model=model or "",

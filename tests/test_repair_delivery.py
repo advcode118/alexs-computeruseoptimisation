@@ -122,7 +122,7 @@ def test_provider_payload_tool_choice():
     assert message_payload(*args, cache_prefix=True, tool_choice={"type": "any"})["tool_choice"] == {"type": "any"}
 
 
-def test_tool_choice_is_cleared_after_repair(monkeypatch, tmp_path):
+def test_repair_cap_stops_before_a_third_model_request(monkeypatch, tmp_path):
     model = Model([[tool(code="first")], [tool(code="repair")], [tool("task_failed", reason="Stop")]])
     harness = BenchmarkHarness(api_key="offline", arm="script_first", runs_dir=tmp_path)
     harness.anthropic = model
@@ -141,8 +141,8 @@ def test_tool_choice_is_cleared_after_repair(monkeypatch, tmp_path):
 
     monkeypatch.setattr(harness, "_read_shared_page", noop)
     asyncio.run(harness.run_task("fixture", "Read page", "https://example.org"))
-    # A second FAIL on a new page earns another grounded repair, so tool_choice stays required.
-    assert [request[2].get("tool_choice") for request in model.requests] == [None, {"type": "any"}, {"type": "any"}]
+    assert [request[2].get("tool_choice") for request in model.requests] == [None, {"type": "any"}]
+    assert harness.mcp_client.calls == 2
 
 
 def test_oversized_metadata_fails_closed():

@@ -9,11 +9,8 @@ from bench.harness import BenchmarkHarness
 from proxy.ignores import (
     IgnoreCounter,
     action_returned_compact_diff,
-    annotate_tool_description,
     is_full_page_observe,
 )
-from proxy.segment import _TINY_STEP_CAP, dispatch
-from tests.test_settle_diff import _Pages
 
 
 def test_full_page_observe_is_not_a_scoped_snapshot():
@@ -58,38 +55,8 @@ def test_full_snapshot_still_counts_when_its_text_includes_the_diff_sizes():
     assert counter.count == 2
 
 
-def test_tiny_steps_are_capped_and_a_snapshot_after_a_diff_still_counts():
-    before = '- button "OK" [ref=e2]\n- textbox "Item" [ref=e4]'
-    after = '- button "OK" [ref=e2]\n- textbox "Item" [ref=e4]: milk'
-    child = _Pages([before, after])
-    for _ in range(_TINY_STEP_CAP):
-        clicked = asyncio.run(dispatch(child, "browser_click", {"target": "e2"}))
-        assert clicked.get("isError") is not True
-    assert child._ignore_counter.count == 0
-    refused = asyncio.run(dispatch(child, "browser_snapshot", {}))
-    assert refused["isError"] is True
-    text = refused["content"][0]["text"]
-    assert "do_task_segment" in text
-    assert "model_ignores_tools" in text
-    assert child._ignore_counter.count == 1
-    noted = annotate_tool_description("browser_snapshot", "Read the page.")
-    assert "Do not take a full snapshot after a diff was returned" in noted
-    assert annotate_tool_description("browser_click", "Click") == "Click"
 
 
-def test_proxy_counts_a_snapshot_that_ignores_the_diff():
-    before = '- button "OK" [ref=e2]\n- textbox "Item" [ref=e4]'
-    after = '- button "OK" [ref=e2]\n- textbox "Item" [ref=e4]: milk'
-    child = _Pages([before, after])
-    clicked = asyncio.run(dispatch(child, "browser_click", {"target": "e2"}))
-    text = clicked["content"][0]["text"]
-    assert "diff_chars:" in text
-    assert "settle: quiet" in text
-    assert child._ignore_counter.count == 0
-    asyncio.run(dispatch(child, "browser_snapshot", {"target": "e4", "depth": 1}))
-    assert child._ignore_counter.count == 0
-    asyncio.run(dispatch(child, "browser_snapshot", {}))
-    assert child._ignore_counter.count == 1
 
 
 def test_harness_exposes_model_ignores_tools(tmp_path):

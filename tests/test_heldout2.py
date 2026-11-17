@@ -5,7 +5,7 @@ import re
 from bench.script_first import ClaimedEvidence, PageEvidence, evidence_verdict
 from bench.tasks import (
     HELDOUT2_TASK_IDS,
-    get_all_tasks,
+    BENCHMARK_TASKS,
     resolve_task_split,
     tasks_for_split,
 )
@@ -19,7 +19,7 @@ def test_heldout2_split_has_twenty_unique_complete_tasks():
     assert len(set(ids)) == 20
     assert tuple(ids) == HELDOUT2_TASK_IDS
     assert all(task_id.startswith("ho2_") for task_id in ids)
-    catalog_ids = [task["id"] for task in get_all_tasks()]
+    catalog_ids = [task["id"] for task in BENCHMARK_TASKS]
     assert all(catalog_ids.count(task_id) == 1 for task_id in ids)
     required = {"id", "description", "start_url", "expected_answer", "check_url_contains", "end_markers"}
     for task in tasks:
@@ -42,7 +42,7 @@ def test_heldout2_does_not_change_existing_splits_or_reuse_end_pages():
     new_ids = set(HELDOUT2_TASK_IDS)
     for name in ("probe", "dev", "held-out", "honest"):
         assert new_ids.isdisjoint(task["id"] for task in tasks_for_split(name))
-    old = [task for task in get_all_tasks() if task["id"] not in new_ids]
+    old = [task for task in BENCHMARK_TASKS if task["id"] not in new_ids]
     ends = [(task["end_markers"]["host"], task["end_markers"].get("path_suffix") or task["end_markers"]["url_contains"]) for task in tasks]
     assert len(set(ends)) == 20
     for task in tasks:

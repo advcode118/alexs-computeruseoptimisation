@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 from bench.budget import BudgetExceeded, LedgerMissing, ModelNotAllowed, assert_allowed_model, default_spend_path
-from bench.arms import ARMS
+from bench.arms import SELECTABLE_ARMS
 from bench.harness import DEFAULT_MODEL, run_benchmark
 from bench.tasks import BENCHMARK_TASKS, get_fixture_tasks, get_webvoyager_tasks
 from bench.summarize import generate_markdown_report, TaskSummary
@@ -115,17 +115,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--model",
-        default=DEFAULT_MODEL,
+        default=None,
         help="claude-sonnet-5-5, or with --provider openai one of gpt-6.1-sol and gpt-6-luna",
     )
     parser.add_argument(
         "--arm",
         default="playwright_mcp",
-        choices=ARMS,
+        choices=SELECTABLE_ARMS,
         help=(
-            "playwright_mcp, diff_fast_act, macro_replay, or stagehand. "
+            "script_first, browser_use, playwright_mcp, or stagehand. "
             "stagehand is local Playwright with snapshot/run/screenshot. "
-            "diff_fast_act and macro_replay talk to the proxy."
         ),
     )
     parser.add_argument(
@@ -168,7 +167,7 @@ def main() -> None:
             from bench.openai_spend import EffortNotAllowed, OpenAIModelNotAllowed, assert_effort, assert_openai_model
 
             try:
-                model = assert_openai_model(args.model)
+                model = assert_openai_model(args.model or "gpt-6.1-sol")
                 assert_effort(model, args.effort or "medium")
             except (OpenAIModelNotAllowed, EffortNotAllowed) as exc:
                 print(exc)
@@ -177,7 +176,7 @@ def main() -> None:
             if args.effort:
                 print("Claude does not take --effort.")
                 sys.exit(2)
-            model = assert_allowed_model(args.model)
+            model = assert_allowed_model(args.model or DEFAULT_MODEL)
     except ModelNotAllowed as exc:
         print(exc)
         sys.exit(2)

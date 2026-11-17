@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from bench.script_first import _note_extract, _run_step_on_page, parse_task_script, run_on_mcp, run_on_page
+from bench.script_first import _note_extract, _run_step_on_page, parse_task_script, run_on_page
 from bench.script_grammar import GRAMMAR_HINT
 from proxy.script import MAX_SCRIPT_CHARS, MAX_SCRIPT_LINES, ScriptError, parse_script
 
@@ -367,17 +367,6 @@ def test_all_new_forms_keep_script_limits_and_denylist(source):
     for token in ("require(", "process.", "child_process", "import ", "import(", "fetch(", "eval(", "new Function", "browser_run_code_unsafe"):
         with pytest.raises(ScriptError, match="not part of this script"):
             parse_task_script(source + " // " + token + " sentinel")
-
-
-@pytest.mark.parametrize("source", [
-    'page.title()', 'page.url()', 'page.goBack()', 'page.keyboard.type("x")',
-    'page.click("a")', 'page.locator("a").textContent()',
-])
-def test_mcp_does_not_treat_new_forms_as_evaluate(source):
-    call_tool = AsyncMock()
-    with pytest.raises(ScriptError, match="page.goto and page.evaluate only"):
-        asyncio.run(run_on_mcp(call_tool, source))
-    call_tool.assert_not_awaited()
 
 
 def test_ignored_options_cannot_disable_timeouts_or_run_code():
