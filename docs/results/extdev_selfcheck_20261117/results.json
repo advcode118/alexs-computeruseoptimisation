@@ -1,0 +1,294 @@
+{
+  "caveat": "Extdev scores use AI (Devin) hand labels from PR #97, not human spot-checked; indicative only. Dev/val truth uses the grader, not AI labels.",
+  "scores": {
+    "dev_val_grader": {
+      "current_runtime": {
+        "TP": 86,
+        "FP": 19,
+        "FN": 1,
+        "TN": 164,
+        "unlabelled": 46,
+        "precision": 0.819047619047619,
+        "recall": 0.9885057471264368,
+        "precision_ci95": [
+          0.7345909190245711,
+          0.8809833366492349
+        ]
+      },
+      "current_precision": {
+        "TP": 85,
+        "FP": 5,
+        "FN": 2,
+        "TN": 178,
+        "unlabelled": 46,
+        "precision": 0.9444444444444444,
+        "recall": 0.9770114942528736,
+        "precision_ci95": [
+          0.8764626377820048,
+          0.976039028383038
+        ]
+      },
+      "runtime_grounding": {
+        "TP": 81,
+        "FP": 17,
+        "FN": 6,
+        "TN": 166,
+        "unlabelled": 46,
+        "precision": 0.826530612244898,
+        "recall": 0.9310344827586207,
+        "precision_ci95": [
+          0.7396490798496071,
+          0.888778681703581
+        ]
+      },
+      "runtime_no_dump": {
+        "TP": 86,
+        "FP": 12,
+        "FN": 1,
+        "TN": 171,
+        "unlabelled": 46,
+        "precision": 0.8775510204081632,
+        "recall": 0.9885057471264368,
+        "precision_ci95": [
+          0.798071601716968,
+          0.9285479975789057
+        ]
+      },
+      "runtime_scope": {
+        "TP": 16,
+        "FP": 6,
+        "FN": 71,
+        "TN": 177,
+        "unlabelled": 46,
+        "precision": 0.7272727272727273,
+        "recall": 0.1839080459770115,
+        "precision_ci95": [
+          0.5184826598759762,
+          0.8684923971201053
+        ]
+      },
+      "precision_all": {
+        "TP": 13,
+        "FP": 1,
+        "FN": 74,
+        "TN": 182,
+        "unlabelled": 46,
+        "precision": 0.9285714285714286,
+        "recall": 0.14942528735632185,
+        "precision_ci95": [
+          0.6853129557584889,
+          0.9872777847521093
+        ]
+      }
+    },
+    "extdev_strict_AI": {
+      "current_runtime": {
+        "TP": 3,
+        "FP": 3,
+        "FN": 0,
+        "TN": 10,
+        "unlabelled": 19,
+        "precision": 0.5,
+        "recall": 1.0,
+        "precision_ci95": [
+          0.1876163064826506,
+          0.8123836935173494
+        ]
+      },
+      "current_precision": {
+        "TP": 2,
+        "FP": 0,
+        "FN": 1,
+        "TN": 13,
+        "unlabelled": 19,
+        "precision": 1.0,
+        "recall": 0.6666666666666666,
+        "precision_ci95": [
+          0.34238022750665303,
+          1.0
+        ]
+      },
+      "runtime_grounding": {
+        "TP": 3,
+        "FP": 3,
+        "FN": 0,
+        "TN": 10,
+        "unlabelled": 19,
+        "precision": 0.5,
+        "recall": 1.0,
+        "precision_ci95": [
+          0.1876163064826506,
+          0.8123836935173494
+        ]
+      },
+      "runtime_no_dump": {
+        "TP": 2,
+        "FP": 1,
+        "FN": 1,
+        "TN": 12,
+        "unlabelled": 19,
+        "precision": 0.6666666666666666,
+        "recall": 0.6666666666666666,
+        "precision_ci95": [
+          0.2076596008020477,
+          0.9385080552796037
+        ]
+      },
+      "runtime_scope": {
+        "TP": 3,
+        "FP": 1,
+        "FN": 0,
+        "TN": 12,
+        "unlabelled": 19,
+        "precision": 0.75,
+        "recall": 1.0,
+        "precision_ci95": [
+          0.30064184258240184,
+          0.9544127391902995
+        ]
+      },
+      "precision_all": {
+        "TP": 2,
+        "FP": 0,
+        "FN": 1,
+        "TN": 13,
+        "unlabelled": 19,
+        "precision": 1.0,
+        "recall": 0.6666666666666666,
+        "precision_ci95": [
+          0.34238022750665303,
+          1.0
+        ]
+      }
+    },
+    "extdev_partial_positive_AI": {
+      "current_runtime": {
+        "TP": 5,
+        "FP": 1,
+        "FN": 3,
+        "TN": 7,
+        "unlabelled": 19,
+        "precision": 0.8333333333333334,
+        "recall": 0.625,
+        "precision_ci95": [
+          0.43649717781352987,
+          0.9699466302516935
+        ]
+      },
+      "current_precision": {
+        "TP": 2,
+        "FP": 0,
+        "FN": 6,
+        "TN": 8,
+        "unlabelled": 19,
+        "precision": 1.0,
+        "recall": 0.25,
+        "precision_ci95": [
+          0.34238022750665303,
+          1.0
+        ]
+      },
+      "runtime_grounding": {
+        "TP": 5,
+        "FP": 1,
+        "FN": 3,
+        "TN": 7,
+        "unlabelled": 19,
+        "precision": 0.8333333333333334,
+        "recall": 0.625,
+        "precision_ci95": [
+          0.43649717781352987,
+          0.9699466302516935
+        ]
+      },
+      "runtime_no_dump": {
+        "TP": 3,
+        "FP": 0,
+        "FN": 5,
+        "TN": 8,
+        "unlabelled": 19,
+        "precision": 1.0,
+        "recall": 0.375,
+        "precision_ci95": [
+          0.4385029682449546,
+          1.0
+        ]
+      },
+      "runtime_scope": {
+        "TP": 4,
+        "FP": 0,
+        "FN": 4,
+        "TN": 8,
+        "unlabelled": 19,
+        "precision": 1.0,
+        "recall": 0.5,
+        "precision_ci95": [
+          0.5101091635454027,
+          1.0
+        ]
+      },
+      "precision_all": {
+        "TP": 2,
+        "FP": 0,
+        "FN": 6,
+        "TN": 8,
+        "unlabelled": 19,
+        "precision": 1.0,
+        "recall": 0.25,
+        "precision_ci95": [
+          0.34238022750665303,
+          1.0
+        ]
+      }
+    }
+  },
+  "dev_reference_saved_precision": {
+    "TP": 85,
+    "FP": 5,
+    "FN": 2,
+    "TN": 178,
+    "precision": 0.9444444444444444,
+    "recall": 0.9770114942528736,
+    "precision_ci95": [
+      0.8764626377820048,
+      0.976039028383038
+    ],
+    "recall_ci95": [
+      0.9200068198603859,
+      0.9936729148940739
+    ],
+    "rules": {
+      "claimed_url_mismatch": {
+        "false_accepts_caught": 1,
+        "true_passes_lost": 0
+      },
+      "landing_page": {
+        "false_accepts_caught": 5,
+        "true_passes_lost": 1
+      },
+      "long_answer": {
+        "false_accepts_caught": 2,
+        "true_passes_lost": 0
+      },
+      "multiline_answer": {
+        "false_accepts_caught": 5,
+        "true_passes_lost": 0
+      },
+      "search_results_url": {
+        "false_accepts_caught": 1,
+        "true_passes_lost": 0
+      }
+    }
+  },
+  "dev_rows": 149,
+  "dev_scripts": 316,
+  "extdev_rows": 22,
+  "extdev_scripts": 35,
+  "extdev_row_labels": {
+    "wrong": 14,
+    "partial": 5,
+    "correct": 3
+  },
+  "model_calls": 0,
+  "browser_runs": 0
+}

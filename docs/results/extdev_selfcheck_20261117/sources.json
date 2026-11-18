@@ -1,0 +1,57 @@
+[
+  {
+    "path": "docs/results/form_specialist_20261114/dev3_off.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "59d6223d985c6d43da1b7bb296d25259c4899115ce51ca557fd14968883d99e1"
+  },
+  {
+    "path": "docs/results/form_specialist_20261114/dev3_on.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "9be6c9bc3b91eacb2f0d36e6f03a7e015872c7d1afcfdc7503b2bcec56e4375e"
+  },
+  {
+    "path": "docs/results/form_specialist_20261114/dev4form_off.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "e567872ebefa250aeacdb04ce6675408158ad05ea1dfd6aae43abc2d3d3e79e5"
+  },
+  {
+    "path": "docs/results/form_specialist_20261114/dev4form_on.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "e89a5916ea7de12f868aa909911ab18f5143a953fc69eb375b4bba9c3ac14ace"
+  },
+  {
+    "path": "docs/results/strategy_spa_20261114/dev3_off_first.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "a1ca0a9daa07237d9ddec7c13bbacc4c8849203c67b2b8c09b8e78ef01c2872d"
+  },
+  {
+    "path": "docs/results/strategy_spa_20261114/dev3_on_first.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "6853590797a831ba4debf9b576a8eb5ca4927689e970d565bf0546d12edc78bc"
+  },
+  {
+    "path": "docs/results/strategy_spa_20261114/dev4spa_off_final.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "96a916ba90431629022a1a637bdd0450049fe9551be34e4b7bbf9e60b7c26251"
+  },
+  {
+    "path": "docs/results/strategy_spa_20261114/dev4spa_off_first.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "152894ffb3440dacb6a3bd66f6bf81fdd36750a0894a69577ef9fed5ba76b09e"
+  },
+  {
+    "path": "docs/results/strategy_spa_20261114/dev4spa_on_final.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "5fcd2160b6c94886916f33e2582872d0e24232701ed1cd74b965b362001b4fb2"
+  },
+  {
+    "path": "docs/results/strategy_spa_20261114/dev4spa_on_first.jsonl",
+    "commit": "9bb74de0616202f5cee1ec736d439f34c67b4874",
+    "sha256": "b90b16a23328689b2f18528ecd1b4246d1f1a86ff9fdbe3357568db39f34af83"
+  },
+  {
+    "path": "docs/results/robust_executor_20261114/paired_dev3.jsonl",
+    "commit": "74f434edec976e286f5dd2c7bbcd837a4f19094b",
+    "sha256": "c6686ba8a30cfaa4c6e064dfe4a7ed90361333750d70dabbdc4863e6370a5132"
+  }
+]
