@@ -188,3 +188,17 @@ def test_grade_observation_dispatches_on_key_v2_and_keeps_the_completion_gate():
     # Tasks without key_v2 keep the v1 rules unchanged.
     legacy = {k: v for k, v in task.items() if k != "key_v2"}
     assert grade.grade_observation(legacy, FAMILY, "text", answer=RIDES)[0] is False
+
+
+def test_raw_url_substring_suffix_and_nonempty_query_page_fields():
+    key = {"deliverable": "page", "host": "example.org", "reference": "r",
+           "pages": [{"url_contains": "host=192.168.10.77"},
+                     {"path": "/submitted-form.html", "path_mode": "suffix", "query_nonempty": True},
+                     {"url_contains": "#/quickstart"}]}
+    assert v2(key, "https://example.org/ipcalc?host=192.168.10.77&mask1=26", "t", "ok").verdict == PASS
+    assert v2(key, "https://example.org/web/submitted-form.html?my-text=a", "t", "ok").verdict == PASS
+    assert v2(key, "https://example.org/web/submitted-form.html", "t", "ok").verdict == FAIL
+    assert v2(key, "https://example.org/web/submitted-form.html.bak?x=1", "t", "ok").verdict == FAIL
+    assert v2(key, "https://example.org/#/quickstart", "t", "ok").verdict == PASS
+    assert v2(key, "https://example.org/#/other", "t", "ok").verdict == FAIL
+    assert v2({**key, "pages": [{"query": {"a": {"any": ["1"]}}}]}, "https://example.org/?a=1", "t", "ok").reason == "invalid v2 key"

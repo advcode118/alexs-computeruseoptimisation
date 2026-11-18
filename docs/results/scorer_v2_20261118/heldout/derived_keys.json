@@ -1,0 +1,772 @@
+{
+ "dev3_form_aito_contact": {
+  "deliverable": "both",
+  "host": "automationintesting.online",
+  "reference": "Thanks for getting in touch Alex Example!",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "automationintesting.online/"
+   }
+  ],
+  "facts": [
+   [
+    "Thanks for getting in touch Alex Example!"
+   ]
+  ]
+ },
+ "dev3_form_blazedemo_purchase": {
+  "deliverable": "both",
+  "host": "blazedemo.com",
+  "reference": "Thank you for your purchase today!",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/confirmation.php",
+    "path": "/confirmation.php",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "Thank you for your purchase today!"
+   ]
+  ]
+ },
+ "dev3_form_demoqa_practice": {
+  "deliverable": "both",
+  "host": "demoqa.com",
+  "reference": "Thanks for submitting the form",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/automation-practice-form"
+   }
+  ],
+  "facts": [
+   [
+    "Thanks for submitting the form"
+   ]
+  ]
+ },
+ "dev3_form_demoqa_textbox": {
+  "deliverable": "both",
+  "host": "demoqa.com",
+  "reference": "Name:Alex Example",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/text-box"
+   }
+  ],
+  "facts": [
+   [
+    "Name:Alex Example"
+   ]
+  ]
+ },
+ "dev3_form_formy_complete": {
+  "deliverable": "both",
+  "host": "formy-project.herokuapp.com",
+  "reference": "The form was successfully submitted!",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/thanks",
+    "path": "/thanks",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "The form was successfully submitted!"
+   ]
+  ]
+ },
+ "dev3_form_guru99_register": {
+  "deliverable": "both",
+  "host": "demo.guru99.com",
+  "reference": "Thank you for registering.",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/test/newtours/register"
+   }
+  ],
+  "facts": [
+   [
+    "Thank you for registering."
+   ]
+  ]
+ },
+ "dev3_spa_demoqa_origin": {
+  "deliverable": "both",
+  "host": "demoqa.com",
+  "reference": "Hampden-Sydney College",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/tabs"
+   }
+  ],
+  "facts": [
+   [
+    "Hampden-Sydney College"
+   ]
+  ]
+ },
+ "dev3_spa_devdocs_flat": {
+  "deliverable": "both",
+  "host": "devdocs.io",
+  "reference": "Array.prototype.flat()",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/javascript/global_objects/array/flat",
+    "path": "/global_objects/array/flat",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "Array.prototype.flat()"
+   ]
+  ]
+ },
+ "dev3_spa_elm_repeat": {
+  "deliverable": "both",
+  "host": "package.elm-lang.org",
+  "reference": "repeat : Int -> a -> List a",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/packages/elm/core/1.0.5/List",
+    "path": "/core/1.0.5/List",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "repeat : Int -> a -> List a"
+   ]
+  ]
+ },
+ "dev3_spa_letcode_total": {
+  "deliverable": "both",
+  "host": "letcode.in",
+  "reference": "858",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/table",
+    "path": "/table",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "858"
+   ]
+  ]
+ },
+ "dev4_form_aos_contact": {
+  "deliverable": "both",
+  "host": "www.advantageonlineshopping.com",
+  "reference": "Thank you for contacting Advantage support.",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "advantageonlineshopping.com/"
+   }
+  ],
+  "facts": [
+   [
+    "Thank you for contacting Advantage support."
+   ]
+  ]
+ },
+ "dev4_form_autoexercise_contact": {
+  "deliverable": "both",
+  "host": "automationexercise.com",
+  "reference": "Success! Your details have been submitted successfully.",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/contact_us"
+   }
+  ],
+  "facts": [
+   [
+    "Success! Your details have been submitted successfully."
+   ]
+  ]
+ },
+ "dev4_form_cura_appointment": {
+  "deliverable": "both",
+  "host": "katalon-demo-cura.herokuapp.com",
+  "reference": "Please be informed that your appointment has been booked as following:",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "appointment.php"
+   }
+  ],
+  "facts": [
+   [
+    "Please be informed that your appointment has been booked as following:"
+   ]
+  ]
+ },
+ "dev4_form_epoch_timestamp": {
+  "deliverable": "both",
+  "host": "www.epochconverter.com",
+  "reference": "1710504000",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "epochconverter.com/"
+   }
+  ],
+  "facts": [
+   [
+    "1710504000"
+   ]
+  ]
+ },
+ "dev4_form_giga_percent": {
+  "deliverable": "both",
+  "host": "www.gigacalculator.com",
+  "reference": "64.40",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "percentage-calculator.php"
+   }
+  ],
+  "facts": [
+   [
+    "64.40"
+   ]
+  ]
+ },
+ "dev4_form_ipcalc_broadcast": {
+  "deliverable": "both",
+  "host": "jodies.de",
+  "reference": "192.168.10.127",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "host=192.168.10.77"
+   }
+  ],
+  "facts": [
+   [
+    "192.168.10.127"
+   ]
+  ]
+ },
+ "dev4_form_lambdatest_input": {
+  "deliverable": "both",
+  "host": "www.testmuai.com",
+  "reference": "Thanks for contacting us, we will get back to you shortly.",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/input-form-demo"
+   }
+  ],
+  "facts": [
+   [
+    "Thanks for contacting us, we will get back to you shortly."
+   ]
+  ]
+ },
+ "dev4_form_playground_enquiry": {
+  "deliverable": "both",
+  "host": "ecommerce-playground.lambdatest.io",
+  "reference": "Your enquiry has been successfully sent to the store owner!",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "information/contact.success"
+   }
+  ],
+  "facts": [
+   [
+    "Your enquiry has been successfully sent to the store owner!"
+   ]
+  ]
+ },
+ "dev4_form_roman_convert": {
+  "deliverable": "both",
+  "host": "miniwebtool.com",
+  "reference": "MMDCCXLIX",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "number=2749"
+   }
+  ],
+  "facts": [
+   [
+    "MMDCCXLIX"
+   ]
+  ]
+ },
+ "dev4_form_soup_subtract": {
+  "deliverable": "both",
+  "host": "www.calculatorsoup.com",
+  "reference": "October 7, 2029",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/date-day.php"
+   }
+  ],
+  "facts": [
+   [
+    "October 7, 2029"
+   ]
+  ]
+ },
+ "dev4_form_testmu_radio": {
+  "deliverable": "both",
+  "host": "www.testmuai.com",
+  "reference": "Age : 15 - 50",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/radiobutton-demo"
+   }
+  ],
+  "facts": [
+   [
+    "Age : 15 - 50"
+   ]
+  ]
+ },
+ "dev4spa_js_cypress_todo_left": {
+  "deliverable": "both",
+  "host": "example.cypress.io",
+  "reference": "1 item left",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/todo"
+   }
+  ],
+  "facts": [
+   [
+    "1 item left"
+   ]
+  ]
+ },
+ "dev4spa_js_htmx_tab_two": {
+  "deliverable": "both",
+  "host": "htmx.org",
+  "reference": "Kitsch fanny pack",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/examples/tabs-hateoas/"
+   }
+  ],
+  "facts": [
+   [
+    "Kitsch fanny pack"
+   ]
+  ]
+ },
+ "dev4spa_js_htmx_toyota_models": {
+  "deliverable": "both",
+  "host": "htmx.org",
+  "reference": "Yaris",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/examples/value-select/"
+   }
+  ],
+  "facts": [
+   [
+    "Yaris"
+   ]
+  ]
+ },
+ "dev4spa_js_jqueryui_section_three": {
+  "deliverable": "both",
+  "host": "jqueryui.com",
+  "reference": "List item one",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/accordion/default.html"
+   }
+  ],
+  "facts": [
+   [
+    "List item one"
+   ]
+  ]
+ },
+ "dev4spa_js_jqueryui_tab_three": {
+  "deliverable": "both",
+  "host": "jqueryui.com",
+  "reference": "Mauris eleifend est et turpis",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/tabs/default.html"
+   }
+  ],
+  "facts": [
+   [
+    "Mauris eleifend est et turpis"
+   ]
+  ]
+ },
+ "dev4spa_js_knockout_clicks": {
+  "deliverable": "both",
+  "host": "knockoutjs.com",
+  "reference": "You've clicked 3 times",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/examples/clickCounter.html"
+   }
+  ],
+  "facts": [
+   [
+    "You've clicked 3 times"
+   ]
+  ]
+ },
+ "dev4spa_js_shoelace_advanced": {
+  "deliverable": "both",
+  "host": "shoelace.style",
+  "reference": "This is the advanced tab panel",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/components/tab-group"
+   }
+  ],
+  "facts": [
+   [
+    "This is the advanced tab panel"
+   ]
+  ]
+ },
+ "dev4spa_spa_artifacthub_nginx_app": {
+  "deliverable": "both",
+  "host": "artifacthub.io",
+  "reference": "1.25.0",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/nginx/15.0.0"
+   }
+  ],
+  "facts": [
+   [
+    "1.25.0"
+   ]
+  ]
+ },
+ "dev4spa_spa_deps_react_dependency": {
+  "deliverable": "both",
+  "host": "deps.dev",
+  "reference": "loose-envify",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/npm/react/18.2.0/dependencies"
+   }
+  ],
+  "facts": [
+   [
+    "loose-envify"
+   ]
+  ]
+ },
+ "dev4spa_spa_deps_requests_urllib3": {
+  "deliverable": "both",
+  "host": "deps.dev",
+  "reference": "<3,>=1.21.1",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/pypi/requests/2.31.0/requirements"
+   }
+  ],
+  "facts": [
+   [
+    "<3,>=1.21.1"
+   ]
+  ]
+ },
+ "dev4spa_spa_docsify_serve": {
+  "deliverable": "both",
+  "host": "docsify.js.org",
+  "reference": "http://localhost:3000",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "#/quickstart"
+   }
+  ],
+  "facts": [
+   [
+    "http://localhost:3000"
+   ]
+  ]
+ },
+ "dev4spa_spa_naiveui_beatles": {
+  "deliverable": "both",
+  "host": "naiveui.com",
+  "reference": "Hey Jude",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/components/tabs"
+   }
+  ],
+  "facts": [
+   [
+    "Hey Jude"
+   ]
+  ]
+ },
+ "ho2_form_calculator_sum": {
+  "deliverable": "both",
+  "host": "testpages.eviltester.com",
+  "reference": "42",
+  "deny": [
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/apps/server-side-calculator/",
+    "path": "/apps/server-side-calculator/",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "42"
+   ]
+  ]
+ },
+ "ho2_form_expand_ticket": {
+  "deliverable": "both",
+  "host": "practice.expandtesting.com",
+  "reference": "Thank you for validating your ticket",
+  "deny": [
+   "/form-validation",
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/form-confirmation",
+    "path": "/form-confirmation",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "Thank you for validating your ticket"
+   ]
+  ]
+ },
+ "ho_form_httpbin_phone": {
+  "deliverable": "both",
+  "host": "httpbin.org",
+  "reference": "custtel",
+  "deny": [
+   "/forms/",
+   "/redirect",
+   "/anything"
+  ],
+  "pages": [
+   {
+    "url_contains": "://httpbin.org/post",
+    "path": "/post",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "custtel"
+   ]
+  ]
+ },
+ "ho_form_internet_email": {
+  "deliverable": "both",
+  "host": "the-internet.herokuapp.com",
+  "reference": "Your e-mail's been sent!",
+  "deny": [
+   "/forgot_password",
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/email_sent",
+    "path": "/email_sent",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "Your e-mail's been sent!"
+   ]
+  ]
+ },
+ "ho_form_internet_secure": {
+  "deliverable": "both",
+  "host": "the-internet.herokuapp.com",
+  "reference": "You logged into a secure area!",
+  "deny": [
+   "/login",
+   "insecure",
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "://the-internet.herokuapp.com/secure",
+    "path": "/secure",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "You logged into a secure area!"
+   ]
+  ]
+ },
+ "ho_form_selenium_received": {
+  "deliverable": "both",
+  "host": "www.selenium.dev",
+  "reference": "Received!",
+  "deny": [
+   "/web-form.html",
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/submitted-form.html",
+    "path": "/submitted-form.html",
+    "path_mode": "suffix",
+    "query_nonempty": true
+   }
+  ],
+  "facts": [
+   [
+    "Received!"
+   ]
+  ]
+ },
+ "ho_form_testpages_comments": {
+  "deliverable": "both",
+  "host": "testpages.herokuapp.com",
+  "reference": "comments",
+  "deny": [
+   "/basic-html-form-test.html",
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/the_form_processor.php",
+    "path": "/the_form_processor.php",
+    "path_mode": "suffix"
+   }
+  ],
+  "facts": [
+   [
+    "comments"
+   ]
+  ]
+ },
+ "ho_form_w3schools_action": {
+  "deliverable": "page",
+  "host": "www.w3schools.com",
+  "reference": "/action_page.php",
+  "deny": [
+   "/html_forms.asp",
+   "/search"
+  ],
+  "pages": [
+   {
+    "url_contains": "/action_page.php",
+    "path": "/action_page.php",
+    "path_mode": "suffix",
+    "query_nonempty": true
+   }
+  ]
+ }
+}

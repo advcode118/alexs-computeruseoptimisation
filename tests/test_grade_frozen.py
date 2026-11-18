@@ -190,7 +190,7 @@ def test_frozen_grader_is_stdlib_only():
 
 
 def test_frozen_grader_source_hash():
-    expected = "7ff695b598c715cf5cc4426b77827819ec374b23699ca08d5ad881ca21a97e24"
+    expected = "5f459309a799a7f3a6b6b309cb8beb3b51f9b0cf7bb37bb5ec542a5c4a914bde"
     actual = hashlib.sha256((ROOT / "bench/grade.py").read_bytes()).hexdigest()
     assert actual == expected, (
         "Changing the frozen grader requires deliberately updating this hash "
