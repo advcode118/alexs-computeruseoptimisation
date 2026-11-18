@@ -782,3 +782,10 @@ for _task in EXTDEV_TASKS:
         _task['url_answer_ok'] = True
 
 EXTDEV_TASK_IDS = tuple(task["id"] for task in EXTDEV_TASKS)
+
+# Scorer v2 keys (docs/GRADER.md). The v1 fields above are kept unchanged.
+from bench.keys_extdev_v2 import KEYS_V2 as _KEYS_V2  # noqa: E402
+
+assert set(_KEYS_V2) == set(EXTDEV_TASK_IDS), sorted(set(_KEYS_V2) ^ set(EXTDEV_TASK_IDS))
+for _task in EXTDEV_TASKS:
+    _task['key_v2'] = _KEYS_V2[_task['id']]

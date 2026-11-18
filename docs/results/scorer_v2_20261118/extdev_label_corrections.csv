@@ -1,0 +1,2 @@
+row,task_id,original,corrected,justification
+U31,extdev_value_ironhide_arcade_gdc,partial,correct,"Answer 'Kingdom Rush; Junkworld' is the WebWalkerQA source answer 'Kingdom Rush and Junkworld' (candidates_extdev.jsonl main:562, from Ironhide articles 42 and 307); the label marked it partial only because the saved final page (News/2023?page=2) does not show the GDC prize, and the v2 rule does not require the answer's page for an answer task."

@@ -1,0 +1,238 @@
+{
+  "definition": "strict agreement: grader PASS <=> label 'correct'; partial counts as not correct",
+  "extdev": {
+    "v1_final_vs_original": {
+      "n": 109,
+      "agree": 44,
+      "agree_pct": 40.4,
+      "false_accepts": 0,
+      "false_accept_rows": [],
+      "false_rejects": 65,
+      "false_reject_rows": [
+        "S1",
+        "S2",
+        "S3",
+        "D1",
+        "D4",
+        "D9",
+        "D12",
+        "D13",
+        "D17",
+        "D19",
+        "D20",
+        "D21",
+        "D24",
+        "D27",
+        "D28",
+        "D32",
+        "D37",
+        "D40",
+        "D41",
+        "D44",
+        "D45",
+        "D48",
+        "D53",
+        "D56",
+        "D57",
+        "D60",
+        "D61",
+        "D64",
+        "D65",
+        "D68",
+        "D69",
+        "D72",
+        "D77",
+        "D80",
+        "D81",
+        "D84",
+        "D85",
+        "U1",
+        "U3",
+        "U4",
+        "U5",
+        "U6",
+        "U10",
+        "U11",
+        "U12",
+        "U14",
+        "U15",
+        "U16",
+        "U17",
+        "U18",
+        "U20",
+        "U21",
+        "U22",
+        "U23",
+        "U24",
+        "U25",
+        "U27",
+        "U28",
+        "U30",
+        "U32",
+        "U35",
+        "U37",
+        "U38",
+        "U39",
+        "U40"
+      ],
+      "confusion": {
+        "FAIL|correct": 65,
+        "FAIL|partial": 10,
+        "FAIL|wrong": 18,
+        "PASS|correct": 16
+      }
+    },
+    "v2_final_vs_original": {
+      "n": 109,
+      "agree": 108,
+      "agree_pct": 99.1,
+      "false_accepts": 1,
+      "false_accept_rows": [
+        "U31"
+      ],
+      "false_rejects": 0,
+      "false_reject_rows": [],
+      "confusion": {
+        "FAIL|partial": 9,
+        "FAIL|wrong": 18,
+        "PASS|correct": 81,
+        "PASS|partial": 1
+      }
+    },
+    "v2_final_vs_corrected": {
+      "n": 109,
+      "agree": 109,
+      "agree_pct": 100.0,
+      "false_accepts": 0,
+      "false_accept_rows": [],
+      "false_rejects": 0,
+      "false_reject_rows": [],
+      "confusion": {
+        "FAIL|partial": 9,
+        "FAIL|wrong": 18,
+        "PASS|correct": 82
+      }
+    },
+    "v2_page_vs_original": {
+      "n": 109,
+      "agree": 108,
+      "agree_pct": 99.1,
+      "false_accepts": 1,
+      "false_accept_rows": [
+        "U31"
+      ],
+      "false_rejects": 0,
+      "false_reject_rows": [],
+      "confusion": {
+        "FAIL|partial": 9,
+        "FAIL|wrong": 18,
+        "PASS|correct": 81,
+        "PASS|partial": 1
+      }
+    },
+    "v2_page_vs_corrected": {
+      "n": 109,
+      "agree": 109,
+      "agree_pct": 100.0,
+      "false_accepts": 0,
+      "false_accept_rows": [],
+      "false_rejects": 0,
+      "false_reject_rows": [],
+      "confusion": {
+        "FAIL|partial": 9,
+        "FAIL|wrong": 18,
+        "PASS|correct": 82
+      }
+    },
+    "corrections": [
+      {
+        "row": "U31",
+        "label_original": "partial",
+        "label_corrected": "correct",
+        "correction": "Answer 'Kingdom Rush; Junkworld' is the WebWalkerQA source answer 'Kingdom Rush and Junkworld' (candidates_extdev.jsonl main:562, from Ironhide articles 42 and 307); the label marked it partial only because the saved final page (News/2023?page=2) does not show the GDC prize, and the v2 rule does not require the answer's page for an answer task."
+      }
+    ]
+  },
+  "heldout": {
+    "v2_final_vs_blind": {
+      "n": 55,
+      "agree": 51,
+      "agree_pct": 92.7,
+      "false_accepts": 0,
+      "false_accept_rows": [],
+      "false_rejects": 4,
+      "false_reject_rows": [
+        "H02",
+        "H21",
+        "H52",
+        "H54"
+      ],
+      "confusion": {
+        "FAIL|correct": 4,
+        "FAIL|wrong": 24,
+        "PASS|correct": 27
+      }
+    },
+    "v2_page_vs_blind": {
+      "n": 55,
+      "agree": 52,
+      "agree_pct": 94.5,
+      "false_accepts": 0,
+      "false_accept_rows": [],
+      "false_rejects": 3,
+      "false_reject_rows": [
+        "H21",
+        "H52",
+        "H54"
+      ],
+      "confusion": {
+        "FAIL|correct": 3,
+        "FAIL|wrong": 24,
+        "PASS|correct": 28
+      }
+    },
+    "v1_final_vs_blind": {
+      "n": 55,
+      "agree": 50,
+      "agree_pct": 90.9,
+      "false_accepts": 0,
+      "false_accept_rows": [],
+      "false_rejects": 5,
+      "false_reject_rows": [
+        "H02",
+        "H06",
+        "H21",
+        "H52",
+        "H54"
+      ],
+      "confusion": {
+        "FAIL|correct": 5,
+        "FAIL|wrong": 24,
+        "PASS|correct": 26
+      }
+    },
+    "v1_page_vs_blind": {
+      "n": 55,
+      "agree": 51,
+      "agree_pct": 92.7,
+      "false_accepts": 0,
+      "false_accept_rows": [],
+      "false_rejects": 4,
+      "false_reject_rows": [
+        "H06",
+        "H21",
+        "H52",
+        "H54"
+      ],
+      "confusion": {
+        "FAIL|correct": 4,
+        "FAIL|wrong": 24,
+        "PASS|correct": 27
+      }
+    },
+    "labels": {
+      "wrong": 24,
+      "correct": 31
+    }
+  }
+}
