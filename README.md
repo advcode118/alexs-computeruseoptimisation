@@ -34,15 +34,7 @@ Low-call design, signed off:
 - Draft [PR #111](https://github.com/advcode118/alexs-computeruseoptimisation/pull/111): paired live run, InteractiveStage vs browser-use. Not yet competitive.
 - [Continuation plan](https://github.com/advcode118/alexs-computeruseoptimisation/blob/devin/1794950090-planner-gate/docs/LOW_CALL_CONTINUATION.md).
 
-### Current baseline
 
-<sub>Today’s paired run is effectively tied: cascade mean wall 25.1 s vs browser_use ultrafast 25.3 s, and both pass 2/22 on the frozen grader. Sample: 22 paired extdev tasks, gpt-6.1-sol medium, 1 replicate. Recorded runs: python tools/extdev_control.py --mode default --execute and python tools/extdev_control.py --mode ultrafast --execute (CU_BU_MODE=ultrafast). The next fresh paired benchmark will provide the speed claim. See the [extdev control evidence](docs/results/extdev_control_20261117/README.md).</sub>
-
-## Evidence
-
-[Saved-evidence hand labels](docs/results/extdev_hand_labels_20261117/) · [Sol comparison, PR #105](https://github.com/advcode118/alexs-computeruseoptimisation/pull/105). These records do not establish an accuracy win.
-
-<details>
 <summary><b>Working on this repo</b></summary>
 
 <br>
