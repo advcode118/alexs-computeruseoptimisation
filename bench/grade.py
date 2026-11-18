@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass
+from datetime import date
 from urllib.parse import parse_qsl, unquote, urlsplit
 
 PASS = "PASS"
@@ -548,6 +550,217 @@ def _returned_problem(
     return None
 
 
+# ---------------------------------------------------------------------------
+# Scorer v2: tasks that carry a `key_v2` dict. See docs/GRADER.md, "Scorer v2".
+# Tasks without key_v2 keep every v1 rule above, byte for byte.
+# ---------------------------------------------------------------------------
+
+V2_DELIVERABLES = ("answer", "page", "both")
+V2_DEFAULT_DENY = ("/signin", "/login", "/sorry/")
+_V2_DASHES = dict.fromkeys(map(ord, "‐‑‒–—―−"), "-")
+_V2_QUOTES = {ord("‘"): "'", ord("’"): "'", ord("“"): '"', ord("”"): '"'}
+_V2_DROP = dict.fromkeys(map(ord, "™®©*`"), None)
+_V2_FAILURE = re.compile(
+    r"^\s*(?:task failed|failed\b)"
+    r"|\bi (?:could not|couldn't|was unable to|am unable to|cannot|can't|did not manage to)\b"
+    r"|\bunable to (?:find|access|complete|locate|verify|load|open|submit|apply)\b"
+)
+
+
+def _fold_v2(value: str) -> str:
+    """Formatting-only normalisation for v2 fact matching."""
+    text = (value or "").translate(_V2_DROP)
+    text = unicodedata.normalize("NFKC", text).translate(_V2_DASHES).translate(_V2_QUOTES)
+    text = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", text)
+    text = re.sub(r"(?<=\d)\s*-\s*(?=\d)", "-", text)
+    return " ".join(text.split()).casefold()
+
+
+def _v2_alternatives(fact) -> tuple[list[list[str]], int] | None:
+    """[[all-of strings], ...] alternatives and the minimum distinct matches."""
+    if isinstance(fact, dict):
+        options, minimum = fact.get("any"), fact.get("min", 1)
+    else:
+        options, minimum = fact, 1
+    if not isinstance(options, list) or not options or not isinstance(minimum, int) or minimum < 1:
+        return None
+    groups = []
+    for option in options:
+        group = [option] if isinstance(option, str) else option
+        if not isinstance(group, list) or not group or any(
+            not isinstance(item, str) or not item.strip() for item in group
+        ):
+            return None
+        groups.append(group)
+    if minimum > len(groups):
+        return None
+    return groups, minimum
+
+
+def _v2_key_problem(key) -> bool:
+    if not isinstance(key, dict) or key.get("deliverable") not in V2_DELIVERABLES:
+        return True
+    host = key.get("host")
+    hosts = host if isinstance(host, list) else [host]
+    if not hosts or any(not isinstance(item, str) or not item.strip() for item in hosts):
+        return True
+    if not isinstance(key.get("reference"), str) or not key["reference"].strip():
+        return True
+    pages, facts = key.get("pages"), key.get("facts")
+    if key["deliverable"] in ("page", "both"):
+        if not isinstance(pages, list) or not pages or any(
+            not isinstance(p, dict) or not (p.get("path") or p.get("url_contains")) for p in pages
+        ):
+            return True
+    if key["deliverable"] in ("answer", "both"):
+        if not isinstance(facts, list) or not facts or any(_v2_alternatives(f) is None for f in facts):
+            return True
+    return False
+
+
+def _v2_number(value: str):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _v2_condition(values: list[str], condition) -> bool:
+    if not isinstance(condition, dict) or not values:
+        return False
+    for value in values:
+        ok = True
+        if "any" in condition:
+            ok = ok and value in condition["any"]
+        if "has" in condition:
+            ok = ok and condition["has"] in value.split(",")
+        if "contains" in condition:
+            words = condition["contains"]
+            words = [words] if isinstance(words, str) else words
+            ok = ok and any(word.casefold() in value.casefold() for word in words)
+        if "prefix" in condition:
+            ok = ok and value.startswith(condition["prefix"])
+        if "max" in condition or "min" in condition:
+            number = _v2_number(value)
+            ok = ok and number is not None
+            if ok and "max" in condition:
+                ok = number <= condition["max"]
+            if ok and "min" in condition:
+                ok = number >= condition["min"]
+        if ok:
+            return True
+    return False
+
+
+def _v2_nights(params: dict) -> int | None:
+    def first(*names):
+        for name in names:
+            if params.get(name):
+                return params[name][0]
+        return ""
+
+    try:
+        start = date.fromisoformat(first("checkin", "check_in"))
+        end = date.fromisoformat(first("checkout", "check_out"))
+    except ValueError:
+        return None
+    return (end - start).days
+
+
+def _v2_page_matches(url: str, text: str, page: dict) -> bool | None:
+    """True/False for a URL pattern; None when it needs page text that was not read."""
+    parts = urlsplit(url)
+    path = unquote(parts.path).casefold()
+    wanted = str(page.get("path") or "").casefold()
+    mode = page.get("path_mode", "contains")
+    if mode == "prefix" and not path.startswith(wanted):
+        return False
+    if mode == "suffix" and not path.endswith(wanted):
+        return False
+    if mode not in ("prefix", "suffix") and wanted not in path:
+        return False
+    if page.get("url_contains") and not _marker_in_url(url, str(page["url_contains"])):
+        return False
+    if page.get("query_nonempty") and not parts.query.strip():
+        return False
+    params: dict[str, list[str]] = {}
+    for name, value in parse_qsl(parts.query, keep_blank_values=True):
+        params.setdefault(name, []).append(value)
+    for name, condition in (page.get("query") or {}).items():
+        if not _v2_condition(params.get(name, []), condition):
+            return False
+    if "stay_nights" in page and _v2_nights(params) != page["stay_nights"]:
+        return False
+    phrases = page.get("text") or []
+    if phrases:
+        if not (text or "").strip():
+            return None
+        folded = _fold_v2(text)
+        if not all(_phrase_at_boundary(_fold_v2(p), folded) for p in phrases):
+            return False
+    return True
+
+
+def _v2_fact_ok(answer: str, fact) -> bool:
+    groups, minimum = _v2_alternatives(fact)
+    folded = _fold_v2(answer)
+    hits = sum(all(_phrase_at_boundary(_fold_v2(item), folded) for item in group) for group in groups)
+    return hits >= minimum
+
+
+def evidence_verdict_v2(
+    key: dict,
+    trusted: PageEvidence,
+    claimed: ClaimedEvidence | None = None,
+) -> EvidenceVerdict:
+    """PASS, FAIL, or UNKNOWN for a v2 key. Checks run in the documented order."""
+    claimed = claimed or ClaimedEvidence()
+    live = (trusted.url or "").strip()
+    answer = (claimed.answer or "").strip()
+    page_text = trusted.text or ""
+    if _v2_key_problem(key):
+        return EvidenceVerdict(FAIL, "invalid v2 key", live)
+    deliverable = key["deliverable"]
+    needs_page = deliverable in ("page", "both")
+    if not _http(live):
+        return EvidenceVerdict(FAIL, "no final page", "")
+    if needs_page:
+        deny = key.get("deny", list(V2_DEFAULT_DENY))
+        hit = _deny_hit(live, deny)
+        if hit:
+            return EvidenceVerdict(FAIL, f"the page is denied ({hit})", live)
+        if is_search_results_url(live) and not key.get("allow_search"):
+            return EvidenceVerdict(FAIL, "the page is denied (search)", live)
+    if _http(claimed.url) and not _same_page(claimed.url, live):
+        return EvidenceVerdict(FAIL, "claimed URL does not match the live page", live)
+    if not _host_ok(live, key["host"]):
+        return EvidenceVerdict(FAIL, "the final page is on the wrong host", live)
+    if not answer:
+        return EvidenceVerdict(FAIL, "empty answer", live)
+    if _V2_FAILURE.search(_fold_v2(answer)):
+        return EvidenceVerdict(FAIL, "answer reports failure", live)
+    if len(answer) > 3 * len(key["reference"]) + 300:
+        return EvidenceVerdict(FAIL, "answer too long", live)
+    if needs_page:
+        results = [_v2_page_matches(live, page_text, page) for page in key["pages"]]
+        if True not in results:
+            if None in results:
+                return EvidenceVerdict(UNKNOWN, "page text was not read", live)
+            return EvidenceVerdict(FAIL, "the final page is not an accepted page", live)
+    if deliverable in ("answer", "both"):
+        if not all(_v2_fact_ok(answer, fact) for fact in key["facts"]):
+            return EvidenceVerdict(FAIL, "answer misses a required fact", live)
+    reason = "the answer matches the key" if deliverable == "answer" else "the final page matches the key"
+    problem = _returned_problem(claimed, page_text, live)
+    return problem if problem is not None else EvidenceVerdict(PASS, reason, live)
+
+
+def _v2_task_verdict(task: dict, url: str, text: str, selector_text: str, claim) -> EvidenceVerdict:
+    return evidence_verdict_v2(
+        task["key_v2"], PageEvidence(url=url, text=text or "", selector_text=selector_text), claim,
+    )
+
+
 def deterministic_success(task: dict, url: str, text: str) -> tuple[bool | None, str]:
     """URL and text checks only. The LLM judge is not called."""
     if task.get("check_url_contains"):
@@ -622,6 +835,9 @@ def shared_end_state(
     """
     claim = _grade_claim(answer, claimed)
     body = page_text or text
+    if isinstance(task.get("key_v2"), dict):
+        verdict = _v2_task_verdict(task, url, body, selector_text, claim)
+        return verdict.verdict == PASS, verdict.reason
     markers = _task_markers(task)
     checked, reason = deterministic_success(task, url, text)
     if checked is not None:
@@ -713,7 +929,10 @@ def grade_observation(
     markers = _task_markers(task)
     evidence = None
     evidence_reason = ""
-    if markers:
+    if isinstance(task.get("key_v2"), dict):
+        verdict = _v2_task_verdict(task, url, text, selector_text, claim)
+        evidence, evidence_reason = verdict.verdict, verdict.reason
+    elif markers:
         verdict = evidence_verdict(
             markers,
             PageEvidence(url=url, text=text or "", selector_text=selector_text),

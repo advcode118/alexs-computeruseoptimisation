@@ -10,6 +10,20 @@ All numbers below come from the PR descriptions or from the saved probe logs (`b
 
 Make computer use faster than the competition. The bar is Stagehand-class wall time per successful task, with a success rate no more than about 2 points below the stronger baseline. Tom's own approach is **script_first**: the model writes one Playwright script for the whole task, the harness runs it, and the end state is judged. Plain Playwright MCP (many small tool calls) and Stagehand are the baselines.
 
+## 18 Nov 2026 — scorer v2 for extdev
+
+The frozen grader agreed with the extdev hand labels on 44/109 rows (65 right
+answers failed on URL keys, literal parts and length bounds). Scorer v2 grades
+tasks with a `key_v2` by deliverable (answer facts anywhere on the site, accepted
+end-state pages, or both) under written rules in GRADER.md; v1 keys stay in
+`bench/tasks_extdev.py`; other task sets are unchanged. grade.py SHA-256
+`5f459309a799a7f3a6b6b309cb8beb3b51f9b0cf7bb37bb5ec542a5c4a914bde`.
+Agreement: extdev 108/109 vs original labels (in-sample, 1 false accept, a label
+corrected to correct), held-out 51/55 vs one blind Opus labeller (0 false
+accepts; v1 50/55). Offline regrade moves only extdev rows: paired browser_use
+21/22, cascade 20/22, script_first 3/22. No paid calls.
+See [scorer v2](results/scorer_v2_20261118/README.md).
+
 ## 17 Nov 2026 — authored extdev keys and offline re-grade
 
 After the key-driven grader update (SHA256 `7ff695b598c715cf5cc4426b77827819ec374b23699ca08d5ad881ca21a97e24`),

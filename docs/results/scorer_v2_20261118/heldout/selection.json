@@ -1,0 +1,28 @@
+{
+  "rows": 55,
+  "tasks": 41,
+  "splits": [
+    "dev3",
+    "dev4form",
+    "dev4spa",
+    "held-out",
+    "heldout2"
+  ],
+  "files": [
+    "docs/results/form_specialist_20261114/dev3_off.jsonl",
+    "docs/results/form_specialist_20261114/dev4form_off.jsonl",
+    "docs/results/form_specialist_20261114/dev4form_on.jsonl",
+    "docs/results/form_specialist_20261114/held-out_off.jsonl",
+    "docs/results/form_specialist_20261114/held-out_on.jsonl",
+    "docs/results/form_specialist_20261114/heldout2_off.jsonl",
+    "docs/results/form_specialist_20261114/heldout2_on.jsonl",
+    "docs/results/strategy_spa_20261114/dev3_off_first.jsonl",
+    "docs/results/strategy_spa_20261114/dev3_on_first.jsonl",
+    "docs/results/strategy_spa_20261114/dev4spa_off_final.jsonl",
+    "docs/results/strategy_spa_20261114/dev4spa_off_first.jsonl",
+    "docs/results/strategy_spa_20261114/dev4spa_on_final.jsonl",
+    "docs/results/strategy_spa_20261114/dev4spa_on_first.jsonl"
+  ],
+  "selection_sha256": "4037b8db86fdd3ae37c46593e7ed1a793729fbeb31368bd24a66818abe3b0184",
+  "text_cap": 8000
+}
