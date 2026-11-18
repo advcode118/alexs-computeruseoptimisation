@@ -1,0 +1,326 @@
+{
+  "L0403a091": {
+    "arm": "cascade+interactive",
+    "grader_pass": true,
+    "grader_reason": "the final page matches the key",
+    "task_id": "extval_nav_nfl_super_bowl_2015_scoreboard"
+  },
+  "L072eebdd": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_roviocon_theme_series"
+  },
+  "L0aefa41f": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "UNKNOWN: needs approval: blocked action",
+    "task_id": "extval_filter_spothero_wheelchair_times_square"
+  },
+  "L0fc0c168": {
+    "arm": "browser_use",
+    "grader_pass": false,
+    "grader_reason": "answer misses a required fact",
+    "task_id": "extval_value_junkworld_launch_update"
+  },
+  "L19ac736e": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_kingdom_rush_prize_comic"
+  },
+  "L1de96755": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_icse_2002_deadlines"
+  },
+  "L20d2210a": {
+    "arm": "cascade+browser_use",
+    "grader_pass": false,
+    "grader_reason": "empty answer",
+    "task_id": "extval_nav_nfl_super_bowl_2015_scoreboard"
+  },
+  "L295ac34c": {
+    "arm": "cascade+browser_use",
+    "grader_pass": false,
+    "grader_reason": "the final page is not an accepted page",
+    "task_id": "extval_filter_amazon_womens_hiking_boots"
+  },
+  "L2b008f4d": {
+    "arm": "cascade+interactive",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_hf_cc_by_sa_most_liked"
+  },
+  "L2da7f7e4": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_rovio_burger_king_ar_end"
+  },
+  "L2ef31501": {
+    "arm": "cascade+browser_use",
+    "grader_pass": false,
+    "grader_reason": "answer too long",
+    "task_id": "extval_value_cambridge_present_perfect"
+  },
+  "L2fbc8a37": {
+    "arm": "browser_use",
+    "grader_pass": false,
+    "grader_reason": "answer misses a required fact",
+    "task_id": "extval_value_kingdom_rush_prize_comic"
+  },
+  "L32f9a1f1": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_apec_photo_2021_country"
+  },
+  "L33055a01": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_roviocon_theme_series"
+  },
+  "L339f2f93": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "interactive: call cap 4 reached (self-check FAIL)",
+    "task_id": "extval_value_icse_2002_deadlines"
+  },
+  "L36085c55": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_apec_photo_2021_country"
+  },
+  "L36311605": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "returned evidence is not on the page",
+    "task_id": "extval_value_roviocon_theme_series"
+  },
+  "L38bb32c5": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_icse_2002_gil_tutorial"
+  },
+  "L3de7722d": {
+    "arm": "browser_use",
+    "grader_pass": false,
+    "grader_reason": "answer too long",
+    "task_id": "extval_value_cambridge_present_perfect"
+  },
+  "L4101ed20": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "answer misses a required fact",
+    "task_id": "extval_value_cambridge_present_perfect"
+  },
+  "L455d5318": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "UNKNOWN: needs approval: blocked action",
+    "task_id": "extval_value_rovio_burger_king_ar_end"
+  },
+  "L4717131e": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_hf_cc_by_sa_most_liked"
+  },
+  "L4b9db72d": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the final page matches the key",
+    "task_id": "extval_nav_spothero_love_field"
+  },
+  "L4d6b4543": {
+    "arm": "cascade+browser_use",
+    "grader_pass": false,
+    "grader_reason": "answer too long",
+    "task_id": "extval_value_hf_trainer_parameters"
+  },
+  "L524e551b": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the final page matches the key",
+    "task_id": "extval_filter_amazon_womens_hiking_boots"
+  },
+  "L5af4b7c3": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "answer misses a required fact",
+    "task_id": "extval_value_kingdom_rush_prize_comic"
+  },
+  "L5d8927ec": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "the final page is not an accepted page",
+    "task_id": "extval_filter_amazon_womens_hiking_boots"
+  },
+  "L68ac5dcf": {
+    "arm": "browser_use",
+    "grader_pass": false,
+    "grader_reason": "the final page is on the wrong host",
+    "task_id": "extval_nav_nfl_super_bowl_2015_scoreboard"
+  },
+  "L69514683": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "the final page is on the wrong host",
+    "task_id": "extval_value_apec_photo_2021_country"
+  },
+  "L6bea51dc": {
+    "arm": "browser_use",
+    "grader_pass": false,
+    "grader_reason": "the final page is on the wrong host",
+    "task_id": "extval_nav_darienlake_gift_shops"
+  },
+  "L738e88ee": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_icse_2002_gil_tutorial"
+  },
+  "L746e0b8b": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "empty answer",
+    "task_id": "extval_filter_amazon_gaming_desktop"
+  },
+  "L8293e09b": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the final page matches the key",
+    "task_id": "extval_filter_amazon_gaming_desktop"
+  },
+  "L8d0437bc": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "returned evidence is not on the page",
+    "task_id": "extval_nav_spothero_love_field"
+  },
+  "L9832e03e": {
+    "arm": "browser_use",
+    "grader_pass": false,
+    "grader_reason": "answer too long",
+    "task_id": "extval_value_hf_trainer_parameters"
+  },
+  "L9fb78eec": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_hf_cc_by_sa_most_liked"
+  },
+  "La06840d4": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "answer too long",
+    "task_id": "extval_value_junkworld_launch_update"
+  },
+  "La1c56a24": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the final page matches the key",
+    "task_id": "extval_filter_spothero_wheelchair_times_square"
+  },
+  "Lafc0774b": {
+    "arm": "cascade+interactive",
+    "grader_pass": true,
+    "grader_reason": "the final page matches the key",
+    "task_id": "extval_nav_real_madrid_ucl_schedule"
+  },
+  "Lb2df0969": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "claimed URL does not match the live page",
+    "task_id": "extval_nav_darienlake_gift_shops"
+  },
+  "Lb71a76fe": {
+    "arm": "cascade+browser_use",
+    "grader_pass": false,
+    "grader_reason": "the final page is not an accepted page",
+    "task_id": "extval_filter_spothero_wheelchair_times_square"
+  },
+  "Lb8c4ad50": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the final page matches the key",
+    "task_id": "extval_filter_amazon_gaming_desktop"
+  },
+  "Lb943e135": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_junkworld_launch_update"
+  },
+  "Lc4b87f7c": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the final page matches the key",
+    "task_id": "extval_nav_spothero_love_field"
+  },
+  "Lcaee33d1": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_rovio_burger_king_ar_end"
+  },
+  "Lcd463de5": {
+    "arm": "browser_use",
+    "grader_pass": false,
+    "grader_reason": "the final page is on the wrong host",
+    "task_id": "extval_nav_real_madrid_ucl_schedule"
+  },
+  "Ld2bf9cde": {
+    "arm": "cascade+browser_use",
+    "grader_pass": false,
+    "grader_reason": "the final page is on the wrong host",
+    "task_id": "extval_nav_darienlake_gift_shops"
+  },
+  "Ldb048172": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "returned evidence is not on the page",
+    "task_id": "extval_value_icse_2002_gil_tutorial"
+  },
+  "Le8234217": {
+    "arm": "browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_cambridge_feel_giddy_synonyms"
+  },
+  "Leaa9c069": {
+    "arm": "cascade+interactive",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_cambridge_feel_giddy_synonyms"
+  },
+  "Leef5d4d3": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_icse_2002_deadlines"
+  },
+  "Lfb77d834": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the final page matches the key",
+    "task_id": "extval_nav_real_madrid_ucl_schedule"
+  },
+  "Lfd015ea8": {
+    "arm": "cascade+interactive",
+    "grader_pass": false,
+    "grader_reason": "answer too long",
+    "task_id": "extval_value_hf_trainer_parameters"
+  },
+  "Lff7c4eac": {
+    "arm": "cascade+browser_use",
+    "grader_pass": true,
+    "grader_reason": "the answer matches the key",
+    "task_id": "extval_value_cambridge_feel_giddy_synonyms"
+  }
+}

@@ -103,6 +103,10 @@ def responses_input(messages: list[dict]) -> list[dict]:
                 )
             elif role == "user" and kind == "text":
                 items.append({"role": "user", "content": block.get("text") or ""})
+            elif role == "user" and kind == "image" and (block.get("source") or {}).get("type") == "base64":
+                source = block["source"]
+                url = f"data:{source.get('media_type') or 'image/jpeg'};base64,{source.get('data') or ''}"
+                items.append({"role": "user", "content": [{"type": "input_image", "image_url": url}]})
             else:
                 raise OpenAIResponseError(f"Refusing to send message block {kind!r}.")
     return items

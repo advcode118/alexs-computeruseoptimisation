@@ -1,0 +1,63 @@
+{
+  "old_grader_sha256": "7ff695b598c715cf5cc4426b77827819ec374b23699ca08d5ad881ca21a97e24",
+  "new_grader_sha256": "5f459309a799a7f3a6b6b309cb8beb3b51f9b0cf7bb37bb5ec542a5c4a914bde",
+  "common_groups": 76,
+  "changed_groups": [
+    {
+      "path": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "arm": "browser_use",
+      "split": "extdev",
+      "old_new_pass": 5,
+      "v2_new_pass": 21,
+      "regradable": 22
+    },
+    {
+      "path": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "arm": "cascade",
+      "split": "extdev",
+      "old_new_pass": 4,
+      "v2_new_pass": 20,
+      "regradable": 22
+    },
+    {
+      "path": "docs/results/extdev_control_20261117/raw/probe_20261117_012232.jsonl",
+      "arm": "script_first",
+      "split": "extdev",
+      "old_new_pass": 1,
+      "v2_new_pass": 3,
+      "regradable": 22
+    },
+    {
+      "path": "docs/results/extdev_control_20261117/raw/probe_20261117_015118.jsonl",
+      "arm": "browser_use",
+      "split": "extdev",
+      "old_new_pass": 6,
+      "v2_new_pass": 35,
+      "regradable": 40
+    },
+    {
+      "path": "docs/results/extdev_control_20261117/smoke/probe_20261117_011924.jsonl",
+      "arm": "cascade",
+      "split": "extdev",
+      "old_new_pass": 0,
+      "v2_new_pass": 3,
+      "regradable": 3
+    }
+  ],
+  "changed_splits": [
+    "extdev"
+  ],
+  "sources_only_in_new": [
+    "docs/results/extdev_gpt62_20261117/gpt-6.2-astra-browser_use/probe_20261117_184129.jsonl",
+    "docs/results/extdev_gpt62_20261117/gpt-6.2-astra-browser_use/probe_20261117_184203.jsonl",
+    "docs/results/extdev_gpt62_20261117/gpt-6.2-astra/probe_20261117_184010.jsonl",
+    "docs/results/extdev_gpt62_20261117/gpt-6.2-sol-browser_use/probe_20261117_184824.jsonl",
+    "docs/results/extdev_sol_effort_20261117/gpt-6.1-sol-medium-browser_use/probe_20261117_201043.jsonl",
+    "docs/results/extdev_sol_effort_20261117/gpt-6.2-sol-low-browser_use/probe_20261117_200539.jsonl"
+  ],
+  "sources_only_in_old": [],
+  "old_flips": 41,
+  "new_flips": 143,
+  "heldout3_flips_old": [],
+  "heldout3_flips_new": []
+}

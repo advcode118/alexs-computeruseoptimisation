@@ -63,7 +63,7 @@ def test_site_cap_and_disjoint_from_every_other_catalog_task_and_heldout4():
     counts = Counter(site for task in tasks for site in sites(task))
     assert max(counts.values()) <= 3
     for task in get_all_tasks():
-        if task["id"] in EXTDEV_TASK_IDS:
+        if task["id"] in EXTDEV_TASK_IDS or task["id"].startswith("extval_"):
             continue
         hosts = {urlsplit(task.get("start_url", "")).hostname}
         host = (task.get("end_markers") or {}).get("host")
@@ -144,8 +144,10 @@ def test_authoring_history_replays_quotas_rank_order_and_accepted_only_caps():
 
 @pytest.mark.parametrize("task", tasks_for_split("extdev"), ids=lambda t: t["id"])
 def test_existing_grader_normal_empty_wrong_and_decoy_cases(task):
+    """The v1 keys stay readable and keep their v1 behaviour when graded without key_v2."""
     from bench.verify_extdev import negative_url, reference_answer, synthetic_reference
 
+    task = {k: v for k, v in task.items() if k != "key_v2"}
     final = next(r["final_url"] for r in effective_authoring_decisions(read("authoring_extdev.jsonl")) if r.get("task_id") == task["id"])
     text = "\n".join(task.get("answer_parts") or [reference_answer(task)])
     assert synthetic_reference(task, final)[0] is True
@@ -159,6 +161,23 @@ def test_existing_grader_normal_empty_wrong_and_decoy_cases(task):
     if "answer_parts" in task:
         assert task["answer_parts"] == [task["expected_answer"], *task["unchecked_fragments"]]
         assert task["full_answer"] == "; ".join(task["answer_parts"])
+
+
+@pytest.mark.parametrize("task", tasks_for_split("extdev"), ids=lambda t: t["id"])
+def test_v2_key_reference_passes_and_decoys_fail(task):
+    key = task["key_v2"]
+    final = next(r["final_url"] for r in effective_authoring_decisions(read("authoring_extdev.jsonl")) if r.get("task_id") == task["id"])
+    phrases = [p for page in key.get("pages", []) for p in page.get("text", [])]
+    text = "\n".join([key["reference"], *phrases])
+    assert grade_observation(task, final, text, answer=key["reference"])[0] is True
+    assert grade_observation(task, final, text, answer="")[0] is False
+    assert grade_observation(task, final, text, answer="Task failed: I could not finish.")[0] is False
+    assert grade_observation(task, "https://example.com/", text, answer=key["reference"])[0] is False
+    assert grade_observation(task, "", "", answer="")[0] is False
+    if key["deliverable"] in ("answer", "both"):
+        assert grade_observation(task, final, text, answer="Wrong value")[0] is False
+    if key["deliverable"] in ("page", "both"):
+        assert grade_observation(task, task["start_url"], text, answer=key["reference"])[0] is False
 
 
 def test_corrected_keys_preserve_history_and_query_parameter_order():
@@ -190,7 +209,7 @@ def test_new_answer_keys_only_reuse_authored_values_and_conservative_page_flags(
 def test_prompt_boundary_selects_only_description_and_start_url():
     task = dict(tasks_for_split("extdev")[0])
     expected = task_message(task["description"], task["start_url"])
-    for field in ("end_markers", "source", "source_id", "licence", "text_edits", "reproducer", "key_scope", "unchecked_fragments", "full_answer", "answer_parts", "url_answer_ok"):
+    for field in ("end_markers", "source", "source_id", "licence", "text_edits", "reproducer", "key_scope", "unchecked_fragments", "full_answer", "answer_parts", "url_answer_ok", "key_v2"):
         task[field] = "PRIVATE_JUDGE_ONLY_SENTINEL"
     assert task_text(task) == expected
     assert "PRIVATE_JUDGE_ONLY_SENTINEL" not in task_text(task)

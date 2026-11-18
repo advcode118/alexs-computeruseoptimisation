@@ -1,0 +1,126 @@
+{
+  "wall_clock_version": 2,
+  "browser_launch_ms": 0,
+  "grade_read_ms": 0,
+  "grade_url": "",
+  "grade_page_text": "",
+  "grade_page_text_truncated": false,
+  "grade_selector_text": "",
+  "claimed_answer": "done",
+  "arm": "cascade",
+  "task_id": "wv_wikipedia_search",
+  "success": false,
+  "success_reason": "no shared end-state check",
+  "end_state": "PASS",
+  "grade_completed": null,
+  "grade_completion_reason": "",
+  "grade_claim": null,
+  "page_answer_success": false,
+  "page_answer_reason": "no shared end-state check",
+  "substring_success": null,
+  "substring_reason": "no deterministic check; LLM judge was not called",
+  "skipped": false,
+  "wall_ms": 0,
+  "steps": 2,
+  "input_tokens": 4,
+  "output_tokens": 3,
+  "usd": 0.000057,
+  "model_ignores_tools": 0,
+  "no_model": false,
+  "replay_hit": false,
+  "tier": "fresh",
+  "model_calls": 1,
+  "script_steps": 3,
+  "claude": true,
+  "final_url": "",
+  "final_title": "Ada Lovelace - Wikipedia",
+  "expected_value": "",
+  "scripts": [
+    "await page.goto(\"https://en.wikipedia.org/wiki/Main_Page\");\nawait page.getByRole(\"link\", { name: \"Ada Lovelace\" }).click();\nawait page.evaluate(() => ({url: location.href, title: document.title, h1: document.querySelector(\"h1\")?.innerText, answer: \"\"}));"
+  ],
+  "repair_sent": false,
+  "repair_reply": "none",
+  "script_turns": [
+    [
+      "PASS",
+      0
+    ]
+  ],
+  "self_checks": [
+    {
+      "payload": {
+        "ok": true,
+        "url": "https://en.wikipedia.org/wiki/Ada_Lovelace",
+        "steps": 3,
+        "extracted": [
+          "Ada Lovelace"
+        ],
+        "title": "Ada Lovelace - Wikipedia",
+        "canonical": "https://en.wikipedia.org/wiki/Ada_Lovelace",
+        "h1": "Ada Lovelace",
+        "text": "Ada Lovelace was an English mathematician and writer.",
+        "claimed": {
+          "url": "https://en.wikipedia.org/wiki/Ada_Lovelace",
+          "title": "Ada Lovelace - Wikipedia",
+          "h1": "Ada Lovelace",
+          "answer": "DO NOT LEAK"
+        }
+      },
+      "page_url": "https://en.wikipedia.org/wiki/Ada_Lovelace",
+      "start_url": "https://en.wikipedia.org/wiki/Main_Page",
+      "verdict": "FAIL",
+      "reason": "the script finished and its evidence is on the live page"
+    }
+  ],
+  "task_description": "Search Wikipedia for Ada Lovelace",
+  "start_url": "https://en.wikipedia.org/wiki/Main_Page",
+  "handoff_url": "https://x/current",
+  "handoff_target_id": "script-target",
+  "handoff_cdp_url": "http://127.0.0.1:12345",
+  "handoff_receipt": "Task: Search Wikipedia for Ada Lovelace\n\nStart URL: https://en.wikipedia.org/wiki/Main_Page\n\nIf the task asks for a value, such as a title, a name, or a number, give that exact value from the page as your answer, with no sentence around it.\nA fast scripted attempt ran first and did not confirm the result. The browser is already open on https://x/current; continue from there (navigating is allowed).\nPages visited: https://en.wikipedia.org/wiki/Ada_Lovelace\nHandoff reason: self-check FAIL",
+  "model": "claude-sonnet-5-5",
+  "browser": "chromium",
+  "browser_use": "1.0.6",
+  "browser_use_mode": "default",
+  "page_url": "",
+  "browser_use_initial_url": "https://x/current",
+  "browser_use_initial_target_id": "script-target",
+  "browser_use_cdp_url": "http://127.0.0.1:12345",
+  "cached_tokens": 0,
+  "cache_write_30m_tokens": 0,
+  "cache_write_12h_tokens": 0,
+  "answered_by": "browser_use",
+  "handoff_reason": "self-check FAIL",
+  "stage_wall_ms": {
+    "grounding": 0,
+    "script": 0,
+    "browser_use": 0
+  },
+  "stage_usd": {
+    "script": 0.000039,
+    "browser_use": 0.000018
+  },
+  "stage_tokens": {
+    "script": {
+      "input_tokens": 3,
+      "output_tokens": 2,
+      "cached_tokens": 0,
+      "cache_write_30m_tokens": 0,
+      "cache_write_12h_tokens": 0
+    },
+    "browser_use": {
+      "input_tokens": 1,
+      "output_tokens": 1,
+      "cached_tokens": 0,
+      "cache_write_30m_tokens": 0,
+      "cache_write_12h_tokens": 0
+    }
+  },
+  "grounding": {
+    "ok": true,
+    "error": "",
+    "links": 0,
+    "forms": 0,
+    "h1": ""
+  }
+}

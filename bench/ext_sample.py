@@ -43,7 +43,7 @@ def assigned_set(site: str) -> str:
 def existing_sites() -> set[str]:
     sites = set()
     for task in get_all_tasks():
-        if task.get("id", "").startswith(("extdev_", "heldout4_")):
+        if task.get("id", "").startswith(("extdev_", "extval_", "heldout4_")):
             continue
         hosts = [urlsplit(task.get("start_url", "")).hostname]
         marker = (task.get("end_markers") or {}).get("host")

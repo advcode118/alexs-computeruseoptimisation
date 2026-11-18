@@ -1,0 +1,56 @@
+hid,label,deliverable,justification
+H01,wrong,both,Page shows 'Thanks for getting in touch Alex Example!' but answer is the unrelated heading 'Check Availability & Book Your Stay'
+H02,correct,both,On blazedemo confirmation.php; answer matches page heading 'Thank you for your purchase today!'
+H03,correct,both,Confirmation dialog in page text shows 'Thanks for submitting the form' with Alex Example/Other/0123456789; answer matches
+H04,correct,both,Output on text-box page shows 'Name:Alex Example' and the email; answer matches
+H05,correct,both,Final URL /thanks shows 'The form was successfully submitted!'; answer matches
+H06,correct,both,register_sucess.php shows 'Dear Alex Example' and the thank-you sentence; answer matches it
+H07,correct,answer,Origin tab text names Richard McClintock of Hampden-Sydney College; answer matches
+H08,wrong,both,DevDocs page says 'Page not found'; answer 'DevDocs' is not the entry title (Array.prototype.flat)
+H09,wrong,both,Empty answer and DevDocs page shows 'Page not found'
+H10,correct,both,elm/core 1.0.5 List docs page shows 'repeat : Int -> a -> List a'; answer matches
+H11,correct,both,letcode.in/table shows Shopping List Total 858; answer 858
+H12,wrong,both,"Empty answer; page is the home page with unsent contact form, no thank-you message"
+H13,wrong,both,Empty answer; contact_us page shows no success message
+H14,wrong,both,"Empty answer; final page is the CURA login page, no appointment booked"
+H15,wrong,both,"Empty answer; final page is the unsubmitted Make Appointment form, no confirmation"
+H16,wrong,answer,Empty answer; page text is a consent dialog with no converted timestamp
+H17,wrong,answer,"Answer is a JSON element dump, not the result (64.4); page shows only consent text"
+H18,correct,answer,ipcalc result for 192.168.10.77/26 shows Broadcast 192.168.10.127; answer matches
+H19,wrong,both,Answer is a JSON element dump; page shows the empty unsubmitted form with no success message
+H20,correct,both,contact.success URL shows 'Your enquiry has been successfully sent to the store owner!'; answer matches
+H21,correct,answer,Page states '2749 in Roman numerals is MMDCCXLIX'; answer matches
+H22,correct,answer,Page states '2749 in Roman numerals is MMDCCXLIX'; answer matches
+H23,wrong,answer,Empty answer; page shows no calculated date
+H24,wrong,both,Page prints 'Age : 15 - 50' but answer is the option labels 'Age : 0 to 55 to 1515 to 50'
+H25,wrong,both,Page prints 'Age : 15 - 50' but answer is the option labels 'Age : 0 to 55 to 1515 to 50'
+H26,correct,both,Todo page shows '1 item left' with two todos (one done); answer matches
+H27,wrong,both,Empty answer though page shows '1 item left'
+H28,correct,both,Live demo shows Tab 2 selected with text 'Kitsch fanny pack yr...'; answer 'Kitsch fanny pack' matches
+H29,correct,both,"Demo after GET /models?make=toyota lists Landcruiser, Tacoma, Yaris; answer Yaris"
+H30,correct,both,Section 3 content visible with list 'List item one/two/three'; answer 'List item one'
+H31,correct,both,Aenean lacinia panel text starts 'Mauris eleifend est et turpis.'; answer matches
+H32,wrong,both,"Answer is an explanatory paragraph about subscriptions, not the line 'You've clicked 3 times' shown on page"
+H33,correct,both,Page shows 'You've clicked 3 times' with 'That's too many clicks!'; answer matches
+H34,correct,both,First example panel shows 'This is the advanced tab panel.'; answer matches
+H35,wrong,both,Empty answer; first example still shows the general tab panel
+H36,correct,both,nginx 15.0.0 page shows APPLICATION VERSION 1.25.0 and image 1.25.0-debian-11-r0; answer 1.25.0
+H37,correct,both,nginx 15.0.0 page shows APPLICATION VERSION 1.25.0; answer 1.25.0
+H38,correct,both,deps.dev react 18.2.0 dependencies lists loose-envify as the only Direct; answer matches
+H39,correct,both,deps.dev react 18.2.0 dependencies filtered to direct shows loose-envify; answer matches
+H40,correct,both,"requests 2.31.0 requirements page lists urllib3 '<3,>=1.21.1'; answer matches"
+H41,correct,both,Quick start page says preview on http://localhost:3000; answer matches
+H42,correct,both,Quick start page says preview on http://localhost:3000; answer matches
+H43,wrong,both,Answer 'not found' is a failure report; first demo still shows Wonderwall (Beatles tab not opened)
+H44,wrong,both,Page first demo shows 'Hey Jude' for the Beatles tab but answer is 'Wonderwall' (Oasis song)
+H45,wrong,both,Answer hedges a string of candidates 'Jay Chou Wonderwall Hey Jude Sign in' rather than the one title Hey Jude
+H46,wrong,both,Empty answer; first demo still shows Wonderwall
+H47,correct,both,Calculator page shows 'Answer : 42'; answer 42
+H48,wrong,both,Confirmation page reached with 'Thank you for validating your ticket' but answer is empty
+H49,wrong,answer,Task asks the telephone field's name (custtel) as echoed; answer gives the value 5551234567
+H50,correct,both,email_sent page shows 'Your e-mail's been sent!'; answer matches
+H51,correct,both,/secure page flash 'You logged into a secure area!'; answer matches (trailing close glyph only)
+H52,correct,both,submitted-form.html shows heading 'Form submitted'; answer matches
+H53,wrong,answer,Result page echoes the multiline field name 'comments'; answer 'Comments...' is its value
+H54,correct,page,Final URL is w3schools action_page.php with fname=John&lname=Doe submitted data; answer non-empty
+H55,wrong,page,"Final URL is the lesson page html_forms.asp, which the task says not to stop on"

@@ -1,0 +1,98 @@
+{
+  "_paired_tasks": [
+    "extval_filter_amazon_gaming_desktop",
+    "extval_filter_amazon_womens_hiking_boots",
+    "extval_filter_spothero_wheelchair_times_square",
+    "extval_nav_darienlake_gift_shops",
+    "extval_nav_nfl_super_bowl_2015_scoreboard",
+    "extval_nav_real_madrid_ucl_schedule",
+    "extval_nav_spothero_love_field",
+    "extval_value_apec_photo_2021_country",
+    "extval_value_cambridge_feel_giddy_synonyms",
+    "extval_value_cambridge_present_perfect",
+    "extval_value_hf_cc_by_sa_most_liked",
+    "extval_value_hf_trainer_parameters",
+    "extval_value_icse_2002_deadlines",
+    "extval_value_icse_2002_gil_tutorial",
+    "extval_value_junkworld_launch_update",
+    "extval_value_kingdom_rush_prize_comic",
+    "extval_value_rovio_burger_king_ar_end",
+    "extval_value_roviocon_theme_series"
+  ],
+  "_regrade_mismatches": [],
+  "browser_use": {
+    "answered_by": {
+      "browser_use": 18
+    },
+    "attempted": 18,
+    "calls_mean": 9.722222222222221,
+    "calls_p90": 17,
+    "pass_rate": 0.6111111111111112,
+    "passes": 11,
+    "recovery_fired": 0,
+    "recovery_passes": 0,
+    "skipped": 0,
+    "stage_model_calls": {},
+    "tasks": 18,
+    "usd_per_pass": 0.11701136363636365,
+    "usd_per_task": 0.07150694444444444,
+    "usd_total": 1.287125,
+    "wall_mean_s": 57.75708042222282,
+    "wall_median_s": 41.20691660000011,
+    "wall_p90_s": 141.67747500003316,
+    "wall_s_per_pass": 94.51158614545552
+  },
+  "cascade+browser_use": {
+    "answered_by": {
+      "browser_use": 15,
+      "script": 3
+    },
+    "attempted": 18,
+    "calls_mean": 8.88888888888889,
+    "calls_p90": 24,
+    "pass_rate": 0.6666666666666666,
+    "passes": 12,
+    "recovery_fired": 15,
+    "recovery_passes": 10,
+    "skipped": 0,
+    "stage_model_calls": {
+      "browser_use": 132,
+      "script": 28
+    },
+    "tasks": 18,
+    "usd_per_pass": 0.10052166666666668,
+    "usd_per_task": 0.06701444444444445,
+    "usd_total": 1.20626,
+    "wall_mean_s": 41.13752139999997,
+    "wall_median_s": 42.291722399997525,
+    "wall_p90_s": 85.38032690004911,
+    "wall_s_per_pass": 61.70628209999995
+  },
+  "cascade+interactive": {
+    "answered_by": {
+      "interactive": 1,
+      "none": 13,
+      "script": 4
+    },
+    "attempted": 18,
+    "calls_mean": 4.333333333333333,
+    "calls_p90": 6,
+    "pass_rate": 0.2222222222222222,
+    "passes": 4,
+    "recovery_fired": 14,
+    "recovery_passes": 1,
+    "skipped": 0,
+    "stage_model_calls": {
+      "interactive": 50,
+      "script": 28
+    },
+    "tasks": 18,
+    "usd_per_pass": 0.18538975,
+    "usd_per_task": 0.04119772222222222,
+    "usd_total": 0.741559,
+    "wall_mean_s": 21.710199677766973,
+    "wall_median_s": 24.776385699980892,
+    "wall_p90_s": 32.89730069995858,
+    "wall_s_per_pass": 97.69589854995138
+  }
+}

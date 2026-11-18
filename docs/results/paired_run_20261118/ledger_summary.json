@@ -1,0 +1,23 @@
+{
+  "ledger_file": "~/.cu-optimisation/openai-spend-paired-20261118.json (new for this run)",
+  "running_total_usd": 3.422664,
+  "recorded_extra_usd": 0.15,
+  "recorded_extra_breakdown": {
+    "opening_allowance": 0.05,
+    "reserve_for_crashed_unrecorded_task_A17": 0.1
+  },
+  "project_cap_usd": 4.5,
+  "aborted": false,
+  "charged_task_records": 57,
+  "keys_present": [
+    "abort_reason",
+    "aborted",
+    "per_run_budget_usd",
+    "prices_usd_per_mtok",
+    "project_budget_usd",
+    "provider",
+    "recorded_extra_usd",
+    "running_total_usd",
+    "tasks"
+  ]
+}
