@@ -116,90 +116,95 @@ async def run_interactive(task, *, harness, profile, checkpoints, reason, visite
                + f"\nSend the first short segment (at most {SEGMENT_MAX_STEPS} lines).")
     messages: list[dict] = [{"role": "user", "content": [{"type": "text", "text": opening}] + ([image] if image else [])}]
 
-    while out["model_calls"] < max_calls:
-        try:
+    try:
+        while out["model_calls"] < max_calls:
             response, model_ms = await model.create_message(messages, TOOLS, system=INTERACTIVE_PROMPT,
                                                             tool_choice=tool_choice)
-        except PriceUnknown:
-            raise
-        except Exception as exc:
-            # Like the script stage and run_recovery: end the stage, keep the usage counted so far.
-            out.update(end_state="FAIL", success_reason=f"interactive error: {type(exc).__name__}: {exc}"[:300])
-            break
-        out["model_calls"] += 1
-        out["model_ms"] += model_ms
-        usage = response.get("usage") or {}
-        for key in _TOKEN_KEYS:
-            out[key] += int(usage.get(key) or 0)
-        content = response.get("content") or []
-        texts = [b for b in content if b.get("type") == "text"]
-        uses = [b for b in content if b.get("type") == "tool_use"]
-        if not uses:
-            out.update(end_state="FAIL", success_reason="interactive: model sent no segment")
-            break
-        use = uses[0]
-        messages.append({"role": "assistant", "content": texts + [use]})
-        if use.get("name") == "task_failed":
-            out.update(end_state="FAIL", success_reason="Task failed: " + str((use.get("input") or {}).get("reason", "")))
-            break
-        code = str((use.get("input") or {}).get("code") or "")
-        out["scripts"].append(code)
-        try:
-            length = len(parse_task_script(code))
-        except ScriptError:
-            length = 0  # The executor reports the parse error itself.
-        left = max_calls - out["model_calls"]
-        if length > SEGMENT_MAX_STEPS:
-            out["segments"].append({"refused": True, "ok": False, "steps": 0, "lines": length})
-            feedback = (f"Refused, nothing ran: the segment has {length} lines; send at most {SEGMENT_MAX_STEPS}. "
-                        f"{left} replies left.")
-            messages.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": use.get("id", ""), "content": feedback}]})
-            continue
+            out["model_calls"] += 1
+            out["model_ms"] += model_ms
+            usage = response.get("usage") or {}
+            for key in _TOKEN_KEYS:
+                out[key] += int(usage.get(key) or 0)
+            content = response.get("content") or []
+            texts = [b for b in content if b.get("type") == "text"]
+            uses = [b for b in content if b.get("type") == "tool_use"]
+            if not uses:
+                out.update(end_state="FAIL", success_reason="interactive: model sent no segment")
+                break
+            use = uses[0]
+            messages.append({"role": "assistant", "content": texts + [use]})
+            if use.get("name") == "task_failed":
+                out.update(end_state="FAIL", success_reason="Task failed: " + str((use.get("input") or {}).get("reason", "")))
+                break
+            code = str((use.get("input") or {}).get("code") or "")
+            out["scripts"].append(code)
+            try:
+                length = len(parse_task_script(code))
+            except ScriptError:
+                length = 0  # The executor reports the parse error itself.
+            left = max_calls - out["model_calls"]
+            if length > SEGMENT_MAX_STEPS:
+                out["segments"].append({"refused": True, "ok": False, "steps": 0, "lines": length})
+                feedback = (f"Refused, nothing ran: the segment has {length} lines; send at most {SEGMENT_MAX_STEPS}. "
+                            f"{left} replies left.")
+                messages.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": use.get("id", ""), "content": feedback}]})
+                continue
 
-        result_text, tool_ms = await client.call_tool("run_script", {"code": code})
-        out["tool_ms"] += tool_ms
-        page_url = page_url_from_result(result_text) or _page_url(client._page)
-        verdict, payload = script_runtime_verdict(result_text, page_url, start_url, asks_value=asks_value,
-                                                  task=description, earlier=earlier_payloads)
-        earlier_payloads.append(payload)
-        record = self_check_record(payload, page_url, start_url, verdict)
-        checks = evaluate_checkpoints(checkpoints, {**record["payload"], "url": page_url,
-                                                    "blocked_actions": list(gate.blocked)})
-        out["self_checks"].append(record)
-        out["checkpoints"].append(checks)
-        out["final_url"] = page_url
-        out["claimed"] = claimed_from_payload(payload)
-        out["segments"].append({"refused": False, "ok": payload.get("ok") is not False,
-                                "steps": int(payload.get("steps") or 0), "lines": length,
-                                "verdict": verdict.verdict, "reason": verdict.reason, "url": page_url})
-        if gate.blocked or payload.get("blocked_actions"):
-            out.update(end_state=UNKNOWN, success_reason="UNKNOWN: needs approval: blocked action",
-                       needs_approval=True, blocked_actions=list(gate.blocked or payload.get("blocked_actions")))
-            break
-        accept, rule = precision_check(description, record)
-        if accept:
-            out.update(success=True, end_state=PASS, success_reason="Task completed successfully")
-            break
-        if not left:
-            out.update(end_state=verdict.verdict if verdict.verdict != PASS else UNKNOWN,
-                       success_reason=f"interactive: call cap {max_calls} reached ({rule})")
-            break
-        page_block, image = await look()
-        drop_old_snapshots(messages)
-        if image:
-            _drop_old_images(messages)
-        rejected = "" if verdict.verdict != PASS else f" The runner did not accept this end state: {rule}."
-        feedback = "\n".join([
-            model_visible_script_result(result_text, failed=verdict.verdict != PASS, hide_page=True),
-            failed_step_note(code, payload) + " " + _claimed_note(payload),
-            f"Self-check: {verdict.verdict}: {verdict.reason}.{rejected}",
-            _unmet(checks),
-            page_block,
-            f"{left} replies left. Send the next short segment, or task_failed.",
-        ])
-        messages.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": use.get("id", ""), "content": feedback}]
-                         + ([image] if image else [])})
-    else:
-        out.update(end_state=out["end_state"] or "FAIL",
-                   success_reason=out["success_reason"] or f"interactive: call cap {max_calls} reached")
+            result_text, tool_ms = await client.call_tool("run_script", {"code": code})
+            out["tool_ms"] += tool_ms
+            page_url = page_url_from_result(result_text) or _page_url(client._page)
+            verdict, payload = script_runtime_verdict(result_text, page_url, start_url, asks_value=asks_value,
+                                                      task=description, earlier=earlier_payloads)
+            earlier_payloads.append(payload)
+            record = self_check_record(payload, page_url, start_url, verdict)
+            checks = evaluate_checkpoints(checkpoints, {**record["payload"], "url": page_url,
+                                                        "blocked_actions": list(gate.blocked)})
+            out["self_checks"].append(record)
+            out["checkpoints"].append(checks)
+            out["final_url"] = page_url
+            out["claimed"] = claimed_from_payload(payload)
+            out["segments"].append({"refused": False, "ok": payload.get("ok") is not False,
+                                    "steps": int(payload.get("steps") or 0), "lines": length,
+                                    "verdict": verdict.verdict, "reason": verdict.reason, "url": page_url})
+            if gate.blocked or payload.get("blocked_actions"):
+                out.update(end_state=UNKNOWN, success_reason="UNKNOWN: needs approval: blocked action",
+                           needs_approval=True, blocked_actions=list(gate.blocked or payload.get("blocked_actions")))
+                break
+            accept, rule = precision_check(description, record)
+            if accept:
+                out.update(success=True, end_state=PASS, success_reason="Task completed successfully")
+                break
+            if not left:
+                out.update(end_state=verdict.verdict if verdict.verdict != PASS else UNKNOWN,
+                           success_reason=f"interactive: call cap {max_calls} reached ({rule})")
+                break
+            page_block, image = await look()
+            drop_old_snapshots(messages)
+            if image:
+                _drop_old_images(messages)
+            rejected = "" if verdict.verdict != PASS else f" The runner did not accept this end state: {rule}."
+            try:
+                visible = model_visible_script_result(result_text, failed=verdict.verdict != PASS, hide_page=True)
+            except ValueError:
+                # budget_script_result refuses to cut oversized JSON; the notes and snapshot below still apply.
+                visible = "(the raw script result was too large to show; the live page is below)"
+            feedback = "\n".join([
+                visible,
+                failed_step_note(code, payload) + " " + _claimed_note(payload),
+                f"Self-check: {verdict.verdict}: {verdict.reason}.{rejected}",
+                _unmet(checks),
+                page_block,
+                f"{left} replies left. Send the next short segment, or task_failed.",
+            ])
+            messages.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": use.get("id", ""), "content": feedback}]
+                             + ([image] if image else [])})
+        else:
+            out.update(end_state=out["end_state"] or "FAIL",
+                       success_reason=out["success_reason"] or f"interactive: call cap {max_calls} reached")
+    except PriceUnknown:
+        raise
+    except Exception as exc:
+        # Like the script stage and run_recovery: any model, executor or formatting error ends the
+        # stage as FAIL and keeps the usage counted so far, so the row and its spend are not lost.
+        out.update(end_state="FAIL", success_reason=f"interactive error: {type(exc).__name__}: {exc}"[:300])
     return out
