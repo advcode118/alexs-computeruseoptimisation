@@ -1,5 +1,6 @@
 """Three authorized extdev tasks through the budgeted OpenAI probe runner."""
 
+import argparse
 import asyncio
 import json
 from pathlib import Path
@@ -21,7 +22,7 @@ TASK_IDS = (
 )
 
 
-async def main():
+async def main(fallback="browser_use"):
     tasks = {task["id"]: task for task in tasks_for_split("extdev")}
     selected = [tasks[task_id] for task_id in TASK_IDS]
     with patch("bench.openai_run._tasks", return_value=selected):
@@ -29,7 +30,7 @@ async def main():
             arms=("cascade",), split="extdev", sweep=False, model="gpt-6.1-sol",
             effort="medium", one_task=False, headless=True, spend_path=None,
             runs_dir=ROOT / "docs/results/extdev_control_20261117/smoke",
-            warm_replay=False, honest=False,
+            warm_replay=False, honest=False, fallback=fallback,
         )
     for row in rows:
         print(json.dumps({key: row.get(key) for key in (
@@ -41,4 +42,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fallback", choices=("browser_use", "none"), default="browser_use")
+    asyncio.run(main(parser.parse_args().fallback))

@@ -899,6 +899,7 @@ async def _run_one(
     script_cache=None,
     task_reserve_usd: float = 0.0,
     lifetime_cap_usd: float | None = None,
+    fallback: str = "browser_use",
 ) -> tuple[dict, float]:
     """One task on one arm. Returns the row and the probe's Claude spend so far."""
     if arm == ARM_BROWSER_USE:
@@ -934,7 +935,7 @@ async def _run_one(
     if arm == "cascade":
         from bench.cascade import run_cascade_task
 
-        row = await run_cascade_task(task, api_key=api_key, headless=headless, runs_dir=destination)
+        row = await run_cascade_task(task, api_key=api_key, headless=headless, runs_dir=destination, fallback=fallback)
     else:
         row = await run_claude_arm(
             arm,
@@ -1135,6 +1136,7 @@ async def execute_probe(
     one_task: bool = False,
     repeats: int = DEFAULT_REPEATS,
     only_kind: str = "",
+    fallback: str = "browser_use",
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -1166,6 +1168,7 @@ async def execute_probe(
             warm_replay=warm_replay,
             honest=honest,
             only_kind=only_kind,
+            fallback=fallback,
         )
     if honest:
         chosen = HONEST_ARMS
@@ -1219,6 +1222,7 @@ async def execute_probe(
             script_cache=cache,
             task_reserve_usd=task_reserve,
             lifetime_cap_usd=lifetime_cap,
+            fallback=fallback,
         )
         row["pass"] = phase
         row["repeat"] = repeat_index
@@ -1358,6 +1362,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="With one OpenAI model, use the one-task sweep subset instead of the full Claude split.",
     )
+    parser.add_argument("--fallback", choices=("browser_use", "none"), default="browser_use")
     args = parser.parse_args(argv)
     from bench.openai_run import plan_openai_probe, resolve_openai_request
     from bench.openai_spend import EffortNotAllowed, OpenAIModelNotAllowed, PriceUnknown
@@ -1416,6 +1421,7 @@ def main(argv: list[str] | None = None) -> int:
                     one_task=request["one_task"],
                     repeats=chosen_repeats,
                     only_kind=args.only_kind,
+                    fallback=args.fallback,
                 )
             )
         elif not args.execute:
@@ -1443,6 +1449,7 @@ def main(argv: list[str] | None = None) -> int:
                     honest=args.honest,
                     repeats=chosen_repeats,
                     only_kind=args.only_kind,
+                    fallback=args.fallback,
                 )
             )
     except (LedgerMissing, LedgerBelowRecorded, ProbeRefused, OpenAIModelNotAllowed, EffortNotAllowed, PriceUnknown) as exc:

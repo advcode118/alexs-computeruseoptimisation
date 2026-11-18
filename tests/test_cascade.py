@@ -64,21 +64,27 @@ def test_first_message_and_marker_tripwire(tmp_path, monkeypatch):
         monkeypatch.setattr("bench.tasks.markers_for_task", refuse)
         result = await harness.run_task(TASK_ID, DESCRIPTION, START, first_message_extra="grounding example")
         assert result.end_state == "PASS"
+        assert harness.mcp_client.gate.description == DESCRIPTION
         assert len(harness.anthropic.calls) == 1
         assert "grounding example" in harness.anthropic.calls[0]["messages"][0]["content"]
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("reject", [False, "FAIL", "precision", "error"])
+@pytest.mark.parametrize("fallback", ["browser_use", "none"])
+@pytest.mark.parametrize("reject", [False, "FAIL", "precision", "error", "empty", "attach_error", "approval", "blocked_state"])
 @pytest.mark.parametrize("provider", ["anthropic", "openai"])
-def test_cascade_wiring(tmp_path, monkeypatch, reject, provider):
+def test_cascade_wiring(tmp_path, monkeypatch, reject, provider, fallback):
     from tests.test_script_cache import _run
+    monkeypatch.setattr("bench.cascade.time.perf_counter", lambda: 100.0)
     result, _, _ = _run(tmp_path, _WikiPage({LINK: "article"}), [_script_reply(CLICK_SCRIPT)])
     if reject:
         result.steps[-1].self_check["verdict"] = "PASS" if reject == "precision" else "FAIL"
         result.steps[-1].self_check["payload"]["claimed"]["answer"] = "DO NOT LEAK"
         if reject == "precision":
             result.steps[-1].self_check["page_url"] = "https://x/search?q=example"
+    if reject == "empty":
+        result.steps[-1].self_check = None
+    monkeypatch.delenv("CU_BU_MODE", raising=False)
     def refuse(*args):
         raise AssertionError("cascade live path read task markers")
     monkeypatch.setattr("bench.tasks.markers_for_task", refuse)
@@ -97,6 +103,10 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider):
         async def teardown(self):
             pass
         async def run_task(self, *args, **kwargs):
+            assert self.mcp_client.gate.description == DESCRIPTION
+            assert self.mcp_client.gate.profile.signals
+            if reject == 'blocked_state':
+                self.mcp_client.gate.record_block('needs approval: test')
             return result
     built = []
     class Browser:
@@ -117,9 +127,11 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider):
         async def run(self, **kwargs):
             if reject == "error":
                 raise RuntimeError("mock browser failure")
-            return SimpleNamespace(usage={"input": 1, "output": 1}, steps=1, text="done")
+            return SimpleNamespace(usage={"input": 1, "output": 1, "requests": 3}, steps=1, text="done")
     monkeypatch.setattr("bench.harness.BenchmarkHarness", Harness)
     async def target_id(page):
+        if reject == "attach_error":
+            raise RuntimeError("cannot attach")
         return "script-target"
     monkeypatch.setattr("bench.cascade._page_target_id", target_id)
     def attach(browser, target):
@@ -127,15 +139,59 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider):
         return {"targetId": target, "url": "https://x/current"}
     monkeypatch.setattr("bench.browser_use_arm._attach_target", attach)
     monkeypatch.setattr("bench.cascade.ground_start_page", lambda *a, **k: {})
-    row = asyncio.run(run_cascade_task({"id": TASK_ID, "description": DESCRIPTION, "start_url": START}, api_key="mock", runs_dir=tmp_path, provider=provider, browser_use_loader=lambda: (Agent, Browser, lambda *a, **k: object())))
-    assert row["answered_by"] == ("none" if reject == "error" else "browser_use" if reject else "script")
-    assert bool(built) == bool(reject)
-    if reject:
+    if reject == 'approval':
+        from bench.recovery import TaskProfile
+        monkeypatch.setattr('bench.cascade.classify_task', lambda *a: TaskProfile('dom', 'irreversible', True, ('commit intent',)))
+    options = {"fallback": "none"} if fallback == "none" else {}
+    row = asyncio.run(run_cascade_task({"id": TASK_ID, "description": DESCRIPTION, "start_url": START}, api_key="mock", runs_dir=tmp_path, provider=provider, browser_use_loader=lambda: (Agent, Browser, lambda *a, **k: object()), **options))
+    handed_off = bool(reject) and reject not in {'approval', 'blocked_state'} and fallback == "browser_use"
+    failed = reject in {"error", "attach_error"}
+    assert row["answered_by"] == ("script" if not reject else "none" if not handed_off or failed else "browser_use")
+    assert bool(built) == handed_off
+    assert row["stage_model_calls"] == {"script": 1, "browser_use": 3 if handed_off and not failed else 0}
+    assert row["model_calls"] == sum(row["stage_model_calls"].values())
+    if reject and fallback == "none":
+        assert row["handoff_reason"]
+        assert row["stage_wall_ms"]["browser_use"] == 0
+        assert row["stage_usd"]["browser_use"] == 0
+        assert not any(row["stage_tokens"]["browser_use"].values())
+        assert row["final_url"] == result.steps[-1].page_url
+        assert row["usd"] == row["stage_usd"]["script"]
+    if handed_off and reject != "attach_error":
         assert row["handoff_target_id"] == row["browser_use_initial_target_id"]
         assert row["handoff_url"] == row["browser_use_initial_url"]
         assert "DO NOT LEAK" not in row["handoff_receipt"]
     assert set(row["stage_wall_ms"]) == {"grounding", "script", "browser_use"}
     assert row["wall_ms"] >= sum(row["stage_wall_ms"].values()) - 2
+    if reject == "FAIL" and provider == "anthropic" and fallback == "browser_use":
+        golden = json.loads((Path(__file__).parent / "fixtures/cascade_before_recovery.json").read_text())
+        comparable = dict(row)
+        comparable.pop("stage_model_calls")
+        for key in ("profile", "checkpoints", "blocked_actions"):
+            comparable.pop(key)
+        comparable["model_calls"] = golden["model_calls"]
+        assert json.loads(json.dumps(comparable)) == golden
+    from bench.probe import arm_report
+    assert arm_report([row], ("cascade",))
+
+
+def test_invalid_fallback(tmp_path):
+    with pytest.raises(ValueError, match="unknown fallback"):
+        asyncio.run(run_cascade_task({}, api_key="mock", runs_dir=tmp_path, fallback="other"))
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "openai"])
+def test_fallback_cli(monkeypatch, capsys, provider):
+    from bench.probe import main
+
+    async def execute(**kwargs):
+        assert kwargs["fallback"] == "none"
+        assert kwargs["arms"] == ("cascade",)
+        return []
+
+    monkeypatch.setattr("bench.probe.execute_probe", execute)
+    assert main(["--execute", "--arms", "cascade", "--provider", provider, "--fallback", "none"]) == 0
+    assert "probe rows: 0" in capsys.readouterr().out
 
 
 def test_source_and_saved_precision():

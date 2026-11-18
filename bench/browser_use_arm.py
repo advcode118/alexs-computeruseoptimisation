@@ -204,6 +204,7 @@ def _base_row(task_id: str) -> dict:
         "skipped": False,
         "wall_ms": 0.0,
         "steps": 0,
+        "model_calls": 0,
         "input_tokens": 0,
         "output_tokens": 0,
         "usd": 0.0,
@@ -458,6 +459,9 @@ async def run_browser_use_task(
             **extra,
         )
         result = await agent.run(max_steps=BROWSER_USE_MAX_STEPS)
+        usage = getattr(result, "usage", None)
+        if isinstance(usage, dict):
+            row["model_calls"] = int(usage.get("requests") or 0)
         if external_browser is not None:
             row["_run_finished_at"] = time.perf_counter()
         row["wall_ms"] = (time.perf_counter() - started) * 1000
