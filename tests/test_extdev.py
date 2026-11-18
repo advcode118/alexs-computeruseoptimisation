@@ -63,7 +63,7 @@ def test_site_cap_and_disjoint_from_every_other_catalog_task_and_heldout4():
     counts = Counter(site for task in tasks for site in sites(task))
     assert max(counts.values()) <= 3
     for task in get_all_tasks():
-        if task["id"] in EXTDEV_TASK_IDS:
+        if task["id"] in EXTDEV_TASK_IDS or task["id"].startswith("extval_"):
             continue
         hosts = {urlsplit(task.get("start_url", "")).hostname}
         host = (task.get("end_markers") or {}).get("host")

@@ -109,7 +109,13 @@ def _is_url(text: str) -> bool:
 
 
 def _ground_truth(task: dict) -> bool:
-    """end_markers has answer_in_text, or the expected answer is not a URL."""
+    """end_markers has answer_in_text, or the expected answer is not a URL.
+
+    A v2-only task (key_v2, no v1 markers) always needs an answer: scorer v2
+    fails an empty answer for every deliverable (docs/GRADER.md, check 6).
+    """
+    if isinstance(task.get("key_v2"), dict) and not task.get("end_markers"):
+        return True
     markers = task.get("end_markers") or {}
     if str(markers.get("answer_in_text") or "").strip():
         return True
