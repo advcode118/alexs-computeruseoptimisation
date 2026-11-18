@@ -47,6 +47,41 @@ export type Part = {
   windows?: string;
 };
 
+export const CURRENT_UPDATE = {
+  plan: [
+    "Per-stage model-call counting is done (PR #106); the grader rewrite is planned but on hold.",
+    "One checkpointed planning call, with task classification folded into it.",
+    "Executor-side safety gate: irreversible steps pause for Alex’s approval.",
+    "At most one repair call.",
+    "Later: our own interactive agent. browser-use stays as a benchmark baseline only, not the product fallback.",
+  ],
+  progress: [
+    {
+      pr: 95,
+      status: "Merged",
+      body: "browser-use priced per request.",
+    },
+    {
+      pr: 106,
+      status: "Open",
+      body: "run_recovery stage, per-stage model-call counts, --fallback none; offline, 1132 passed, 1 skipped.",
+    },
+    {
+      pr: 105,
+      status: "Open",
+      body: "Sol model/effort comparison.",
+    },
+    {
+      pr: 108,
+      status: "In progress",
+      body: "offline only — task profile, checkpoints, executor safety gate, side-effect fixtures.",
+    },
+  ],
+  continuation: "https://github.com/advcode118/alexs-computeruseoptimisation/blob/devin/1794950090-planner-gate/docs/LOW_CALL_CONTINUATION.md",
+  promise: "Speed from fewer model calls and deterministic execution. Easier maintenance through scripts you can read and rerun, instead of a model deciding each click. That is the product promise, not a measured speed or accuracy win today.",
+  baseline: "Today’s paired speed is effectively tied: cascade mean wall 25.1 s vs browser_use ultrafast 25.3 s. Sample: 22 paired extdev tasks, gpt-6.1-sol medium, 1 replicate. Recorded runs: python tools/extdev_control.py --mode default --execute and python tools/extdev_control.py --mode ultrafast --execute (CU_BU_MODE=ultrafast). The next fresh paired benchmark will provide the speed claim.",
+};
+
 export const SCALE_PAD = 10;
 
 export const GROUPS = [
@@ -58,7 +93,7 @@ export const GROUPS = [
   {
     id: "improves" as const,
     title: "These shorten the loop later",
-    lede: "The first build is already faster without them. Add one when a trace shows the planner spending time on an obvious click.",
+    lede: "Defer these until a trace shows the planner spending time on an obvious click; measure whether each addition helps.",
   },
   {
     id: "hold" as const,

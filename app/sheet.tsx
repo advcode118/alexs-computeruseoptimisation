@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import {
+  CURRENT_UPDATE,
   GROUPS,
   PARTS,
   PROPOSAL,
@@ -22,6 +23,7 @@ import {
 } from "@/data/loop";
 
 const NAV = [
+  { href: "#plan", label: "Product + plan" },
   { href: "#clock", label: "Clock" },
   { href: "#routes", label: "Routes" },
   { href: "#ways", label: "Ways" },
@@ -140,17 +142,40 @@ export function Sheet() {
       </header>
 
       <main id="top" className="overflow-x-clip">
-        <div className="mx-auto max-w-6xl px-5 pt-14 sm:px-8 sm:pt-20">
-          <h1 className="max-w-[14ch] font-serif text-6xl leading-[0.9] tracking-[-0.03em] sm:text-7xl lg:text-8xl">
-            The model looks again
-            <br />
-            <span className="italic">before it is willing to click.</span>
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted sm:text-xl">
-            Cursor, Operator, Claude in Chrome, and the other frontier models share one loop. Picture, model,
-            click, picture.
+        <section id="plan" aria-labelledby="plan-title" className="mx-auto max-w-6xl scroll-mt-32 px-5 pt-14 sm:px-8 sm:pt-20">
+          <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">Alex’s browser tool · product direction</p>
+          <h1 className="mt-4 max-w-[18ch] font-serif text-5xl leading-none tracking-[-0.03em] sm:text-7xl">Fewer model calls. Scripts you can maintain.</h1>
+          <p className="mt-6 max-w-3xl text-lg leading-relaxed text-muted">{CURRENT_UPDATE.promise}</p>
+          <h2 id="plan-title" className="mt-10 font-serif text-3xl">The low-call plan · signed off</h2>
+          <div className="mt-8 grid gap-10 lg:grid-cols-2">
+            <div>
+              <h3 className="font-mono text-sm tracking-widest uppercase">Plan</h3>
+              <ol className="mt-4 list-decimal space-y-3 pl-5 leading-relaxed text-muted">
+                {CURRENT_UPDATE.plan.map((step) => <li key={step}>{step}</li>)}
+              </ol>
+            </div>
+            <div>
+              <h3 className="font-mono text-sm tracking-widest uppercase">Progress</h3>
+              <ul className="mt-4 space-y-4 leading-relaxed text-muted">
+                {CURRENT_UPDATE.progress.map((item) => (
+                  <li key={item.pr}>
+                    <a className="text-amber underline underline-offset-4" href={`https://github.com/advcode118/alexs-computeruseoptimisation/pull/${item.pr}`}>{item.status} PR #{item.pr}</a>
+                    {": "}{item.body}
+                  </li>
+                ))}
+                <li><a className="text-amber underline underline-offset-4" href={CURRENT_UPDATE.continuation}>Continuation plan</a></li>
+              </ul>
+            </div>
+          </div>
+          <aside aria-label="Current baseline" className="mt-8 border-y border-line py-5 text-xs leading-relaxed text-muted">
+            <p><strong className="font-medium text-paper">Current baseline.</strong> {CURRENT_UPDATE.baseline}</p>
+            <p className="mt-2"><a className="underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/blob/main/docs/results/extdev_control_20261117/README.md">Extdev control evidence</a></p>
+          </aside>
+          <p className="mt-4 text-xs leading-relaxed text-muted">
+            Evidence: <a className="underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/tree/main/docs/results/extdev_hand_labels_20261117">saved-evidence hand labels</a>
+            {" · "}<a className="underline underline-offset-4" href="https://github.com/advcode118/alexs-computeruseoptimisation/pull/105">Sol comparison, PR #105</a>. These records do not establish an accuracy win.
           </p>
-        </div>
+        </section>
 
         <section className="mt-12 bg-amber text-amber-ink">
           <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-12">
