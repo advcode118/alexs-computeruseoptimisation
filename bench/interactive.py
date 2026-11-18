@@ -82,6 +82,7 @@ async def run_interactive(task, *, harness, profile, checkpoints, reason, visite
     """Up to max_calls segments on harness.mcp_client's page. Returns the stage outcome and its usage."""
     from bench.cascade import handoff_note, precision_check
     from bench.harness import page_url_from_result, self_check_record
+    from bench.openai_spend import PriceUnknown
     from bench.recovery import evaluate_checkpoints
     from bench.script_first import (
         PASS, SNAPSHOT_BEGIN, SNAPSHOT_END, ScriptError, UNKNOWN, _claimed_note, _page_url,
@@ -116,8 +117,15 @@ async def run_interactive(task, *, harness, profile, checkpoints, reason, visite
     messages: list[dict] = [{"role": "user", "content": [{"type": "text", "text": opening}] + ([image] if image else [])}]
 
     while out["model_calls"] < max_calls:
-        response, model_ms = await model.create_message(messages, TOOLS, system=INTERACTIVE_PROMPT,
-                                                        tool_choice=tool_choice)
+        try:
+            response, model_ms = await model.create_message(messages, TOOLS, system=INTERACTIVE_PROMPT,
+                                                            tool_choice=tool_choice)
+        except PriceUnknown:
+            raise
+        except Exception as exc:
+            # Like the script stage and run_recovery: end the stage, keep the usage counted so far.
+            out.update(end_state="FAIL", success_reason=f"interactive error: {type(exc).__name__}: {exc}"[:300])
+            break
         out["model_calls"] += 1
         out["model_ms"] += model_ms
         usage = response.get("usage") or {}

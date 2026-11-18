@@ -204,7 +204,7 @@ async def _grade_interactive(task, harness, stage):
     """The shared post-run page read and frozen grade, outside the stage timer."""
     from bench.browser_use_arm import _task_selector
     from bench.measurement import grade_fields
-    from bench.probe import grade_observation
+    from bench.probe import grade_observation, grade_page_answer
     from bench.script_first import read_marked_page
 
     grade_start = time.perf_counter()
@@ -217,8 +217,10 @@ async def _grade_interactive(task, harness, stage):
     ok, reason, substring_ok, substring_reason = grade_observation(
         task, url, text, selector_text=marked, answer=answer, completed=None,
         completion_reason=stage["success_reason"], run_verdict=own, claimed=claimed)
+    page_ok, page_reason = grade_page_answer(task, url, text, selector_text=marked, answer=answer, claimed=claimed)
     return {**grade_fields(url, text, marked, answer), "success": ok, "success_reason": reason,
             "substring_success": substring_ok, "substring_reason": substring_reason,
+            "page_answer_success": page_ok, "page_answer_reason": page_reason, "grade_completed": None,
             "end_state": stage["end_state"], "grade_completion_reason": stage["success_reason"],
             "grade_claim": {"url": claimed.url, "title": claimed.title, "h1": claimed.h1, "answer": claimed.answer,
                             "key_text": claimed.key_text, "values": list(claimed.values), "rejected": claimed.rejected}
@@ -297,14 +299,15 @@ async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="
                                                      "cache_write_30m_tokens", "cache_write_12h_tokens", "model_calls")}
             recovery.update(usd=_stage_usd(provider, harness.model, recovery), grade_read_ms=graded.pop("grade_read_ms"))
             row.update(graded)
-            row.update(steps=script.get("steps", 0) + len(stage["segments"]),
+            row.update(steps=script.get("steps", 0) + sum(segment["steps"] for segment in stage["segments"]),
                        interactive_segments=stage["segments"], interactive_scripts=stage["scripts"],
                        interactive_self_checks=stage["self_checks"], interactive_checkpoints=stage["checkpoints"],
                        interactive_model_ms=stage["model_ms"], interactive_tool_ms=stage["tool_ms"])
-            if stage["needs_approval"]:
+            # gate.blocked is re-read here: the in-page guard can record a block after a segment returned.
+            if stage["needs_approval"] or gate.blocked:
                 blocked = gate.blocked
                 reason = "needs approval: blocked action"
-            answered = "interactive" if stage["success"] else "none"
+            answered = "interactive" if stage["success"] and not blocked else "none"
         stage_name = "interactive" if fallback == "interactive" else "browser_use"
         token_keys = ("input_tokens", "output_tokens", "cached_tokens", "cache_write_30m_tokens", "cache_write_12h_tokens")
         row.update({key: script.get(key, 0) + recovery.get(key, 0) for key in token_keys})

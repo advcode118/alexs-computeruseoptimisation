@@ -15,6 +15,7 @@ from tests.test_script_cache import DESCRIPTION, EVIDENCE, LINK, START, TASK_ID,
 
 TEXT = TaskProfile("text", "read", False, ("read intent",))
 VISUAL = TaskProfile("visual", "read", False, ("visual task",))
+DOM = TaskProfile("dom", "read", False, ("interactive controls",))
 WIKI_TASK = {"id": TASK_ID, "description": DESCRIPTION, "start_url": START}
 GOOD = f'page.getByRole("link", {{ name: "{LINK}" }}).click();\nawait {EVIDENCE};'
 
@@ -149,7 +150,7 @@ class _ShotPage(_WikiPage):
         return b"\xff\xd8jpeg"
 
 
-@pytest.mark.parametrize("profile,shots", [(TEXT, 0), (VISUAL, 2)])
+@pytest.mark.parametrize("profile,shots", [(TEXT, 0), (DOM, 0), (VISUAL, 2)])
 def test_screenshot_only_for_visual_profiles(profile, shots):
     page = _ShotPage({LINK: "article"})
     page.state = "main"
@@ -236,17 +237,17 @@ def test_openai_adapter_sends_images():
     assert items[1] == {"role": "user", "content": [{"type": "input_image", "image_url": "data:image/jpeg;base64,QUJD"}]}
 
 
-@pytest.mark.parametrize("case", ["recover", "approval", "blocked_state", "accepted"])
-@pytest.mark.parametrize("provider", ["anthropic", "openai"])
-def test_cascade_interactive_row(tmp_path, monkeypatch, case, provider):
+def _cascade(tmp_path, monkeypatch, case="recover", provider="anthropic", model=None):
+    """run_cascade_task with a real ScriptFirstClient on a fake page, a saved script result and a mock model."""
     from bench.cascade import run_cascade_task
+    from bench.tasks import task_by_id
     from tests.test_script_cache import CLICK_SCRIPT, _run, _script_reply
 
     result, _, _ = _run(tmp_path, _WikiPage({LINK: "article"}), [_script_reply(CLICK_SCRIPT)])
     if case != "accepted":
         result.steps[-1].self_check["verdict"] = "FAIL"
     page = _main_page()
-    model = _Model([_broken(1), _segment(GOOD)])
+    model = model or _Model([_broken(1), _segment(GOOD)])
 
     class Harness:
         browser_launch_ms = 0
@@ -278,11 +279,17 @@ def test_cascade_interactive_row(tmp_path, monkeypatch, case, provider):
     def no_browser_use(*a, **k):
         raise AssertionError("interactive fallback started browser_use")
     monkeypatch.setattr("bench.cascade.run_recovery", no_browser_use)
-    from bench.tasks import task_by_id
     graded_task = task_by_id(TASK_ID)
     assert graded_task["start_url"] == START
     row = asyncio.run(run_cascade_task(graded_task, api_key="mock", runs_dir=tmp_path, provider=provider,
                                        fallback="interactive"))
+    return row, model, result
+
+
+@pytest.mark.parametrize("case", ["recover", "approval", "blocked_state", "accepted"])
+@pytest.mark.parametrize("provider", ["anthropic", "openai"])
+def test_cascade_interactive_row(tmp_path, monkeypatch, case, provider):
+    row, model, result = _cascade(tmp_path, monkeypatch, case, provider)
     ran = case == "recover"
     assert len(model.calls) == (2 if ran else 0)
     assert set(row["stage_wall_ms"]) == {"grounding", "script", "interactive"}
@@ -326,3 +333,110 @@ def test_fallback_cli_accepts_interactive_and_defaults_to_it(monkeypatch, capsys
     assert main(["--execute", "--arms", "cascade"]) == 0
     assert seen == ["interactive", "interactive"]
     assert inspect.signature(run_cascade_task).parameters["fallback"].default == "interactive"
+
+
+def test_precision_check_rejects_a_self_check_pass(monkeypatch):
+    seen = []
+
+    def reject(description, record):
+        seen.append(record["verdict"])
+        return False, "search_results_url"
+    monkeypatch.setattr("bench.cascade.precision_check", reject)
+    replies = [_segment(GOOD)] + [_segment(f"await {EVIDENCE};", f"e{n}") for n in range(INTERACTIVE_MAX_CALLS - 1)]
+    harness = _harness(_main_page(), replies)
+    out = asyncio.run(run_interactive(WIKI_TASK, harness=harness, profile=TEXT, checkpoints=[], reason="x"))
+    assert seen == ["PASS"] * 4 and out["model_calls"] == 4 and not out["success"]
+    # A capped run ends on its last verdict, not a generic FAIL: PASS that was not accepted is UNKNOWN.
+    assert out["end_state"] == "UNKNOWN" and "search_results_url" in out["success_reason"]
+    assert "did not accept this end state: search_results_url" in json.dumps(harness.anthropic.calls[1]["messages"])
+
+
+def test_raw_page_text_stays_hidden_behind_the_snapshot():
+    harness = _harness(_main_page(), [_broken(1), _segment(GOOD)])
+    asyncio.run(run_interactive(WIKI_TASK, harness=harness, profile=TEXT, checkpoints=[], reason="x"))
+    feedback = json.dumps(harness.anthropic.calls[1]["messages"][-1])
+    assert "--- PAGE NOW ---" in feedback and "Welcome to Wikipedia" not in feedback
+
+
+class _FlakyModel(_Model):
+    async def create_message(self, *args, **kwargs):
+        if len(self.calls) == 1:
+            self.calls.append({})
+            raise RuntimeError("HTTP 529 overloaded")
+        return await super().create_message(*args, **kwargs)
+
+
+def test_model_error_keeps_usage_and_ends_the_stage():
+    harness = _harness(_main_page(), [_broken(1), _segment(GOOD)])
+    harness.anthropic = _FlakyModel([_broken(1), _segment(GOOD)])
+    out = asyncio.run(run_interactive(WIKI_TASK, harness=harness, profile=TEXT, checkpoints=[], reason="x"))
+    assert out["end_state"] == "FAIL" and "interactive error: RuntimeError" in out["success_reason"]
+    assert out["model_calls"] == 1 and out["input_tokens"] == 10
+
+
+def test_unpriced_model_reply_is_not_swallowed():
+    from bench.openai_spend import PriceUnknown
+
+    class Unpriced(_Model):
+        async def create_message(self, *args, **kwargs):
+            raise PriceUnknown("unknown usage field")
+    harness = _harness(_main_page(), [])
+    harness.anthropic = Unpriced([])
+    with pytest.raises(PriceUnknown):
+        asyncio.run(run_interactive(WIKI_TASK, harness=harness, profile=TEXT, checkpoints=[], reason="x"))
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "openai"])
+def test_interactive_stage_cost_and_steps_are_exact(tmp_path, monkeypatch, provider):
+    from bench.budget import estimate_usd
+    from bench.openai_spend import price_usd
+
+    three = _segment(f'await page.goto("{START}");\n' + GOOD)
+    row, _, result = _cascade(tmp_path, monkeypatch, "recover", provider, model=_Model([_broken(1), three]))
+    expected = price_usd("gpt-6.1-sol", 20, 8, 4, 0, 0) if provider == "openai" else estimate_usd(20, 8)
+    assert row["stage_usd"]["interactive"] == pytest.approx(expected)
+    # Executed steps only: the broken segment ran 0 steps, the good one 3 (not 2 segments).
+    assert row["steps"] == result.total_steps + 3
+    # Fields graded on the script stage are recomputed or cleared for the interactive end state.
+    assert row["grade_completed"] is None
+    assert row["page_answer_success"] is True and row["grade_url"] == row["final_url"]
+
+
+def test_interactive_grade_read_is_outside_the_timer(tmp_path, monkeypatch):
+    import bench.cascade as cascade
+
+    original = cascade._grade_interactive
+
+    async def slow_grade(*args, **kwargs):
+        await asyncio.sleep(1.0)
+        return await original(*args, **kwargs)
+    monkeypatch.setattr(cascade, "_grade_interactive", slow_grade)
+    row, _, _ = _cascade(tmp_path, monkeypatch, "recover")
+    assert row["stage_wall_ms"]["interactive"] < 1000
+    assert row["wall_ms"] < sum(row["stage_wall_ms"].values()) + 1000
+
+
+def test_model_error_in_interactive_still_returns_a_charged_row(tmp_path, monkeypatch):
+    model = _FlakyModel([_broken(1), _segment(GOOD)])
+    row, _, _ = _cascade(tmp_path, monkeypatch, "recover", "openai", model=model)
+    assert row["stage_model_calls"]["interactive"] == 1
+    assert row["input_tokens"] == row["stage_tokens"]["script"]["input_tokens"] + 10
+    assert row["success"] is False and row["answered_by"] == "none"
+    assert "interactive error" in row["grade_completion_reason"]
+    # The script stage graded the article page; the interactive end state is the main page.
+    assert row["page_answer_success"] is False and "Main_Page" in row["final_url"]
+
+
+def test_late_gate_block_is_never_answered_by_interactive(tmp_path, monkeypatch):
+    import bench.interactive as interactive
+
+    original = interactive.run_interactive
+
+    async def late_block(task, *, harness, **kwargs):
+        out = await original(task, harness=harness, **kwargs)
+        harness.mcp_client.gate.record_block("needs approval: late binding")
+        return out
+    monkeypatch.setattr(interactive, "run_interactive", late_block)
+    row, _, _ = _cascade(tmp_path, monkeypatch, "recover")
+    assert row["answered_by"] == "none" and row["success"] is False
+    assert row["handoff_reason"].startswith("needs approval") and row["blocked_actions"]
