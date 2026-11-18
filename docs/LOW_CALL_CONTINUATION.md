@@ -81,7 +81,11 @@ normal execution keeps blocks terminal. No paid run was made for A.
 
 ## Remaining pieces, in order
 
-1. **PR B: owned interactive agent.** Implement `InteractiveStage`, selected by
+1. **PR B: owned interactive agent. IMPLEMENTED (offline) on `devin/interactive-stage`**:
+   `bench/interactive.py`, `--fallback interactive` now the default; `browser_use` is
+   explicit benchmark-only. Checkpoints are evaluated per segment and fed back, not a
+   PASS gate. Tests: `tests/test_interactive.py`. Original brief follows.
+   **PR B: owned interactive agent.** Implement `InteractiveStage`, selected by
    `--fallback interactive`, with hard cap **K=4 model calls**. Reuse
    `ScriptFirstClient.call_tool("run_script", ...)` and `page_snapshot`; one short
    segment/call, snapshot and checkpoint evaluation after each. Same page,

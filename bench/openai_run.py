@@ -205,7 +205,7 @@ async def _one(
     ledger: OpenAISpendLedger,
     rows: list[dict],
     sink=None,
-    fallback: str = "browser_use",
+    fallback: str = "interactive",
 ) -> None:
     from bench.probe import empty_row, run_claude_arm
 
@@ -285,7 +285,7 @@ async def execute_openai_probe(
     warm_replay: bool,
     honest: bool,
     only_kind: str = "",
-    fallback: str = "browser_use",
+    fallback: str = "interactive",
 ) -> list[dict]:
     """Run the matrix under configured run/project caps and the $15 sweep cap."""
     import os

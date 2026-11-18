@@ -185,8 +185,54 @@ async def run_recovery(task, *, harness, script, result, reason, row, api_key, h
     return fallback, browser_start
 
 
-async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="anthropic", model=None, effort=None, browser_use_loader=None, fallback="browser_use"):
-    if fallback not in {"browser_use", "none"}:
+FALLBACKS = ("interactive", "browser_use", "none")
+
+
+def _stage_usd(provider, model, usage) -> float:
+    if not usage.get("input_tokens") and not usage.get("output_tokens"):
+        return 0.0
+    if provider == "openai":
+        from bench.openai_spend import price_usd
+        return price_usd(model or "", usage.get("input_tokens", 0), usage.get("output_tokens", 0),
+                         usage.get("cached_tokens", 0), usage.get("cache_write_30m_tokens", 0),
+                         usage.get("cache_write_12h_tokens", 0))
+    from bench.budget import estimate_usd
+    return estimate_usd(usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+
+
+async def _grade_interactive(task, harness, stage):
+    """The shared post-run page read and frozen grade, outside the stage timer."""
+    from bench.browser_use_arm import _task_selector
+    from bench.measurement import grade_fields
+    from bench.probe import grade_observation
+    from bench.script_first import read_marked_page
+
+    grade_start = time.perf_counter()
+    text, marked = await read_marked_page(harness.mcp_client, _task_selector(task))
+    url = getattr(harness.mcp_client, "_grade_read_url", "") or stage["final_url"]
+    claimed = stage["claimed"]
+    answer = claimed.answer if claimed is not None else ""
+    # Only an accepted end state is a claim; a capped or blocked run is not.
+    own = "PASS" if stage["success"] else ("UNKNOWN" if stage["end_state"] != "FAIL" else "FAIL")
+    ok, reason, substring_ok, substring_reason = grade_observation(
+        task, url, text, selector_text=marked, answer=answer, completed=None,
+        completion_reason=stage["success_reason"], run_verdict=own, claimed=claimed)
+    return {**grade_fields(url, text, marked, answer), "success": ok, "success_reason": reason,
+            "substring_success": substring_ok, "substring_reason": substring_reason,
+            "end_state": stage["end_state"], "grade_completion_reason": stage["success_reason"],
+            "grade_claim": {"url": claimed.url, "title": claimed.title, "h1": claimed.h1, "answer": claimed.answer,
+                            "key_text": claimed.key_text, "values": list(claimed.values), "rejected": claimed.rejected}
+            if claimed is not None else None,
+            "final_url": url, "grade_read_ms": (time.perf_counter() - grade_start) * 1000}
+
+
+async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="anthropic", model=None, effort=None, browser_use_loader=None, fallback="interactive"):
+    """Grounding, script stage, precision check, then the selected recovery stage.
+
+    `interactive` is the product path. `browser_use` is a benchmark comparison only, and
+    `none` stops after the script stage.
+    """
+    if fallback not in FALLBACKS:
         raise ValueError(f"unknown fallback {fallback!r}")
     from bench.arms import SCRIPT_FIRST_MAX_CALLS
     from bench.harness import BenchmarkHarness
@@ -236,19 +282,46 @@ async def run_cascade_task(task, *, api_key, headless=True, runs_dir, provider="
             row["final_url"] = recovery.get("page_url", "")
             row["steps"] = script.get("steps", 0) + recovery.get("steps", 0)
             answered = "none" if recovery.get("success_reason", "").startswith("browser_use run failed") or recovery.get("skipped") else "browser_use"
+        if not accept and not blocked and not profile.needs_approval and fallback == "interactive":
+            from bench.interactive import run_interactive
+
+            stage_start = time.perf_counter()
+            stage = await run_interactive(
+                task, harness=harness, profile=profile, checkpoints=checkpoints, reason=reason,
+                visited=[step.page_url for step in result.steps if step.page_url],
+                earlier=[check.get("payload") for check in checks])
+            finished = time.perf_counter()
+            browser_ms = (finished - stage_start) * 1000
+            graded = await _grade_interactive(task, harness, stage)
+            recovery = {key: stage[key] for key in ("input_tokens", "output_tokens", "cached_tokens",
+                                                     "cache_write_30m_tokens", "cache_write_12h_tokens", "model_calls")}
+            recovery.update(usd=_stage_usd(provider, harness.model, recovery), grade_read_ms=graded.pop("grade_read_ms"))
+            row.update(graded)
+            row.update(steps=script.get("steps", 0) + len(stage["segments"]),
+                       interactive_segments=stage["segments"], interactive_scripts=stage["scripts"],
+                       interactive_self_checks=stage["self_checks"], interactive_checkpoints=stage["checkpoints"],
+                       interactive_model_ms=stage["model_ms"], interactive_tool_ms=stage["tool_ms"])
+            if stage["needs_approval"]:
+                blocked = gate.blocked
+                reason = "needs approval: blocked action"
+            answered = "interactive" if stage["success"] else "none"
+        stage_name = "interactive" if fallback == "interactive" else "browser_use"
         token_keys = ("input_tokens", "output_tokens", "cached_tokens", "cache_write_30m_tokens", "cache_write_12h_tokens")
         row.update({key: script.get(key, 0) + recovery.get(key, 0) for key in token_keys})
         row.update(arm="cascade", answered_by=answered, handoff_reason="" if accept else reason,
                    profile=asdict(profile), blocked_actions=blocked,
                    checkpoints=[evaluate_checkpoints(checkpoints, check.get("payload") or {}) for check in checks],
                    wall_ms=(finished - started) * 1000 - result.grade_read_ms,
-                   stage_wall_ms={"grounding": grounding_ms, "script": (script_end-script_start)*1000-result.grade_read_ms, "browser_use": browser_ms},
-                   stage_model_calls={"script": script.get("model_calls", 0), "browser_use": recovery.get("model_calls", 0)},
+                   stage_wall_ms={"grounding": grounding_ms, "script": (script_end-script_start)*1000-result.grade_read_ms, stage_name: browser_ms},
+                   stage_model_calls={"script": script.get("model_calls", 0), stage_name: recovery.get("model_calls", 0)},
                    model_calls=script.get("model_calls", 0) + recovery.get("model_calls", 0),
-                   stage_usd={"script": script["usd"], "browser_use": recovery.get("usd", 0)},
-                   stage_tokens={"script": {key: script.get(key, 0) for key in token_keys}, "browser_use": {key: recovery.get(key, 0) for key in token_keys}},
+                   stage_usd={"script": script["usd"], stage_name: recovery.get("usd", 0)},
+                   stage_tokens={"script": {key: script.get(key, 0) for key in token_keys}, stage_name: {key: recovery.get(key, 0) for key in token_keys}},
                    usd=script["usd"] + recovery.get("usd", 0),
                    grounding={"ok": not bool(grounding.get("error")), "error": grounding.get("error", ""), "links": len(grounding.get("links", [])), "forms": len(grounding.get("forms", [])), "h1": grounding.get("h1", "")})
+        if blocked or profile.needs_approval:
+            # Stopped for the user's approval: never a pass, whatever the script stage graded.
+            row.update(success=False, end_state="UNKNOWN", success_reason="UNKNOWN: " + reason)
         for key in ("scripts", "self_checks", "task_description", "start_url"):
             row[key] = script.get(key)
         row["browser_launch_ms"] = harness.browser_launch_ms

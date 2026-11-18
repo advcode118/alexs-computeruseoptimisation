@@ -11,14 +11,32 @@ The script runner retains its existing one-repair maximum. A PASS must also
 survive structural precision checks: concise single-line answer, non-search
 URL, non-landing page for navigation tasks, and matching claimed/live URL.
 
-Rejected attempts hand off to browser_use via CDP in the same Chrome, at its
+`--fallback` picks the recovery stage for a rejected script attempt:
+
+- `interactive` (default, the product path, `bench/interactive.py`): the same
+  model continues on the same page in short segments, at most 4 calls, each at
+  most 6 lines. Every segment runs through `ScriptFirstClient.call_tool("run_script")`,
+  so the same grammar, executor and ActionGate apply, and is judged by the same
+  `script_runtime_verdict` plus `precision_check`. After each segment the goal
+  checkpoints are evaluated (row field `interactive_checkpoints`) and unmet ones
+  are shown to the model with a fresh `page_snapshot`; they do not gate PASS.
+  A screenshot is sent only when the task profile is `visual`. A gate block ends
+  the task as UNKNOWN / needs approval. No answer key is read during the stage.
+- `browser_use`: benchmark comparison only, never the product fallback.
+- `none`: stop after the script stage.
+
+A task stopped for approval (profile or gate block) is never a pass in the row.
+
+With `browser_use`, rejected attempts hand off via CDP in the same Chrome, at its
 current URL. The handoff carries the original task, URL history and rule name,
 not the scripted answer or page evidence. Navigation is allowed. Only the
 harness owns and closes Chrome. Post-run grading remains unchanged.
 
 ## Rows and timing
 
-`answered_by` is script, browser_use or none (browser_use error).
+`answered_by` is script, interactive, browser_use or none (no accepted answer,
+approval needed, or browser_use error). The stage dicts below use the selected
+recovery stage's name (`interactive` or `browser_use`).
 `handoff_reason` names the rejecting rule or verdict. `stage_wall_ms` contains
 grounding, script and browser_use; `stage_usd` and `stage_tokens` contain each
 model stage. Top-level usage sums both stages, including cache reads/writes.

@@ -899,7 +899,7 @@ async def _run_one(
     script_cache=None,
     task_reserve_usd: float = 0.0,
     lifetime_cap_usd: float | None = None,
-    fallback: str = "browser_use",
+    fallback: str = "interactive",
 ) -> tuple[dict, float]:
     """One task on one arm. Returns the row and the probe's Claude spend so far."""
     if arm == ARM_BROWSER_USE:
@@ -1136,7 +1136,7 @@ async def execute_probe(
     one_task: bool = False,
     repeats: int = DEFAULT_REPEATS,
     only_kind: str = "",
-    fallback: str = "browser_use",
+    fallback: str = "interactive",
 ) -> list[dict]:
     """Run the matrix. Claude arms are skipped when the key is missing or the cap is hit.
 
@@ -1362,7 +1362,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="With one OpenAI model, use the one-task sweep subset instead of the full Claude split.",
     )
-    parser.add_argument("--fallback", choices=("browser_use", "none"), default="browser_use")
+    parser.add_argument("--fallback", choices=("interactive", "browser_use", "none"), default="interactive",
+                        help="cascade recovery stage: interactive (product, default), browser_use (benchmark comparison only), none")
     args = parser.parse_args(argv)
     from bench.openai_run import plan_openai_probe, resolve_openai_request
     from bench.openai_spend import EffortNotAllowed, OpenAIModelNotAllowed, PriceUnknown
