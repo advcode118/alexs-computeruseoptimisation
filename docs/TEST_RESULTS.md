@@ -1,5 +1,21 @@
 # Test results: current scoreboard
 
+## 18 Nov 2026: paired live run (newest; supersedes the "bottom line" below)
+
+Pre-registered, 18 fresh external tasks (`extval`), gpt-6.1-sol medium, one run per arm, scorer v2.
+Full details, raw rows, deviations and checks: [`results/paired_run_20261118/`](results/paired_run_20261118/README.md).
+
+| Arm | Pass | Calls mean / p90 | Wall mean / p90 | $/task | $/pass |
+|---|---:|---:|---:|---:|---:|
+| script stage → our InteractiveStage | 4/18 | 4.3 / 6 | 21.7 s / 32.9 s | 0.041 | 0.185 |
+| script stage → browser-use (benchmark) | 12/18 | 8.9 / 24 | 41.1 s / 85.4 s | 0.067 | 0.101 |
+| browser-use alone, ultrafast | 11/18 | 9.7 / 17 | 57.8 s / 141.7 s | 0.072 | 0.117 |
+
+Our own interactive recovery is faster and cheaper per task but recovered 1 of 14 tasks, so it is not
+yet competitive. The script stage with browser-use as recovery is the best measured setup; browser-use
+remains the benchmark, and the bar our own recovery stage has to reach. Older sections below were
+graded with the v1 grader and are kept for history.
+
 Last rewritten 17 Nov 2026 on `devin/1794873658-slim-cascade-core` (stacked on the frozen-grader branch, PR #84).
 This file replaces the 10 Nov write-up (18 easy tasks, 2.8–3.2 s, 18/18). That write-up is in git history; it is not the current picture.
 

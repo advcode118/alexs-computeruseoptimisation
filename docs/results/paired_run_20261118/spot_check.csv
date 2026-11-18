@@ -1,0 +1,14 @@
+arm,task_id,grader,hand_label,agrees,note
+cascade+interactive,extval_nav_real_madrid_ucl_schedule,PASS,correct,yes,ESPN Real Madrid UCL fixtures page
+cascade+interactive,extval_nav_nfl_super_bowl_2015_scoreboard,PASS,correct,yes,2015 postseason week 5 scoreboard; key accepts XLIX or 50
+cascade+browser_use,extval_nav_nfl_super_bowl_2015_scoreboard,FAIL,correct,no,"same correct page as arm A; v2 check 6 fails any empty answer, even for a page task (grader too strict)"
+cascade+interactive,extval_value_roviocon_theme_series,FAIL,wrong,yes,"reported answer has both facts, but the stage never accepted it (cap reached): nothing is delivered to the user"
+cascade+browser_use,extval_value_roviocon_theme_series,PASS,correct,yes,both facts
+cascade+interactive,extval_value_cambridge_feel_giddy_synonyms,PASS,correct,yes,"feel dizzy, whirl, spin, reel"
+browser_use,extval_nav_real_madrid_ucl_schedule,FAIL,correct,no,"right fixtures page on espn.co.uk (UK geolocation); key host is espn.com only"
+browser_use,extval_nav_darienlake_gift_shops,FAIL,partial,yes,"shop list mostly right but final page is a qr1.be shortener, not sixflags.com"
+cascade+browser_use,extval_value_kingdom_rush_prize_comic,PASS,correct,yes,GDC trip with All Access pass; Kingdom Rush comic
+browser_use,extval_filter_amazon_womens_hiking_boots,PASS,correct,yes,"URL carries waterproof, 4 stars & up and size 6 filters"
+cascade+interactive,extval_value_cambridge_present_perfect,FAIL,partial,yes,"right grammar page, answer is only the page title, no examples"
+browser_use,extval_value_hf_trainer_parameters,FAIL,ambiguous,unclear,"long write-up that may contain the parameters; v2 dump guard rejects on length"
+cascade+browser_use,extval_nav_spothero_love_field,PASS,correct,yes,search results near DAL

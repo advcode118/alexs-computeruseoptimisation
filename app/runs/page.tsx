@@ -3,8 +3,15 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Measured runs — Computer-use optimisation",
   description:
-    "Timed router runs. The 36s, 48s, and 17s figures on the clock are sketches.",
+    "Paired live run against browser-use (18 Nov 2026), older timed router runs, and which clock figures are sketches.",
 };
+
+// Paired live run, 18 Nov 2026: docs/results/paired_run_20261118 (summary.json, raw rows).
+const paired = [
+  { arm: "Script, then our interactive stage", ours: true, passed: "4/18", calls: "4.3 / 6", wall: "21.7s / 32.9s", usd: "$0.041", perPass: "97.7s · $0.185" },
+  { arm: "Script, then browser-use (benchmark)", ours: false, passed: "12/18", calls: "8.9 / 24", wall: "41.1s / 85.4s", usd: "$0.067", perPass: "61.7s · $0.101" },
+  { arm: "browser-use alone, ultrafast", ours: false, passed: "11/18", calls: "9.7 / 17", wall: "57.8s / 141.7s", usd: "$0.072", perPass: "94.5s · $0.117" },
+];
 
 const sketches = [
   { time: "36s", what: "Screenshot every step, in a browser" },
@@ -32,10 +39,54 @@ export default function RunsPage() {
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-20">
-        <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">Measured</p>
-        <h1 className="mt-4 max-w-[16ch] font-serif text-6xl leading-[0.9] tracking-[-0.03em] sm:text-7xl">
+        <section aria-labelledby="paired-title">
+          <p className="font-mono text-[11px] tracking-[0.22em] text-amber uppercase">Measured · 18 Nov 2026</p>
+          <h1 id="paired-title" className="mt-4 max-w-[20ch] font-serif text-5xl leading-[0.95] tracking-[-0.03em] sm:text-6xl">
+            Faster per task, but not yet good enough.
+          </h1>
+          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
+            Our own interactive recovery is the fastest and cheapest arm per task, but it passes 4 of 18 tasks
+            against 11 for browser-use alone, so per successful task it is slower and more expensive. 18 fresh,
+            pre-registered external tasks, gpt-6.1-sol at medium effort, one run per arm, graded with scorer v2.
+            One run cannot separate differences of a task or two.
+          </p>
+          <div className="mt-10 overflow-x-auto border-y border-line">
+            <table className="w-full min-w-[44rem] text-left text-sm">
+              <thead className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
+                <tr>
+                  <th className="py-4 pr-4 font-normal">Arm</th>
+                  <th className="py-4 pr-4 font-normal">Passed</th>
+                  <th className="py-4 pr-4 font-normal">Calls mean / p90</th>
+                  <th className="py-4 pr-4 font-normal">Wall mean / p90</th>
+                  <th className="py-4 pr-4 font-normal">$ / task</th>
+                  <th className="py-4 font-normal">Per pass</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {paired.map((row) => (
+                  <tr key={row.arm}>
+                    <td className={`py-4 pr-4 ${row.ours ? "text-amber" : ""}`}>{row.arm}</td>
+                    <td className="py-4 pr-4 font-mono">{row.passed}</td>
+                    <td className="py-4 pr-4 font-mono text-muted">{row.calls}</td>
+                    <td className="py-4 pr-4 font-mono text-muted">{row.wall}</td>
+                    <td className="py-4 pr-4 font-mono text-muted">{row.usd}</td>
+                    <td className="py-4 font-mono text-muted">{row.perPass}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-6 max-w-2xl text-muted">
+            Our interactive stage ran on 14 tasks and recovered 1; browser-use as the recovery stage ran on 15 and
+            recovered 10. browser-use is the benchmark, not our product fallback: the next step is making our own
+            stage recover tasks.
+          </p>
+        </section>
+
+        <p className="mt-20 font-mono text-[11px] tracking-[0.22em] text-muted uppercase">Older · router runs</p>
+        <h2 className="mt-4 max-w-[16ch] font-serif text-5xl leading-[0.9] tracking-[-0.03em] sm:text-6xl">
           Seven runs on this router.
-        </h1>
+        </h2>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
           Wall-clock time includes launching Chrome. The bars on the clock page were not remeasured.
         </p>
