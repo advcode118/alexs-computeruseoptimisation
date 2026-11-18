@@ -142,12 +142,16 @@ def test_cascade_wiring(tmp_path, monkeypatch, reject, provider, fallback):
     if reject == 'approval':
         from bench.recovery import TaskProfile
         monkeypatch.setattr('bench.cascade.classify_task', lambda *a: TaskProfile('dom', 'irreversible', True, ('commit intent',)))
-    options = {"fallback": "none"} if fallback == "none" else {}
+    options = {"fallback": fallback}
     row = asyncio.run(run_cascade_task({"id": TASK_ID, "description": DESCRIPTION, "start_url": START}, api_key="mock", runs_dir=tmp_path, provider=provider, browser_use_loader=lambda: (Agent, Browser, lambda *a, **k: object()), **options))
     handed_off = bool(reject) and reject not in {'approval', 'blocked_state'} and fallback == "browser_use"
     failed = reject in {"error", "attach_error"}
     assert row["answered_by"] == ("script" if not reject else "none" if not handed_off or failed else "browser_use")
     assert bool(built) == handed_off
+    if reject in {"approval", "blocked_state"}:
+        # A task stopped for approval is not a pass, whatever the script stage graded.
+        assert row["success"] is False and row["end_state"] == "UNKNOWN"
+        assert row["success_reason"].startswith("UNKNOWN: needs approval")
     assert row["stage_model_calls"] == {"script": 1, "browser_use": 3 if handed_off and not failed else 0}
     assert row["model_calls"] == sum(row["stage_model_calls"].values())
     if reject and fallback == "none":
