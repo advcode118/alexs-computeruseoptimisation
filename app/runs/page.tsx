@@ -79,7 +79,8 @@ export default function RunsPage() {
           <p className="mt-6 max-w-2xl text-muted">
             Our interactive stage ran on 14 tasks and recovered 1; browser-use as the recovery stage ran on 15 and
             recovered 10. browser-use is the benchmark, not our product fallback: the next step is making our own
-            stage recover tasks.
+            stage recover tasks. Pass rates are approximate: a blind labeller agreed with the scorer on 36 of 54
+            rows, and counting its labels instead gives 6, 12 and 13 of 18, the same conclusion.
           </p>
         </section>
 
