@@ -84,8 +84,7 @@ KEYS_V2 = {
         "basis": "v1 marker."},
     "extdev_search_booking_la_filters": {
         "deliverable": "both", "host": "booking.com",
-        "pages": [{"path": "/city/us/los-angeles"},
-                  {"path": "/searchresults", "query": {"ss": {"contains": ["los angeles"]}}}],
+        "pages": [{"path": "/city/us/los-angeles.html"}],
         "facts": [{"any": ["Property rating", "5 stars", "4 stars", "3 stars", "2 stars", "1 star", "Review score",
                            "Wonderful: 9+", "Very Good: 8+", "Good: 7+", "Pleasant: 6+"], "min": 2}],
         "reference": "Property rating: 5 stars, 4 stars, 3 stars, 2 stars, 1 star; Review score: Wonderful: 9+, "
@@ -145,7 +144,7 @@ KEYS_V2.update({
         "basis": "v1 URL key; reference is the World Cup table the task asks for."},
     "extdev_nav_nets_schedule": {
         "deliverable": "page", "host": "espn.com",
-        "pages": [{"path": "/nba/team/schedule/_/name/bkn"}],
+        "pages": [{"path": "/nba/team/schedule/_/name/bkn/brooklyn-nets"}],
         "reference": "https://www.espn.com/nba/team/schedule/_/name/bkn/brooklyn-nets",
         "basis": "v1 URL key."},
     "extdev_nav_fiestatexas_events": {
@@ -221,10 +220,11 @@ KEYS_V2.update({
         "basis": "v1 parts."},
     "extdev_value_hf_pytorch_tensorflow": {
         "deliverable": "answer", "host": "huggingface.co",
-        "facts": [["from_pt=True"], ["save_pretrained"]],
-        "reference": "Load the PyTorch checkpoint into a TF class with TFAutoModel.from_pretrained(..., from_pt=True) "
-                     "and save it with save_pretrained.",
-        "basis": "v1 parts; the blog-specific config path is not a required step."},
+        "facts": [["from_pt=True"], ["TFAutoModel.from_pretrained("],
+                  ['AutoConfig.from_pretrained("./pt_model/config.json")'], ["save_pretrained"]],
+        "reference": 'from_pt=True; TFAutoModel.from_pretrained(; AutoConfig.from_pretrained("./pt_model/config.json"); '
+                     "save_pretrained",
+        "basis": "v1 parts unchanged."},
     "extdev_value_cambridge_innovate": {
         "deliverable": "answer", "host": "dictionary.cambridge.org",
         "facts": [["/ˈɪn.ə.veɪt/"], ["The fashion industry is always desperate to innovate."]],
@@ -233,9 +233,9 @@ KEYS_V2.update({
     "extdev_filter_green_xbox_controller": {
         "deliverable": "both", "host": "amazon.com",
         "pages": [{"path": "/s", "path_mode": "prefix", "query": {"rh": {"has": "p_72:1248885011"}}}],
-        "facts": [["green"], ["Xbox"]],
+        "facts": [["XBOX Wireless Gaming Controller | Velocity Green"]],
         "reference": "XBOX Wireless Gaming Controller | Velocity Green",
-        "basis": "v1 rating filter; answer must name a green Xbox controller."},
+        "basis": "v1 rating filter and v1 marker unchanged."},
     "extdev_value_booking_parent": {
         "deliverable": "answer", "host": "booking.com", "facts": [["Booking Holdings"]],
         "reference": "Booking Holdings Inc.", "basis": "v1 marker."},
