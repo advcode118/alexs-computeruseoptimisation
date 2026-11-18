@@ -26,7 +26,7 @@ Plain Playwright MCP and Stagehand are the baselines it races.
 
 ## Latest numbers: paired live run, 18 Nov 2026
 
-**Our own interactive recovery is not good enough yet.** Per task it is the fastest and cheapest arm, but it passes 4 of 18 tasks against 11 for browser-use alone, so per *successful* task it is slower and more expensive. The best setup measured is our script stage with browser-use as the recovery stage. browser-use stays a benchmark, so the next work is making our own recovery stage good enough to replace it.
+**Our own interactive recovery is not good enough yet.** Per task it is the fastest and cheapest arm, but it passes 4 of 18 tasks against 11 for browser-use alone, so per *successful* task it is slower and more expensive. Our script stage with browser-use as the recovery stage matches browser-use alone on accuracy (within noise) while being faster and cheaper per task and per pass. browser-use stays a benchmark, so the next work is making our own recovery stage good enough to replace it.
 
 18 fresh external tasks (`extval`, pre-registered, never seen by any model before the run), `gpt-6.1-sol` at medium effort, 1 run per arm, graded with scorer v2. Plan: [`paired_run_plan.md`](docs/results/paired_run_plan.md). Raw rows and details: [`docs/results/paired_run_20261118/`](docs/results/paired_run_20261118/).
 
@@ -37,6 +37,8 @@ Plain Playwright MCP and Stagehand are the baselines it races.
 | browser-use alone, ultrafast | 11/18 | 9.7 / 17 | 57.8s / 141.7s | $0.072 | 94.5s | $0.117 |
 
 Our interactive stage ran on 14 tasks and recovered 1. browser-use as recovery ran on 15 and recovered 10. One run of 18 tasks cannot separate differences of a task or two. Total spend $3.42 of a $5 cap.
+
+Pass rates are approximate: a blind labeller agreed with the scorer on only 36 of 54 rows, mostly the scorer being too strict on the browser-use arms. Counting the labeller's "correct" instead gives 6/18, 12/18 and 13/18, so the conclusion is the same.
 
 ### Older numbers (superseded)
 

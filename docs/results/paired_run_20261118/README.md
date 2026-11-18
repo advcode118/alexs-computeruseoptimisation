@@ -9,8 +9,9 @@ browser-use 1.0.6 `ultrafast`, Windows 11 / Python 3.14, run from branch `devin/
 
 **Not a win.** Our own interactive recovery is the fastest and cheapest arm per task, but it is far
 less accurate, and per *successful* task it is slower and more expensive than both browser-use arms.
-The best configuration measured is our script stage with browser-use as the recovery stage, which
-beats browser-use alone on pass rate, mean wall time and cost. browser-use stays a benchmark, so this
+Our script stage with browser-use as the recovery stage matches browser-use alone on accuracy
+(12 vs 11 by the grader, 12 vs 13 by the blind labels: within noise) and is faster and cheaper per
+task and per pass. browser-use stays a benchmark, so this
 is the bar our own recovery stage has to reach.
 
 | Arm | Attempted | Pass | Pass rate | Calls mean | Calls p90 | Wall mean (s) | Wall p90 (s) | $/task | $ total | Wall s/pass | $/pass |
@@ -52,7 +53,22 @@ Read from the saved segments (`interactive_scripts`, `interactive_segments` in t
   arms: an empty answer on a correct page (B, `nfl_super_bowl`), a correct page on `espn.co.uk` after
   a UK redirect (C, `real_madrid`), and a long answer the dump guard rejected (C, `hf_trainer`, ambiguous).
   None changes the conclusion; correcting them would widen the gap.
-- **Blind labels**: BLIND_LABELS_PLACEHOLDER
+- **Blind labels**: one Opus labeller saw only task text, final URL, answer and saved page text
+  (arms hidden, no grader verdicts, no keys). Labels: 31 correct, 14 partial, 9 wrong (`labels.csv`,
+  `label_agreement.json`). **Scorer v2 agrees with the blind labels on 36 of 54 rows (66.7%)**:
+  11 grader FAIL / label correct, 7 grader PASS / label not correct (6 of them partial).
+  - This is the first test of scorer v2 on tasks it was not written on, and it is **well below the 90%
+    target** reached in-sample on extdev (PR #109). Real v2 over-strictness seen here: the `both` key for
+    Cambridge present perfect demands specific example sentences (B and C gave other valid examples),
+    the dump guard rejects long correct Trainer write-ups (B, C), `espn.co.uk` after a UK redirect (C),
+    and one Amazon filter URL and one SpotHero facility page (B).
+  - Most grader-PASS / label-partial rows are the labeller being stricter than the cited keys: the fact
+    (GDC prize, RovioCon theme, Gil tutorial, Jan 2024 update) is not in the 6,000-character saved page
+    text, although the key cites it from the source page. One is the Super Bowl XLIX/50 ambiguity.
+  - Label-based pass ("correct" only): cascade+interactive 6/18 (two of them answers our stage found but
+    never accepted, so nothing was delivered), cascade+browser_use 12/18, browser_use alone 13/18.
+    **The conclusion does not change:** our interactive path is far behind; the two browser-use arms
+    are within noise of each other.
 
 ## Deviations from the plan
 

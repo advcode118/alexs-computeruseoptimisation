@@ -12,7 +12,9 @@ Full details, raw rows, deviations and checks: [`results/paired_run_20261118/`](
 | browser-use alone, ultrafast | 11/18 | 9.7 / 17 | 57.8 s / 141.7 s | 0.072 | 0.117 |
 
 Our own interactive recovery is faster and cheaper per task but recovered 1 of 14 tasks, so it is not
-yet competitive. The script stage with browser-use as recovery is the best measured setup; browser-use
+yet competitive. A blind labeller agreed with scorer v2 on only 36/54 rows (66.7%), so scorer v2 is not yet
+validated on fresh tasks; label-based pass is 6/18, 12/18, 13/18, the same conclusion.
+The script stage with browser-use as recovery is among the best measured setups; browser-use
 remains the benchmark, and the bar our own recovery stage has to reach. Older sections below were
 graded with the v1 grader and are kept for history.
 

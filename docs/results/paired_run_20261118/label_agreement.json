@@ -1,0 +1,162 @@
+{
+  "n": 54,
+  "strict_agreement": 36,
+  "strict_agreement_pct": 66.7,
+  "grader_pass_label_not_correct": 7,
+  "grader_fail_label_correct": 11,
+  "confusion": {
+    "grader_FAIL|label_correct": 11,
+    "grader_FAIL|label_partial": 8,
+    "grader_FAIL|label_wrong": 8,
+    "grader_PASS|label_correct": 20,
+    "grader_PASS|label_partial": 6,
+    "grader_PASS|label_wrong": 1
+  },
+  "per_arm": {
+    "cascade+interactive": {
+      "wrong": 8,
+      "grader_pass": 4,
+      "correct": 6,
+      "partial": 4
+    },
+    "browser_use": {
+      "partial": 5,
+      "grader_pass": 11,
+      "correct": 13
+    },
+    "cascade+browser_use": {
+      "partial": 5,
+      "grader_pass": 12,
+      "wrong": 1,
+      "correct": 12
+    }
+  },
+  "disagreements": [
+    {
+      "arm": "cascade+interactive",
+      "task": "nav_nfl_super_bowl_2015_scoreboard",
+      "grader": "PASS",
+      "label": "wrong",
+      "why": "Page is Super Bowl 50 (Feb 2016), not the 2015 Super Bowl."
+    },
+    {
+      "arm": "browser_use",
+      "task": "value_roviocon_theme_series",
+      "grader": "PASS",
+      "label": "partial",
+      "why": "Series name confirmed on page; RovioCon theme 'Slingshot to Stardom' not shown in page text."
+    },
+    {
+      "arm": "cascade+browser_use",
+      "task": "value_kingdom_rush_prize_comic",
+      "grader": "PASS",
+      "label": "partial",
+      "why": "2012 comic confirmed on page; GDC prize not shown in page text."
+    },
+    {
+      "arm": "cascade+browser_use",
+      "task": "filter_amazon_womens_hiking_boots",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "Search URL carries waterproof, 4-star and size refinements; filter labels not visible in page text."
+    },
+    {
+      "arm": "cascade+browser_use",
+      "task": "value_cambridge_present_perfect",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "Correct Cambridge present perfect simple grammar page; answer gives form and examples."
+    },
+    {
+      "arm": "cascade+browser_use",
+      "task": "value_roviocon_theme_series",
+      "grader": "PASS",
+      "label": "partial",
+      "why": "Series name confirmed; RovioCon theme not shown in page text."
+    },
+    {
+      "arm": "cascade+interactive",
+      "task": "value_icse_2002_deadlines",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "Deadlines page: full papers Sept 25 2001, doctoral Jan 6 2002, listed in answer."
+    },
+    {
+      "arm": "cascade+browser_use",
+      "task": "value_icse_2002_gil_tutorial",
+      "grader": "PASS",
+      "label": "partial",
+      "why": "Page text cut before Gil tutorial; tutorial title answer cannot be confirmed as the language."
+    },
+    {
+      "arm": "browser_use",
+      "task": "value_cambridge_present_perfect",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "Correct grammar page; answer covers form, uses, and examples."
+    },
+    {
+      "arm": "cascade+interactive",
+      "task": "value_cambridge_present_perfect",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "Final page is the Cambridge present perfect simple grammar page; answer is only the title."
+    },
+    {
+      "arm": "cascade+browser_use",
+      "task": "value_hf_trainer_parameters",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "Explains custom-dataset Trainer workflow and lists 13 Trainer parameters."
+    },
+    {
+      "arm": "browser_use",
+      "task": "nav_nfl_super_bowl_2015_scoreboard",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "ESPN scoreboard for Super Bowl XLIX, Feb 1 2015 (Patriots v Seahawks)."
+    },
+    {
+      "arm": "browser_use",
+      "task": "value_icse_2002_gil_tutorial",
+      "grader": "PASS",
+      "label": "partial",
+      "why": "Page text cut before Gil tutorial; answer unconfirmed as the language."
+    },
+    {
+      "arm": "browser_use",
+      "task": "value_hf_trainer_parameters",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "On Trainer docs; explains workflow and lists Trainer constructor parameters."
+    },
+    {
+      "arm": "cascade+interactive",
+      "task": "nav_darienlake_gift_shops",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "Final page is Six Flags Darien Lake (NY) shops page; answer text is nav junk."
+    },
+    {
+      "arm": "cascade+browser_use",
+      "task": "filter_spothero_wheelchair_times_square",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "Facility page for 120 W 45th St shows Wheelchair Accessible."
+    },
+    {
+      "arm": "cascade+browser_use",
+      "task": "value_junkworld_launch_update",
+      "grader": "PASS",
+      "label": "partial",
+      "why": "Sept 22 2023 confirmed; January 2024 date of daily rewards not shown."
+    },
+    {
+      "arm": "browser_use",
+      "task": "nav_real_madrid_ucl_schedule",
+      "grader": "FAIL",
+      "label": "correct",
+      "why": "ESPN Real Madrid UEFA Champions League fixtures page."
+    }
+  ]
+}
