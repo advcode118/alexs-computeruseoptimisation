@@ -440,3 +440,26 @@ def test_late_gate_block_is_never_answered_by_interactive(tmp_path, monkeypatch)
     row, _, _ = _cascade(tmp_path, monkeypatch, "recover")
     assert row["answered_by"] == "none" and row["success"] is False
     assert row["handoff_reason"].startswith("needs approval") and row["blocked_actions"]
+
+
+def test_oversized_result_does_not_crash_the_stage(monkeypatch):
+    # Live run 2026-11-18, extval_value_hf_trainer_parameters: budget_script_result refused to cut
+    # a large result and the ValueError escaped the stage, losing the row and its spend.
+    def too_big(*args, **kwargs):
+        raise ValueError("Script result metadata exceeds tool-result budget; refusing to cut JSON")
+    monkeypatch.setattr("bench.script_first.model_visible_script_result", too_big)
+    harness = _harness(_main_page(), [_broken(1), _segment(GOOD)])
+    out = asyncio.run(run_interactive(WIKI_TASK, harness=harness, profile=TEXT, checkpoints=[], reason="x"))
+    assert out["success"] and out["model_calls"] == 2
+    assert "--- PAGE NOW ---" in json.dumps(harness.anthropic.calls[1]["messages"][-1])
+
+
+def test_any_segment_error_keeps_usage_and_ends_the_stage(monkeypatch):
+    harness = _harness(_main_page(), [_broken(1), _segment(GOOD)])
+
+    async def broken_executor(*args, **kwargs):
+        raise RuntimeError("Target page, context or browser has been closed")
+    monkeypatch.setattr(harness.mcp_client, "call_tool", broken_executor)
+    out = asyncio.run(run_interactive(WIKI_TASK, harness=harness, profile=TEXT, checkpoints=[], reason="x"))
+    assert out["end_state"] == "FAIL" and "interactive error: RuntimeError" in out["success_reason"]
+    assert out["model_calls"] == 1 and out["input_tokens"] == 10 and len(harness.anthropic.replies) == 1
