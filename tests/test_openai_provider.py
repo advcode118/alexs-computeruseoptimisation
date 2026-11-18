@@ -117,7 +117,9 @@ def test_allow_list_is_exactly_the_priced_models():
     assert ALLOWED_OPENAI_MODELS == ("gpt-6.1-sol", "gpt-6-luna", "gpt-6.2-astra", "gpt-6.2-sol")
     for model in ALLOWED_OPENAI_MODELS:
         assert assert_openai_model(model) == model
-        expected = ("medium",) if model.startswith("gpt-6.2-") else ("low", "medium", "high", "xhigh")
+        expected = {"gpt-6.2-astra": ("medium",), "gpt-6.2-sol": ("low", "medium")}.get(
+            model, ("low", "medium", "high", "xhigh")
+        )
         assert efforts_for(model) == expected
     for name in REFUSED:
         with pytest.raises(OpenAIModelNotAllowed):
@@ -136,7 +138,7 @@ def test_unknown_effort_is_refused_and_xhigh_is_accepted():
 
 
 @pytest.mark.parametrize("model,multiplier", [("gpt-6.2-astra", 4), ("gpt-6.2-sol", 1)])
-def test_gpt62_standard_prices_and_medium_only(model, multiplier):
+def test_gpt62_standard_prices_and_allowed_efforts(model, multiplier):
     for incoming, outgoing, cached, write30, write12 in (
         (0, 0, 0, 0, 0), (100_000, 1200, 20_000, 30_000, 10_000),
         (300_000, 1200, 20_000, 30_000, 10_000),
@@ -144,7 +146,13 @@ def test_gpt62_standard_prices_and_medium_only(model, multiplier):
         assert price_usd(model, incoming, outgoing, cached, write30, write12) == pytest.approx(
             multiplier * price_usd("gpt-6.1-sol", incoming, outgoing, cached, write30, write12)
         )
-    for invalid in ("", "low", "high", "none"):
+    assert assert_effort(model, "medium") == "medium"
+    if model == "gpt-6.2-sol":
+        assert responses_payload(model, [], [], "", 32, "low")["reasoning"] == {"effort": "low"}
+    else:
+        with pytest.raises(EffortNotAllowed):
+            assert_effort(model, "low")
+    for invalid in ("", "high", "none"):
         with pytest.raises(EffortNotAllowed):
             assert_effort(model, invalid)
     with pytest.raises(PriceUnknown):

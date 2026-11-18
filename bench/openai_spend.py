@@ -33,7 +33,7 @@ ALLOWED_OPENAI_MODELS = ("gpt-6.1-sol", "gpt-6-luna", "gpt-6.2-astra", "gpt-6.2-
 _FLAG_EFFORTS = ("low", "medium", "high", "minimal", "xhigh")
 _API_EFFORTS = {
     "gpt-6.2-astra": frozenset({"medium"}),
-    "gpt-6.2-sol": frozenset({"medium"}),
+    "gpt-6.2-sol": frozenset({"low", "medium"}),
     "gpt-6.1-sol": frozenset({"low", "medium", "high", "xhigh", "max"}),
     "gpt-6-luna": frozenset({"none", "low", "medium", "high", "xhigh", "max"}),
 }

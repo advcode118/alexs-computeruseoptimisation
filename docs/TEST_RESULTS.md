@@ -94,3 +94,12 @@ browser_use was run at version 1.0.3 in default mode. `CU_BU_MODE=ultrafast` and
 1. Baseline control: browser-use newest (default and `ultrafast`), Playwright MCP and current script_first, Sol medium, on a fresh external task sample. If ultrafast is ≤ 12 s at ≥ 95%, the target moves.
 2. The cascade: Sol script_first (≤ 1 repair, precision-first self-check) → warm browser_use at the current URL. Report pass rate, **mean** and p90 wall time, and $/task against the best baseline.
 3. heldout4: a new pre-registered external claim set, run once on the frozen cascade.
+
+## 7. Approved Sol follow-up, 17 Nov 2026 (indicative only)
+
+Browser_use-only comparison on #103's same 12 extdev tasks, one cold run per
+setting: new `gpt-6.2-sol` low and `gpt-6.1-sol` medium, reused `gpt-6.2-sol`
+medium. Exact commands, task IDs, per-setting time/cost/AI hand-label accuracy
+and ICSE date sensitivity: [report](results/extdev_sol_effort_20261117/README.md).
+These are AI-made labels, not human ground truth or a fresh general accuracy
+claim. New recorded OpenAI spend $1.836904; final ledger $10.420862 / $22.
