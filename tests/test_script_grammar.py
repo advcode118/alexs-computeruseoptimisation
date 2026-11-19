@@ -73,6 +73,11 @@ def test_supplied_25_idioms(row):
     assert steps[0].kind == "goto"
     page, _ = fake_page()
     payload = json.loads(asyncio.run(run_on_page(page, row["source"])).splitlines()[0])
+    if row["idiom"] in {"form evaluate submission", "getByPlaceholder fill + button submit"}:
+        assert payload["ok"] is False
+        assert payload["blocked_actions"]
+        assert "needs approval" in payload["error"]
+        return
     assert payload["ok"] is True
     assert payload["steps"] == len(steps)
 

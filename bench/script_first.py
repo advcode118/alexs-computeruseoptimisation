@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from bench.judge import is_search_results_url
+from bench.recovery import ActionGate, ApprovalRequired, configure_gate
 
 # Navigation waits for DOMContentLoaded, not load or networkidle.
 # A click or Enter returns before the next document is current. This wait
@@ -94,7 +95,9 @@ _PAGE_EVIDENCE_JS = r"""() => {
     const pair = role + "\n" + name;
     if (seen.has(pair)) continue;
     seen.add(pair);
-    controls.push({ role, name });
+    const control = { role, name };
+    if (['textbox', 'searchbox', 'combobox'].includes(role) && node.type !== 'password' && node.value) control.value = String(node.value).slice(0, 400);
+    controls.push(control);
   }
   const links = [];
   const seenHrefs = new Set();
@@ -389,7 +392,7 @@ class PageEvidence:
     h1: str = ""
     text: str = ""
     selector_text: str = ""
-    controls: tuple[str, ...] = ()
+    controls: tuple[str | dict, ...] = ()
     links: tuple[tuple[str, str], ...] = ()
     # Page headings, h1 to h6. The self-check reads them; the model never sees this field.
     headings: tuple[str, ...] = ()
@@ -1383,6 +1386,8 @@ def script_runtime_verdict(
         task=task,
         earlier=tuple(_earlier_page(item) for item in earlier or () if isinstance(item, dict)),
     )
+    if payload.get("blocked_actions"):
+        verdict = EvidenceVerdict(UNKNOWN, "needs approval: blocked action", page_url)
     return verdict, payload
 
 
@@ -1947,12 +1952,15 @@ def format_run_result(
     controls: list | tuple | None = None,
     links: list | tuple | None = None,
     headings: list | tuple | None = None,
+    blocked_actions: list | None = None,
 ) -> str:
     """JSON for the live page plus Stagehand-style goto prose.
 
     `url` is the browser's URL. It is not rewritten. `- Page URL:` is last.
     """
     payload: dict = {"ok": ok, "url": url, "steps": step_count}
+    if blocked_actions:
+        payload.update(ok=False, blocked_actions=blocked_actions, error=blocked_actions[-1]['reason'])
     if error:
         payload["error"] = error
     shown = [item for item in (extracted or []) if str(item).strip()]
@@ -1976,6 +1984,8 @@ def format_run_result(
                 shown_controls.append({"role": role, "name": name})
         elif isinstance(item, dict) and str(item.get("name") or "").strip():
             shown_controls.append({"role": str(item.get("role") or ""), "name": str(item.get("name") or "")})
+            if item.get('value'):
+                shown_controls[-1]['value'] = str(item['value'])
     if shown_controls:
         payload["controls"] = shown_controls
     if links:
@@ -2326,7 +2336,7 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
     text = page_text_from_evidence(data)
     canonical = data.get("canonical") if isinstance(data.get("canonical"), str) else ""
     h1 = data.get("h1") if isinstance(data.get("h1"), str) else ""
-    pairs: list[str] = []
+    pairs: list[str | dict] = []
     raw_controls = data.get("controls") if isinstance(data.get("controls"), list) else []
     for item in raw_controls:
         if isinstance(item, dict):
@@ -2337,7 +2347,8 @@ async def collect_page_evidence(page, *, selector: str = "") -> PageEvidence:
         else:
             continue
         if name.strip():
-            pairs.append(f"{role}\t{name}")
+            pairs.append({"role": role, "name": name, "value": str(item['value'])}
+                         if isinstance(item, dict) and item.get('value') else f"{role}\t{name}")
     return PageEvidence(
         url=url,
         title=title,
@@ -2383,6 +2394,7 @@ async def _finish_page(
     claimed: dict,
     end_markers: dict | None,
     wait_for_commit: bool,
+    blocked_actions: list | None = None,
 ) -> str:
     """Read the live page after the script. The URL is not rewritten."""
     if wait_for_commit:
@@ -2406,6 +2418,7 @@ async def _finish_page(
         controls=evidence.controls,
         links=evidence.links,
         headings=evidence.headings,
+        blocked_actions=blocked_actions,
     )
 
 
@@ -2414,12 +2427,23 @@ def _page_url(page) -> str:
     return url if isinstance(url, str) else ""
 
 
-async def _run_step_on_page(page, step: TaskStep):
+async def _run_step_on_page(page, step: TaskStep, *, gate=None):
+    gate = gate or ActionGate()
+    if gate.blocked:
+        raise ApprovalRequired(gate.blocked[-1]['reason'])
+    allowed, reason = await gate.check(step, page)
+    if not allowed:
+        gate.record_block(reason, step)
+        raise ApprovalRequired(reason)
     if step.kind == "evaluate":
-        return await asyncio.wait_for(
-            page.evaluate(wrap_evaluate(step.function)),
-            timeout=_EVALUATE_TIMEOUT_S,
-        )
+        try:
+            return await asyncio.wait_for(
+                page.evaluate(wrap_evaluate(step.function)),
+                timeout=_EVALUATE_TIMEOUT_S,
+            )
+        finally:
+            if gate.blocked:
+                raise ApprovalRequired(gate.blocked[-1]['reason'])
     if step.kind == "helper":
         if step.helper is None:
             raise ScriptError(f"line {step.line}: missing helper")
@@ -2486,6 +2510,7 @@ async def run_on_page(
     source: str,
     *,
     end_markers: dict | None = None,
+    gate=None,
 ) -> str:
     """Run the whole script on a Playwright page. No settle between actions.
 
@@ -2495,6 +2520,7 @@ async def run_on_page(
     harness reads the live URL, canonical link, h1, and main text itself.
     """
     steps = parse_task_script(source)
+    gate = gate or ActionGate()
     done = 0
     extracted: list[str] = []
     claimed: dict = {}
@@ -2502,19 +2528,21 @@ async def run_on_page(
     ok, error = True, ""
     try:
         for step in steps:
-            value = await _run_step_on_page(page, step)
+            value = await _run_step_on_page(page, step, gate=gate)
             done += 1
             if step.kind == "evaluate":
                 claimed = _note_extract(extracted, claimed, value)
             elif step.kind == "read":
                 read_claimed = _note_extract(extracted, read_claimed, value)
+    except ApprovalRequired as exc:
+        ok, error = False, str(exc)
     except ScriptError:
         raise
     except Exception as exc:
         ok, error = False, str(exc)
     if not (claimed.get("answer") or claimed.get("key_text")):
         claimed = {**read_claimed, **claimed}
-    return await _finish_page(
+    result = await _finish_page(
         page,
         ok=ok,
         step_count=done,
@@ -2523,7 +2551,9 @@ async def run_on_page(
         claimed=claimed,
         end_markers=end_markers,
         wait_for_commit=not ok or (bool(steps) and steps[-1].kind != "goto"),
+        blocked_actions=gate.blocked,
     )
+    return result
 
 
 
@@ -2533,7 +2563,9 @@ async def run_on_page(
 class ScriptFirstClient:
     """One run_script tool on a private local Chrome profile."""
 
-    def __init__(self, headless: bool = True, page=None, remote_debugging: bool = False):
+    def __init__(self, headless: bool = True, page=None, remote_debugging: bool = False,
+                 *, description: str = "", profile=None):
+        configure_gate(self, description=description, profile=profile)
         self.remote_debugging = remote_debugging
         self.cdp_url = ""
         self.headless = headless
@@ -2691,8 +2723,9 @@ class ScriptFirstClient:
             return f"unknown tool {name}", 0.0
         code = (arguments or {}).get("code") or (arguments or {}).get("script") or ""
         try:
-            text = await run_on_page(self._page, code, end_markers=self.end_markers)
+            text = await run_on_page(self._page, code, end_markers=self.end_markers, gate=self.gate)
         except ScriptError as exc:
-            text = format_run_result(ok=False, url=_page_url(self._page), step_count=0, error=str(exc))
+            text = format_run_result(ok=False, url=_page_url(self._page), step_count=0, error=str(exc),
+                                     blocked_actions=self.gate.blocked)
         elapsed_ms = (time.perf_counter() - start) * 1000
         return text, elapsed_ms

@@ -219,6 +219,22 @@ def _seed(tmp_path) -> ScriptCache:
     return cache
 
 
+def test_cached_approval_block_is_terminal(tmp_path, monkeypatch):
+    cache = _seed(tmp_path)
+    original = cache.path.read_text()
+    async def blocked(self, name, arguments):
+        self.gate.record_block('needs approval: test')
+        return format_run_result(ok=False, url=START, step_count=0,
+                                 blocked_actions=self.gate.blocked), 0.0
+    monkeypatch.setattr(ScriptFirstClient, 'call_tool', blocked)
+    result, model, cache = _run(tmp_path, _WikiPage({LINK: 'article'}), [])
+    assert model.calls == []
+    assert result.end_state == UNKNOWN and not result.success
+    assert 'needs approval' in result.success_reason
+    assert cache.path.read_text() == original
+    assert len(result.steps) == 1
+
+
 def test_cache_hit_passes_with_zero_model_calls(tmp_path):
     cache = _seed(tmp_path)
     stored = json.loads(cache.path.read_text(encoding="utf-8"))["entries"]
